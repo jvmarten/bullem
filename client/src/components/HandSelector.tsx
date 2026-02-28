@@ -4,13 +4,13 @@ import {
   isHigherHand, getHandTypeName,
 } from '@bull-em/shared';
 import type { HandCall, Rank, Suit } from '@bull-em/shared';
+import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 
 interface Props {
   currentHand: HandCall | null;
   onSubmit: (hand: HandCall) => void;
 }
 
-// Minimum highRank for a straight is 5 (A-2-3-4-5) and up to A (10-J-Q-K-A)
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
 
 export function HandSelector({ currentHand, onSubmit }: Props) {
@@ -25,7 +25,6 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       case HandType.PAIR: return { type: HandType.PAIR, rank };
       case HandType.TWO_PAIR: {
         if (rank === rank2) return null;
-        // Enforce ordering: highRank must be higher
         const [high, low] = RANK_VALUES[rank] > RANK_VALUES[rank2]
           ? [rank, rank2] : [rank2, rank];
         return { type: HandType.TWO_PAIR, highRank: high, lowRank: low };
@@ -76,13 +75,15 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
   }, [hand, currentHand, rank, rank2, handType, needsRank2, needsStraightRank]);
 
   return (
-    <div className="bg-green-800/60 rounded-lg p-4 space-y-3">
+    <div className="glass-raised p-4 space-y-3 animate-slide-up">
       <div>
-        <label className="block text-xs text-green-300 mb-1">Hand Type</label>
+        <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
+          Hand Type
+        </label>
         <select
           value={handType}
           onChange={(e) => setHandType(Number(e.target.value) as HandType)}
-          className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+          className="w-full select-felt"
         >
           {Object.values(HandType)
             .filter((v): v is HandType => typeof v === 'number')
@@ -97,11 +98,13 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       <div className="flex gap-3">
         {needsRank && (
           <div className="flex-1">
-            <label className="block text-xs text-green-300 mb-1">Rank</label>
+            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
+              Rank
+            </label>
             <select
               value={rank}
               onChange={(e) => setRank(e.target.value as Rank)}
-              className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full select-felt"
             >
               {ALL_RANKS.map((r) => (
                 <option key={r} value={r}>{r}</option>
@@ -112,11 +115,13 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
         {needsStraightRank && (
           <div className="flex-1">
-            <label className="block text-xs text-green-300 mb-1">High Card</label>
+            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
+              High Card
+            </label>
             <select
               value={RANK_VALUES[rank] >= 5 ? rank : '5'}
               onChange={(e) => setRank(e.target.value as Rank)}
-              className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full select-felt"
             >
               {STRAIGHT_RANKS.map((r) => (
                 <option key={r} value={r}>{r}</option>
@@ -128,13 +133,13 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
         {needsRank2 && (
           <>
             <div className="flex-1">
-              <label className="block text-xs text-green-300 mb-1">
+              <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
                 {handType === HandType.FULL_HOUSE ? 'Three of' : 'Rank 1'}
               </label>
               <select
                 value={rank}
                 onChange={(e) => setRank(e.target.value as Rank)}
-                className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full select-felt"
               >
                 {ALL_RANKS.map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -142,13 +147,13 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-green-300 mb-1">
+              <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
                 {handType === HandType.FULL_HOUSE ? 'Pair of' : 'Rank 2'}
               </label>
               <select
                 value={rank2}
                 onChange={(e) => setRank2(e.target.value as Rank)}
-                className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full select-felt"
               >
                 {ALL_RANKS.filter(r => r !== rank).map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -160,14 +165,16 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
         {needsSuit && (
           <div className="flex-1">
-            <label className="block text-xs text-green-300 mb-1">Suit</label>
+            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
+              Suit
+            </label>
             <select
               value={suit}
               onChange={(e) => setSuit(e.target.value as Suit)}
-              className="w-full bg-green-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full select-felt"
             >
               {ALL_SUITS.map((s) => (
-                <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
+                <option key={s} value={s}>{SUIT_SYMBOLS[s]} {s[0].toUpperCase() + s.slice(1)}</option>
               ))}
             </select>
           </div>
@@ -175,17 +182,13 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       </div>
 
       {validationMsg && (
-        <p className="text-xs text-red-400">{validationMsg}</p>
+        <p className="text-xs text-[var(--danger)]">{validationMsg}</p>
       )}
 
       <button
         onClick={handleSubmit}
         disabled={!isValid}
-        className={`w-full py-3 rounded-lg font-bold text-lg transition-all duration-150 ${
-          isValid
-            ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900 active:scale-[0.98]'
-            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-        }`}
+        className="w-full btn-gold py-3 text-lg"
       >
         Call Hand
       </button>

@@ -30,8 +30,8 @@ export function GamePage() {
       <Layout>
         <div className="flex items-center justify-center pt-16">
           <div className="text-center space-y-3">
-            <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-green-300">Loading game...</p>
+            <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-[var(--gold-dim)]">Loading game&hellip;</p>
           </div>
         </div>
       </Layout>
@@ -51,15 +51,21 @@ export function GamePage() {
 
   return (
     <Layout>
-      <div className="space-y-4">
-        <div className="flex justify-between items-center text-sm text-green-400">
-          <span>Round {gameState.roundNumber}</span>
-          <span className="font-mono tracking-wider">{roomCode}</span>
+      <div className={`space-y-4 ${isEliminated ? 'spectating' : ''}`}>
+        {/* Top bar */}
+        <div className="flex justify-between items-center text-xs">
+          <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
+            Round {gameState.roundNumber}
+          </span>
+          <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
         </div>
 
+        {/* Spectator banner */}
         {isEliminated && (
-          <div className="text-center bg-gray-800/60 border border-gray-600 rounded-lg p-2 animate-fade-in">
-            <p className="text-gray-300 text-sm font-medium">Spectating</p>
+          <div className="text-center glass p-2 animate-fade-in">
+            <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
+              Spectating
+            </p>
           </div>
         )}
 
@@ -76,19 +82,24 @@ export function GamePage() {
           myPlayerId={playerId}
         />
 
+        {/* Current call display */}
         {gameState.currentHand && (
-          <div className="text-center bg-green-800/50 rounded-lg p-3 animate-slide-up">
-            <p className="text-xs text-green-400">Current Call</p>
-            <p className="text-lg font-bold text-yellow-300">
+          <div className="text-center glass-raised p-3 animate-slide-up">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+              Current Call
+            </p>
+            <p className="font-display text-xl font-bold text-[var(--gold)] mt-1">
               {handToString(gameState.currentHand)}
             </p>
           </div>
         )}
 
+        {/* My cards */}
         {!isEliminated && <HandDisplay cards={gameState.myCards} />}
 
         <CallHistory history={gameState.turnHistory} />
 
+        {/* Action buttons */}
         {!isEliminated && (
           <ActionButtons
             roundPhase={gameState.roundPhase}
@@ -101,6 +112,7 @@ export function GamePage() {
           />
         )}
 
+        {/* Hand selector for calling */}
         {canCallHand && (
           <HandSelector
             currentHand={gameState.currentHand}
@@ -108,6 +120,7 @@ export function GamePage() {
           />
         )}
 
+        {/* Hand selector for last chance raise */}
         {isLastChanceCaller && (
           <HandSelector
             currentHand={gameState.currentHand}
@@ -115,15 +128,20 @@ export function GamePage() {
           />
         )}
 
+        {/* Round transition overlay */}
         {roundTransition && !roundResult && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="fixed inset-0 flex items-center justify-center z-50"
+               style={{ background: 'var(--overlay)' }}>
             <div className="text-center space-y-3 animate-fade-in">
-              <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-green-300 text-lg font-medium">Next round starting...</p>
+              <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[var(--gold)] font-display text-lg font-semibold">
+                Next round starting&hellip;
+              </p>
             </div>
           </div>
         )}
 
+        {/* Round result overlay */}
         {roundResult && (
           <RevealOverlay
             result={roundResult}

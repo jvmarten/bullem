@@ -78,10 +78,12 @@ export function LobbyPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center pt-16">
-          <div className="text-center space-y-4 w-full max-w-xs">
-            <h2 className="text-xl font-bold text-green-300">Join Room {roomCode}</h2>
+          <div className="text-center space-y-4 w-full max-w-xs animate-fade-in">
+            <h2 className="font-display text-2xl font-bold text-[var(--gold)]">
+              Join Room {roomCode}
+            </h2>
             {displayError && (
-              <div className="bg-red-900/50 border border-red-600 rounded-lg px-4 py-2 text-sm text-red-200">
+              <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
                 {displayError}
               </div>
             )}
@@ -92,18 +94,19 @@ export function LobbyPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleManualJoin()}
               placeholder="Enter your name"
               maxLength={20}
-              className="w-full px-4 py-3 bg-green-800/50 border border-green-600 rounded-lg text-green-100 placeholder-green-500 focus:outline-none focus:border-yellow-400"
+              autoFocus
+              className="w-full input-felt"
             />
             <button
               onClick={handleManualJoin}
               disabled={!joinName.trim() || joining}
-              className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98] disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="w-full btn-gold py-3 text-lg"
             >
-              {joining ? 'Joining...' : 'Join'}
+              {joining ? 'Joining\u2026' : 'Join'}
             </button>
             <button
               onClick={() => navigate('/')}
-              className="text-green-400 hover:text-white text-sm transition-colors"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
             >
               Back to Home
             </button>
@@ -117,13 +120,13 @@ export function LobbyPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center pt-16">
-          <div className="text-center space-y-3">
-            <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-green-300">
-              {joining ? 'Joining room...' : `Connecting to room ${roomCode}...`}
+          <div className="text-center space-y-3 animate-fade-in">
+            <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-[var(--gold-dim)]">
+              {joining ? 'Joining room\u2026' : `Connecting to room ${roomCode}\u2026`}
             </p>
             {displayError && (
-              <p className="text-red-300 text-sm">{displayError}</p>
+              <p className="text-[var(--danger)] text-sm">{displayError}</p>
             )}
           </div>
         </div>
@@ -136,24 +139,27 @@ export function LobbyPage() {
 
   return (
     <Layout>
-      <div className="space-y-6 pt-4">
+      <div className="space-y-6 pt-4 animate-fade-in">
+        {/* Room code display */}
         <div className="text-center">
-          <p className="text-sm text-green-400">Room Code</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
+            Room Code
+          </p>
           <button
             onClick={copyRoomCode}
-            className="text-4xl font-bold tracking-[0.3em] hover:text-yellow-300 transition-colors cursor-pointer"
+            className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)] hover:text-[var(--gold-light)] transition-colors cursor-pointer"
             title="Click to copy"
           >
             {roomState.roomCode}
           </button>
-          <p className="text-sm text-green-400 mt-1">
+          <p className="text-sm text-[var(--gold-dim)] mt-1.5">
             {copied ? (
-              <span className="text-yellow-300">Copied!</span>
+              <span className="text-[var(--gold-light)] animate-fade-in">Copied!</span>
             ) : (
               <>
                 {roomState.players.length} player{roomState.players.length !== 1 ? 's' : ''} in lobby
-                {' · '}
-                <span className="text-green-500 cursor-pointer hover:text-green-300" onClick={copyRoomCode}>
+                {' \u00b7 '}
+                <span className="cursor-pointer hover:text-[var(--gold)] transition-colors" onClick={copyRoomCode}>
                   tap code to copy
                 </span>
               </>
@@ -162,7 +168,7 @@ export function LobbyPage() {
         </div>
 
         {displayError && (
-          <div className="bg-red-900/50 border border-red-600 rounded-lg px-4 py-2 text-sm text-red-200 animate-fade-in">
+          <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
             {displayError}
           </div>
         )}
@@ -174,21 +180,19 @@ export function LobbyPage() {
             <button
               onClick={handleStartGame}
               disabled={!canStart}
-              className={`w-full py-3 rounded-lg font-bold text-lg transition-all duration-150 ${
-                canStart
-                  ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900 active:scale-[0.98]'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              }`}
+              className="w-full btn-gold py-3 text-lg"
             >
               {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
             </button>
           )}
           {!isHost && (
-            <p className="text-center text-green-300 text-sm">Waiting for host to start...</p>
+            <p className="text-center text-[var(--gold-dim)] text-sm">
+              Waiting for host to start&hellip;
+            </p>
           )}
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-green-400 hover:text-white text-sm transition-colors text-center"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
           >
             Leave Room
           </button>
