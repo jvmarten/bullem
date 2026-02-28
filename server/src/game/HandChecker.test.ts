@@ -250,4 +250,106 @@ describe('HandChecker.findMatchingCards', () => {
     expect(result!.filter(c => c.rank === 'K')).toHaveLength(3);
     expect(result!.filter(c => c.rank === '5')).toHaveLength(2);
   });
+
+  it('finds three of a kind cards', () => {
+    const cards = [
+      card('9', 'spades'), card('9', 'hearts'), card('9', 'diamonds'), card('2', 'clubs'),
+    ];
+    const result = HandChecker.findMatchingCards(cards, { type: HandType.THREE_OF_A_KIND, rank: '9' });
+    expect(result).toHaveLength(3);
+    expect(result!.every(c => c.rank === '9')).toBe(true);
+  });
+
+  it('finds flush cards (5 of same suit)', () => {
+    const cards = [
+      card('2', 'hearts'), card('5', 'hearts'), card('8', 'hearts'),
+      card('J', 'hearts'), card('A', 'hearts'), card('3', 'spades'),
+    ];
+    const result = HandChecker.findMatchingCards(cards, { type: HandType.FLUSH, suit: 'hearts' });
+    expect(result).toHaveLength(5);
+    expect(result!.every(c => c.suit === 'hearts')).toBe(true);
+  });
+
+  it('finds four of a kind cards', () => {
+    const cards = [
+      card('2', 'spades'), card('2', 'hearts'), card('2', 'diamonds'),
+      card('2', 'clubs'), card('A', 'spades'),
+    ];
+    const result = HandChecker.findMatchingCards(cards, { type: HandType.FOUR_OF_A_KIND, rank: '2' });
+    expect(result).toHaveLength(4);
+    expect(result!.every(c => c.rank === '2')).toBe(true);
+  });
+
+  it('finds straight flush cards', () => {
+    const cards = [
+      card('5', 'spades'), card('6', 'spades'), card('7', 'spades'),
+      card('8', 'spades'), card('9', 'spades'), card('K', 'hearts'),
+    ];
+    const result = HandChecker.findMatchingCards(cards, {
+      type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '9',
+    });
+    expect(result).toHaveLength(5);
+    expect(result!.every(c => c.suit === 'spades')).toBe(true);
+  });
+
+  it('finds royal flush cards', () => {
+    const cards = [
+      card('10', 'diamonds'), card('J', 'diamonds'), card('Q', 'diamonds'),
+      card('K', 'diamonds'), card('A', 'diamonds'), card('2', 'clubs'),
+    ];
+    const result = HandChecker.findMatchingCards(cards, {
+      type: HandType.ROYAL_FLUSH, suit: 'diamonds',
+    });
+    expect(result).toHaveLength(5);
+    expect(result!.every(c => c.suit === 'diamonds')).toBe(true);
+  });
+});
+
+describe('HandChecker.exists edge cases', () => {
+  it('flush among many cards of mixed suits', () => {
+    const cards = [
+      card('2', 'hearts'), card('5', 'spades'), card('8', 'hearts'),
+      card('J', 'clubs'), card('A', 'hearts'), card('3', 'hearts'),
+      card('K', 'hearts'),
+    ];
+    expect(HandChecker.exists(cards, { type: HandType.FLUSH, suit: 'hearts' })).toBe(true);
+    expect(HandChecker.exists(cards, { type: HandType.FLUSH, suit: 'spades' })).toBe(false);
+  });
+
+  it('four of a kind with only 3 cards of that rank', () => {
+    const cards = [
+      card('A', 'spades'), card('A', 'hearts'), card('A', 'diamonds'),
+    ];
+    expect(HandChecker.exists(cards, { type: HandType.FOUR_OF_A_KIND, rank: 'A' })).toBe(false);
+  });
+
+  it('straight flush ace-low (A-2-3-4-5 in same suit)', () => {
+    const cards = [
+      card('A', 'clubs'), card('2', 'clubs'), card('3', 'clubs'),
+      card('4', 'clubs'), card('5', 'clubs'),
+    ];
+    expect(HandChecker.exists(cards, {
+      type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: '5',
+    })).toBe(true);
+  });
+
+  it('royal flush requires all 5 specific cards in suit', () => {
+    // Missing Q
+    const cards = [
+      card('10', 'spades'), card('J', 'spades'),
+      card('K', 'spades'), card('A', 'spades'), card('9', 'spades'),
+    ];
+    expect(HandChecker.exists(cards, { type: HandType.ROYAL_FLUSH, suit: 'spades' })).toBe(false);
+  });
+
+  it('full house requires enough cards of both ranks', () => {
+    const cards = [
+      card('K', 'spades'), card('K', 'hearts'),
+      card('5', 'clubs'), card('5', 'spades'),
+    ];
+    // Only 2 Kings, need 3 for full house
+    expect(HandChecker.exists(cards, {
+      type: HandType.FULL_HOUSE, threeRank: 'K', twoRank: '5',
+    })).toBe(false);
+  });
 });

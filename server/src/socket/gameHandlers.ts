@@ -80,18 +80,16 @@ function handleResult(
       break;
 
     case 'resolve':
-      room.gamePhase = GamePhase.ROUND_RESULT;
       io.to(room.roomCode).emit('game:roundResult', result.result);
       // Start next round after a delay
       setTimeout(() => {
-        room.gamePhase = GamePhase.PLAYING;
         room.game!.startRound();
         broadcastGameState(io, room);
       }, 5000);
       break;
 
     case 'game_over':
-      room.gamePhase = GamePhase.GAME_OVER;
+      room.gamePhase = GamePhase.FINISHED;
       io.to(room.roomCode).emit('game:over', result.winnerId);
       break;
   }

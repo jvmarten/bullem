@@ -1,5 +1,5 @@
 import {
-  GamePhase, RoundPhase, TurnAction, HandType,
+  RoundPhase, TurnAction,
   STARTING_CARDS, MAX_CARDS, isHigherHand,
 } from '@bull-em/shared';
 import type {
@@ -26,6 +26,7 @@ export class GameEngine {
   private turnHistory: TurnEntry[] = [];
   private startingPlayerIndex = 0;
   private respondedPlayers = new Set<PlayerId>();
+  private lastChanceUsed = false;
 
   constructor(players: ServerPlayer[]) {
     this.players = players;
@@ -39,6 +40,7 @@ export class GameEngine {
     this.lastCallerId = null;
     this.turnHistory = [];
     this.respondedPlayers.clear();
+    this.lastChanceUsed = false;
 
     // Deal cards
     for (const p of this.getActivePlayers()) {
@@ -67,10 +69,11 @@ export class GameEngine {
     this.lastCallerId = playerId;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
 
-    // A raise resets the bull phase
+    // A raise resets the bull phase and last-chance tracking
     this.roundPhase = RoundPhase.CALLING;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
+    this.lastChanceUsed = false;
     this.advanceTurn();
     return { type: 'continue' };
   }
@@ -94,6 +97,10 @@ export class GameEngine {
         t => t.action === TurnAction.TRUE && this.isAfterLastCall(t)
       );
       if (!hasTrue) {
+        if (this.lastChanceUsed) {
+          // Caller already used their one chance to raise — resolve immediately
+          return this.resolveRound();
+        }
         // Last chance for original caller
         this.roundPhase = RoundPhase.LAST_CHANCE;
         this.currentPlayerIndex = this.getActivePlayerIndex(this.lastCallerId!);
@@ -136,7 +143,8 @@ export class GameEngine {
     }
 
     this.currentHand = hand;
-    this.addTurnEntry(playerId, TurnAction.CALL, hand);
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
+    this.lastChanceUsed = true;
     this.roundPhase = RoundPhase.BULL_PHASE;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
@@ -151,13 +159,13 @@ export class GameEngine {
     if (playerId !== this.lastCallerId) {
       return { type: 'error', message: 'Only the last caller can pass' };
     }
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_PASS);
     return this.resolveRound();
   }
 
   getClientState(playerId: PlayerId): ClientGameState {
     const player = this.players.find(p => p.id === playerId);
     return {
-      gamePhase: GamePhase.PLAYING,
       roundPhase: this.roundPhase,
       roundNumber: this.roundNumber,
       players: this.players.map(toPublicPlayer),
@@ -166,7 +174,6 @@ export class GameEngine {
       currentHand: this.currentHand,
       lastCallerId: this.lastCallerId,
       turnHistory: [...this.turnHistory],
-      startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
     };
   }
 
@@ -253,7 +260,9 @@ export class GameEngine {
   }
 
   private isAfterLastCall(entry: TurnEntry): boolean {
-    const lastCallIndex = [...this.turnHistory].reverse().findIndex(t => t.action === TurnAction.CALL);
+    const lastCallIndex = [...this.turnHistory].reverse().findIndex(
+      t => t.action === TurnAction.CALL || t.action === TurnAction.LAST_CHANCE_RAISE
+    );
     if (lastCallIndex === -1) return false;
     const actualIndex = this.turnHistory.length - 1 - lastCallIndex;
     return this.turnHistory.indexOf(entry) > actualIndex;
