@@ -25,6 +25,8 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
 
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
 const roomManager = new RoomManager();
 registerHandlers(io, roomManager);
 

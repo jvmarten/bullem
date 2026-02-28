@@ -152,6 +152,39 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 - If merge fails due to conflicts, rebase onto the target branch, resolve conflicts, force-push, then merge.
 - If merge fails due to required status checks, wait for checks to pass and retry.
 
+## Deployment
+
+Bull 'Em is deployed on [Fly.io](https://fly.io).
+
+- **App URL:** `https://bullem.fly.dev`
+- **Config:** `fly.toml` at repo root
+- **Health check:** `GET /health` returns `{ "status": "ok" }`
+
+### Manual Deploy
+
+```bash
+fly deploy
+```
+
+### CI/CD
+
+Pushes to `main` trigger `.github/workflows/deploy.yml`, which:
+1. Runs CI (build + tests) via `.github/workflows/ci.yml`
+2. Deploys to Fly.io using the Dockerfile
+
+### Required Secrets
+
+Add these to the GitHub repo settings (`Settings > Secrets > Actions`):
+- `FLY_API_TOKEN` — generate with `fly tokens create deploy -x 999999h`
+
+### First-Time Setup
+
+```bash
+fly apps create bullem
+fly tokens create deploy -x 999999h  # add output as FLY_API_TOKEN secret
+fly deploy
+```
+
 ## Development Priorities
 
 1. Core game engine (deck, deal, hand evaluation with custom rankings)
