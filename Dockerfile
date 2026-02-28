@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:20-alpine AS build
+FROM node:20.11-alpine AS build
 
 WORKDIR /app
 
@@ -18,14 +18,10 @@ COPY client/ client/
 COPY tsconfig.base.json ./
 
 # Build all packages (shared -> server -> client)
-# Server has pre-existing type errors but tsc still emits JS (noEmitOnError is not set),
-# so we allow its build step to exit non-zero without failing the image build.
-RUN npm run build -w shared && \
-    (npm run build -w server || true) && \
-    npm run build -w client
+RUN npm run build
 
 # ---- Production stage ----
-FROM node:20-alpine
+FROM node:20.11-alpine
 
 WORKDIR /app
 
@@ -47,5 +43,8 @@ ENV NODE_ENV=production
 ENV PORT=3001
 
 EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3001/ || exit 1
 
 CMD ["node", "server/dist/index.js"]
