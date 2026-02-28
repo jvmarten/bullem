@@ -11,7 +11,7 @@ interface Props {
 
 export function RevealOverlay({ result, players, onDismiss }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
-  const [countdown, setCountdown] = useState(4);
+  const [countdown, setCountdown] = useState(30);
 
   useEffect(() => {
     if (countdown <= 0) return;

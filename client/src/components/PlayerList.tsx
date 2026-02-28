@@ -43,6 +43,11 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot
                       host
                     </span>
                   )}
+                  {p.isBot && isCurrent && !p.isEliminated && (
+                    <span className="text-[10px] italic text-[var(--gold-dim)] animate-pulse">
+                      thinking&hellip;
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

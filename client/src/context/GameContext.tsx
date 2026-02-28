@@ -44,6 +44,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roundResultRef = useRef<RoundResult | null>(null);
+  const pendingGameStateRef = useRef<ClientGameState | null>(null);
+
+  // Keep roundResultRef in sync with roundResult state
+  useEffect(() => {
+    roundResultRef.current = roundResult;
+  }, [roundResult]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {
@@ -52,13 +59,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [error]);
 
-  // Auto-dismiss round result after 4 seconds
+  // Auto-dismiss round result after 30 seconds
   useEffect(() => {
     if (!roundResult) return;
     roundResultTimerRef.current = setTimeout(() => {
       setRoundResult(null);
-      setRoundTransition(true);
-    }, 4000);
+      roundResultRef.current = null;
+      if (pendingGameStateRef.current) {
+        setGameState(pendingGameStateRef.current);
+        setRoundTransition(false);
+        pendingGameStateRef.current = null;
+      } else {
+        setRoundTransition(true);
+      }
+    }, 30000);
     return () => {
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
     };
@@ -68,12 +82,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.connect();
 
     const handleNewGameState = (state: ClientGameState) => {
-      setGameState(state);
-      setRoundResult(null);
-      setRoundTransition(false);
-      if (roundResultTimerRef.current) {
-        clearTimeout(roundResultTimerRef.current);
-        roundResultTimerRef.current = null;
+      if (roundResultRef.current !== null) {
+        // Overlay is showing — defer applying new state
+        pendingGameStateRef.current = state;
+      } else {
+        setGameState(state);
+        setRoundTransition(false);
       }
     };
 
@@ -148,10 +162,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const clearRoundResult = useCallback(() => {
     setRoundResult(null);
-    setRoundTransition(true);
+    roundResultRef.current = null;
     if (roundResultTimerRef.current) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
+    }
+    if (pendingGameStateRef.current) {
+      setGameState(pendingGameStateRef.current);
+      setRoundTransition(false);
+      pendingGameStateRef.current = null;
+    } else {
+      setRoundTransition(true);
     }
   }, []);
 

@@ -41,18 +41,6 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [error]);
 
-  // Auto-dismiss round result after 4 seconds
-  useEffect(() => {
-    if (!roundResult) return;
-    roundResultTimerRef.current = setTimeout(() => {
-      setRoundResult(null);
-      setRoundTransition(true);
-    }, 4000);
-    return () => {
-      if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-    };
-  }, [roundResult]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -106,16 +94,6 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'resolve':
         setRoundResult(result.result);
-        // Start next round after delay
-        botTimerRef.current = setTimeout(() => {
-          const nextResult = engine.startNextRound();
-          if (nextResult.type === 'game_over') {
-            setWinnerId(nextResult.winnerId);
-          } else {
-            broadcastState();
-            scheduleBotTurn();
-          }
-        }, 4500);
         break;
 
       case 'game_over':
@@ -254,12 +232,33 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const clearRoundResult = useCallback(() => {
     setRoundResult(null);
-    setRoundTransition(true);
     if (roundResultTimerRef.current) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-  }, []);
+
+    // Start next round immediately after dismissing
+    const engine = engineRef.current;
+    if (!engine) return;
+    const nextResult = engine.startNextRound();
+    if (nextResult.type === 'game_over') {
+      setWinnerId(nextResult.winnerId);
+    } else {
+      broadcastState();
+      scheduleBotTurn();
+    }
+  }, [broadcastState, scheduleBotTurn]);
+
+  // Auto-dismiss round result after 30 seconds
+  useEffect(() => {
+    if (!roundResult) return;
+    roundResultTimerRef.current = setTimeout(() => {
+      clearRoundResult();
+    }, 30000);
+    return () => {
+      if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    };
+  }, [roundResult, clearRoundResult]);
 
   let botCounter = useRef(0);
 

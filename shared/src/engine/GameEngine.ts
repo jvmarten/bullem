@@ -28,6 +28,7 @@ export class GameEngine {
   private startingPlayerIndex = 0;
   private respondedPlayers = new Set<PlayerId>();
   private lastRoundResult: RoundResult | null = null;
+  private lastChanceUsed = false;
 
   constructor(players: ServerPlayer[]) {
     this.players = players;
@@ -42,6 +43,7 @@ export class GameEngine {
     this.turnHistory = [];
     this.respondedPlayers.clear();
     this.lastRoundResult = null;
+    this.lastChanceUsed = false;
 
     // Deal cards
     for (const p of this.getActivePlayers()) {
@@ -88,6 +90,7 @@ export class GameEngine {
     this.turnHistory = [];
     this.respondedPlayers.clear();
     this.lastRoundResult = null;
+    this.lastChanceUsed = false;
 
     // Re-deal cards based on each player's current card count
     for (const p of this.getActivePlayers()) {
@@ -143,10 +146,15 @@ export class GameEngine {
         t => t.action === TurnAction.TRUE && this.isAfterLastCall(t)
       );
       if (!hasTrue) {
-        // Last chance for original caller
-        this.roundPhase = RoundPhase.LAST_CHANCE;
-        this.currentPlayerIndex = this.getActivePlayerIndex(this.lastCallerId!);
-        return { type: 'last_chance', playerId: this.lastCallerId! };
+        if (!this.lastChanceUsed) {
+          // Last chance for original caller (first time only)
+          this.roundPhase = RoundPhase.LAST_CHANCE;
+          this.currentPlayerIndex = this.getActivePlayerIndex(this.lastCallerId!);
+          return { type: 'last_chance', playerId: this.lastCallerId! };
+        } else {
+          // Last chance already used — resolve immediately
+          return this.resolveRound();
+        }
       }
       return this.resolveRound();
     }
@@ -185,6 +193,7 @@ export class GameEngine {
     }
 
     this.currentHand = hand;
+    this.lastChanceUsed = true;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
     this.roundPhase = RoundPhase.BULL_PHASE;
     this.respondedPlayers.clear();
