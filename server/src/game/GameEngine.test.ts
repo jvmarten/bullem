@@ -434,6 +434,162 @@ describe('GameEngine', () => {
     });
   });
 
+  describe('full round lifecycle', () => {
+    it('deal → call → bull/true → resolve → startNextRound → new round', () => {
+      // Round 1: verify initial state
+      expect(engine.getClientState('p1').roundNumber).toBe(1);
+      expect(engine.currentPlayerId).toBe('p1');
+      expect(p1.cards.length).toBe(STARTING_CARDS);
+
+      // Force known cards so the hand check is deterministic
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: 'K', suit: 'hearts' }];
+      p3.cards = [{ rank: '2', suit: 'clubs' }];
+
+      // p1 calls high card 7 — this exists (p1 has 7 of spades)
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      expect(engine.currentPlayerId).toBe('p2');
+
+      // p2 calls bull
+      engine.handleBull('p2');
+      expect(engine.getClientState('p1').roundPhase).toBe(RoundPhase.BULL_PHASE);
+
+      // p3 calls true
+      const resolveResult = engine.handleTrue('p3');
+      expect(resolveResult.type).toBe('resolve');
+      if (resolveResult.type !== 'resolve') return;
+
+      // Hand exists (7 of spades), so bull callers (p2) are wrong
+      expect(resolveResult.result.handExists).toBe(true);
+      expect(resolveResult.result.penalties['p2']).toBe(STARTING_CARDS + 1); // p2 penalized
+      expect(resolveResult.result.penalties['p1']).toBe(STARTING_CARDS); // p1 correct
+      expect(resolveResult.result.penalties['p3']).toBe(STARTING_CARDS); // p3 correct
+      expect(p2.cardCount).toBe(2);
+
+      // Start next round
+      const nextResult = engine.startNextRound();
+      expect(nextResult.type).toBe('new_round');
+
+      // Verify round 2 state
+      const stateR2 = engine.getClientState('p1');
+      expect(stateR2.roundNumber).toBe(2);
+      expect(stateR2.roundPhase).toBe(RoundPhase.CALLING);
+      expect(stateR2.startingPlayerId).toBe('p2');
+      expect(stateR2.currentHand).toBeNull();
+      expect(stateR2.roundResult).toBeNull();
+
+      // p2 should have 2 cards now
+      expect(p2.cards.length).toBe(2);
+      expect(p1.cards.length).toBe(STARTING_CARDS);
+    });
+  });
+
+  describe('deterministic elimination and game over', () => {
+    it('eliminates player at MAX_CARDS when they are wrong, triggers game_over when 1 left', () => {
+      // 2 players: pa at 5 cards, pb at 1 card
+      const pa = makePlayer('pa', 'A', MAX_CARDS);
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb]);
+      eng.startRound();
+
+      // Force cards so the call is deterministically false
+      pa.cards = [{ rank: '2', suit: 'clubs' }, { rank: '3', suit: 'clubs' },
+                  { rank: '4', suit: 'clubs' }, { rank: '5', suit: 'clubs' },
+                  { rank: '6', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      // pa calls royal flush in spades — impossible with these cards
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      const bullResult = eng.handleBull('pb');
+      expect(bullResult.type).toBe('last_chance');
+
+      const resolveResult = eng.handleLastChancePass('pa');
+      // pa was wrong (royal flush doesn't exist), pa has 5 cards → 6 → eliminated
+      // pb is the only player left → game_over
+      expect(resolveResult.type).toBe('game_over');
+      if (resolveResult.type === 'game_over') {
+        expect(resolveResult.winnerId).toBe('pb');
+      }
+      expect(pa.isEliminated).toBe(true);
+      expect(pa.cardCount).toBe(MAX_CARDS + 1);
+    });
+
+    it('eliminates player at MAX_CARDS but game continues with 2+ remaining', () => {
+      // 3 players: pa at 5 cards, pb at 1, pc at 1
+      const pa = makePlayer('pa', 'A', MAX_CARDS);
+      const pb = makePlayer('pb', 'B', 1);
+      const pc = makePlayer('pc', 'C', 1);
+      const eng = new GameEngine([pa, pb, pc]);
+      eng.startRound();
+
+      // Force cards — no royal flush possible
+      pa.cards = [{ rank: '2', suit: 'clubs' }, { rank: '3', suit: 'clubs' },
+                  { rank: '4', suit: 'clubs' }, { rank: '5', suit: 'clubs' },
+                  { rank: '6', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+      pc.cards = [{ rank: '8', suit: 'hearts' }];
+
+      // pa calls royal flush in spades — impossible
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      eng.handleBull('pb');
+      const resolveResult = eng.handleTrue('pc');
+
+      // pa wrong (caller of non-existent hand), pc wrong (called true on non-existent)
+      // pb right (called bull on non-existent)
+      expect(resolveResult.type).toBe('resolve');
+      if (resolveResult.type !== 'resolve') return;
+
+      expect(resolveResult.result.handExists).toBe(false);
+      expect(resolveResult.result.eliminatedPlayerIds).toContain('pa');
+      expect(pa.isEliminated).toBe(true);
+      // pc also wrong but only goes from 1→2, not eliminated
+      expect(pc.cardCount).toBe(2);
+      expect(pc.isEliminated).toBe(false);
+
+      // Start next round — 2 players remain
+      const nextResult = eng.startNextRound();
+      expect(nextResult.type).toBe('new_round');
+      expect(eng.getActivePlayers().map(p => p.id)).toEqual(['pb', 'pc']);
+    });
+  });
+
+  describe('roundResult in client state', () => {
+    it('is null at start of round', () => {
+      const state = engine.getClientState('p1');
+      expect(state.roundResult).toBeNull();
+    });
+
+    it('is populated after round resolves', () => {
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: 'K', suit: 'hearts' }];
+      p3.cards = [{ rank: '2', suit: 'clubs' }];
+
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const state = engine.getClientState('p1');
+      expect(state.roundResult).not.toBeNull();
+      expect(state.roundResult!.calledHand).toEqual({ type: HandType.HIGH_CARD, rank: '7' });
+      expect(state.roundResult!.callerId).toBe('p1');
+      expect(state.roundResult!.handExists).toBe(true);
+    });
+
+    it('is cleared after startNextRound', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      // Should be populated now
+      expect(engine.getClientState('p1').roundResult).not.toBeNull();
+
+      engine.startNextRound();
+
+      // Should be cleared
+      expect(engine.getClientState('p1').roundResult).toBeNull();
+    });
+  });
+
   describe('gameOver and winnerId getters', () => {
     it('gameOver is false when multiple players remain', () => {
       expect(engine.gameOver).toBe(false);

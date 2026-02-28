@@ -26,6 +26,7 @@ export class GameEngine {
   private turnHistory: TurnEntry[] = [];
   private startingPlayerIndex = 0;
   private respondedPlayers = new Set<PlayerId>();
+  private lastRoundResult: RoundResult | null = null;
 
   constructor(players: ServerPlayer[]) {
     this.players = players;
@@ -39,6 +40,7 @@ export class GameEngine {
     this.lastCallerId = null;
     this.turnHistory = [];
     this.respondedPlayers.clear();
+    this.lastRoundResult = null;
 
     // Deal cards
     for (const p of this.getActivePlayers()) {
@@ -84,6 +86,7 @@ export class GameEngine {
     this.lastCallerId = null;
     this.turnHistory = [];
     this.respondedPlayers.clear();
+    this.lastRoundResult = null;
 
     // Re-deal cards based on each player's current card count
     for (const p of this.getActivePlayers()) {
@@ -212,6 +215,7 @@ export class GameEngine {
       lastCallerId: this.lastCallerId,
       turnHistory: [...this.turnHistory],
       startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
+      roundResult: this.lastRoundResult,
     };
   }
 
@@ -263,6 +267,7 @@ export class GameEngine {
       penalties,
       eliminatedPlayerIds,
     };
+    this.lastRoundResult = result;
 
     // Check for game over
     const remaining = this.getActivePlayers();
