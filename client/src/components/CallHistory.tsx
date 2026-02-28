@@ -15,6 +15,14 @@ export function CallHistory({ history }: { history: TurnEntry[] }) {
                 calls <span className="text-yellow-300">{handToString(entry.hand)}</span>
               </span>
             )}
+            {entry.action === TurnAction.LAST_CHANCE_RAISE && entry.hand && (
+              <span>
+                raises to <span className="text-yellow-300">{handToString(entry.hand)}</span>
+              </span>
+            )}
+            {entry.action === TurnAction.LAST_CHANCE_PASS && (
+              <span className="text-gray-400">passes</span>
+            )}
             {entry.action === TurnAction.BULL && (
               <span className="text-red-400 font-bold">BULL!</span>
             )}

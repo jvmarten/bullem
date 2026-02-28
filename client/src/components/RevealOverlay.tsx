@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { handToString } from '@bull-em/shared';
 import type { RoundResult, Player } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
@@ -8,8 +9,17 @@ interface Props {
   onDismiss: () => void;
 }
 
+const AUTO_DISMISS_SECONDS = 4;
+
 export function RevealOverlay({ result, players, onDismiss }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
+  const [countdown, setCountdown] = useState(AUTO_DISMISS_SECONDS);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -66,7 +76,7 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
           onClick={onDismiss}
           className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold transition-all duration-150 active:scale-[0.98]"
         >
-          Continue
+          {countdown > 0 ? `Continue (${countdown}s)` : 'Continue'}
         </button>
       </div>
     </div>
