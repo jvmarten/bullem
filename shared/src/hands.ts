@@ -87,7 +87,10 @@ const RANK_SINGULAR: Record<Rank, string> = {
 function straightRange(highRank: Rank): string {
   const val = RANK_VALUES[highRank];
   const lowVal = val - 4;
-  const lowRank = Object.entries(RANK_VALUES).find(([, v]) => v === lowVal)?.[0] ?? '?';
+  // Ace-low straight (A-2-3-4-5): lowVal is 1, but Ace has value 14
+  const lowRank = lowVal < RANK_VALUES['2']
+    ? 'Ace'
+    : Object.entries(RANK_VALUES).find(([, v]) => v === lowVal)?.[0] ?? '?';
   return `${lowRank} to ${RANK_SINGULAR[highRank]}`;
 }
 

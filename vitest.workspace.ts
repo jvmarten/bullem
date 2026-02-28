@@ -1,1 +1,3 @@
-export default ['shared', 'server', 'client'];
+import { defineWorkspace } from 'vitest/config';
+
+export default defineWorkspace(['shared', 'server', 'client']);
