@@ -75,9 +75,11 @@ describe('enums', () => {
     expect(HandType.ROYAL_FLUSH).toBe(9);
   });
 
-  it('GamePhase has lobby, playing, finished', () => {
+  it('GamePhase has lobby, playing, round_result, game_over, finished', () => {
     expect(GamePhase.LOBBY).toBe('lobby');
     expect(GamePhase.PLAYING).toBe('playing');
+    expect(GamePhase.ROUND_RESULT).toBe('round_result');
+    expect(GamePhase.GAME_OVER).toBe('game_over');
     expect(GamePhase.FINISHED).toBe('finished');
   });
 

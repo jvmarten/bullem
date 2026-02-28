@@ -18,3 +18,14 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
     }
   }
 }
+
+export function broadcastNewRound(io: TypedServer, room: Room): void {
+  for (const [playerId] of room.players) {
+    const socketId = room.getSocketId(playerId);
+    if (!socketId) continue;
+    const state = room.getClientGameState(playerId);
+    if (state) {
+      io.to(socketId).emit('game:newRound', state);
+    }
+  }
+}

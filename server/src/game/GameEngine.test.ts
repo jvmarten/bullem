@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GameEngine } from './GameEngine.js';
-import { HandType, RoundPhase, STARTING_CARDS } from '@bull-em/shared';
+import { GamePhase, HandType, RoundPhase, STARTING_CARDS, MAX_CARDS } from '@bull-em/shared';
 import type { ServerPlayer, HandCall, PlayerId } from '@bull-em/shared';
 
 function makePlayer(id: string, name: string, cardCount = STARTING_CARDS): ServerPlayer {
@@ -268,6 +268,191 @@ describe('GameEngine', () => {
       engine.handleBull('p2');
       // Should go to p3, skipping p1 (the caller)
       expect(engine.currentPlayerId).toBe('p3');
+    });
+  });
+
+  describe('startNextRound', () => {
+    it('rotates starting player clockwise', () => {
+      // Round 1 started with p1 (index 0 in active players)
+      const stateR1 = engine.getClientState('p1');
+      expect(stateR1.startingPlayerId).toBe('p1');
+
+      // Resolve round so we can start the next one
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const result = engine.startNextRound();
+      expect(result.type).toBe('new_round');
+
+      // Starting player should now be p2
+      const stateR2 = engine.getClientState('p1');
+      expect(stateR2.startingPlayerId).toBe('p2');
+      expect(stateR2.roundNumber).toBe(2); // startRound set it to 1, startNextRound increments to 2
+    });
+
+    it('resets round state for new round', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      engine.startNextRound();
+
+      const state = engine.getClientState('p1');
+      expect(state.roundPhase).toBe(RoundPhase.CALLING);
+      expect(state.currentHand).toBeNull();
+      expect(state.lastCallerId).toBeNull();
+      expect(state.turnHistory).toEqual([]);
+    });
+
+    it('re-deals cards based on current card counts', () => {
+      // Give p2 extra cards (simulating a penalty)
+      p2.cardCount = 3;
+
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      // Resolution may have changed card counts (penalties), capture them
+      const p1CountAfterResolve = p1.cardCount;
+      const p2CountAfterResolve = p2.cardCount;
+      const p3CountAfterResolve = p3.cardCount;
+
+      engine.startNextRound();
+
+      // Each player should be dealt exactly their current card count
+      expect(p1.cards.length).toBe(p1CountAfterResolve);
+      expect(p2.cards.length).toBe(p2CountAfterResolve);
+      expect(p3.cards.length).toBe(p3CountAfterResolve);
+    });
+
+    it('skips eliminated players when rotating starting player', () => {
+      // Eliminate p2
+      p2.isEliminated = true;
+
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      const result = engine.handleBull('p3'); // p2 is eliminated, so p3 is the only non-caller
+
+      if (result.type === 'last_chance') {
+        engine.handleLastChancePass('p1');
+      }
+
+      const nextResult = engine.startNextRound();
+      expect(nextResult.type).toBe('new_round');
+
+      // Starting player should skip p2 (eliminated) and go to p3
+      const state = engine.getClientState('p1');
+      expect(state.startingPlayerId).toBe('p3');
+    });
+
+    it('provides client state with gamePhase PLAYING', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      engine.startNextRound();
+
+      const state = engine.getClientState('p1');
+      expect(state.gamePhase).toBe(GamePhase.PLAYING);
+    });
+  });
+
+  describe('game over detection via startNextRound', () => {
+    it('returns game_over when only 1 player remains', () => {
+      // Eliminate p2 and p3
+      p2.isEliminated = true;
+      p3.isEliminated = true;
+
+      const result = engine.startNextRound();
+      expect(result.type).toBe('game_over');
+      if (result.type === 'game_over') {
+        expect(result.winnerId).toBe('p1');
+      }
+    });
+
+    it('returns game_over when eliminations during a round leave 1 player', () => {
+      // Set up: p1 has 5 cards (at MAX), p2 has 1, p3 already eliminated
+      const px = makePlayer('px', 'X', MAX_CARDS);
+      const py = makePlayer('py', 'Y', 1);
+      const pz = makePlayer('pz', 'Z', 1);
+      pz.isEliminated = true;
+      const eng = new GameEngine([px, py, pz]);
+      eng.startRound();
+
+      // px calls, py calls bull. Regardless of outcome, one will be penalized.
+      eng.handleCall('px', { type: HandType.HIGH_CARD, rank: '2' });
+      const bullResult = eng.handleBull('py');
+
+      if (bullResult.type === 'last_chance') {
+        eng.handleLastChancePass('px');
+      }
+
+      // If px was wrong and got a 6th card, they're eliminated
+      // Try to start next round — should detect game over if px is eliminated
+      const nextResult = eng.startNextRound();
+      const active = eng.getActivePlayers();
+      if (active.length <= 1) {
+        expect(nextResult.type).toBe('game_over');
+      } else {
+        expect(nextResult.type).toBe('new_round');
+      }
+    });
+  });
+
+  describe('elimination during round cycling', () => {
+    it('player at 5 cards who loses gets eliminated before next round', () => {
+      // Set up controlled scenario: 3 players, pa at 5 cards
+      const pa = makePlayer('pa', 'A', MAX_CARDS);
+      const pb = makePlayer('pb', 'B', 1);
+      const pc = makePlayer('pc', 'C', 1);
+      const eng = new GameEngine([pa, pb, pc]);
+      eng.startRound();
+
+      // pa calls, pb and pc respond
+      eng.handleCall('pa', { type: HandType.HIGH_CARD, rank: '2' });
+      eng.handleBull('pb');
+      const resolveResult = eng.handleTrue('pc');
+
+      // Whether resolve or game_over, check the state
+      if (resolveResult.type === 'resolve') {
+        const { penalties, eliminatedPlayerIds } = resolveResult.result;
+        // If pa was penalized (hand didn't exist), they should be eliminated
+        if (penalties['pa'] > MAX_CARDS) {
+          expect(eliminatedPlayerIds).toContain('pa');
+          expect(pa.isEliminated).toBe(true);
+        }
+
+        // Now start next round
+        const next = eng.startNextRound();
+        if (pa.isEliminated) {
+          // 2 players remain, game continues
+          expect(next.type).toBe('new_round');
+          // Eliminated player should not be in active players
+          expect(eng.getActivePlayers().map(p => p.id)).not.toContain('pa');
+        }
+      }
+    });
+  });
+
+  describe('gameOver and winnerId getters', () => {
+    it('gameOver is false when multiple players remain', () => {
+      expect(engine.gameOver).toBe(false);
+    });
+
+    it('gameOver is true when only 1 player remains', () => {
+      p2.isEliminated = true;
+      p3.isEliminated = true;
+      expect(engine.gameOver).toBe(true);
+    });
+
+    it('winnerId returns the sole remaining player', () => {
+      p2.isEliminated = true;
+      p3.isEliminated = true;
+      expect(engine.winnerId).toBe('p1');
+    });
+
+    it('winnerId is null when multiple players remain', () => {
+      expect(engine.winnerId).toBeNull();
     });
   });
 });
