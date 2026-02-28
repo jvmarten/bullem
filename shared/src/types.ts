@@ -50,6 +50,8 @@ export enum TurnAction {
   CALL = 'call',
   BULL = 'bull',
   TRUE = 'true',
+  LAST_CHANCE_RAISE = 'last_chance_raise',
+  LAST_CHANCE_PASS = 'last_chance_pass',
 }
 
 export interface TurnEntry {
@@ -70,8 +72,7 @@ export enum RoundPhase {
 export enum GamePhase {
   LOBBY = 'lobby',
   PLAYING = 'playing',
-  ROUND_RESULT = 'round_result',
-  GAME_OVER = 'game_over',
+  FINISHED = 'finished',
 }
 
 export interface RoundResult {
@@ -84,18 +85,14 @@ export interface RoundResult {
 }
 
 export interface ClientGameState {
-  gamePhase: GamePhase;
-  roundPhase: RoundPhase;
-  roundNumber: number;
   players: Player[];
   myCards: Card[];
   currentPlayerId: PlayerId;
   currentHand: HandCall | null;
   lastCallerId: PlayerId | null;
+  roundPhase: RoundPhase;
   turnHistory: TurnEntry[];
-  startingPlayerId: PlayerId;
-  roundResult?: RoundResult;
-  winnerId?: PlayerId;
+  roundNumber: number;
 }
 
 export interface RoomState {
