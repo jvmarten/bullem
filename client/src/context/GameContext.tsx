@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, BotDifficulty } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, BotDifficulty, GameSettings } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 export interface GameContextValue {
@@ -26,6 +26,8 @@ export interface GameContextValue {
   removeBot: (botId: string) => void;
   botDifficulty?: BotDifficulty;
   setBotDifficulty?: (d: BotDifficulty) => void;
+  gameSettings?: GameSettings;
+  setGameSettings?: (s: GameSettings) => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);

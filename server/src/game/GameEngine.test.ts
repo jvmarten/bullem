@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GameEngine } from './GameEngine.js';
-import { GamePhase, HandType, RoundPhase, STARTING_CARDS, MAX_CARDS } from '@bull-em/shared';
-import type { ServerPlayer, HandCall, PlayerId } from '@bull-em/shared';
+import { GamePhase, HandType, RoundPhase, STARTING_CARDS, MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards } from '@bull-em/shared';
+import type { ServerPlayer, HandCall, PlayerId, GameSettings } from '@bull-em/shared';
 
 function makePlayer(id: string, name: string, cardCount = STARTING_CARDS): ServerPlayer {
   return {
@@ -660,6 +660,111 @@ describe('GameEngine', () => {
 
     it('winnerId is null when multiple players remain', () => {
       expect(engine.winnerId).toBeNull();
+    });
+  });
+
+  describe('GameSettings — configurable maxCards', () => {
+    it('eliminates player at maxCards=3 when they reach 4 cards', () => {
+      const pa = makePlayer('pa', 'A', 3); // at max
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb], { maxCards: 3 });
+      eng.startRound();
+
+      pa.cards = [{ rank: '2', suit: 'clubs' }, { rank: '3', suit: 'clubs' }, { rank: '4', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      const bullResult = eng.handleBull('pb');
+      expect(bullResult.type).toBe('last_chance');
+
+      const resolveResult = eng.handleLastChancePass('pa');
+      expect(resolveResult.type).toBe('game_over');
+      if (resolveResult.type === 'game_over') {
+        expect(resolveResult.winnerId).toBe('pb');
+      }
+      expect(pa.isEliminated).toBe(true);
+      expect(pa.cardCount).toBe(4); // 3 + 1
+    });
+
+    it('eliminates player at maxCards=1 when they reach 2 cards', () => {
+      const pa = makePlayer('pa', 'A', 1); // at max
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb], { maxCards: 1 });
+      eng.startRound();
+
+      pa.cards = [{ rank: '2', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      const bullResult = eng.handleBull('pb');
+      expect(bullResult.type).toBe('last_chance');
+
+      const resolveResult = eng.handleLastChancePass('pa');
+      expect(resolveResult.type).toBe('game_over');
+      if (resolveResult.type === 'game_over') {
+        expect(resolveResult.winnerId).toBe('pb');
+      }
+      expect(pa.isEliminated).toBe(true);
+      expect(pa.cardCount).toBe(2); // 1 + 1
+    });
+
+    it('does not eliminate player below maxCards threshold', () => {
+      const pa = makePlayer('pa', 'A', 2); // below maxCards=3
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb], { maxCards: 3 });
+      eng.startRound();
+
+      pa.cards = [{ rank: '2', suit: 'clubs' }, { rank: '3', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      const bullResult = eng.handleBull('pb');
+      expect(bullResult.type).toBe('last_chance');
+
+      const resolveResult = eng.handleLastChancePass('pa');
+      // pa goes from 2 → 3 cards, which equals maxCards but doesn't exceed it
+      expect(resolveResult.type).not.toBe('game_over');
+      expect(pa.isEliminated).toBe(false);
+      expect(pa.cardCount).toBe(3);
+    });
+
+    it('defaults to MAX_CARDS when no settings provided', () => {
+      const pa = makePlayer('pa', 'A', MAX_CARDS);
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb]); // no settings
+      eng.startRound();
+
+      pa.cards = Array(MAX_CARDS).fill(null).map((_, i) => ({ rank: String(i + 2) as any, suit: 'clubs' as const }));
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      eng.handleBull('pb');
+      const resolveResult = eng.handleLastChancePass('pa');
+
+      expect(resolveResult.type).toBe('game_over');
+      expect(pa.cardCount).toBe(MAX_CARDS + 1);
+    });
+  });
+
+  describe('maxPlayersForMaxCards helper', () => {
+    it('returns 52 for maxCards=1', () => {
+      expect(maxPlayersForMaxCards(1)).toBe(52);
+    });
+
+    it('returns 10 for maxCards=5', () => {
+      expect(maxPlayersForMaxCards(5)).toBe(10);
+    });
+
+    it('returns 13 for maxCards=4', () => {
+      expect(maxPlayersForMaxCards(4)).toBe(13);
+    });
+
+    it('12 players with maxCards=4 is valid (48 <= 52)', () => {
+      expect(12 * 4).toBeLessThanOrEqual(DECK_SIZE);
+    });
+
+    it('12 players with maxCards=5 is invalid (60 > 52)', () => {
+      expect(12 * 5).toBeGreaterThan(DECK_SIZE);
     });
   });
 });

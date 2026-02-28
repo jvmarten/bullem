@@ -19,8 +19,8 @@ describe('constants', () => {
     expect(MIN_PLAYERS).toBe(2);
   });
 
-  it('MAX_PLAYERS is 9', () => {
-    expect(MAX_PLAYERS).toBe(9);
+  it('MAX_PLAYERS is 12', () => {
+    expect(MAX_PLAYERS).toBe(12);
   });
 
   it('DISCONNECT_TIMEOUT_MS is 30000', () => {

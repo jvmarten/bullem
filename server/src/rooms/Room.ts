@@ -1,8 +1,8 @@
 import {
-  GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS,
+  GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_GAME_SETTINGS,
 } from '@bull-em/shared';
 import type {
-  PlayerId, ServerPlayer, RoomState, ClientGameState, Player,
+  PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
 } from '@bull-em/shared';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
 
@@ -14,6 +14,7 @@ export class Room {
   hostId: PlayerId = '';
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
+  settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
   private disconnectTimers = new Map<PlayerId, ReturnType<typeof setTimeout>>();
 
   constructor(roomCode: string) {
@@ -126,7 +127,7 @@ export class Room {
   startGame(): GameEngine {
     this.gamePhase = GamePhase.PLAYING;
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
-    this.game = new GameEngine(activePlayers);
+    this.game = new GameEngine(activePlayers, this.settings);
     this.game.startRound();
     return this.game;
   }

@@ -13,9 +13,17 @@ export const ALL_RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 
 export const ALL_SUITS: Suit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 9;
+export const MAX_PLAYERS = 12;
 export const MAX_CARDS = 5;
+export const MIN_MAX_CARDS = 1;
 export const STARTING_CARDS = 1;
+export const DECK_SIZE = 52;
+
+export function maxPlayersForMaxCards(maxCards: number): number {
+  return Math.floor(DECK_SIZE / maxCards);
+}
+
+export const DEFAULT_GAME_SETTINGS = { maxCards: MAX_CARDS } as const;
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
 

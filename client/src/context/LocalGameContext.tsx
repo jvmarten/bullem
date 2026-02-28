@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings } from '@bull-em/shared';
 import {
   GamePhase, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
-  GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY,
+  GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
+  DECK_SIZE, maxPlayersForMaxCards,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
@@ -29,17 +30,23 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
+  const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
 
   const engineRef = useRef<GameEngine | null>(null);
   const playersRef = useRef<ServerPlayer[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
+  const gameSettingsRef = useRef<GameSettings>(gameSettings);
 
-  // Keep difficulty ref in sync
+  // Keep refs in sync
   useEffect(() => {
     botDifficultyRef.current = botDifficulty;
   }, [botDifficulty]);
+
+  useEffect(() => {
+    gameSettingsRef.current = gameSettings;
+  }, [gameSettings]);
 
   // Auto-clear errors
   useEffect(() => {
@@ -198,7 +205,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       setError('Need at least 2 players');
       return;
     }
-    const engine = new GameEngine([...playersRef.current]);
+    const settings = gameSettingsRef.current;
+    const totalNeeded = playersRef.current.length * settings.maxCards;
+    if (totalNeeded > DECK_SIZE) {
+      setError(`Too many players for ${settings.maxCards}-card game (${playersRef.current.length} x ${settings.maxCards} = ${totalNeeded} > ${DECK_SIZE})`);
+      return;
+    }
+    const engine = new GameEngine([...playersRef.current], settings);
     engineRef.current = engine;
     engine.startRound();
 
@@ -270,6 +283,11 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   let botCounter = useRef(0);
 
   const addBot = useCallback(async (botName?: string): Promise<string> => {
+    const settings = gameSettingsRef.current;
+    const newCount = playersRef.current.length + 1;
+    if (newCount * settings.maxCards > DECK_SIZE) {
+      throw new Error(`Too many players for ${settings.maxCards}-card game. Reduce max cards or remove a player.`);
+    }
     const usedNames = new Set(playersRef.current.map(p => p.name));
     const name = botName || BOT_NAMES.find(n => !usedNames.has(n)) || `Bot ${botCounter.current + 1}`;
     const botId = `bot-${++botCounter.current}`;
@@ -334,6 +352,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     removeBot,
     botDifficulty,
     setBotDifficulty,
+    gameSettings,
+    setGameSettings,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
