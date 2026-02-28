@@ -14,7 +14,7 @@ export function ResultsPage() {
       <div className="flex flex-col items-center gap-8 pt-12 text-center animate-scale-in">
         {/* Trophy / crown */}
         <div className="text-6xl animate-float">
-          {isWinner ? '\u265A' : '\u2664'}
+          {isWinner ? '\uD83C\uDFC6' : '\uD83D\uDE14'}
         </div>
 
         <div>
