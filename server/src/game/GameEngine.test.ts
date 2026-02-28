@@ -170,6 +170,57 @@ describe('GameEngine', () => {
     });
   });
 
+  describe('last chance used guard', () => {
+    it('all bull → last chance → raise → all bull again → resolves (no second last chance)', () => {
+      // p1 calls, p2 and p3 bull → last chance for p1
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      const lc1 = engine.handleBull('p3');
+      expect(lc1.type).toBe('last_chance');
+
+      // p1 raises during last chance
+      const raiseResult = engine.handleLastChanceRaise('p1', { type: HandType.PAIR, rank: '3' });
+      expect(raiseResult.type).toBe('continue');
+
+      // p2 and p3 both call bull again — should resolve, NOT enter last_chance again
+      engine.handleBull('p2');
+      const finalResult = engine.handleBull('p3');
+      expect(finalResult.type === 'resolve' || finalResult.type === 'game_over').toBe(true);
+    });
+
+    it('last chance resets between rounds (startNextRound)', () => {
+      // Round 1: use last chance
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleBull('p3');
+      engine.handleLastChanceRaise('p1', { type: HandType.PAIR, rank: '3' });
+      engine.handleBull('p2');
+      engine.handleBull('p3');
+      // Round resolves — p1 used last chance
+
+      engine.startNextRound();
+
+      // Round 2: last chance should be available again
+      // Call bull in turn order by checking currentPlayerId
+      const starterId = engine.currentPlayerId;
+      engine.handleCall(starterId, { type: HandType.HIGH_CARD, rank: '7' });
+
+      const first = engine.currentPlayerId;
+      engine.handleBull(first);
+      const second = engine.currentPlayerId;
+      const lc2 = engine.handleBull(second);
+      expect(lc2.type).toBe('last_chance');
+    });
+
+    it('all bull → caller passes → resolves without using last chance flag', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleBull('p3');
+      const passResult = engine.handleLastChancePass('p1');
+      expect(passResult.type === 'resolve' || passResult.type === 'game_over').toBe(true);
+    });
+  });
+
   describe('round resolution', () => {
     it('resolves when bull phase ends with mixed bull/true calls', () => {
       engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });

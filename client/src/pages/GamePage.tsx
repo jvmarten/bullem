@@ -19,7 +19,7 @@ export function GamePage() {
   const {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult,
+    clearRoundResult, leaveRoom,
   } = useGameContext();
   const { muted, toggleMute } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
@@ -27,6 +27,13 @@ export function GamePage() {
   useEffect(() => {
     if (winnerId) navigate(`/results/${roomCode}`);
   }, [winnerId, roomCode, navigate]);
+
+  const handleLeave = () => {
+    if (window.confirm('Leave this game? You will lose your spot.')) {
+      leaveRoom();
+      navigate('/');
+    }
+  };
 
   if (!gameState) {
     return (
@@ -82,6 +89,13 @@ export function GamePage() {
               )}
             </button>
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+            <button
+              onClick={handleLeave}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs"
+              title="Leave game"
+            >
+              Leave
+            </button>
           </div>
         </div>
 

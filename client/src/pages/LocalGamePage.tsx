@@ -17,7 +17,7 @@ export function LocalGamePage() {
   const {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult,
+    clearRoundResult, leaveRoom,
   } = useGameContext();
   const { muted, toggleMute } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
@@ -25,6 +25,13 @@ export function LocalGamePage() {
   useEffect(() => {
     if (winnerId) navigate('/local/results');
   }, [winnerId, navigate]);
+
+  const handleLeave = () => {
+    if (window.confirm('Leave this game?')) {
+      leaveRoom();
+      navigate('/');
+    }
+  };
 
   if (!gameState) {
     return (
@@ -80,6 +87,13 @@ export function LocalGamePage() {
               )}
             </button>
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
+            <button
+              onClick={handleLeave}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs"
+              title="Leave game"
+            >
+              Leave
+            </button>
           </div>
         </div>
 
