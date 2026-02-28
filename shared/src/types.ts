@@ -97,6 +97,7 @@ export interface ClientGameState {
   roundPhase: RoundPhase;
   turnHistory: TurnEntry[];
   roundNumber: number;
+  roundResult?: RoundResult | null;
 }
 
 export interface RoomState {
