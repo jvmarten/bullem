@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, ty
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
-interface GameContextValue {
+export interface GameContextValue {
   roomState: RoomState | null;
   gameState: ClientGameState | null;
   roundResult: RoundResult | null;
@@ -26,7 +26,7 @@ interface GameContextValue {
   removeBot: (botId: string) => void;
 }
 
-const GameContext = createContext<GameContextValue | null>(null);
+export const GameContext = createContext<GameContextValue | null>(null);
 
 const PLAYER_ID_KEY = 'bull-em-player-id';
 const PLAYER_NAME_KEY = 'bull-em-player-name';

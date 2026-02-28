@@ -1,49 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
-import { useGameContext } from '../context/GameContext.js';
 
 export function HomePage() {
   const [name, setName] = useState('');
+  const [mode, setMode] = useState<'menu' | 'local' | 'join'>('menu');
   const [roomCode, setRoomCode] = useState('');
-  const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { createRoom, joinRoom } = useGameContext();
   const navigate = useNavigate();
 
-  const handleCreate = async () => {
+  const handlePlayLocal = () => {
     if (!name.trim()) return setError('Enter your name');
-    setLoading(true);
-    setError('');
-    try {
-      const code = await createRoom(name.trim());
-      navigate(`/room/${code}`);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to create room');
-    } finally {
-      setLoading(false);
-    }
+    sessionStorage.setItem('bull-em-local-name', name.trim());
+    navigate('/local');
   };
 
-  const handleJoin = async () => {
+  const handleJoin = () => {
     if (!name.trim()) return setError('Enter your name');
     if (!roomCode.trim()) return setError('Enter a room code');
-    setLoading(true);
-    setError('');
-    try {
-      await joinRoom(roomCode.trim().toUpperCase(), name.trim());
-      navigate(`/room/${roomCode.trim().toUpperCase()}`);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to join room');
-    } finally {
-      setLoading(false);
-    }
+    sessionStorage.setItem('bull-em-player-name', name.trim());
+    navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (mode === 'create') handleCreate();
+      if (mode === 'local') handlePlayLocal();
       else if (mode === 'join') handleJoin();
     }
   };
@@ -77,16 +58,16 @@ export function HomePage() {
 
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <button onClick={() => setMode('create')} className="w-full btn-gold py-4 text-lg">
-              Create Room
+            <button onClick={() => setMode('local')} className="w-full btn-gold py-4 text-lg">
+              Play vs Bots
             </button>
             <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
-              Join Room
+              Join Online Room
             </button>
           </div>
         )}
 
-        {(mode === 'create' || mode === 'join') && (
+        {mode === 'local' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
             <input
               type="text"
@@ -97,24 +78,45 @@ export function HomePage() {
               autoFocus
               className="w-full input-felt"
             />
-
-            {mode === 'join' && (
-              <input
-                type="text"
-                placeholder="Room code"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                maxLength={4}
-                className="w-full input-felt uppercase tracking-[0.3em] text-center text-xl font-bold"
-              />
-            )}
-
             <button
-              onClick={mode === 'create' ? handleCreate : handleJoin}
-              disabled={loading}
+              onClick={handlePlayLocal}
               className="w-full btn-gold py-3 text-lg"
             >
-              {loading ? 'Connecting\u2026' : mode === 'create' ? 'Create' : 'Join'}
+              Start Game
+            </button>
+            <button
+              onClick={() => { setMode('menu'); setError(''); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
+          </div>
+        )}
+
+        {mode === 'join' && (
+          <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={20}
+              autoFocus
+              className="w-full input-felt"
+            />
+            <input
+              type="text"
+              placeholder="Room code"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              maxLength={4}
+              className="w-full input-felt uppercase tracking-[0.3em] text-center text-xl font-bold"
+            />
+            <button
+              onClick={handleJoin}
+              className="w-full btn-gold py-3 text-lg"
+            >
+              Join
             </button>
             <button
               onClick={() => { setMode('menu'); setError(''); }}
