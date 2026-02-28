@@ -106,6 +106,10 @@ export enum BotDifficulty {
   HARD = 'hard',
 }
 
+export interface GameSettings {
+  maxCards: number;
+}
+
 export interface RoomState {
   roomCode: string;
   players: Player[];

@@ -2,14 +2,22 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards } from '@bull-em/shared';
 import { useEffect, useState } from 'react';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, createRoom, leaveRoom, addBot, removeBot, error, botDifficulty, setBotDifficulty } = useGameContext();
+  const {
+    roomState, gameState, playerId, startGame, createRoom, leaveRoom,
+    addBot, removeBot, error, botDifficulty, setBotDifficulty,
+    gameSettings, setGameSettings,
+  } = useGameContext();
   const [localError, setLocalError] = useState('');
   const [initialized, setInitialized] = useState(false);
+
+  const maxCards = gameSettings?.maxCards ?? MAX_CARDS;
+  const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
+  const playerCount = roomState?.players.length ?? 0;
 
   // Initialize the local room on mount
   useEffect(() => {
@@ -17,8 +25,8 @@ export function LocalLobbyPage() {
     setInitialized(true);
     const name = sessionStorage.getItem('bull-em-local-name') || 'Player';
     createRoom(name).then(() => {
-      // Auto-add 3 bots for a quick start
-      return Promise.all([addBot(), addBot(), addBot()]);
+      // Auto-add 5 bots for a quick start
+      return Promise.all([addBot(), addBot(), addBot(), addBot(), addBot()]);
     }).catch(e => {
       setLocalError(e instanceof Error ? e.message : 'Failed to set up game');
     });
@@ -31,8 +39,21 @@ export function LocalLobbyPage() {
     }
   }, [gameState, navigate]);
 
+  const handleMaxCardsChange = (newMax: number) => {
+    if (!setGameSettings || !gameSettings) return;
+    const newDynamic = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax));
+    // If reducing max cards would make current player count invalid, block
+    if (playerCount > newDynamic) {
+      setLocalError(`Can't set max cards to ${newMax} with ${playerCount} players (max ${newDynamic} players at ${newMax} cards)`);
+      return;
+    }
+    setLocalError('');
+    setGameSettings({ ...gameSettings, maxCards: newMax });
+  };
+
   const displayError = localError || error;
-  const canStart = roomState && roomState.players.length >= MIN_PLAYERS;
+  const canStart = roomState && playerCount >= MIN_PLAYERS;
+  const canAddBot = playerCount < dynamicMaxPlayers;
 
   if (!roomState) {
     return (
@@ -58,7 +79,7 @@ export function LocalLobbyPage() {
             Play vs Bots
           </h2>
           <p className="text-sm text-[var(--gold-dim)] mt-1.5">
-            {roomState.players.length} player{roomState.players.length !== 1 ? 's' : ''} at the table
+            {playerCount} player{playerCount !== 1 ? 's' : ''} at the table
           </p>
         </div>
 
@@ -74,6 +95,32 @@ export function LocalLobbyPage() {
           showRemoveBot
           onRemoveBot={removeBot}
         />
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Max Cards
+            </p>
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => handleMaxCardsChange(n)}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    maxCards === n
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              Eliminated after {maxCards + 1} cards &middot; Max {dynamicMaxPlayers} players
+            </p>
+          </div>
+        )}
 
         {setBotDifficulty && (
           <div className="glass px-4 py-3">
@@ -108,7 +155,7 @@ export function LocalLobbyPage() {
         <div className="flex flex-col gap-3">
           <button
             onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
-            disabled={roomState.players.length >= MAX_PLAYERS}
+            disabled={!canAddBot}
             className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
           >
             + Add Bot

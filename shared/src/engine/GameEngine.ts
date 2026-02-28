@@ -1,10 +1,11 @@
-import { STARTING_CARDS, MAX_CARDS } from '../constants.js';
+import { STARTING_CARDS, MAX_CARDS, DEFAULT_GAME_SETTINGS, DECK_SIZE } from '../constants.js';
 import { isHigherHand } from '../hands.js';
 import {
   GamePhase, RoundPhase, TurnAction,
 } from '../types.js';
 import type {
   Card, HandCall, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
+  GameSettings,
 } from '../types.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
@@ -19,6 +20,7 @@ export type TurnResult =
 export class GameEngine {
   private deck = new Deck();
   private players: ServerPlayer[];
+  private settings: GameSettings;
   private roundNumber = 0;
   private roundPhase = RoundPhase.CALLING;
   private currentPlayerIndex = 0;
@@ -30,8 +32,9 @@ export class GameEngine {
   private lastRoundResult: RoundResult | null = null;
   private lastChanceUsed = false;
 
-  constructor(players: ServerPlayer[]) {
+  constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
+    this.settings = { ...settings };
   }
 
   startRound(): void {
@@ -45,9 +48,11 @@ export class GameEngine {
     this.lastRoundResult = null;
     this.lastChanceUsed = false;
 
-    // Deal cards
+    // Deal cards (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      p.cards = this.deck.deal(p.cardCount || STARTING_CARDS);
+      const needed = p.cardCount || STARTING_CARDS;
+      const available = Math.min(needed, this.deck.remaining);
+      p.cards = this.deck.deal(available);
     }
 
     // Starting player rotates each round
@@ -92,9 +97,10 @@ export class GameEngine {
     this.lastRoundResult = null;
     this.lastChanceUsed = false;
 
-    // Re-deal cards based on each player's current card count
+    // Re-deal cards based on each player's current card count (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      p.cards = this.deck.deal(p.cardCount);
+      const available = Math.min(p.cardCount, this.deck.remaining);
+      p.cards = this.deck.deal(available);
     }
 
     this.startingPlayerIndex = nextStarterActiveIndex;
@@ -260,7 +266,7 @@ export class GameEngine {
 
       if (incorrect) {
         p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
-        if (p.cardCount > MAX_CARDS) {
+        if (p.cardCount > this.settings.maxCards) {
           p.isEliminated = true;
           eliminatedPlayerIds.push(p.id);
         }
