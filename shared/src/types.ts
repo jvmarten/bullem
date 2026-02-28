@@ -72,6 +72,8 @@ export enum RoundPhase {
 export enum GamePhase {
   LOBBY = 'lobby',
   PLAYING = 'playing',
+  ROUND_RESULT = 'round_result',
+  GAME_OVER = 'game_over',
   FINISHED = 'finished',
 }
 
@@ -85,9 +87,11 @@ export interface RoundResult {
 }
 
 export interface ClientGameState {
+  gamePhase: GamePhase;
   players: Player[];
   myCards: Card[];
   currentPlayerId: PlayerId;
+  startingPlayerId: PlayerId;
   currentHand: HandCall | null;
   lastCallerId: PlayerId | null;
   roundPhase: RoundPhase;

@@ -17,6 +17,7 @@ export interface ServerToClientEvents {
   'room:error': (message: string) => void;
   'game:state': (state: ClientGameState) => void;
   'game:roundResult': (result: RoundResult) => void;
+  'game:newRound': (state: ClientGameState) => void;
   'game:over': (winnerId: PlayerId) => void;
   'player:disconnected': (playerId: PlayerId) => void;
   'player:reconnected': (playerId: PlayerId) => void;

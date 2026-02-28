@@ -51,6 +51,51 @@ export class GameEngine {
     this.currentPlayerIndex = this.startingPlayerIndex;
   }
 
+  get gameOver(): boolean {
+    return this.getActivePlayers().length <= 1;
+  }
+
+  get winnerId(): PlayerId | null {
+    const active = this.getActivePlayers();
+    return active.length === 1 ? active[0].id : null;
+  }
+
+  startNextRound(): { type: 'new_round' } | { type: 'game_over'; winnerId: PlayerId } {
+    const active = this.getActivePlayers();
+    if (active.length <= 1) {
+      return { type: 'game_over', winnerId: active[0]?.id ?? '' };
+    }
+
+    // Rotate starting player clockwise, skipping eliminated players
+    const prevStarterId = active[this.startingPlayerIndex % active.length]?.id;
+    const prevStarterGlobalIndex = this.players.findIndex(p => p.id === prevStarterId);
+    let nextGlobalIndex = (prevStarterGlobalIndex + 1) % this.players.length;
+    while (this.players[nextGlobalIndex].isEliminated) {
+      nextGlobalIndex = (nextGlobalIndex + 1) % this.players.length;
+    }
+    const nextStarterId = this.players[nextGlobalIndex].id;
+    const nextStarterActiveIndex = active.findIndex(p => p.id === nextStarterId);
+
+    // Reset round state
+    this.roundNumber++;
+    this.deck.reset();
+    this.roundPhase = RoundPhase.CALLING;
+    this.currentHand = null;
+    this.lastCallerId = null;
+    this.turnHistory = [];
+    this.respondedPlayers.clear();
+
+    // Re-deal cards based on each player's current card count
+    for (const p of this.getActivePlayers()) {
+      p.cards = this.deck.deal(p.cardCount);
+    }
+
+    this.startingPlayerIndex = nextStarterActiveIndex;
+    this.currentPlayerIndex = this.startingPlayerIndex;
+
+    return { type: 'new_round' };
+  }
+
   get currentPlayerId(): PlayerId {
     return this.getActivePlayers()[this.currentPlayerIndex]?.id ?? '';
   }

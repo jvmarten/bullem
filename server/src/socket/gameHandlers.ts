@@ -3,7 +3,7 @@ import { GamePhase } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, HandCall } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
-import { broadcastGameState } from './broadcast.js';
+import { broadcastGameState, broadcastNewRound } from './broadcast.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -84,10 +84,15 @@ function handleResult(
       io.to(room.roomCode).emit('game:roundResult', result.result);
       // Start next round after a delay
       setTimeout(() => {
-        room.gamePhase = GamePhase.PLAYING;
-        room.game!.startRound();
-        broadcastGameState(io, room);
-      }, 5000);
+        const nextResult = room.game!.startNextRound();
+        if (nextResult.type === 'game_over') {
+          room.gamePhase = GamePhase.GAME_OVER;
+          io.to(room.roomCode).emit('game:over', nextResult.winnerId);
+        } else {
+          room.gamePhase = GamePhase.PLAYING;
+          broadcastNewRound(io, room);
+        }
+      }, 3000);
       break;
 
     case 'game_over':
