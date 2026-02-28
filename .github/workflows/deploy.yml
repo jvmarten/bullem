@@ -1,8 +1,11 @@
 name: Deploy
 
-on:
-  push:
-    branches: [main]
+# Disabled until FLY_API_TOKEN is configured in repo secrets.
+# To re-enable: uncomment the 'on' trigger below.
+# on:
+#   push:
+#     branches: [main]
+on: workflow_dispatch
 
 jobs:
   ci:
