@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
@@ -9,6 +9,7 @@ interface GameContextValue {
   winnerId: PlayerId | null;
   playerId: string | null;
   error: string | null;
+  isConnected: boolean;
   createRoom: (playerName: string) => Promise<string>;
   joinRoom: (roomCode: string, playerName: string) => Promise<void>;
   leaveRoom: () => void;
@@ -25,6 +26,7 @@ interface GameContextValue {
 const GameContext = createContext<GameContextValue | null>(null);
 
 const PLAYER_ID_KEY = 'bull-em-player-id';
+const ROOM_CODE_KEY = 'bull-em-room-code';
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
@@ -35,9 +37,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.getItem(PLAYER_ID_KEY),
   );
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Auto-clear errors after 5 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   useEffect(() => {
     socket.connect();
+
+    socket.on('connect', () => setIsConnected(true));
+    socket.on('disconnect', () => setIsConnected(false));
 
     socket.on('room:state', setRoomState);
     socket.on('game:state', (state) => {
@@ -49,6 +62,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('room:error', setError);
 
     return () => {
+      socket.off('connect');
+      socket.off('disconnect');
       socket.off('room:state');
       socket.off('game:state');
       socket.off('game:roundResult');
@@ -58,35 +73,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const createRoom = (playerName: string): Promise<string> => {
+  const createRoom = useCallback((playerName: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       socket.emit('room:create', { playerName }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
+        sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         resolve(response.roomCode);
       });
     });
-  };
+  }, []);
 
-  const joinRoom = (roomCode: string, playerName: string): Promise<void> => {
+  const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? undefined;
       socket.emit('room:join', { roomCode, playerName, playerId: storedId }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         setPlayerId(response.playerId);
         sessionStorage.setItem(PLAYER_ID_KEY, response.playerId);
+        sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
         resolve();
       });
     });
-  };
+  }, []);
 
-  const leaveRoom = () => {
+  const leaveRoom = useCallback(() => {
     socket.emit('room:leave');
     setRoomState(null);
     setGameState(null);
     setRoundResult(null);
     setWinnerId(null);
     sessionStorage.removeItem(PLAYER_ID_KEY);
-  };
+    sessionStorage.removeItem(ROOM_CODE_KEY);
+  }, []);
 
   const value: GameContextValue = {
     roomState,
@@ -95,6 +113,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     winnerId,
     playerId,
     error,
+    isConnected,
     createRoom,
     joinRoom,
     leaveRoom,

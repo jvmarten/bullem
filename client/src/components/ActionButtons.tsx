@@ -23,10 +23,10 @@ export function ActionButtons({
 
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     return (
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-3 justify-center animate-slide-up">
         <button
           onClick={onLastChancePass}
-          className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold text-lg transition-colors"
+          className="px-8 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95"
         >
           Pass
         </button>
@@ -34,20 +34,25 @@ export function ActionButtons({
     );
   }
 
+  const showBull = hasCurrentHand && (roundPhase === RoundPhase.CALLING || roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = roundPhase === RoundPhase.BULL_PHASE;
+
+  if (!showBull && !showTrue) return null;
+
   return (
-    <div className="flex gap-3 justify-center">
-      {hasCurrentHand && (roundPhase === RoundPhase.CALLING || roundPhase === RoundPhase.BULL_PHASE) && (
+    <div className="flex gap-3 justify-center animate-slide-up">
+      {showBull && (
         <button
           onClick={onBull}
-          className="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg transition-colors"
+          className="flex-1 max-w-40 py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95 shadow-lg"
         >
           BULL!
         </button>
       )}
-      {roundPhase === RoundPhase.BULL_PHASE && (
+      {showTrue && (
         <button
           onClick={onTrue}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-lg transition-colors"
+          className="flex-1 max-w-40 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95 shadow-lg"
         >
           TRUE
         </button>
