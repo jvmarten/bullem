@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player } from '@bull-em/shared';
 import {
   GamePhase, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
-  GameEngine, BotPlayer,
+  GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
@@ -28,11 +28,18 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
 
   const engineRef = useRef<GameEngine | null>(null);
   const playersRef = useRef<ServerPlayer[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
+
+  // Keep difficulty ref in sync
+  useEffect(() => {
+    botDifficultyRef.current = botDifficulty;
+  }, [botDifficulty]);
 
   // Auto-clear errors
   useEffect(() => {
@@ -111,7 +118,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     if (!botPlayer?.isBot) return;
 
     const state = engine.getClientState(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current);
 
     let result: TurnResult;
     switch (decision.action) {
@@ -325,6 +332,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     clearRoundResult,
     addBot,
     removeBot,
+    botDifficulty,
+    setBotDifficulty,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

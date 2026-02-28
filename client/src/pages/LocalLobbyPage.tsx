@@ -2,12 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty } from '@bull-em/shared';
 import { useEffect, useState } from 'react';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, createRoom, leaveRoom, addBot, removeBot, error } = useGameContext();
+  const { roomState, gameState, playerId, startGame, createRoom, leaveRoom, addBot, removeBot, error, botDifficulty, setBotDifficulty } = useGameContext();
   const [localError, setLocalError] = useState('');
   const [initialized, setInitialized] = useState(false);
 
@@ -74,6 +74,36 @@ export function LocalLobbyPage() {
           showRemoveBot
           onRemoveBot={removeBot}
         />
+
+        {setBotDifficulty && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Bot Difficulty
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBotDifficulty(BotDifficulty.EASY)}
+                className={`flex-1 px-3 py-2 text-sm rounded transition-colors ${
+                  botDifficulty === BotDifficulty.EASY
+                    ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                    : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                }`}
+              >
+                Easy
+              </button>
+              <button
+                onClick={() => setBotDifficulty(BotDifficulty.HARD)}
+                className={`flex-1 px-3 py-2 text-sm rounded transition-colors ${
+                  botDifficulty === BotDifficulty.HARD
+                    ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                    : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                }`}
+              >
+                Hard
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <button

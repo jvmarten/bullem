@@ -101,6 +101,11 @@ export interface ClientGameState {
   roundResult?: RoundResult | null;
 }
 
+export enum BotDifficulty {
+  EASY = 'easy',
+  HARD = 'hard',
+}
+
 export interface RoomState {
   roomCode: string;
   players: Player[];
