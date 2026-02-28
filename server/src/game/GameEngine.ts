@@ -79,9 +79,6 @@ export class GameEngine {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
     if (!this.currentHand) return { type: 'error', message: 'No hand to call bull on' };
-    if (this.roundPhase === RoundPhase.CALLING && this.currentHand === null) {
-      return { type: 'error', message: 'Cannot call bull before any hand is called' };
-    }
 
     this.addTurnEntry(playerId, TurnAction.BULL);
     this.respondedPlayers.add(playerId);

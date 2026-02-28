@@ -11,7 +11,8 @@ export function ResultsPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col items-center gap-6 pt-12 text-center">
+      <div className="flex flex-col items-center gap-6 pt-12 text-center animate-scale-in">
+        <div className="text-6xl">{isWinner ? '1' : '2'}</div>
         <h2 className="text-3xl font-bold">
           {isWinner ? 'You Win!' : `${winnerName} Wins!`}
         </h2>
@@ -22,7 +23,7 @@ export function ResultsPage() {
         </p>
         <button
           onClick={() => { leaveRoom(); navigate('/'); }}
-          className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-lg transition-colors"
+          className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98]"
         >
           Play Again
         </button>

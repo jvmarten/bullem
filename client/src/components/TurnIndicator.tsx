@@ -20,7 +20,9 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
 
   return (
-    <div className={`text-center py-3 rounded-lg ${isMyTurn ? 'bg-yellow-600/30' : 'bg-green-800/30'}`}>
+    <div className={`text-center py-3 rounded-lg transition-all duration-300 ${
+      isMyTurn ? 'bg-yellow-600/30 animate-pulse-glow' : 'bg-green-800/30'
+    }`}>
       <p className="text-lg font-bold">
         {isMyTurn ? 'Your Turn' : `${currentPlayer?.name ?? '...'}'s Turn`}
       </p>

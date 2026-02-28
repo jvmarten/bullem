@@ -5,4 +5,8 @@ const URL = import.meta.env.DEV ? 'http://localhost:3001' : '/';
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL, {
   autoConnect: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
 });
