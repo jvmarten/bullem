@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import {
   GamePhase, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
-  MAX_PLAYERS,
+  MAX_PLAYERS, BotDifficulty,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -15,6 +15,11 @@ let botCounter = 0;
 
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+  private difficulty: BotDifficulty = BotDifficulty.EASY;
+
+  setDifficulty(difficulty: BotDifficulty): void {
+    this.difficulty = difficulty;
+  }
 
   addBot(room: Room, botName?: string): string {
     if (room.playerCount >= MAX_PLAYERS) {
@@ -69,7 +74,7 @@ export class BotManager {
     if (!botPlayer || !botPlayer.isBot) return;
 
     const state = room.game.getClientState(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty);
 
     let result: TurnResult;
     switch (decision.action) {

@@ -1,5 +1,5 @@
-import { HandType, RoundPhase } from '../types.js';
-import { RANK_VALUES, ALL_RANKS, ALL_SUITS } from '../constants.js';
+import { HandType, RoundPhase, BotDifficulty, TurnAction } from '../types.js';
+import { RANK_VALUES, ALL_RANKS, ALL_SUITS, SUIT_ORDER } from '../constants.js';
 import { isHigherHand } from '../hands.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState } from '../types.js';
 
@@ -12,15 +12,29 @@ export type BotAction =
 
 export class BotPlayer {
   /**
-   * Decide what action a bot should take given the current game state and its cards.
+   * Decide what action a bot should take given the current game state, its cards, and difficulty.
    */
-  static decideAction(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
+  static decideAction(
+    state: ClientGameState,
+    botId: string,
+    botCards: Card[],
+    difficulty: BotDifficulty = BotDifficulty.EASY,
+  ): BotAction {
+    if (difficulty === BotDifficulty.HARD) {
+      return this.decideHard(state, botId, botCards);
+    }
+    return this.decideEasy(state, botId, botCards);
+  }
+
+  // ─── EASY MODE ───────────────────────────────────────────────────────
+
+  private static decideEasy(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
 
-    // LAST_CHANCE phase — bot is the caller who got bull'd by everyone
+    // LAST_CHANCE phase
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
-        const higher = this.findHandHigherThan(botCards, currentHand);
+        const higher = this.findHandHigherThanSimple(botCards, currentHand);
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
         }
@@ -28,93 +42,155 @@ export class BotPlayer {
       return { action: 'lastChancePass' };
     }
 
-    // CALLING phase, no current hand — bot makes the opening call
+    // Opening call — no current hand
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const hand = this.findBestHandInCards(botCards);
-      if (hand && Math.random() < 0.8) {
+      if (hand && Math.random() < 0.9) {
         return { action: 'call', hand };
       }
-      // Bluff: call a low hand
-      return { action: 'call', hand: this.makeBluffHand(null) };
+      // 10% bluff
+      return { action: 'call', hand: this.makeBluffHandEasy(null) };
     }
 
-    // CALLING phase with current hand — bot must raise or this shouldn't happen
-    // (Only the next player after a call lands here)
+    // Raise or bull in calling phase
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      const totalCards = state.players
-        .filter(p => !p.isEliminated)
-        .reduce((sum, p) => sum + p.cardCount, 0);
-
-      // Try to find a legit higher hand
-      const higher = this.findHandHigherThan(botCards, currentHand);
+      const higher = this.findHandHigherThanSimple(botCards, currentHand);
       if (higher && Math.random() < 0.6) {
         return { action: 'call', hand: higher };
       }
+      // 10% bluff chance
+      if (Math.random() < 0.1) {
+        const bluff = this.makeBluffHandEasy(currentHand);
+        if (bluff && isHigherHand(bluff, currentHand)) {
+          return { action: 'call', hand: bluff };
+        }
+      }
+      return { action: 'bull' };
+    }
 
-      // Bluff raise if the call seems plausible
-      const plausibility = this.estimatePlausibility(currentHand, botCards, totalCards);
-      if (plausibility > 0.3 && Math.random() < 0.3) {
-        const bluff = this.makeBluffHand(currentHand);
+    // Bull phase — simple coin flip weighted by rough heuristic
+    if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
+      const totalCards = this.getTotalCards(state);
+      const plausibility = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
+
+      if (plausibility > 0.5) {
+        return Math.random() < 0.55 ? { action: 'true' } : { action: 'bull' };
+      }
+      return Math.random() < 0.65 ? { action: 'bull' } : { action: 'true' };
+    }
+
+    // Fallback
+    if (currentHand) return { action: 'bull' };
+    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+  }
+
+  // ─── HARD MODE ───────────────────────────────────────────────────────
+
+  private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
+    const { roundPhase, currentHand, lastCallerId, turnHistory } = state;
+    const totalCards = this.getTotalCards(state);
+    const otherCards = totalCards - botCards.length;
+
+    // Analyze turn history for bias
+    const bias = this.analyzeTurnHistory(turnHistory, botId);
+
+    // LAST_CHANCE phase
+    if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
+      if (currentHand) {
+        const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+        if (higher) {
+          return { action: 'lastChanceRaise', hand: higher };
+        }
+      }
+      return { action: 'lastChancePass' };
+    }
+
+    // Opening call — use best available hand, or strategic bluff
+    if (roundPhase === RoundPhase.CALLING && !currentHand) {
+      const hand = this.findBestHandInCardsFull(botCards, totalCards);
+      if (hand) {
+        return { action: 'call', hand };
+      }
+      // Strategic opening bluff
+      return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+    }
+
+    // Raise or bull in calling phase
+    if (roundPhase === RoundPhase.CALLING && currentHand) {
+      const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+      const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+
+      // Adaptive aggression based on card count
+      const myCardCount = botCards.length;
+      const aggressionBonus = myCardCount >= 4 ? 0.15 : myCardCount >= 3 ? 0.05 : 0;
+
+      // Raise with legitimate hand
+      if (higher) {
+        const raiseChance = 0.7 + aggressionBonus + bias * 0.1;
+        if (Math.random() < raiseChance) {
+          return { action: 'call', hand: higher };
+        }
+      }
+
+      // Context-aware bluffing
+      const bluffThreshold = totalCards <= 5 ? 0.08
+        : totalCards <= 12 ? 0.18
+        : 0.28;
+
+      if (Math.random() < bluffThreshold + aggressionBonus) {
+        const bluff = this.makeBluffHandHard(currentHand, totalCards);
         if (bluff && isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
         }
       }
 
-      // Call bull
       return { action: 'bull' };
     }
 
-    // BULL_PHASE — bot must call bull or true
+    // Bull phase — probability-driven decision
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      const totalCards = state.players
-        .filter(p => !p.isEliminated)
-        .reduce((sum, p) => sum + p.cardCount, 0);
-      const plausibility = this.estimatePlausibility(currentHand, botCards, totalCards);
+      const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
 
-      // Also allow raise in bull phase
-      if (Math.random() < 0.15) {
-        const higher = this.findHandHigherThan(botCards, currentHand);
+      // Consider raising in bull phase if we have a good hand
+      if (Math.random() < 0.12) {
+        const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) {
           return { action: 'call', hand: higher };
         }
       }
 
-      if (plausibility > 0.5) {
-        return Math.random() < 0.6 ? { action: 'true' } : { action: 'bull' };
+      // Apply bias from turn history
+      const adjustedPlausibility = plausibility + bias * 0.15;
+
+      if (adjustedPlausibility > 0.6) {
+        return Math.random() < 0.75 ? { action: 'true' } : { action: 'bull' };
       }
-      return Math.random() < 0.7 ? { action: 'bull' } : { action: 'true' };
+      if (adjustedPlausibility > 0.35) {
+        return Math.random() < 0.45 ? { action: 'true' } : { action: 'bull' };
+      }
+      return Math.random() < 0.85 ? { action: 'bull' } : { action: 'true' };
     }
 
-    // Fallback — call bull if there's a hand, otherwise make an opening call
-    if (currentHand) {
-      return { action: 'bull' };
-    }
+    // Fallback
+    if (currentHand) return { action: 'bull' };
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
   }
 
+  // ─── HAND FINDING (SIMPLE — Easy mode) ──────────────────────────────
+
   /**
-   * Find the best hand that actually exists in the bot's own cards.
+   * Find the best hand from bot's own cards (HIGH_CARD, PAIR, THREE_OF_A_KIND, FOUR_OF_A_KIND only).
    */
   static findBestHandInCards(cards: Card[]): HandCall | null {
-    // Check from highest to lowest hand types (within reason for own cards)
+    const rankCounts = this.getRankCounts(cards);
 
-    // Pairs — most likely with few cards
-    const rankCounts = new Map<Rank, number>();
-    for (const c of cards) {
-      rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
-    }
-
-    // Four of a kind
     for (const [rank, count] of rankCounts) {
       if (count >= 4) return { type: HandType.FOUR_OF_A_KIND, rank };
     }
-
-    // Three of a kind
     for (const [rank, count] of rankCounts) {
       if (count >= 3) return { type: HandType.THREE_OF_A_KIND, rank };
     }
 
-    // Pair — find highest pair
     let bestPairRank: Rank | null = null;
     for (const [rank, count] of rankCounts) {
       if (count >= 2) {
@@ -125,7 +201,6 @@ export class BotPlayer {
     }
     if (bestPairRank) return { type: HandType.PAIR, rank: bestPairRank };
 
-    // High card — highest card
     if (cards.length > 0) {
       let bestRank: Rank = cards[0].rank;
       for (const c of cards) {
@@ -140,20 +215,106 @@ export class BotPlayer {
   }
 
   /**
-   * Find a valid hand that is higher than the given current hand, based on bot's cards.
-   * Returns null if no higher hand can be found.
+   * Simple hand search — only checks HIGH_CARD, PAIR, THREE_OF_A_KIND candidates.
+   */
+  private static findHandHigherThanSimple(cards: Card[], currentHand: HandCall): HandCall | null {
+    const candidates: HandCall[] = [];
+    const rankCounts = this.getRankCounts(cards);
+
+    for (const c of cards) {
+      candidates.push({ type: HandType.HIGH_CARD, rank: c.rank });
+    }
+    for (const [rank, count] of rankCounts) {
+      if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
+    }
+    for (const [rank, count] of rankCounts) {
+      if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
+    }
+
+    return this.pickLowestValid(candidates, currentHand);
+  }
+
+  // ─── HAND FINDING (FULL — Hard mode) ────────────────────────────────
+
+  /**
+   * Find the best hand considering all hand types and what might exist in the full card pool.
+   */
+  private static findBestHandInCardsFull(cards: Card[], totalCards: number): HandCall | null {
+    const rankCounts = this.getRankCounts(cards);
+    const suitCounts = this.getSuitCounts(cards);
+
+    // Four of a kind
+    for (const [rank, count] of rankCounts) {
+      if (count >= 4) return { type: HandType.FOUR_OF_A_KIND, rank };
+    }
+
+    // Full house — need 3+2 of different ranks
+    const triples: Rank[] = [];
+    const pairs: Rank[] = [];
+    for (const [rank, count] of rankCounts) {
+      if (count >= 3) triples.push(rank);
+      else if (count >= 2) pairs.push(rank);
+    }
+    if (triples.length > 0 && (pairs.length > 0 || triples.length > 1)) {
+      const threeRank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      const twoRank = pairs.length > 0
+        ? pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]
+        : triples.filter(r => r !== threeRank)[0];
+      if (twoRank) return { type: HandType.FULL_HOUSE, threeRank, twoRank };
+    }
+
+    // Three of a kind
+    if (triples.length > 0) {
+      const rank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      return { type: HandType.THREE_OF_A_KIND, rank };
+    }
+
+    // Flush — check if we have 5 of a suit (unlikely with few cards, but check)
+    for (const [suit, count] of suitCounts) {
+      if (count >= 5) return { type: HandType.FLUSH, suit };
+    }
+
+    // Two pair
+    if (pairs.length >= 2 || (pairs.length >= 1 && triples.length >= 1)) {
+      const allPairs = [...pairs, ...triples].sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
+      return { type: HandType.TWO_PAIR, highRank: allPairs[0], lowRank: allPairs[1] };
+    }
+
+    // Pair
+    if (pairs.length > 0) {
+      const rank = pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      return { type: HandType.PAIR, rank };
+    }
+
+    // High card
+    if (cards.length > 0) {
+      let bestRank: Rank = cards[0].rank;
+      for (const c of cards) {
+        if (RANK_VALUES[c.rank] > RANK_VALUES[bestRank]) {
+          bestRank = c.rank;
+        }
+      }
+      return { type: HandType.HIGH_CARD, rank: bestRank };
+    }
+
+    return null;
+  }
+
+  /**
+   * Full hand search — generates candidates across ALL hand types.
    */
   static findHandHigherThan(cards: Card[], currentHand: HandCall): HandCall | null {
-    // Try same type first, then higher types
-    const candidates: HandCall[] = [];
+    return this.findHandHigherThanFull(cards, currentHand, 10);
+  }
 
-    // Generate candidate hands from own cards
-    const rankCounts = new Map<Rank, number>();
-    const suitCounts = new Map<Suit, number>();
-    for (const c of cards) {
-      rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
-      suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
-    }
+  private static findHandHigherThanFull(
+    cards: Card[],
+    currentHand: HandCall,
+    totalCards: number,
+  ): HandCall | null {
+    const candidates: HandCall[] = [];
+    const rankCounts = this.getRankCounts(cards);
+    const suitCounts = this.getSuitCounts(cards);
 
     // High cards
     for (const c of cards) {
@@ -165,36 +326,68 @@ export class BotPlayer {
       if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
     }
 
+    // Two pair
+    const pairRanks: Rank[] = [];
+    for (const [rank, count] of rankCounts) {
+      if (count >= 2) pairRanks.push(rank);
+    }
+    if (pairRanks.length >= 2) {
+      pairRanks.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
+      for (let i = 0; i < pairRanks.length; i++) {
+        for (let j = i + 1; j < pairRanks.length; j++) {
+          candidates.push({
+            type: HandType.TWO_PAIR,
+            highRank: pairRanks[i],
+            lowRank: pairRanks[j],
+          });
+        }
+      }
+    }
+
     // Three of a kind
     for (const [rank, count] of rankCounts) {
       if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
     }
 
-    // Filter to those that beat the current hand
-    const valid = candidates.filter(h => isHigherHand(h, currentHand));
-    if (valid.length > 0) {
-      // Pick the lowest valid hand to be conservative
-      valid.sort((a, b) => {
-        if (a.type !== b.type) return a.type - b.type;
-        return 0;
-      });
-      return valid[0];
+    // Flush (if 5+ of same suit)
+    for (const [suit, count] of suitCounts) {
+      if (count >= 5) candidates.push({ type: HandType.FLUSH, suit });
     }
 
-    return null;
+    // Full house
+    const tripleRanks: Rank[] = [];
+    const pairableRanks: Rank[] = [];
+    for (const [rank, count] of rankCounts) {
+      if (count >= 3) tripleRanks.push(rank);
+      if (count >= 2) pairableRanks.push(rank);
+    }
+    for (const tr of tripleRanks) {
+      for (const pr of pairableRanks) {
+        if (pr !== tr) {
+          candidates.push({ type: HandType.FULL_HOUSE, threeRank: tr, twoRank: pr });
+        }
+      }
+    }
+
+    // Four of a kind
+    for (const [rank, count] of rankCounts) {
+      if (count >= 4) candidates.push({ type: HandType.FOUR_OF_A_KIND, rank });
+    }
+
+    return this.pickLowestValid(candidates, currentHand);
   }
 
-  /**
-   * Estimate how plausible a called hand is, given the bot's own cards and total card count.
-   * Returns 0..1 where higher = more plausible.
-   */
-  static estimatePlausibility(hand: HandCall, ownCards: Card[], totalCards: number): number {
+  // ─── PLAUSIBILITY (SIMPLE — Easy mode) ──────────────────────────────
+
+  private static estimatePlausibilitySimple(
+    hand: HandCall,
+    ownCards: Card[],
+    totalCards: number,
+  ): number {
     switch (hand.type) {
       case HandType.HIGH_CARD: {
-        // Almost always plausible if there are many cards
         const hasIt = ownCards.some(c => c.rank === hand.rank);
         if (hasIt) return 0.95;
-        // Probability of at least one in remaining cards
         return Math.min(0.9, totalCards * 0.07);
       }
       case HandType.PAIR: {
@@ -229,22 +422,131 @@ export class BotPlayer {
   }
 
   /**
-   * Generate a bluff hand that is higher than the current hand.
+   * Public estimatePlausibility for backward compatibility (used by tests).
    */
-  static makeBluffHand(currentHand: HandCall | null): HandCall {
+  static estimatePlausibility(hand: HandCall, ownCards: Card[], totalCards: number): number {
+    return this.estimatePlausibilitySimple(hand, ownCards, totalCards);
+  }
+
+  // ─── PLAUSIBILITY (HARD MODE) ───────────────────────────────────────
+
+  /**
+   * Hypergeometric-approximation plausibility estimation.
+   * More accurate probability estimates using number of cards seen vs remaining.
+   */
+  private static estimatePlausibilityHard(
+    hand: HandCall,
+    ownCards: Card[],
+    totalCards: number,
+  ): number {
+    const otherCards = totalCards - ownCards.length;
+    const deckSize = 52;
+    const unseenCards = deckSize - ownCards.length;
+
+    switch (hand.type) {
+      case HandType.HIGH_CARD: {
+        // 4 copies of the rank in the deck; how many do we have?
+        const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
+        if (ownCount >= 1) return 0.98;
+        const remaining = 4 - ownCount;
+        // P(at least 1 among otherCards drawn from unseenCards with `remaining` copies)
+        // ≈ 1 - C(unseenCards-remaining, otherCards) / C(unseenCards, otherCards)
+        const pNone = this.hypergeomNone(unseenCards, remaining, otherCards);
+        return 1 - pNone;
+      }
+
+      case HandType.PAIR: {
+        const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
+        if (ownCount >= 2) return 0.98;
+        const remaining = 4 - ownCount;
+        const needed = 2 - ownCount;
+        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
+      }
+
+      case HandType.TWO_PAIR: {
+        // Rough: probability of finding 2 pairs among all cards
+        if (totalCards < 4) return 0.02;
+        // Count pairs we already have
+        const rankCounts = this.getRankCounts(ownCards);
+        let ownPairs = 0;
+        for (const [, count] of rankCounts) {
+          if (count >= 2) ownPairs++;
+        }
+        if (ownPairs >= 2) return 0.95;
+        if (ownPairs === 1) return Math.min(0.65, otherCards * 0.04);
+        return Math.min(0.35, otherCards * 0.02);
+      }
+
+      case HandType.THREE_OF_A_KIND: {
+        const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
+        if (ownCount >= 3) return 0.98;
+        const remaining = 4 - ownCount;
+        const needed = 3 - ownCount;
+        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
+      }
+
+      case HandType.FLUSH: {
+        const suit = (hand as { type: HandType.FLUSH; suit: Suit }).suit;
+        const ownSuitCount = ownCards.filter(c => c.suit === suit).length;
+        if (ownSuitCount >= 5) return 0.95;
+        const remaining = 13 - ownSuitCount;
+        const needed = 5 - ownSuitCount;
+        if (needed <= 0) return 0.95;
+        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed) * 0.8;
+      }
+
+      case HandType.STRAIGHT: {
+        // Rough approximation: depends heavily on total cards
+        if (totalCards < 5) return 0.01;
+        if (totalCards < 8) return 0.05;
+        if (totalCards < 12) return 0.15;
+        return 0.25;
+      }
+
+      case HandType.FULL_HOUSE: {
+        if (totalCards < 5) return 0.01;
+        if (totalCards < 8) return 0.04;
+        if (totalCards < 12) return 0.12;
+        return 0.2;
+      }
+
+      case HandType.FOUR_OF_A_KIND: {
+        const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
+        if (ownCount >= 4) return 0.98;
+        const remaining = 4 - ownCount;
+        const needed = 4 - ownCount;
+        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
+      }
+
+      case HandType.STRAIGHT_FLUSH: {
+        if (totalCards < 5) return 0.002;
+        if (totalCards < 10) return 0.005;
+        return 0.015;
+      }
+
+      case HandType.ROYAL_FLUSH: {
+        if (totalCards < 5) return 0.001;
+        return 0.005;
+      }
+
+      default:
+        return 0.3;
+    }
+  }
+
+  // ─── BLUFF GENERATION (EASY) ────────────────────────────────────────
+
+  private static makeBluffHandEasy(currentHand: HandCall | null): HandCall {
     if (!currentHand) {
-      // Opening bluff: random low hand
       const rank = ALL_RANKS[Math.floor(Math.random() * 8) + 5]; // 7 through A
       return { type: HandType.HIGH_CARD, rank };
     }
 
-    // Try to make a hand one step above current
     if (currentHand.type === HandType.HIGH_CARD) {
       const cr = currentHand as { type: HandType.HIGH_CARD; rank: Rank };
       const nextRankVal = RANK_VALUES[cr.rank] + 1;
       const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
       if (nextRank) return { type: HandType.HIGH_CARD, rank: nextRank };
-      // Escalate to pair of 2s
       return { type: HandType.PAIR, rank: '2' };
     }
 
@@ -256,7 +558,6 @@ export class BotPlayer {
       return { type: HandType.THREE_OF_A_KIND, rank: '2' };
     }
 
-    // For higher hand types, just bump to next type with low values
     if (currentHand.type < HandType.FLUSH) {
       return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
     }
@@ -264,7 +565,250 @@ export class BotPlayer {
       return { type: HandType.STRAIGHT, highRank: '6' };
     }
 
-    // Fallback: just return a high card ace (shouldn't normally reach here)
     return { type: HandType.HIGH_CARD, rank: 'A' };
+  }
+
+  /**
+   * Public makeBluffHand for backward compatibility.
+   */
+  static makeBluffHand(currentHand: HandCall | null): HandCall {
+    return this.makeBluffHandEasy(currentHand);
+  }
+
+  // ─── BLUFF GENERATION (HARD) ───────────────────────────────────────
+
+  private static makeBluffHandHard(currentHand: HandCall | null, totalCards: number): HandCall {
+    if (!currentHand) {
+      // Strategic opening: medium-value call that's harder to challenge
+      if (totalCards >= 8) {
+        // With many total cards, open with a pair (likely to exist)
+        const midRanks: Rank[] = ['7', '8', '9', '10', 'J'];
+        const rank = midRanks[Math.floor(Math.random() * midRanks.length)];
+        return { type: HandType.PAIR, rank };
+      }
+      const rank = ALL_RANKS[Math.floor(Math.random() * 6) + 7]; // 9 through A
+      return { type: HandType.HIGH_CARD, rank };
+    }
+
+    // One step above current, varying by hand type
+    if (currentHand.type === HandType.HIGH_CARD) {
+      const cr = currentHand as { type: HandType.HIGH_CARD; rank: Rank };
+      const nextRankVal = RANK_VALUES[cr.rank] + 1;
+      const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
+      if (nextRank) return { type: HandType.HIGH_CARD, rank: nextRank };
+      return { type: HandType.PAIR, rank: '2' };
+    }
+
+    if (currentHand.type === HandType.PAIR) {
+      const cr = currentHand as { type: HandType.PAIR; rank: Rank };
+      const nextRankVal = RANK_VALUES[cr.rank] + 1;
+      const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
+      if (nextRank) return { type: HandType.PAIR, rank: nextRank };
+      // Escalate to two pair if plausible
+      if (totalCards >= 6) {
+        return { type: HandType.TWO_PAIR, highRank: 'A', lowRank: '2' };
+      }
+      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
+    }
+
+    if (currentHand.type === HandType.TWO_PAIR) {
+      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
+    }
+
+    if (currentHand.type === HandType.THREE_OF_A_KIND) {
+      const cr = currentHand as { type: HandType.THREE_OF_A_KIND; rank: Rank };
+      const nextRankVal = RANK_VALUES[cr.rank] + 1;
+      const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
+      if (nextRank) return { type: HandType.THREE_OF_A_KIND, rank: nextRank };
+      // Escalate to flush if enough cards
+      if (totalCards >= 8) {
+        return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+      }
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+    }
+
+    if (currentHand.type === HandType.FLUSH) {
+      const cr = currentHand as { type: HandType.FLUSH; suit: Suit };
+      // Try next suit up
+      const nextSuitVal = SUIT_ORDER[cr.suit] + 1;
+      const nextSuit = ALL_SUITS.find(s => SUIT_ORDER[s] === nextSuitVal);
+      if (nextSuit) return { type: HandType.FLUSH, suit: nextSuit };
+      // Escalate to straight
+      return { type: HandType.STRAIGHT, highRank: '6' };
+    }
+
+    if (currentHand.type === HandType.STRAIGHT) {
+      const cr = currentHand as { type: HandType.STRAIGHT; highRank: Rank };
+      const nextRankVal = RANK_VALUES[cr.highRank] + 1;
+      const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
+      if (nextRank) return { type: HandType.STRAIGHT, highRank: nextRank };
+      return { type: HandType.FULL_HOUSE, threeRank: '2', twoRank: '3' };
+    }
+
+    if (currentHand.type === HandType.FULL_HOUSE) {
+      return { type: HandType.FOUR_OF_A_KIND, rank: '2' };
+    }
+
+    if (currentHand.type === HandType.FOUR_OF_A_KIND) {
+      const cr = currentHand as { type: HandType.FOUR_OF_A_KIND; rank: Rank };
+      const nextRankVal = RANK_VALUES[cr.rank] + 1;
+      const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
+      if (nextRank) return { type: HandType.FOUR_OF_A_KIND, rank: nextRank };
+      return { type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: '6' };
+    }
+
+    // Fallback
+    return { type: HandType.HIGH_CARD, rank: 'A' };
+  }
+
+  // ─── TURN HISTORY ANALYSIS ──────────────────────────────────────────
+
+  /**
+   * Analyze turn history to derive a bias modifier.
+   * Returns -1..1 where negative = opponents seem to be bluffing more,
+   * positive = opponents seem honest.
+   */
+  static analyzeTurnHistory(
+    turnHistory: { playerId: string; action: TurnAction }[],
+    botId: string,
+  ): number {
+    let bullCount = 0;
+    let trueCount = 0;
+    let callCount = 0;
+
+    for (const entry of turnHistory) {
+      if (entry.playerId === botId) continue;
+      if (entry.action === TurnAction.BULL) bullCount++;
+      else if (entry.action === TurnAction.TRUE) trueCount++;
+      else if (entry.action === TurnAction.CALL) callCount++;
+    }
+
+    const totalReactions = bullCount + trueCount;
+    if (totalReactions < 2) return 0;
+
+    // If opponents call bull a lot, hands are probably fake → negative bias
+    // If opponents call true a lot, hands are probably real → positive bias
+    const ratio = trueCount / totalReactions;
+    return (ratio - 0.5) * 2; // Maps 0..1 to -1..1
+  }
+
+  // ─── UTILITY METHODS ────────────────────────────────────────────────
+
+  private static getTotalCards(state: ClientGameState): number {
+    return state.players
+      .filter(p => !p.isEliminated)
+      .reduce((sum, p) => sum + p.cardCount, 0);
+  }
+
+  private static getRankCounts(cards: Card[]): Map<Rank, number> {
+    const counts = new Map<Rank, number>();
+    for (const c of cards) {
+      counts.set(c.rank, (counts.get(c.rank) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  private static getSuitCounts(cards: Card[]): Map<Suit, number> {
+    const counts = new Map<Suit, number>();
+    for (const c of cards) {
+      counts.set(c.suit, (counts.get(c.suit) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  private static pickLowestValid(candidates: HandCall[], currentHand: HandCall): HandCall | null {
+    const valid = candidates.filter(h => isHigherHand(h, currentHand));
+    if (valid.length === 0) return null;
+
+    valid.sort((a, b) => {
+      if (a.type !== b.type) return a.type - b.type;
+      // Within same type, sort by rank value
+      const aRank = this.getHandPrimaryRank(a);
+      const bRank = this.getHandPrimaryRank(b);
+      return aRank - bRank;
+    });
+    return valid[0];
+  }
+
+  private static getHandPrimaryRank(hand: HandCall): number {
+    switch (hand.type) {
+      case HandType.HIGH_CARD:
+      case HandType.PAIR:
+      case HandType.THREE_OF_A_KIND:
+      case HandType.FOUR_OF_A_KIND:
+        return RANK_VALUES[hand.rank];
+      case HandType.TWO_PAIR:
+        return RANK_VALUES[hand.highRank] * 100 + RANK_VALUES[hand.lowRank];
+      case HandType.FLUSH:
+        return SUIT_ORDER[hand.suit];
+      case HandType.STRAIGHT:
+        return RANK_VALUES[hand.highRank];
+      case HandType.FULL_HOUSE:
+        return RANK_VALUES[hand.threeRank] * 100 + RANK_VALUES[hand.twoRank];
+      case HandType.STRAIGHT_FLUSH:
+        return SUIT_ORDER[hand.suit] * 100 + RANK_VALUES[hand.highRank];
+      case HandType.ROYAL_FLUSH:
+        return SUIT_ORDER[hand.suit];
+      default:
+        return 0;
+    }
+  }
+
+  /**
+   * Hypergeometric: P(0 successes) when drawing `draw` items from population of
+   * `N` items containing `K` successes.
+   * Uses logarithmic approximation for numerical stability.
+   */
+  private static hypergeomNone(N: number, K: number, draw: number): number {
+    if (draw <= 0 || K <= 0) return 1;
+    if (draw >= N) return K > 0 ? 0 : 1;
+    if (K >= N) return 0;
+
+    // P(X=0) = C(N-K, draw) / C(N, draw) = product((N-K-i)/(N-i)) for i=0..draw-1
+    let logP = 0;
+    const safeN = Math.max(N, 1);
+    const safeK = Math.min(K, N);
+    const safeDraw = Math.min(draw, N);
+
+    for (let i = 0; i < safeDraw; i++) {
+      const num = safeN - safeK - i;
+      const den = safeN - i;
+      if (den <= 0) return 0;
+      if (num <= 0) return 0;
+      logP += Math.log(num / den);
+    }
+    return Math.exp(logP);
+  }
+
+  /**
+   * P(at least `needed` successes) using complement of cumulative hypergeometric.
+   */
+  private static hypergeomAtLeast(
+    N: number,
+    K: number,
+    draw: number,
+    needed: number,
+  ): number {
+    if (needed <= 0) return 1;
+    if (K < needed) return 0;
+    if (draw < needed) return 0;
+
+    // For needed=1, use complement of P(0)
+    if (needed === 1) {
+      return 1 - this.hypergeomNone(N, K, draw);
+    }
+
+    // For needed=2+, approximate using product of conditional probabilities
+    let p = 1;
+    for (let i = 0; i < needed; i++) {
+      const remainingSuccesses = K - i;
+      const remainingPool = N - i;
+      const remainingDraw = draw - i;
+      if (remainingPool <= 0 || remainingDraw <= 0) return 0;
+      // P(at least 1 more success in remaining draws from remaining pool)
+      const pNone = this.hypergeomNone(remainingPool, remainingSuccesses, remainingDraw);
+      p *= (1 - pNone);
+    }
+    return Math.max(0, Math.min(1, p));
   }
 }

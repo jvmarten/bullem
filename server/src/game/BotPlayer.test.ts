@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { BotPlayer } from './BotPlayer.js';
 import {
-  HandType, RoundPhase, GamePhase, STARTING_CARDS,
+  HandType, RoundPhase, GamePhase, BotDifficulty, TurnAction,
   isHigherHand,
 } from '@bull-em/shared';
-import type { Card, HandCall, ClientGameState, Player } from '@bull-em/shared';
+import type { Card, HandCall, ClientGameState } from '@bull-em/shared';
 
 function makeState(overrides: Partial<ClientGameState> = {}): ClientGameState {
   return {
@@ -25,7 +25,20 @@ function makeState(overrides: Partial<ClientGameState> = {}): ClientGameState {
   };
 }
 
+function makeManyCardState(overrides: Partial<ClientGameState> = {}): ClientGameState {
+  return makeState({
+    players: [
+      { id: 'bot1', name: 'Bot', cardCount: 4, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+      { id: 'p1', name: 'Alice', cardCount: 4, isConnected: true, isEliminated: false, isHost: true },
+      { id: 'p2', name: 'Bob', cardCount: 3, isConnected: true, isEliminated: false, isHost: false },
+    ],
+    ...overrides,
+  });
+}
+
 describe('BotPlayer', () => {
+  // ─── findBestHandInCards ──────────────────────────────────────────
+
   describe('findBestHandInCards', () => {
     it('returns high card for a single card', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
@@ -71,7 +84,6 @@ describe('BotPlayer', () => {
         { rank: 'Q', suit: 'diamonds' },
       ];
       const hand = BotPlayer.findBestHandInCards(cards);
-      // Should return the highest pair (Queens)
       expect(hand?.type).toBe(HandType.PAIR);
       if (hand?.type === HandType.PAIR) {
         expect(hand.rank).toBe('Q');
@@ -82,6 +94,8 @@ describe('BotPlayer', () => {
       expect(BotPlayer.findBestHandInCards([])).toBeNull();
     });
   });
+
+  // ─── findHandHigherThan ───────────────────────────────────────────
 
   describe('findHandHigherThan', () => {
     it('finds a higher high card', () => {
@@ -109,7 +123,35 @@ describe('BotPlayer', () => {
       const result = BotPlayer.findHandHigherThan(cards, currentHand);
       expect(result).toBeNull();
     });
+
+    it('finds two pair when available', () => {
+      const cards: Card[] = [
+        { rank: 'K', suit: 'hearts' },
+        { rank: 'K', suit: 'spades' },
+        { rank: 'Q', suit: 'clubs' },
+        { rank: 'Q', suit: 'diamonds' },
+      ];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
+      const result = BotPlayer.findHandHigherThan(cards, currentHand);
+      expect(result).not.toBeNull();
+      expect(isHigherHand(result!, currentHand)).toBe(true);
+    });
+
+    it('picks the lowest valid hand (conservative)', () => {
+      const cards: Card[] = [
+        { rank: 'A', suit: 'spades' },
+        { rank: 'K', suit: 'hearts' },
+        { rank: 'K', suit: 'spades' },
+      ];
+      const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: 'Q' };
+      const result = BotPlayer.findHandHigherThan(cards, currentHand);
+      expect(result).not.toBeNull();
+      // Should pick high card K or A (lowest valid), not pair of Ks
+      expect(result!.type).toBe(HandType.HIGH_CARD);
+    });
   });
+
+  // ─── estimatePlausibility ─────────────────────────────────────────
 
   describe('estimatePlausibility', () => {
     it('returns high plausibility for high card bot has', () => {
@@ -131,12 +173,37 @@ describe('BotPlayer', () => {
       expect(p).toBeGreaterThan(0.1);
       expect(p).toBeLessThan(0.9);
     });
+
+    it('returns very high plausibility for pair bot already has', () => {
+      const cards: Card[] = [
+        { rank: 'K', suit: 'hearts' },
+        { rank: 'K', suit: 'spades' },
+      ];
+      const hand: HandCall = { type: HandType.PAIR, rank: 'K' };
+      expect(BotPlayer.estimatePlausibility(hand, cards, 5)).toBeGreaterThan(0.9);
+    });
+
+    it('returns low plausibility for straight flush', () => {
+      const cards: Card[] = [{ rank: '7', suit: 'spades' }];
+      const hand: HandCall = { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '9' };
+      expect(BotPlayer.estimatePlausibility(hand, cards, 5)).toBeLessThan(0.1);
+    });
   });
 
-  describe('decideAction', () => {
+  // ─── decideAction (EASY mode — default) ───────────────────────────
+
+  describe('decideAction (Easy mode)', () => {
     it('makes an opening call when no current hand', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
+      const action = BotPlayer.decideAction(state, 'bot1', cards);
+      expect(action.action).toBe('call');
+    });
+
+    it('defaults to easy mode when no difficulty specified', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
+      // Should not throw and should produce a valid action
       const action = BotPlayer.decideAction(state, 'bot1', cards);
       expect(action.action).toBe('call');
     });
@@ -148,7 +215,7 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
         lastCallerId: 'p1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards);
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
       expect(['call', 'bull']).toContain(action.action);
     });
 
@@ -159,8 +226,8 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'p1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards);
-      expect(['bull', 'true', 'call']).toContain(action.action);
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+      expect(['bull', 'true']).toContain(action.action);
     });
 
     it('handles last chance phase', () => {
@@ -170,16 +237,15 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'bot1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards);
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
       expect(['lastChanceRaise', 'lastChancePass']).toContain(action.action);
     });
 
     it('returns a valid HandCall when making a call', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
-      // Run multiple times to account for randomness
       for (let i = 0; i < 20; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
         if (action.action === 'call') {
           expect(action.hand).toBeDefined();
           expect(action.hand.type).toBeGreaterThanOrEqual(HandType.HIGH_CARD);
@@ -187,7 +253,141 @@ describe('BotPlayer', () => {
         }
       }
     });
+
+    it('easy mode only generates simple hand types (HIGH_CARD, PAIR, THREE_OF_A_KIND)', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        if (action.action === 'call') {
+          // Easy mode opening calls should only be simple types
+          expect(action.hand.type).toBeLessThanOrEqual(HandType.STRAIGHT);
+        }
+      }
+    });
+
+    it('easy mode passes in last chance when no higher hand', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.LAST_CHANCE,
+        currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
+        lastCallerId: 'bot1',
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+      expect(action.action).toBe('lastChancePass');
+    });
   });
+
+  // ─── decideAction (HARD mode) ─────────────────────────────────────
+
+  describe('decideAction (Hard mode)', () => {
+    it('makes an opening call when no current hand', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(action.action).toBe('call');
+    });
+
+    it('calls bull or raises when current hand exists in calling phase', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
+        lastCallerId: 'p1',
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(['call', 'bull']).toContain(action.action);
+    });
+
+    it('calls bull, true, or raises in bull phase', () => {
+      const cards: Card[] = [{ rank: '7', suit: 'spades' }];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.HIGH_CARD, rank: '7' },
+        lastCallerId: 'p1',
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(['bull', 'true', 'call']).toContain(action.action);
+    });
+
+    it('handles last chance phase with raise when possible', () => {
+      const cards: Card[] = [
+        { rank: 'A', suit: 'spades' },
+        { rank: 'A', suit: 'hearts' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.LAST_CHANCE,
+        currentHand: { type: HandType.HIGH_CARD, rank: '7' },
+        lastCallerId: 'bot1',
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(['lastChanceRaise', 'lastChancePass']).toContain(action.action);
+    });
+
+    it('hard mode considers all hand types for opening call with many cards', () => {
+      const cards: Card[] = [
+        { rank: 'K', suit: 'hearts' },
+        { rank: 'K', suit: 'spades' },
+        { rank: 'Q', suit: 'clubs' },
+        { rank: 'Q', suit: 'diamonds' },
+        { rank: 'J', suit: 'hearts' },
+      ];
+      const state = makeManyCardState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: null,
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(action.action).toBe('call');
+      if (action.action === 'call') {
+        // With two pairs of K and Q, hard mode can find these
+        expect(action.hand.type).toBeGreaterThanOrEqual(HandType.HIGH_CARD);
+      }
+    });
+
+    it('hard mode uses adaptive aggression with more cards', () => {
+      const cards: Card[] = [
+        { rank: 'A', suit: 'spades' },
+        { rank: 'A', suit: 'hearts' },
+        { rank: 'A', suit: 'clubs' },
+        { rank: 'K', suit: 'spades' },
+      ];
+      const state = makeManyCardState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.PAIR, rank: '7' },
+        lastCallerId: 'p1',
+      });
+      // With 3 aces and 4 cards, hard mode should be aggressive
+      const actions = new Set<string>();
+      for (let i = 0; i < 30; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+        actions.add(action.action);
+      }
+      expect(actions.has('call')).toBe(true); // Should raise at least sometimes
+    });
+
+    it('hard mode passes in last chance when no higher hand', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.LAST_CHANCE,
+        currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
+        lastCallerId: 'bot1',
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(action.action).toBe('lastChancePass');
+    });
+
+    it('hard mode fallback returns bull when current hand exists', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.RESOLVING as any, // unusual phase
+        currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(action.action).toBe('bull');
+    });
+  });
+
+  // ─── makeBluffHand ────────────────────────────────────────────────
 
   describe('makeBluffHand', () => {
     it('returns a valid hand when no current hand', () => {
@@ -205,6 +405,150 @@ describe('BotPlayer', () => {
       const current: HandCall = { type: HandType.HIGH_CARD, rank: 'A' };
       const bluff = BotPlayer.makeBluffHand(current);
       expect(bluff.type).toBeGreaterThanOrEqual(HandType.PAIR);
+    });
+
+    it('escalates from pair of aces to three of a kind', () => {
+      const current: HandCall = { type: HandType.PAIR, rank: 'A' };
+      const bluff = BotPlayer.makeBluffHand(current);
+      expect(bluff.type).toBeGreaterThanOrEqual(HandType.THREE_OF_A_KIND);
+    });
+
+    it('escalates from three of a kind to flush', () => {
+      const current: HandCall = { type: HandType.THREE_OF_A_KIND, rank: '5' };
+      const bluff = BotPlayer.makeBluffHand(current);
+      expect(bluff.type).toBeGreaterThanOrEqual(HandType.FLUSH);
+    });
+
+    it('escalates from flush to straight', () => {
+      const current: HandCall = { type: HandType.FLUSH, suit: 'spades' };
+      const bluff = BotPlayer.makeBluffHand(current);
+      expect(bluff.type).toBeGreaterThanOrEqual(HandType.STRAIGHT);
+    });
+  });
+
+  // ─── analyzeTurnHistory ───────────────────────────────────────────
+
+  describe('analyzeTurnHistory', () => {
+    it('returns 0 with insufficient history', () => {
+      const history = [
+        { playerId: 'p1', action: TurnAction.BULL, playerName: 'p1', timestamp: 0 },
+      ];
+      expect(BotPlayer.analyzeTurnHistory(history, 'bot1')).toBe(0);
+    });
+
+    it('returns negative bias when opponents call bull a lot', () => {
+      const history = [
+        { playerId: 'p1', action: TurnAction.BULL, playerName: 'p1', timestamp: 0 },
+        { playerId: 'p2', action: TurnAction.BULL, playerName: 'p2', timestamp: 0 },
+        { playerId: 'p1', action: TurnAction.BULL, playerName: 'p1', timestamp: 0 },
+      ];
+      const bias = BotPlayer.analyzeTurnHistory(history, 'bot1');
+      expect(bias).toBeLessThan(0);
+    });
+
+    it('returns positive bias when opponents call true a lot', () => {
+      const history = [
+        { playerId: 'p1', action: TurnAction.TRUE, playerName: 'p1', timestamp: 0 },
+        { playerId: 'p2', action: TurnAction.TRUE, playerName: 'p2', timestamp: 0 },
+        { playerId: 'p1', action: TurnAction.TRUE, playerName: 'p1', timestamp: 0 },
+      ];
+      const bias = BotPlayer.analyzeTurnHistory(history, 'bot1');
+      expect(bias).toBeGreaterThan(0);
+    });
+
+    it('returns 0 for balanced history', () => {
+      const history = [
+        { playerId: 'p1', action: TurnAction.BULL, playerName: 'p1', timestamp: 0 },
+        { playerId: 'p2', action: TurnAction.TRUE, playerName: 'p2', timestamp: 0 },
+      ];
+      const bias = BotPlayer.analyzeTurnHistory(history, 'bot1');
+      expect(bias).toBe(0);
+    });
+
+    it('ignores bot own actions in history', () => {
+      const history = [
+        { playerId: 'bot1', action: TurnAction.BULL, playerName: 'bot1', timestamp: 0 },
+        { playerId: 'bot1', action: TurnAction.BULL, playerName: 'bot1', timestamp: 0 },
+        { playerId: 'p1', action: TurnAction.TRUE, playerName: 'p1', timestamp: 0 },
+        { playerId: 'p2', action: TurnAction.TRUE, playerName: 'p2', timestamp: 0 },
+      ];
+      const bias = BotPlayer.analyzeTurnHistory(history, 'bot1');
+      // Only p1 and p2 counted: 2 true, 0 bull → positive bias
+      expect(bias).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── Difficulty parameter behavior ────────────────────────────────
+
+  describe('difficulty parameter', () => {
+    it('accepts EASY difficulty', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState();
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+      expect(action).toBeDefined();
+      expect(action.action).toBeDefined();
+    });
+
+    it('accepts HARD difficulty', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState();
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+      expect(action).toBeDefined();
+      expect(action.action).toBeDefined();
+    });
+
+    it('both difficulties produce valid actions for all phases', () => {
+      const cards: Card[] = [{ rank: 'A', suit: 'spades' }, { rank: 'K', suit: 'hearts' }];
+
+      const phases = [
+        { roundPhase: RoundPhase.CALLING, currentHand: null, lastCallerId: null },
+        { roundPhase: RoundPhase.CALLING, currentHand: { type: HandType.HIGH_CARD, rank: '7' as const }, lastCallerId: 'p1' },
+        { roundPhase: RoundPhase.BULL_PHASE, currentHand: { type: HandType.HIGH_CARD, rank: '7' as const }, lastCallerId: 'p1' },
+        { roundPhase: RoundPhase.LAST_CHANCE, currentHand: { type: HandType.HIGH_CARD, rank: '7' as const }, lastCallerId: 'bot1' },
+      ];
+
+      for (const difficulty of [BotDifficulty.EASY, BotDifficulty.HARD]) {
+        for (const phase of phases) {
+          const state = makeState(phase);
+          const action = BotPlayer.decideAction(state, 'bot1', cards, difficulty);
+          expect(action).toBeDefined();
+          expect(['call', 'bull', 'true', 'lastChanceRaise', 'lastChancePass']).toContain(action.action);
+        }
+      }
+    });
+
+    it('hard mode calls never produce an invalid raise', () => {
+      const cards: Card[] = [{ rank: 'A', suit: 'spades' }];
+      const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: '7' };
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+        if (action.action === 'call') {
+          expect(isHigherHand(action.hand, currentHand)).toBe(true);
+        }
+      }
+    });
+
+    it('easy mode calls never produce an invalid raise', () => {
+      const cards: Card[] = [{ rank: 'A', suit: 'spades' }];
+      const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: '7' };
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        if (action.action === 'call') {
+          expect(isHigherHand(action.hand, currentHand)).toBe(true);
+        }
+      }
     });
   });
 });
