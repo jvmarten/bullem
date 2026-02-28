@@ -5,9 +5,11 @@ interface Props {
   players: Player[];
   currentPlayerId?: PlayerId;
   myPlayerId?: string | null;
+  showRemoveBot?: boolean;
+  onRemoveBot?: (botId: string) => void;
 }
 
-export function PlayerList({ players, currentPlayerId, myPlayerId }: Props) {
+export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot, onRemoveBot }: Props) {
   return (
     <div className="space-y-1.5">
       {players.map((p, i) => {
@@ -26,12 +28,13 @@ export function PlayerList({ players, currentPlayerId, myPlayerId }: Props) {
           >
             <div className="flex items-center gap-2.5">
               <div className={`avatar ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
-                {playerInitial(p.name)}
+                {p.isBot ? '\u2699' : playerInitial(p.name)}
               </div>
               <div className="flex flex-col">
                 <span className="font-medium truncate">
                   {p.name}
                   {isMe && <span className="text-[var(--gold)] ml-1 text-xs">(you)</span>}
+                  {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-xs">[BOT]</span>}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
@@ -43,7 +46,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId }: Props) {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-xs flex-shrink-0">
+            <div className="flex items-center gap-2 text-xs flex-shrink-0">
               {p.isEliminated ? (
                 <span className="text-[var(--danger)] font-bold tracking-wide">OUT</span>
               ) : (
@@ -59,6 +62,15 @@ export function PlayerList({ players, currentPlayerId, myPlayerId }: Props) {
                     </span>
                   )}
                 </>
+              )}
+              {showRemoveBot && p.isBot && onRemoveBot && (
+                <button
+                  onClick={() => onRemoveBot(p.id)}
+                  className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
+                  title="Remove bot"
+                >
+                  ✕
+                </button>
               )}
             </div>
           </div>

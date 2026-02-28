@@ -2,13 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, error } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error } = useGameContext();
   const [copied, setCopied] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -173,17 +173,31 @@ export function LobbyPage() {
           </div>
         )}
 
-        <PlayerList players={roomState.players} myPlayerId={playerId} />
+        <PlayerList
+          players={roomState.players}
+          myPlayerId={playerId}
+          showRemoveBot={isHost}
+          onRemoveBot={removeBot}
+        />
 
         <div className="flex flex-col gap-3">
           {isHost && (
-            <button
-              onClick={handleStartGame}
-              disabled={!canStart}
-              className="w-full btn-gold py-3 text-lg"
-            >
-              {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
-            </button>
+            <>
+              <button
+                onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+                disabled={roomState.players.length >= MAX_PLAYERS}
+                className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+              >
+                + Add Bot
+              </button>
+              <button
+                onClick={handleStartGame}
+                disabled={!canStart}
+                className="w-full btn-gold py-3 text-lg"
+              >
+                {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
+              </button>
+            </>
           )}
           {!isHost && (
             <p className="text-center text-[var(--gold-dim)] text-sm">

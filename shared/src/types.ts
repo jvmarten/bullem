@@ -40,6 +40,7 @@ export interface Player {
   isConnected: boolean;
   isEliminated: boolean;
   isHost: boolean;
+  isBot?: boolean;
 }
 
 export interface ServerPlayer extends Player {

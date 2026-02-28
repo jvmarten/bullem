@@ -10,6 +10,8 @@ export interface ClientToServerEvents {
   'game:true': () => void;
   'game:lastChanceRaise': (data: { hand: HandCall }) => void;
   'game:lastChancePass': () => void;
+  'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
+  'room:removeBot': (data: { botId: string }) => void;
 }
 
 export interface ServerToClientEvents {

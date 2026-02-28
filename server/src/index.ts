@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
+import { BotManager } from './game/BotManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +29,8 @@ if (process.env.NODE_ENV === 'production') {
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 const roomManager = new RoomManager();
-registerHandlers(io, roomManager);
+const botManager = new BotManager();
+registerHandlers(io, roomManager, botManager);
 
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {

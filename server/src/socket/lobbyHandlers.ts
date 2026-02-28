@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
+import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState } from './broadcast.js';
 
@@ -12,6 +13,7 @@ export function registerLobbyHandlers(
   io: TypedServer,
   socket: TypedSocket,
   roomManager: RoomManager,
+  botManager: BotManager,
 ): void {
   socket.on('room:create', (data, callback) => {
     const room = roomManager.createRoom();
@@ -57,6 +59,38 @@ export function registerLobbyHandlers(
     broadcastRoomState(io, room);
   });
 
+  socket.on('room:addBot', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return callback({ error: 'No room found' });
+
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      return callback({ error: 'Only the host can add bots' });
+    }
+
+    try {
+      const botId = botManager.addBot(room, data.botName);
+      broadcastRoomState(io, room);
+      callback({ botId });
+    } catch (e) {
+      callback({ error: e instanceof Error ? e.message : 'Failed to add bot' });
+    }
+  });
+
+  socket.on('room:removeBot', (data) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can remove bots');
+      return;
+    }
+
+    botManager.removeBot(room, data.botId);
+    broadcastRoomState(io, room);
+  });
+
   socket.on('game:start', () => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
@@ -71,5 +105,7 @@ export function registerLobbyHandlers(
     }
     room.startGame();
     broadcastGameState(io, room);
+    // Check if first player is a bot
+    botManager.scheduleBotTurn(room, io);
   });
 }

@@ -28,7 +28,9 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
       <p className={`font-display text-xl font-bold ${isMyTurn ? 'text-[var(--gold)]' : ''}`}>
         {isMyTurn ? 'Your Turn' : `${currentPlayer?.name ?? '\u2026'}\u2019s Turn`}
       </p>
-      <p className="text-sm text-[var(--gold-dim)] mt-0.5">{PHASE_LABELS[roundPhase]}</p>
+      <p className="text-sm text-[var(--gold-dim)] mt-0.5">
+        {currentPlayer?.isBot && !isMyTurn ? 'Thinking\u2026' : PHASE_LABELS[roundPhase]}
+      </p>
     </div>
   );
 }
