@@ -422,6 +422,15 @@ describe('handToString', () => {
     expect(handToString({ type: HandType.STRAIGHT, highRank: 'A' })).toBe('Straight, 10 to Ace');
   });
 
+  it('formats ace-low straight (A-2-3-4-5)', () => {
+    expect(handToString({ type: HandType.STRAIGHT, highRank: '5' })).toBe('Straight, Ace to 5');
+  });
+
+  it('formats ace-low straight flush (A-2-3-4-5)', () => {
+    expect(handToString({ type: HandType.STRAIGHT_FLUSH, suit: 'hearts', highRank: '5' }))
+      .toBe('Straight Flush in hearts, Ace to 5');
+  });
+
   it('formats full house', () => {
     expect(handToString({ type: HandType.FULL_HOUSE, threeRank: 'Q', twoRank: '3' }))
       .toBe('Full House, Queens over 3s');
