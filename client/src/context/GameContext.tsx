@@ -22,6 +22,8 @@ interface GameContextValue {
   lastChancePass: () => void;
   clearError: () => void;
   clearRoundResult: () => void;
+  addBot: (botName?: string) => Promise<string>;
+  removeBot: (botId: string) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -153,6 +155,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const addBot = useCallback((botName?: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      socket.emit('room:addBot', { botName }, (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        resolve(response.botId);
+      });
+    });
+  }, []);
+
+  const removeBot = useCallback((botId: string) => {
+    socket.emit('room:removeBot', { botId });
+  }, []);
+
   const value: GameContextValue = {
     roomState,
     gameState,
@@ -173,6 +188,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastChancePass: () => socket.emit('game:lastChancePass'),
     clearError: () => setError(null),
     clearRoundResult,
+    addBot,
+    removeBot,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

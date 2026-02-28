@@ -37,6 +37,27 @@ export class Room {
     return player;
   }
 
+  addBot(botId: PlayerId, name: string): ServerPlayer {
+    const player: ServerPlayer = {
+      id: botId,
+      name,
+      cardCount: STARTING_CARDS,
+      isConnected: true,
+      isEliminated: false,
+      isHost: false,
+      isBot: true,
+      cards: [],
+    };
+    this.players.set(botId, player);
+    return player;
+  }
+
+  removeBot(botId: PlayerId): void {
+    const player = this.players.get(botId);
+    if (!player || !player.isBot) return;
+    this.players.delete(botId);
+  }
+
   removePlayer(socketId: string): PlayerId | null {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return null;
@@ -129,7 +150,8 @@ export class Room {
   }
 
   get isEmpty(): boolean {
-    return this.players.size === 0;
+    // Only count human players — bots alone don't keep a room alive
+    return [...this.players.values()].every(p => p.isBot);
   }
 }
 
@@ -141,5 +163,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isConnected: p.isConnected,
     isEliminated: p.isEliminated,
     isHost: p.isHost,
+    isBot: p.isBot,
   };
 }

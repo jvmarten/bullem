@@ -346,5 +346,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isConnected: p.isConnected,
     isEliminated: p.isEliminated,
     isHost: p.isHost,
+    isBot: p.isBot,
   };
 }

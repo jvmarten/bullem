@@ -1,7 +1,8 @@
 import type { Server, Socket } from 'socket.io';
 import { GamePhase } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, HandCall } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
+import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
 import { broadcastGameState, broadcastNewRound } from './broadcast.js';
 
@@ -12,40 +13,41 @@ export function registerGameHandlers(
   io: TypedServer,
   socket: TypedSocket,
   roomManager: RoomManager,
+  botManager: BotManager,
 ): void {
   socket.on('game:call', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
-    handleResult(io, ctx.room, result, socket);
+    handleResult(io, ctx.room, result, socket, botManager);
   });
 
   socket.on('game:bull', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const result = ctx.game.handleBull(ctx.playerId);
-    handleResult(io, ctx.room, result, socket);
+    handleResult(io, ctx.room, result, socket, botManager);
   });
 
   socket.on('game:true', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const result = ctx.game.handleTrue(ctx.playerId);
-    handleResult(io, ctx.room, result, socket);
+    handleResult(io, ctx.room, result, socket, botManager);
   });
 
   socket.on('game:lastChanceRaise', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
-    handleResult(io, ctx.room, result, socket);
+    handleResult(io, ctx.room, result, socket, botManager);
   });
 
   socket.on('game:lastChancePass', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const result = ctx.game.handleLastChancePass(ctx.playerId);
-    handleResult(io, ctx.room, result, socket);
+    handleResult(io, ctx.room, result, socket, botManager);
   });
 }
 
@@ -68,6 +70,7 @@ function handleResult(
   room: ReturnType<RoomManager['getRoom']> & {},
   result: TurnResult,
   socket: TypedSocket,
+  botManager: BotManager,
 ): void {
   switch (result.type) {
     case 'error':
@@ -77,6 +80,8 @@ function handleResult(
     case 'continue':
     case 'last_chance':
       broadcastGameState(io, room);
+      // Check if next player is a bot
+      botManager.scheduleBotTurn(room, io);
       break;
 
     case 'resolve':
@@ -91,6 +96,8 @@ function handleResult(
         } else {
           room.gamePhase = GamePhase.PLAYING;
           broadcastNewRound(io, room);
+          // Check if first player of new round is a bot
+          botManager.scheduleBotTurn(room, io);
         }
       }, 3000);
       break;

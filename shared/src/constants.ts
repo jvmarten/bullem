@@ -18,3 +18,10 @@ export const MAX_CARDS = 5;
 export const STARTING_CARDS = 1;
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
+
+export const BOT_THINK_DELAY_MIN = 1000;
+export const BOT_THINK_DELAY_MAX = 3000;
+export const BOT_NAMES = [
+  'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
+  'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',
+];
