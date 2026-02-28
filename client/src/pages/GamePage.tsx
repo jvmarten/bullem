@@ -16,7 +16,7 @@ export function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const {
-    gameState, roundResult, winnerId, playerId,
+    gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult,
   } = useGameContext();
@@ -58,9 +58,8 @@ export function GamePage() {
         </div>
 
         {isEliminated && (
-          <div className="text-center bg-red-900/40 border border-red-700 rounded-lg p-3 animate-fade-in">
-            <p className="text-red-300 font-bold">You've been eliminated</p>
-            <p className="text-red-400 text-sm">Spectating the rest of the game</p>
+          <div className="text-center bg-gray-800/60 border border-gray-600 rounded-lg p-2 animate-fade-in">
+            <p className="text-gray-300 text-sm font-medium">Spectating</p>
           </div>
         )}
 
@@ -114,6 +113,15 @@ export function GamePage() {
             currentHand={gameState.currentHand}
             onSubmit={lastChanceRaise}
           />
+        )}
+
+        {roundTransition && !roundResult && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="text-center space-y-3 animate-fade-in">
+              <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-green-300 text-lg font-medium">Next round starting...</p>
+            </div>
+          </div>
         )}
 
         {roundResult && (
