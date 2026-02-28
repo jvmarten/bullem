@@ -7,8 +7,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <header className="px-4 py-3 text-center border-b border-[var(--felt-border)] relative">
-        <h1 className="font-display text-2xl font-bold tracking-wide text-[var(--gold)]">
+      <header className="px-4 py-1.5 text-center border-b border-[var(--felt-border)] relative">
+        <h1 className="font-display text-xl font-bold tracking-wider text-[var(--gold)] title-glow">
           Bull &rsquo;Em
         </h1>
         {!isConnected && (
@@ -18,7 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         )}
       </header>
-      <main className="max-w-lg mx-auto px-4 py-4">{children}</main>
+      <main className="max-w-lg mx-auto px-4 py-3">{children}</main>
     </div>
   );
 }

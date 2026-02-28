@@ -59,7 +59,7 @@ export function LocalGamePage() {
 
   return (
     <Layout>
-      <div className={`space-y-4 ${isEliminated ? 'spectating' : ''}`}>
+      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
         {/* Top bar */}
         <div className="flex justify-between items-center text-xs">
           <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
@@ -121,13 +121,13 @@ export function LocalGamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="text-center glass-raised p-3 animate-slide-up">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+          <div className="text-center glass-raised px-3 py-1.5 animate-slide-up">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mr-2">
               Current Call
-            </p>
-            <p className="font-display text-xl font-bold text-[var(--gold)] mt-1">
+            </span>
+            <span className="font-display text-base font-bold text-[var(--gold)]">
               {handToString(gameState.currentHand)}
-            </p>
+            </span>
           </div>
         )}
 

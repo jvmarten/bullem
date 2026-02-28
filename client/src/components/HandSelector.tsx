@@ -58,7 +58,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
   const needsRank2 = [HandType.TWO_PAIR, HandType.FULL_HOUSE].includes(handType);
-  const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH, HandType.ROYAL_FLUSH].includes(handType);
+  const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH].includes(handType);
 
   const handleSubmit = () => {
     if (hand && isValid) onSubmit(hand);
@@ -75,36 +75,30 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
   }, [hand, currentHand, rank, rank2, handType, needsRank2, needsStraightRank]);
 
   return (
-    <div className="glass-raised p-4 space-y-3 animate-slide-up">
-      <div>
-        <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-          Hand Type
-        </label>
-        <select
-          value={handType}
-          onChange={(e) => setHandType(Number(e.target.value) as HandType)}
-          className="w-full select-felt"
-        >
-          {Object.values(HandType)
-            .filter((v): v is HandType => typeof v === 'number')
-            .map((ht) => (
-              <option key={ht} value={ht}>
-                {getHandTypeName(ht)}
-              </option>
-            ))}
-        </select>
-      </div>
+    <div className="glass-raised p-2.5 space-y-2 animate-slide-up">
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <select
+            value={handType}
+            onChange={(e) => setHandType(Number(e.target.value) as HandType)}
+            className="w-full select-felt text-sm"
+          >
+            {Object.values(HandType)
+              .filter((v): v is HandType => typeof v === 'number' && v !== HandType.ROYAL_FLUSH)
+              .map((ht) => (
+                <option key={ht} value={ht}>
+                  {getHandTypeName(ht)}
+                </option>
+              ))}
+          </select>
+        </div>
 
-      <div className="flex gap-3">
         {needsRank && (
-          <div className="flex-1">
-            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-              Rank
-            </label>
+          <div className="w-16">
             <select
               value={rank}
               onChange={(e) => setRank(e.target.value as Rank)}
-              className="w-full select-felt"
+              className="w-full select-felt text-sm"
             >
               {ALL_RANKS.map((r) => (
                 <option key={r} value={r}>{r}</option>
@@ -114,14 +108,11 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
         )}
 
         {needsStraightRank && (
-          <div className="flex-1">
-            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-              High Card
-            </label>
+          <div className="w-16">
             <select
               value={RANK_VALUES[rank] >= 5 ? rank : '5'}
               onChange={(e) => setRank(e.target.value as Rank)}
-              className="w-full select-felt"
+              className="w-full select-felt text-sm"
             >
               {STRAIGHT_RANKS.map((r) => (
                 <option key={r} value={r}>{r}</option>
@@ -132,28 +123,22 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
         {needsRank2 && (
           <>
-            <div className="flex-1">
-              <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-                {handType === HandType.FULL_HOUSE ? 'Three of' : 'Rank 1'}
-              </label>
+            <div className="w-16">
               <select
                 value={rank}
                 onChange={(e) => setRank(e.target.value as Rank)}
-                className="w-full select-felt"
+                className="w-full select-felt text-sm"
               >
                 {ALL_RANKS.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
             </div>
-            <div className="flex-1">
-              <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-                {handType === HandType.FULL_HOUSE ? 'Pair of' : 'Rank 2'}
-              </label>
+            <div className="w-16">
               <select
                 value={rank2}
                 onChange={(e) => setRank2(e.target.value as Rank)}
-                className="w-full select-felt"
+                className="w-full select-felt text-sm"
               >
                 {ALL_RANKS.filter(r => r !== rank).map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -164,14 +149,11 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
         )}
 
         {needsSuit && (
-          <div className="flex-1">
-            <label className="block text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-              Suit
-            </label>
+          <div className="w-24">
             <select
               value={suit}
               onChange={(e) => setSuit(e.target.value as Suit)}
-              className="w-full select-felt"
+              className="w-full select-felt text-sm"
             >
               {ALL_SUITS.map((s) => (
                 <option key={s} value={s}>{SUIT_SYMBOLS[s]} {s[0].toUpperCase() + s.slice(1)}</option>
@@ -188,7 +170,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       <button
         onClick={handleSubmit}
         disabled={!isValid}
-        className="w-full btn-gold py-3 text-lg"
+        className="w-full btn-gold py-2 text-sm"
       >
         Call Hand
       </button>

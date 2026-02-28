@@ -32,7 +32,7 @@
   --overlay:     rgba(5, 20, 10, 0.85);
 
   /* Typography */
-  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-display: 'Cinzel', Georgia, serif;
   --font-body:    'DM Sans', system-ui, sans-serif;
 }
 
@@ -234,29 +234,29 @@ body {
 
 /* ── Player Avatar ───────────────────────────────────── */
 .avatar {
-  width: 2rem;
-  height: 2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.75rem;
+  font-size: 0.625rem;
   text-transform: uppercase;
   flex-shrink: 0;
 }
 
 /* ── Status Dots ─────────────────────────────────────── */
 .dot-connected {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: var(--safe);
   box-shadow: 0 0 4px rgba(40, 167, 69, 0.5);
 }
 .dot-disconnected {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: #888;
   animation: pulse 2s ease-in-out infinite;
@@ -365,6 +365,11 @@ body {
 }
 
 /* ── Spectator desaturation ──────────────────────────── */
+/* ── Title Glow ─────────────────────────────────────── */
+.title-glow {
+  text-shadow: 0 0 12px var(--gold-glow), 0 0 4px rgba(212, 168, 67, 0.2);
+}
+
 .spectating {
   filter: saturate(0.5) brightness(0.85);
 }
