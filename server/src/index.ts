@@ -14,7 +14,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : 'http://localhost:5173',
+    origin: process.env.NODE_ENV === 'production' ? false : true,
     methods: ['GET', 'POST'],
   },
 });
