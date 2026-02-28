@@ -9,6 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect } from 'react';
 
@@ -20,6 +21,8 @@ export function GamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult,
   } = useGameContext();
+  const { muted, toggleMute } = useSound();
+  useGameSounds(gameState, roundResult, winnerId, playerId);
 
   useEffect(() => {
     if (winnerId) navigate(`/results/${roomCode}`);
@@ -57,7 +60,29 @@ export function GamePage() {
           <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
             Round {gameState.roundNumber}
           </span>
-          <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleMute}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
+              title={muted ? 'Unmute sounds' : 'Mute sounds'}
+              aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+            >
+              {muted ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+              )}
+            </button>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+          </div>
         </div>
 
         {/* Spectator banner */}
