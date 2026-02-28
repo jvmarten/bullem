@@ -1,21 +1,42 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
+import { LocalGameProvider } from './context/LocalGameContext.js';
 import { HomePage } from './pages/HomePage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
 import { ResultsPage } from './pages/ResultsPage.js';
+import { LocalLobbyPage } from './pages/LocalLobbyPage.js';
+import { LocalGamePage } from './pages/LocalGamePage.js';
+import { LocalResultsPage } from './pages/LocalResultsPage.js';
+
+function OnlineLayout() {
+  return <GameProvider><Outlet /></GameProvider>;
+}
+
+function LocalLayout() {
+  return <LocalGameProvider><Outlet /></LocalGameProvider>;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <GameProvider>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+
+        {/* Online multiplayer routes */}
+        <Route element={<OnlineLayout />}>
           <Route path="/room/:roomCode" element={<LobbyPage />} />
           <Route path="/game/:roomCode" element={<GamePage />} />
           <Route path="/results/:roomCode" element={<ResultsPage />} />
-        </Routes>
-      </GameProvider>
+        </Route>
+
+        {/* Local (offline) bot game routes */}
+        <Route element={<LocalLayout />}>
+          <Route path="/local" element={<LocalLobbyPage />} />
+          <Route path="/local/game" element={<LocalGamePage />} />
+          <Route path="/local/results" element={<LocalResultsPage />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }
