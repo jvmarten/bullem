@@ -24,10 +24,7 @@ export function ActionButtons({
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     return (
       <div className="flex gap-3 justify-center animate-slide-up">
-        <button
-          onClick={onLastChancePass}
-          className="px-8 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95"
-        >
+        <button onClick={onLastChancePass} className="btn-ghost px-10 py-3 text-lg">
           Pass
         </button>
       </div>
@@ -42,18 +39,12 @@ export function ActionButtons({
   return (
     <div className="flex gap-3 justify-center animate-slide-up">
       {showBull && (
-        <button
-          onClick={onBull}
-          className="flex-1 max-w-40 py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95 shadow-lg"
-        >
+        <button onClick={onBull} className="btn-danger flex-1 max-w-40 py-3 text-lg">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button
-          onClick={onTrue}
-          className="flex-1 max-w-40 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-95 shadow-lg"
-        >
+        <button onClick={onTrue} className="btn-info flex-1 max-w-40 py-3 text-lg">
           TRUE
         </button>
       )}

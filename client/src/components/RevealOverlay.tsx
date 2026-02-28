@@ -20,47 +20,56 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
   }, [countdown]);
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-green-800 rounded-xl p-6 max-w-sm w-full space-y-4 text-center shadow-2xl border border-green-600">
-        <h2 className="text-xl font-bold">Round Over</h2>
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
+         style={{ background: 'var(--overlay)' }}>
+      <div className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in">
+        <h2 className="font-display text-2xl font-bold text-[var(--gold)]">Round Over</h2>
 
-        <p className="text-green-200">
+        <p className="text-[var(--card-face)]">
           {callerName} called:{' '}
-          <span className="text-yellow-300 font-bold">{handToString(result.calledHand)}</span>
+          <span className="text-[var(--gold)] font-bold">{handToString(result.calledHand)}</span>
         </p>
 
-        <div className={`text-2xl font-bold py-2 rounded-lg ${
+        <div className={`text-2xl font-display font-bold py-3 rounded-lg ${
           result.handExists
-            ? 'text-blue-400 bg-blue-900/30'
-            : 'text-red-400 bg-red-900/30'
+            ? 'text-[var(--info)] bg-[var(--info-bg)] border border-[var(--info)]'
+            : 'text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)]'
         }`}>
           {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
         </div>
 
         {result.revealedCards.length > 0 && (
           <div>
-            <p className="text-xs text-green-400 mb-2">Revealed Cards</p>
-            <div className="flex justify-center gap-1 flex-wrap">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
+              Revealed Cards
+            </p>
+            <div className="flex justify-center gap-1.5 flex-wrap" style={{ perspective: '600px' }}>
               {result.revealedCards.map((card, i) => (
-                <CardDisplay key={i} card={card} />
+                <CardDisplay
+                  key={i}
+                  card={card}
+                  className={`animate-stagger-reveal reveal-delay-${Math.min(i, 4)}`}
+                />
               ))}
             </div>
           </div>
         )}
 
         <div className="text-left space-y-1">
-          <p className="text-xs text-green-400 uppercase mb-1">Results</p>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
+            Results
+          </p>
           {players.filter(p => result.penalties[p.id] !== undefined).map((p) => {
             const newCardCount = result.penalties[p.id];
             const wasWrong = newCardCount > p.cardCount;
             const isEliminated = result.eliminatedPlayerIds.includes(p.id);
             return (
-              <div key={p.id} className={`flex justify-between items-center text-sm px-2 py-1 rounded ${
-                isEliminated ? 'bg-red-900/40 text-red-300' :
-                wasWrong ? 'bg-yellow-900/30 text-yellow-300' : 'bg-green-900/30 text-green-300'
+              <div key={p.id} className={`flex justify-between items-center text-sm px-3 py-1.5 rounded-lg ${
+                isEliminated ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
+                wasWrong ? 'bg-amber-900/20 text-[var(--gold)]' : 'glass text-[var(--safe)]'
               }`}>
-                <span>{p.name}</span>
-                <span className="text-xs">
+                <span className="font-medium">{p.name}</span>
+                <span className="text-xs font-semibold">
                   {isEliminated ? 'ELIMINATED' :
                    wasWrong ? `+1 card (${newCardCount} total)` :
                    'Safe'}
@@ -70,10 +79,7 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
           })}
         </div>
 
-        <button
-          onClick={onDismiss}
-          className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold transition-all duration-150 active:scale-[0.98]"
-        >
+        <button onClick={onDismiss} className="w-full btn-gold py-3">
           {countdown > 0 ? `Continue (${countdown}s)` : 'Continue'}
         </button>
       </div>

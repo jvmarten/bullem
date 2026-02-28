@@ -1,5 +1,268 @@
 @import "tailwindcss";
 
+/* ── Design Tokens ───────────────────────────────────── */
+:root {
+  /* Felt greens */
+  --felt:        #0b3d1e;
+  --felt-light:  #0f4d28;
+  --felt-dark:   #072914;
+  --felt-border: #1a5c35;
+
+  /* Gold accents */
+  --gold:        #d4a843;
+  --gold-light:  #e8c56e;
+  --gold-dim:    #a07c2e;
+  --gold-glow:   rgba(212, 168, 67, 0.35);
+
+  /* Card whites */
+  --card-face:   #f5f0e8;
+  --card-border: #d9d0c0;
+  --card-shadow: rgba(0, 0, 0, 0.35);
+
+  /* Semantic */
+  --danger:      #dc3545;
+  --danger-bg:   rgba(220, 53, 69, 0.15);
+  --info:        #4a90d9;
+  --info-bg:     rgba(74, 144, 217, 0.15);
+  --safe:        #28a745;
+
+  /* Surfaces */
+  --surface:     rgba(15, 77, 40, 0.5);
+  --surface-raised: rgba(15, 77, 40, 0.7);
+  --overlay:     rgba(5, 20, 10, 0.85);
+
+  /* Typography */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+}
+
+/* ── Base ────────────────────────────────────────────── */
+body {
+  font-family: var(--font-body);
+  background: var(--felt-dark);
+  color: #e8e0d4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Felt Table Background ───────────────────────────── */
+.felt-bg {
+  background:
+    radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ── Display Font ────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ── Gold Buttons ────────────────────────────────────── */
+.btn-gold {
+  background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
+  color: #1a1a0e;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--gold-dim);
+  cursor: pointer;
+}
+.btn-gold:hover {
+  background: linear-gradient(180deg, #f0d47a 0%, var(--gold-light) 100%);
+  box-shadow: 0 4px 16px var(--gold-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+.btn-gold:active {
+  transform: scale(0.98) translateY(0);
+}
+.btn-gold:disabled {
+  background: #3a3a3a;
+  color: #777;
+  border-color: #444;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Ghost Buttons ───────────────────────────────────── */
+.btn-ghost {
+  background: transparent;
+  color: var(--gold);
+  font-weight: 500;
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 150ms ease;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  background: rgba(212, 168, 67, 0.1);
+  border-color: var(--gold);
+}
+
+/* ── Danger Button ───────────────────────────────────── */
+.btn-danger {
+  background: linear-gradient(180deg, #e04555 0%, var(--danger) 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+  border: 1px solid #b02a37;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: linear-gradient(180deg, #f05565 0%, #e04555 100%);
+  box-shadow: 0 4px 16px rgba(220, 53, 69, 0.4);
+  transform: translateY(-1px);
+}
+.btn-danger:active { transform: scale(0.97); }
+
+/* ── Info Button ─────────────────────────────────────── */
+.btn-info {
+  background: linear-gradient(180deg, #5a9ee6 0%, var(--info) 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(74, 144, 217, 0.3);
+  border: 1px solid #3a78b5;
+  cursor: pointer;
+}
+.btn-info:hover {
+  background: linear-gradient(180deg, #70b0f0 0%, #5a9ee6 100%);
+  box-shadow: 0 4px 16px rgba(74, 144, 217, 0.4);
+  transform: translateY(-1px);
+}
+.btn-info:active { transform: scale(0.97); }
+
+/* ── Input Fields ────────────────────────────────────── */
+.input-felt {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--felt-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: #e8e0d4;
+  font-family: var(--font-body);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.input-felt::placeholder {
+  color: rgba(232, 224, 212, 0.35);
+}
+.input-felt:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-glow);
+}
+
+/* ── Select Dropdowns ────────────────────────────────── */
+.select-felt {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--felt-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: #e8e0d4;
+  font-family: var(--font-body);
+  transition: border-color 200ms ease;
+  cursor: pointer;
+}
+.select-felt:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-glow);
+}
+
+/* ── Glass Surface ───────────────────────────────────── */
+.glass {
+  background: var(--surface);
+  border: 1px solid rgba(26, 92, 53, 0.5);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(4px);
+}
+
+.glass-raised {
+  background: var(--surface-raised);
+  border: 1px solid rgba(26, 92, 53, 0.6);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Playing Card ────────────────────────────────────── */
+.playing-card {
+  background: var(--card-face);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 2px 4px var(--card-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.playing-card:hover {
+  transform: translateY(-4px) rotate(-1deg);
+  box-shadow:
+    0 8px 20px var(--card-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.playing-card-small {
+  background: var(--card-face);
+  border: 1px solid var(--card-border);
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Suit colors */
+.suit-red { color: #c0392b; }
+.suit-black { color: #1a1a1a; }
+
+/* ── Card back (mini for counts) ─────────────────────── */
+.card-back-mini {
+  width: 0.75rem;
+  height: 1rem;
+  background: linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%);
+  border-radius: 2px;
+  border: 1px solid #d44;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Player Avatar ───────────────────────────────────── */
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* ── Status Dots ─────────────────────────────────────── */
+.dot-connected {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--safe);
+  box-shadow: 0 0 4px rgba(40, 167, 69, 0.5);
+}
+.dot-disconnected {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #888;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Animations ──────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -11,27 +274,97 @@
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
-  50% { box-shadow: 0 0 12px 4px rgba(234, 179, 8, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0); }
+  50% { box-shadow: 0 0 20px 6px var(--gold-glow); }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
+@keyframes card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) rotate(-10deg) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
 }
 
-.animate-scale-in {
-  animation: scale-in 0.25s ease-out;
+@keyframes stagger-reveal {
+  from { opacity: 0; transform: rotateY(90deg); }
+  60% { transform: rotateY(-5deg); }
+  to { opacity: 1; transform: rotateY(0deg); }
 }
 
-.animate-slide-up {
-  animation: slide-up 0.2s ease-out;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in { animation: fade-in 0.3s ease-out; }
+.animate-scale-in { animation: scale-in 0.3s ease-out; }
+.animate-slide-up { animation: slide-up 0.3s ease-out; }
+.animate-slide-down { animation: slide-down 0.3s ease-out; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-card-deal { animation: card-deal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-stagger-reveal { animation: stagger-reveal 0.5s ease-out both; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-shake { animation: shake 0.4s ease-out; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Staggered card deal delays */
+.deal-delay-0 { animation-delay: 0ms; }
+.deal-delay-1 { animation-delay: 100ms; }
+.deal-delay-2 { animation-delay: 200ms; }
+.deal-delay-3 { animation-delay: 300ms; }
+.deal-delay-4 { animation-delay: 400ms; }
+
+/* Staggered reveal delays */
+.reveal-delay-0 { animation-delay: 0ms; }
+.reveal-delay-1 { animation-delay: 150ms; }
+.reveal-delay-2 { animation-delay: 300ms; }
+.reveal-delay-3 { animation-delay: 450ms; }
+.reveal-delay-4 { animation-delay: 600ms; }
+
+/* ── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 168, 67, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 168, 67, 0.4);
+}
+
+/* ── Spectator desaturation ──────────────────────────── */
+.spectating {
+  filter: saturate(0.5) brightness(0.85);
 }

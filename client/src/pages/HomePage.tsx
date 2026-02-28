@@ -19,8 +19,8 @@ export function HomePage() {
     try {
       const code = await createRoom(name.trim());
       navigate(`/room/${code}`);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create room');
     } finally {
       setLoading(false);
     }
@@ -34,8 +34,8 @@ export function HomePage() {
     try {
       await joinRoom(roomCode.trim().toUpperCase(), name.trim());
       navigate(`/room/${roomCode.trim().toUpperCase()}`);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to join room');
     } finally {
       setLoading(false);
     }
@@ -50,29 +50,37 @@ export function HomePage() {
 
   return (
     <Layout>
-      <div className="flex flex-col items-center gap-6 pt-8">
-        <p className="text-green-300 text-center text-sm">
+      <div className="flex flex-col items-center gap-8 pt-8">
+        {/* Hero tagline */}
+        <p className="text-[var(--gold-dim)] text-center text-sm tracking-wide">
           A multiplayer bluffing card game
         </p>
 
+        {/* Decorative card fan */}
+        <div className="flex justify-center -space-x-3 mb-2">
+          {['\u2660', '\u2665', '\u2666', '\u2663'].map((s, i) => (
+            <div
+              key={s}
+              className="playing-card w-10 h-14 flex items-center justify-center text-lg"
+              style={{ transform: `rotate(${(i - 1.5) * 8}deg)`, zIndex: i }}
+            >
+              <span className={i === 1 || i === 2 ? 'suit-red' : 'suit-black'}>{s}</span>
+            </div>
+          ))}
+        </div>
+
         {error && (
-          <div className="w-full bg-red-900/50 border border-red-600 rounded-lg px-4 py-2 text-sm text-red-200 animate-fade-in">
+          <div className="w-full glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
             {error}
           </div>
         )}
 
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <button
-              onClick={() => setMode('create')}
-              className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98]"
-            >
+            <button onClick={() => setMode('create')} className="w-full btn-gold py-4 text-lg">
               Create Room
             </button>
-            <button
-              onClick={() => setMode('join')}
-              className="w-full py-4 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98]"
-            >
+            <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
               Join Room
             </button>
           </div>
@@ -87,7 +95,7 @@ export function HomePage() {
               onChange={(e) => setName(e.target.value)}
               maxLength={20}
               autoFocus
-              className="w-full bg-green-800 border border-green-600 rounded-lg px-4 py-3 text-white placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full input-felt"
             />
 
             {mode === 'join' && (
@@ -97,24 +105,20 @@ export function HomePage() {
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                 maxLength={4}
-                className="w-full bg-green-800 border border-green-600 rounded-lg px-4 py-3 text-white placeholder-green-400 uppercase tracking-widest text-center text-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full input-felt uppercase tracking-[0.3em] text-center text-xl font-bold"
               />
             )}
 
             <button
               onClick={mode === 'create' ? handleCreate : handleJoin}
               disabled={loading}
-              className={`w-full py-3 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98] ${
-                loading
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-yellow-500 hover:bg-yellow-400 text-gray-900'
-              }`}
+              className="w-full btn-gold py-3 text-lg"
             >
-              {loading ? 'Connecting...' : mode === 'create' ? 'Create' : 'Join'}
+              {loading ? 'Connecting\u2026' : mode === 'create' ? 'Create' : 'Join'}
             </button>
             <button
               onClick={() => { setMode('menu'); setError(''); }}
-              className="text-green-400 hover:text-white text-sm transition-colors"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
             </button>

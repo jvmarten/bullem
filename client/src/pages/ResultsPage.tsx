@@ -11,19 +11,26 @@ export function ResultsPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col items-center gap-6 pt-12 text-center animate-scale-in">
-        <div className="text-6xl">{isWinner ? '1' : '2'}</div>
-        <h2 className="text-3xl font-bold">
-          {isWinner ? 'You Win!' : `${winnerName} Wins!`}
-        </h2>
-        <p className="text-green-300">
-          {isWinner
-            ? 'You outsmarted everyone at the table.'
-            : 'Better luck next time.'}
-        </p>
+      <div className="flex flex-col items-center gap-8 pt-12 text-center animate-scale-in">
+        {/* Trophy / crown */}
+        <div className="text-6xl animate-float">
+          {isWinner ? '\u265A' : '\u2664'}
+        </div>
+
+        <div>
+          <h2 className="font-display text-4xl font-bold text-[var(--gold)]">
+            {isWinner ? 'You Win!' : `${winnerName} Wins!`}
+          </h2>
+          <p className="text-[var(--gold-dim)] mt-2">
+            {isWinner
+              ? 'You outsmarted everyone at the table.'
+              : 'Better luck next time.'}
+          </p>
+        </div>
+
         <button
           onClick={() => { leaveRoom(); navigate('/'); }}
-          className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-lg transition-all duration-150 active:scale-[0.98]"
+          className="btn-gold px-10 py-3 text-lg"
         >
           Play Again
         </button>

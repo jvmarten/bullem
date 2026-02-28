@@ -1,4 +1,5 @@
 import type { Player, PlayerId } from '@bull-em/shared';
+import { playerInitial, playerColor } from '../utils/cardUtils.js';
 
 interface Props {
   players: Player[];
@@ -8,46 +9,52 @@ interface Props {
 
 export function PlayerList({ players, currentPlayerId, myPlayerId }: Props) {
   return (
-    <div className="space-y-1">
-      {players.map((p) => {
+    <div className="space-y-1.5">
+      {players.map((p, i) => {
         const isMe = p.id === myPlayerId;
         const isCurrent = p.id === currentPlayerId;
         return (
           <div
             key={p.id}
-            className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+            className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
               p.isEliminated
-                ? 'bg-red-900/30 opacity-50'
+                ? 'glass opacity-40'
                 : isCurrent
-                  ? 'bg-yellow-600/30 ring-1 ring-yellow-400'
-                  : 'bg-green-800/40'
+                  ? 'glass-raised ring-1 ring-[var(--gold)] animate-pulse-glow'
+                  : 'glass'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                p.isEliminated ? 'bg-red-500' :
-                p.isConnected ? 'bg-green-400' : 'bg-gray-500 animate-pulse'
-              }`} />
-              <span className="font-medium truncate">
-                {p.name}
-                {isMe && <span className="text-green-400"> (you)</span>}
-              </span>
-              {p.isHost && (
-                <span className="text-[10px] bg-yellow-600/40 text-yellow-300 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-                  host
+            <div className="flex items-center gap-2.5">
+              <div className={`avatar ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
+                {playerInitial(p.name)}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium truncate">
+                  {p.name}
+                  {isMe && <span className="text-[var(--gold)] ml-1 text-xs">(you)</span>}
                 </span>
-              )}
+                <div className="flex items-center gap-1.5">
+                  <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
+                  {p.isHost && (
+                    <span className="text-[10px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">
+                      host
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-1 text-xs text-green-300 flex-shrink-0">
+            <div className="flex items-center gap-1 text-xs flex-shrink-0">
               {p.isEliminated ? (
-                <span className="text-red-400 font-bold">OUT</span>
+                <span className="text-[var(--danger)] font-bold tracking-wide">OUT</span>
               ) : (
                 <>
-                  {Array.from({ length: p.cardCount }, (_, i) => (
-                    <span key={i} className="w-3 h-4 bg-green-600 rounded-sm border border-green-500 inline-block" />
+                  {Array.from({ length: p.cardCount }, (_, j) => (
+                    <span key={j} className="card-back-mini" />
                   ))}
                   {p.cardCount >= 4 && (
-                    <span className={`ml-1 font-bold ${p.cardCount === 5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    <span className={`ml-1 font-bold ${
+                      p.cardCount === 5 ? 'text-[var(--danger)]' : 'text-[var(--gold)]'
+                    }`}>
                       {p.cardCount}/5
                     </span>
                   )}
