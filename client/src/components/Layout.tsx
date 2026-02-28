@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
-import { useGameContext } from '../context/GameContext.js';
+import { useContext, type ReactNode } from 'react';
+import { GameContext } from '../context/GameContext.js';
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { isConnected } = useGameContext();
+  const ctx = useContext(GameContext);
+  const isConnected = ctx?.isConnected ?? true;
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
