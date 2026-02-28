@@ -14,11 +14,11 @@ export function CardDisplay({ card, small, className = '' }: { card: Card; small
   }
 
   return (
-    <div className={`playing-card inline-flex flex-col items-center justify-center w-14 h-20 mx-0.5 select-none ${className}`}>
-      <span className={`text-lg font-bold leading-tight ${suitColor}`}>
+    <div className={`playing-card inline-flex flex-col items-center justify-center w-10 h-14 mx-0.5 select-none ${className}`}>
+      <span className={`text-sm font-bold leading-tight ${suitColor}`}>
         {rankDisplay(card.rank)}
       </span>
-      <span className={`text-xl leading-tight ${suitColor}`}>
+      <span className={`text-base leading-tight ${suitColor}`}>
         {SUIT_SYMBOLS[card.suit]}
       </span>
     </div>
