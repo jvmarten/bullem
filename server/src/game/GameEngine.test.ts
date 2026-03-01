@@ -956,8 +956,8 @@ describe('GameEngine', () => {
       expect(TURN_TIMER_OPTIONS).toEqual([0, 15, 30, 60]);
     });
 
-    it('DEFAULT_TURN_TIMER is 30', () => {
-      expect(DEFAULT_TURN_TIMER).toBe(30);
+    it('DEFAULT_TURN_TIMER is 0 (off)', () => {
+      expect(DEFAULT_TURN_TIMER).toBe(0);
     });
 
     it('auto-action: handleCall with High Card 2 works for first turn', () => {
