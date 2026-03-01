@@ -23,8 +23,8 @@ interface ToneConfig {
 }
 
 // Sounds that use an audio file instead of oscillator tones
-const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, string>> = {
-  roundLose: fahSoundUrl,
+const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
+  roundLose: { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
 };
 
 // Each sound is one or more tones layered together
@@ -115,11 +115,11 @@ function loadAudioBuffer(url: string): Promise<AudioBuffer | null> {
 }
 
 // Pre-load audio files so they're ready when needed
-for (const url of Object.values(AUDIO_FILE_SOUNDS)) {
-  if (url) loadAudioBuffer(url);
+for (const entry of Object.values(AUDIO_FILE_SOUNDS)) {
+  if (entry) loadAudioBuffer(entry.url);
 }
 
-function playAudioBuffer(url: string, volume: number): void {
+function playAudioBuffer(url: string, volume: number, fileGain: number, fadeOut?: number): void {
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -127,28 +127,33 @@ function playAudioBuffer(url: string, volume: number): void {
     ctx.resume().catch(() => {});
   }
 
-  const cached = audioBufferCache.get(url);
-  if (cached) {
+  const playBuffer = (buf: AudioBuffer) => {
     const source = ctx.createBufferSource();
     const gainNode = ctx.createGain();
-    source.buffer = cached;
-    gainNode.gain.value = volume;
+    source.buffer = buf;
+    const effectiveGain = volume * fileGain;
+    gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime);
+    // Apply fade-out at the end of playback
+    if (fadeOut && fadeOut > 0) {
+      const fadeStart = Math.max(0, buf.duration - fadeOut);
+      gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime + fadeStart);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + buf.duration);
+    }
     source.connect(gainNode);
     gainNode.connect(ctx.destination);
     source.start();
+  };
+
+  const cached = audioBufferCache.get(url);
+  if (cached) {
+    playBuffer(cached);
     return;
   }
 
   // Buffer not yet loaded — load and play
   loadAudioBuffer(url).then(buf => {
-    if (!buf || !ctx) return;
-    const source = ctx.createBufferSource();
-    const gainNode = ctx.createGain();
-    source.buffer = buf;
-    gainNode.gain.value = volume;
-    source.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    source.start();
+    if (!buf) return;
+    playBuffer(buf);
   });
 }
 
@@ -213,9 +218,9 @@ export function createSoundController(): SoundController {
     play(name: SoundName) {
       if (muted) return;
 
-      const audioFile = AUDIO_FILE_SOUNDS[name];
-      if (audioFile) {
-        playAudioBuffer(audioFile, volume);
+      const audioEntry = AUDIO_FILE_SOUNDS[name];
+      if (audioEntry) {
+        playAudioBuffer(audioEntry.url, volume, audioEntry.gain, audioEntry.fadeOut);
         return;
       }
 

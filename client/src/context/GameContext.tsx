@@ -29,6 +29,8 @@ export interface GameContextValue {
   setBotDifficulty?: (d: BotDifficulty) => void;
   gameSettings?: GameSettings;
   setGameSettings?: (s: GameSettings) => void;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
