@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS } from '@bull-em/shared';
 import { useEffect, useState } from 'react';
 
 export function LocalLobbyPage() {
@@ -148,6 +148,29 @@ export function LocalLobbyPage() {
               >
                 Hard
               </button>
+            </div>
+          </div>
+        )}
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Turn Timer
+            </p>
+            <div className="flex gap-1.5">
+              {TURN_TIMER_OPTIONS.map(seconds => (
+                <button
+                  key={seconds}
+                  onClick={() => setGameSettings({ ...gameSettings, turnTimer: seconds })}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    (gameSettings.turnTimer ?? 0) === seconds
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {seconds === 0 ? 'Off' : `${seconds}s`}
+                </button>
+              ))}
             </div>
           </div>
         )}

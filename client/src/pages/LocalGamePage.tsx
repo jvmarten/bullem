@@ -111,6 +111,7 @@ export function LocalGamePage() {
           roundPhase={gameState.roundPhase}
           players={gameState.players}
           myPlayerId={playerId}
+          turnDeadline={gameState.turnDeadline}
         />
 
         <PlayerList

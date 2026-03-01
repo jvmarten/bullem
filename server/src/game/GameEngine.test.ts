@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GameEngine } from './GameEngine.js';
-import { GamePhase, HandType, RoundPhase, STARTING_CARDS, MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards } from '@bull-em/shared';
+import { GamePhase, HandType, RoundPhase, STARTING_CARDS, MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, DEFAULT_TURN_TIMER } from '@bull-em/shared';
 import type { ServerPlayer, HandCall, PlayerId, GameSettings } from '@bull-em/shared';
 
 function makePlayer(id: string, name: string, cardCount = STARTING_CARDS): ServerPlayer {
@@ -908,6 +908,87 @@ describe('GameEngine', () => {
       expect(stats.playerStats['pb'].correctBulls).toBe(1);
       // pb survived, pa was eliminated
       expect(stats.playerStats['pb'].roundsSurvived).toBe(1);
+    });
+  });
+
+  describe('turnTimer and turnDeadline', () => {
+    it('turnTimer returns the configured timer value', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 30 });
+      expect(eng.turnTimer).toBe(30);
+    });
+
+    it('turnTimer returns 0 when not configured', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 0 });
+      expect(eng.turnTimer).toBe(0);
+    });
+
+    it('setTurnDeadline is reflected in getClientState', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 30 });
+      eng.startRound();
+
+      const deadline = Date.now() + 30000;
+      eng.setTurnDeadline(deadline);
+
+      const state = eng.getClientState('a');
+      expect(state.turnDeadline).toBe(deadline);
+    });
+
+    it('turnDeadline is null by default', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 30 });
+      eng.startRound();
+
+      const state = eng.getClientState('a');
+      expect(state.turnDeadline).toBeNull();
+    });
+
+    it('turnDeadline can be cleared by setting to null', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 30 });
+      eng.startRound();
+
+      eng.setTurnDeadline(Date.now() + 30000);
+      eng.setTurnDeadline(null);
+
+      const state = eng.getClientState('a');
+      expect(state.turnDeadline).toBeNull();
+    });
+
+    it('TURN_TIMER_OPTIONS contains expected values', () => {
+      expect(TURN_TIMER_OPTIONS).toEqual([0, 15, 30, 60]);
+    });
+
+    it('DEFAULT_TURN_TIMER is 30', () => {
+      expect(DEFAULT_TURN_TIMER).toBe(30);
+    });
+
+    it('auto-action: handleCall with High Card 2 works for first turn', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 15 });
+      eng.startRound();
+
+      // Simulate auto-action: first player calls High Card 2
+      const result = eng.handleCall('a', { type: HandType.HIGH_CARD, rank: '2' });
+      expect(result.type).toBe('continue');
+      expect(eng.currentPlayerId).toBe('b');
+    });
+
+    it('auto-action: handleBull works when hand exists', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 15 });
+      eng.startRound();
+
+      eng.handleCall('a', { type: HandType.HIGH_CARD, rank: '2' });
+      // b auto-bulls
+      const result = eng.handleBull('b');
+      expect(result.type).toBe('last_chance');
+    });
+
+    it('auto-action: handleLastChancePass works for last chance', () => {
+      const eng = new GameEngine([makePlayer('a', 'A'), makePlayer('b', 'B')], { maxCards: 5, turnTimer: 15 });
+      eng.startRound();
+
+      eng.handleCall('a', { type: HandType.HIGH_CARD, rank: '2' });
+      eng.handleBull('b');
+      // a auto-passes last chance
+      const result = eng.handleLastChancePass('a');
+      expect(result.type === 'resolve' || result.type === 'game_over').toBe(true);
     });
   });
 });

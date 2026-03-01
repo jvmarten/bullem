@@ -23,7 +23,9 @@ export function maxPlayersForMaxCards(maxCards: number): number {
   return Math.floor(DECK_SIZE / maxCards);
 }
 
-export const DEFAULT_GAME_SETTINGS = { maxCards: MAX_CARDS } as const;
+export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const;
+export const DEFAULT_TURN_TIMER = 30;
+export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
 

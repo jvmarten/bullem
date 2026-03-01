@@ -72,6 +72,7 @@ function handleResult(
   socket: TypedSocket,
   botManager: BotManager,
 ): void {
+  if (room.game) room.game.setTurnDeadline(null);
   switch (result.type) {
     case 'error':
       socket.emit('room:error', result.message);

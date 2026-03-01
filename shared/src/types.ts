@@ -104,6 +104,7 @@ export interface ClientGameState {
   turnHistory: TurnEntry[];
   roundNumber: number;
   roundResult?: RoundResult | null;
+  turnDeadline?: number | null;
 }
 
 export enum BotDifficulty {
@@ -113,6 +114,7 @@ export enum BotDifficulty {
 
 export interface GameSettings {
   maxCards: number;
+  turnTimer: number;
 }
 
 export interface PlayerGameStats {

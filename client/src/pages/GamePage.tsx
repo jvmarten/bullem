@@ -113,6 +113,7 @@ export function GamePage() {
           roundPhase={gameState.roundPhase}
           players={gameState.players}
           myPlayerId={playerId}
+          turnDeadline={gameState.turnDeadline}
         />
 
         <PlayerList
