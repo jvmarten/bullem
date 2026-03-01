@@ -30,8 +30,8 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 780, duration: 0.08, type: 'sine', gain: 0.08, delay: 0.04 },
   ],
   bullCalled: [
-    { frequency: 280, duration: 0.2, type: 'sawtooth', gain: 0.12, ramp: 0.18 },
-    { frequency: 220, duration: 0.15, type: 'square', gain: 0.06, delay: 0.05 },
+    { frequency: 200, duration: 0.25, type: 'sine', gain: 0.18, ramp: 0.22 },
+    { frequency: 160, duration: 0.3, type: 'triangle', gain: 0.1, delay: 0.08 },
   ],
   trueCalled: [
     { frequency: 660, duration: 0.15, type: 'sine', gain: 0.15, ramp: 0.12 },

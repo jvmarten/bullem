@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
-  isHigherHand, getHandTypeName,
+  isHigherHand, getHandTypeName, handToString,
 } from '@bull-em/shared';
 import type { HandCall, Rank, Suit } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
@@ -167,12 +167,16 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
         <p className="text-xs text-[var(--danger)]">{validationMsg}</p>
       )}
 
+      {hand && isValid && (
+        <p className="text-sm text-center text-[var(--gold)]">{handToString(hand)}</p>
+      )}
+
       <button
         onClick={handleSubmit}
         disabled={!isValid}
         className="w-full btn-gold py-2 text-sm"
       >
-        Call Hand
+        {currentHand ? 'Raise' : 'Call'}
       </button>
     </div>
   );
