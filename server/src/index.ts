@@ -31,6 +31,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 const roomManager = new RoomManager();
 const botManager = new BotManager();
 registerHandlers(io, roomManager, botManager);
+roomManager.startCleanup();
 
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {

@@ -10,6 +10,7 @@ import { LocalGamePage } from './pages/LocalGamePage.js';
 import { LocalResultsPage } from './pages/LocalResultsPage.js';
 import { HowToPlayPage } from './pages/HowToPlayPage.js';
 import { HostPage } from './pages/HostPage.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -21,6 +22,7 @@ function LocalLayout() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -42,5 +44,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

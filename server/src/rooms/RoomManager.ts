@@ -1,9 +1,10 @@
-import { ROOM_CODE_LENGTH } from '@bull-em/shared';
+import { ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS } from '@bull-em/shared';
 import { Room } from './Room.js';
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   createRoom(): Room {
     let code: string;
@@ -46,6 +47,27 @@ export class RoomManager {
 
   removeSocketMapping(socketId: string): void {
     this.socketToRoom.delete(socketId);
+  }
+
+  startCleanup(): void {
+    if (this.cleanupTimer) return;
+    this.cleanupTimer = setInterval(() => this.cleanupStaleRooms(), ROOM_CLEANUP_INTERVAL_MS);
+  }
+
+  stopCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  private cleanupStaleRooms(): void {
+    const now = Date.now();
+    for (const [code, room] of this.rooms) {
+      if (room.isEmpty || now - room.lastActivity > ROOM_MAX_INACTIVE_MS) {
+        this.rooms.delete(code);
+      }
+    }
   }
 }
 

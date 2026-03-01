@@ -76,7 +76,7 @@ function handleResult(
   switch (result.type) {
     case 'error':
       socket.emit('room:error', result.message);
-      break;
+      return;
 
     case 'continue':
     case 'last_chance':
@@ -108,4 +108,5 @@ function handleResult(
       io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
       break;
   }
+  room.touch();
 }
