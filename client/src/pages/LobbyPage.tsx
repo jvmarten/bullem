@@ -8,7 +8,7 @@ import { useEffect, useState, useRef } from 'react';
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error, gameSettings } = useGameContext();
   const [copied, setCopied] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -177,6 +177,7 @@ export function LobbyPage() {
         <PlayerList
           players={roomState.players}
           myPlayerId={playerId}
+          maxCards={gameSettings?.maxCards}
           showRemoveBot={isHost}
           onRemoveBot={removeBot}
         />

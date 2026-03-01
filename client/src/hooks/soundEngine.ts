@@ -83,6 +83,75 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
+// Cache decoded audio buffers so we only fetch/decode once per file
+const audioBufferCache = new Map<string, AudioBuffer>();
+const audioBufferLoading = new Map<string, Promise<AudioBuffer | null>>();
+
+function loadAudioBuffer(url: string): Promise<AudioBuffer | null> {
+  const cached = audioBufferCache.get(url);
+  if (cached) return Promise.resolve(cached);
+
+  const pending = audioBufferLoading.get(url);
+  if (pending) return pending;
+
+  const ctx = getAudioContext();
+  if (!ctx) return Promise.resolve(null);
+
+  const promise = fetch(url)
+    .then(res => res.arrayBuffer())
+    .then(buf => ctx.decodeAudioData(buf))
+    .then(decoded => {
+      audioBufferCache.set(url, decoded);
+      audioBufferLoading.delete(url);
+      return decoded;
+    })
+    .catch(() => {
+      audioBufferLoading.delete(url);
+      return null;
+    });
+
+  audioBufferLoading.set(url, promise);
+  return promise;
+}
+
+// Pre-load audio files so they're ready when needed
+for (const url of Object.values(AUDIO_FILE_SOUNDS)) {
+  if (url) loadAudioBuffer(url);
+}
+
+function playAudioBuffer(url: string, volume: number): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+
+  const cached = audioBufferCache.get(url);
+  if (cached) {
+    const source = ctx.createBufferSource();
+    const gainNode = ctx.createGain();
+    source.buffer = cached;
+    gainNode.gain.value = volume;
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    source.start();
+    return;
+  }
+
+  // Buffer not yet loaded — load and play
+  loadAudioBuffer(url).then(buf => {
+    if (!buf || !ctx) return;
+    const source = ctx.createBufferSource();
+    const gainNode = ctx.createGain();
+    source.buffer = buf;
+    gainNode.gain.value = volume;
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    source.start();
+  });
+}
+
 function playTones(tones: ToneConfig[], volume: number): void {
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -146,9 +215,7 @@ export function createSoundController(): SoundController {
 
       const audioFile = AUDIO_FILE_SOUNDS[name];
       if (audioFile) {
-        const audio = new Audio(audioFile);
-        audio.volume = volume;
-        audio.play().catch(() => {});
+        playAudioBuffer(audioFile, volume);
         return;
       }
 
