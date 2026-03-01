@@ -84,206 +84,260 @@ export class BotPlayer {
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
   }
 
-  // ─── HARD MODE ───────────────────────────────────────────────────────
+  // ─── HARD MODE (Probability-Driven) ─────────────────────────────────
 
   private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
-    const { roundPhase, currentHand, lastCallerId, turnHistory } = state;
+    const { roundPhase, currentHand, lastCallerId } = state;
     const totalCards = this.getTotalCards(state);
-
-    // Analyze turn history for bias
-    const bias = this.analyzeTurnHistory(turnHistory, botId);
-
-    // Desperation: near elimination (4+ cards), play much more aggressively
     const desperate = botCards.length >= 4;
 
-    // LAST_CHANCE phase
+    // LAST_CHANCE phase — raise with any valid hand we can find
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
-        // When desperate, also try plausible bluffs for last chance
+        // Try legitimate hand first
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-        if (higher) {
-          return { action: 'lastChanceRaise', hand: higher };
-        }
-        if (desperate) {
-          const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
-          if (bluff && isHigherHand(bluff, currentHand)) {
-            return { action: 'lastChanceRaise', hand: bluff };
-          }
-        }
+        if (higher) return { action: 'lastChanceRaise', hand: higher };
+        // Try plausible bluff (we're about to lose anyway)
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        if (bluff) return { action: 'lastChanceRaise', hand: bluff };
       }
       return { action: 'lastChancePass' };
     }
 
-    // Opening call — use best available hand, or strategic bluff
+    // Opening call — start low and truthful
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
-      const hand = this.findBestHandInCardsFull(botCards, totalCards);
-      if (hand) {
-        return { action: 'call', hand };
-      }
-      // Strategic opening bluff
-      return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+      return this.handleHardOpening(botCards, totalCards);
     }
 
-    // Raise or bull in calling phase
+    // Calling phase — EV-driven raise vs bull
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
-      const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-
-      // Adaptive aggression based on card count
-      const aggressionBonus = desperate ? 0.25 : botCards.length >= 3 ? 0.08 : 0;
-
-      // Raise with legitimate hand
-      if (higher) {
-        const raiseChance = 0.7 + aggressionBonus + bias * 0.1;
-        if (Math.random() < raiseChance) {
-          return { action: 'call', hand: higher };
-        }
-      }
-
-      // Context-aware bluffing — try plausible cross-player bluffs first
-      const bluffThreshold = desperate ? 0.4
-        : totalCards <= 5 ? 0.08
-        : totalCards <= 12 ? 0.18
-        : 0.28;
-
-      if (Math.random() < bluffThreshold) {
-        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
-        if (bluff && isHigherHand(bluff, currentHand)) {
-          return { action: 'call', hand: bluff };
-        }
-        // Fallback to simple bluff
-        const simpleBluff = this.makeBluffHandHard(currentHand, totalCards);
-        if (simpleBluff && isHigherHand(simpleBluff, currentHand)) {
-          return { action: 'call', hand: simpleBluff };
-        }
-      }
-
-      // Avoid calling bull on plausible hands — try to raise instead
-      if (plausibility > 0.5) {
-        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
-        if (bluff && isHigherHand(bluff, currentHand)) {
-          return { action: 'call', hand: bluff };
-        }
-      } else if (desperate && plausibility > 0.3) {
-        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
-        if (bluff && isHigherHand(bluff, currentHand)) {
-          return { action: 'call', hand: bluff };
-        }
-      }
-
-      return { action: 'bull' };
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, desperate);
     }
 
-    // Bull phase — probability-driven decision
+    // Bull phase — pure probability threshold
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
-
-      // Consider raising in bull phase if we have a good hand
-      if (Math.random() < (desperate ? 0.25 : 0.15)) {
-        const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-        if (higher) {
-          return { action: 'call', hand: higher };
-        }
-      }
-
-      // Apply bias from turn history
-      const adjustedPlausibility = plausibility + bias * 0.15;
-
-      // When desperate, lean toward true (avoid penalties)
-      const trueBonus = desperate ? 0.2 : 0;
-
-      if (adjustedPlausibility > 0.55) {
-        return Math.random() < 0.80 + trueBonus ? { action: 'true' } : { action: 'bull' };
-      }
-      if (adjustedPlausibility > 0.3) {
-        return Math.random() < 0.55 + trueBonus ? { action: 'true' } : { action: 'bull' };
-      }
-      return Math.random() < 0.80 - trueBonus ? { action: 'bull' } : { action: 'true' };
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, desperate);
     }
 
     // Fallback
     if (currentHand) return { action: 'bull' };
-    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: '2' } };
   }
 
-  // ─── PLAUSIBLE CROSS-PLAYER BLUFFS ─────────────────────────────────
+  /**
+   * Opening: call the LOWEST truthful hand from own cards.
+   * This is optimal because it leaves room for future raises and reveals minimum info.
+   */
+  private static handleHardOpening(botCards: Card[], totalCards: number): BotAction {
+    // Find lowest truthful hand — sort all hands from own cards by rank
+    const candidates: HandCall[] = [];
+    const rankCounts = this.getRankCounts(botCards);
+
+    // All high cards we have (sorted lowest first)
+    for (const c of botCards) {
+      candidates.push({ type: HandType.HIGH_CARD, rank: c.rank });
+    }
+
+    // Pairs we have
+    for (const [rank, count] of rankCounts) {
+      if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
+    }
+
+    // Sort by hand strength (lowest first) and pick the lowest
+    candidates.sort((a, b) => {
+      if (a.type !== b.type) return a.type - b.type;
+      return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
+    });
+
+    if (candidates.length > 0) {
+      return { action: 'call', hand: candidates[0] };
+    }
+
+    // Fallback: bluff with a low, plausible hand
+    return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+  }
 
   /**
-   * Generate a bluff hand that could plausibly exist across all players' combined cards,
-   * even if the bot doesn't hold the cards itself. Uses probability to pick believable hands.
+   * Calling phase: Compute P(called hand exists), then decide:
+   * - If P < bullThreshold: call bull (hand probably doesn't exist)
+   * - If we have a legitimate raise: raise with lowest valid hand
+   * - If P > raiseThreshold and we can bluff raise: bluff (calling bull is too risky)
+   * - Otherwise: call bull
    */
-  private static makePlausibleBluff(
+  private static handleHardCallingPhase(
+    currentHand: HandCall,
+    botCards: Card[],
+    totalCards: number,
+    desperate: boolean,
+  ): BotAction {
+    const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+    const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+
+    // Confident bull: hand is very unlikely to exist
+    if (p < 0.25 && !desperate) {
+      return { action: 'bull' };
+    }
+
+    // We have a legitimate higher hand — raise is almost always correct
+    // (avoid bull penalty by passing the decision to the next player)
+    if (higher) {
+      // Even with a legitimate hand, sometimes call bull on very implausible hands
+      if (p < 0.15 && Math.random() < 0.3) {
+        return { action: 'bull' };
+      }
+      return { action: 'call', hand: higher };
+    }
+
+    // No legitimate hand. Decision depends on how plausible the called hand is.
+    // If P is high (hand likely real), calling bull will probably penalize us.
+    // If P is low (hand likely fake), calling bull is profitable.
+
+    if (p > 0.55) {
+      // Hand is probably real — try to find a plausible bluff raise
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      if (bluff) return { action: 'call', hand: bluff };
+      // Can't raise — calling bull is risky but our only option
+      return { action: 'bull' };
+    }
+
+    if (p > 0.35) {
+      // Uncertain — try bluff raise if desperate, otherwise lean bull
+      if (desperate) {
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        if (bluff) return { action: 'call', hand: bluff };
+      }
+      // Lean toward bull (55/45)
+      return Math.random() < 0.55 ? { action: 'bull' } : (() => {
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        return bluff ? { action: 'call' as const, hand: bluff } : { action: 'bull' as const };
+      })();
+    }
+
+    // p <= 0.35 — hand likely doesn't exist, call bull
+    return { action: 'bull' };
+  }
+
+  /**
+   * Bull phase: Pure expected value decision.
+   * EV(true)  = P(hand exists) × 0 + P(hand doesn't exist) × (-1) = -P(doesn't exist)
+   * EV(bull)  = P(hand doesn't exist) × 0 + P(hand exists) × (-1) = -P(exists)
+   * ⟹ Call true when P(exists) > 0.5, bull when P(exists) < 0.5
+   * Add small noise (5%) to avoid being perfectly predictable.
+   */
+  private static handleHardBullPhase(
+    currentHand: HandCall,
+    botCards: Card[],
+    totalCards: number,
+    desperate: boolean,
+  ): BotAction {
+    const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+
+    // Optional: consider raising in bull phase if we have a strong legitimate hand
+    const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+    if (higher && Math.random() < 0.15) {
+      return { action: 'call', hand: higher };
+    }
+
+    // When desperate (4+ cards), shift threshold slightly toward true
+    // to avoid the penalty that would eliminate us
+    const threshold = desperate ? 0.4 : 0.5;
+    const noise = 0.05;
+
+    if (p > threshold + noise) {
+      return { action: 'true' };
+    }
+    if (p < threshold - noise) {
+      return { action: 'bull' };
+    }
+    // Within noise band — randomize
+    return Math.random() < p ? { action: 'true' } : { action: 'bull' };
+  }
+
+  /**
+   * Find the best plausible raise hand — used when we can't raise legitimately
+   * but need to raise to avoid calling bull on a likely-real hand.
+   * Returns the MOST plausible hand that is higher than currentHand.
+   */
+  private static findBestPlausibleRaise(
     currentHand: HandCall,
     ownCards: Card[],
     totalCards: number,
   ): HandCall | null {
     const candidates: HandCall[] = [];
+    const rankCounts = this.getRankCounts(ownCards);
 
-    // Flush bluff: plausible when total cards >= 8 (flush can't raise flush)
+    // Generate candidates across hand types that are higher than current
+
+    // Pair bluffs — use ranks we have at least 1 of (more believable)
+    if (currentHand.type <= HandType.PAIR) {
+      for (const [rank, count] of rankCounts) {
+        if (count >= 1) {
+          const hand: HandCall = { type: HandType.PAIR, rank };
+          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        }
+      }
+    }
+
+    // Two pair bluffs
+    if (currentHand.type <= HandType.TWO_PAIR && totalCards >= 6) {
+      const heldRanks = [...rankCounts.keys()];
+      for (let i = 0; i < heldRanks.length; i++) {
+        for (let j = i + 1; j < heldRanks.length; j++) {
+          const [a, b] = RANK_VALUES[heldRanks[i]] > RANK_VALUES[heldRanks[j]]
+            ? [heldRanks[i], heldRanks[j]]
+            : [heldRanks[j], heldRanks[i]];
+          const hand: HandCall = { type: HandType.TWO_PAIR, highRank: a, lowRank: b };
+          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        }
+      }
+    }
+
+    // Three of a kind bluffs
+    if (currentHand.type <= HandType.THREE_OF_A_KIND && totalCards >= 6) {
+      for (const [rank, count] of rankCounts) {
+        if (count >= 1) {
+          const hand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
+          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        }
+      }
+    }
+
+    // Flush bluffs (flush can't raise flush)
     if (totalCards >= 8 && currentHand.type < HandType.FLUSH) {
-      // Pick a suit we have at least 1 card of (more believable)
       const suitCounts = this.getSuitCounts(ownCards);
       for (const [suit] of suitCounts) {
         const hand: HandCall = { type: HandType.FLUSH, suit };
         if (isHigherHand(hand, currentHand)) candidates.push(hand);
       }
-      // Also consider a random suit if we have many total cards
-      if (totalCards >= 12) {
-        const randomSuit = ALL_SUITS[Math.floor(Math.random() * 4)];
-        const hand: HandCall = { type: HandType.FLUSH, suit: randomSuit };
-        if (isHigherHand(hand, currentHand)) candidates.push(hand);
-      }
     }
 
-    // Straight bluff: plausible when total cards >= 7
+    // Straight bluffs
     if (totalCards >= 7 && currentHand.type <= HandType.STRAIGHT) {
       const straightHighs: Rank[] = ['5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
       for (const highRank of straightHighs) {
         const hand: HandCall = { type: HandType.STRAIGHT, highRank };
         if (isHigherHand(hand, currentHand)) {
           candidates.push(hand);
-          break; // Just take the lowest valid one
-        }
-      }
-    }
-
-    // Pair/three-of-a-kind bluff using cards we partially hold
-    if (currentHand.type <= HandType.PAIR) {
-      const rankCounts = this.getRankCounts(ownCards);
-      for (const [rank, count] of rankCounts) {
-        if (count >= 1) {
-          const pairHand: HandCall = { type: HandType.PAIR, rank };
-          if (isHigherHand(pairHand, currentHand)) candidates.push(pairHand);
-        }
-      }
-    }
-
-    if (currentHand.type <= HandType.THREE_OF_A_KIND && totalCards >= 6) {
-      const rankCounts = this.getRankCounts(ownCards);
-      for (const [rank, count] of rankCounts) {
-        if (count >= 1) {
-          const threeHand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
-          if (isHigherHand(threeHand, currentHand)) candidates.push(threeHand);
+          break; // Take lowest valid straight
         }
       }
     }
 
     if (candidates.length === 0) return null;
 
-    // Weight candidates by plausibility — pick the most believable bluff
-    let bestCandidate = candidates[0];
-    let bestScore = this.estimatePlausibilityHard(candidates[0], ownCards, totalCards);
-    for (let i = 1; i < candidates.length; i++) {
-      const score = this.estimatePlausibilityHard(candidates[i], ownCards, totalCards);
+    // Score each candidate by plausibility and pick the most plausible
+    let best: HandCall | null = null;
+    let bestScore = -1;
+    for (const hand of candidates) {
+      const score = this.estimatePlausibilityHard(hand, ownCards, totalCards);
       if (score > bestScore) {
         bestScore = score;
-        bestCandidate = candidates[i];
+        best = hand;
       }
     }
 
     // Only bluff if the hand is at least somewhat plausible
-    if (bestScore < 0.08) return null;
-    return bestCandidate;
+    return bestScore >= 0.08 ? best : null;
   }
 
   // ─── HAND FINDING (SIMPLE — Easy mode) ──────────────────────────────
@@ -574,17 +628,18 @@ export class BotPlayer {
       }
 
       case HandType.TWO_PAIR: {
-        // Rough: probability of finding 2 pairs among all cards
-        if (totalCards < 4) return 0.02;
-        // Count pairs we already have
+        if (totalCards < 4) return 0.01;
         const rankCounts = this.getRankCounts(ownCards);
-        let ownPairs = 0;
-        for (const [, count] of rankCounts) {
-          if (count >= 2) ownPairs++;
-        }
-        if (ownPairs >= 2) return 0.95;
-        if (ownPairs === 1) return Math.min(0.65, otherCards * 0.04);
-        return Math.min(0.35, otherCards * 0.02);
+        // Check if we already have the specific two pair called
+        const highRank = (hand as { highRank: Rank }).highRank;
+        const lowRank = (hand as { lowRank: Rank }).lowRank;
+        const highOwn = ownCards.filter(c => c.rank === highRank).length;
+        const lowOwn = ownCards.filter(c => c.rank === lowRank).length;
+        // P(both pairs exist) = P(>=2 of highRank) × P(>=2 of lowRank)
+        const pHigh = highOwn >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - highOwn, otherCards, 2 - highOwn);
+        const pLow = lowOwn >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - lowOwn, otherCards, 2 - lowOwn);
+        // Not perfectly independent, but a good approximation
+        return pHigh * pLow;
       }
 
       case HandType.THREE_OF_A_KIND: {
@@ -606,18 +661,42 @@ export class BotPlayer {
       }
 
       case HandType.STRAIGHT: {
-        // Rough approximation: depends heavily on total cards
-        if (totalCards < 5) return 0.01;
-        if (totalCards < 8) return 0.05;
-        if (totalCards < 12) return 0.15;
-        return 0.25;
+        // P(straight) ≈ product of P(at least 1 of each required rank)
+        // A straight with highRank H needs ranks H, H-1, H-2, H-3, H-4
+        if (totalCards < 5) return 0.005;
+        const highRank = (hand as { highRank: Rank }).highRank;
+        const highVal = RANK_VALUES[highRank];
+        // Get the 5 required ranks
+        const requiredRanks: Rank[] = [];
+        for (let v = highVal - 4; v <= highVal; v++) {
+          // Ace-low straight: A-2-3-4-5 (highVal=5, so v starts at 1)
+          const actualV = v < 2 ? 14 : v; // Map value 1 to Ace (14)
+          const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+          if (rank) requiredRanks.push(rank);
+        }
+        if (requiredRanks.length < 5) return 0.005;
+
+        let pStraight = 1;
+        for (const rank of requiredRanks) {
+          const ownCount = ownCards.filter(c => c.rank === rank).length;
+          if (ownCount >= 1) continue; // Already have it, P=1
+          const remaining = 4 - ownCount;
+          const pNone = this.hypergeomNone(unseenCards, remaining, otherCards);
+          pStraight *= (1 - pNone);
+        }
+        return pStraight;
       }
 
       case HandType.FULL_HOUSE: {
-        if (totalCards < 5) return 0.01;
-        if (totalCards < 8) return 0.04;
-        if (totalCards < 12) return 0.12;
-        return 0.2;
+        if (totalCards < 5) return 0.005;
+        // P(full house with threeRank and twoRank) = P(>=3 of threeRank) × P(>=2 of twoRank)
+        const threeRank = (hand as { threeRank: Rank }).threeRank;
+        const twoRank = (hand as { twoRank: Rank }).twoRank;
+        const threeOwn = ownCards.filter(c => c.rank === threeRank).length;
+        const twoOwn = ownCards.filter(c => c.rank === twoRank).length;
+        const pThree = threeOwn >= 3 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - threeOwn, otherCards, 3 - threeOwn);
+        const pTwo = twoOwn >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - twoOwn, otherCards, 2 - twoOwn);
+        return pThree * pTwo;
       }
 
       case HandType.FOUR_OF_A_KIND: {
@@ -629,14 +708,37 @@ export class BotPlayer {
       }
 
       case HandType.STRAIGHT_FLUSH: {
-        if (totalCards < 5) return 0.002;
-        if (totalCards < 10) return 0.005;
-        return 0.015;
+        if (totalCards < 5) return 0.001;
+        // Need 5 specific cards (rank+suit combos) — each has exactly 1 copy
+        const sfSuit = (hand as { suit: Suit }).suit;
+        const sfHighRank = (hand as { highRank: Rank }).highRank;
+        const sfHighVal = RANK_VALUES[sfHighRank];
+        let pSF = 1;
+        for (let v = sfHighVal - 4; v <= sfHighVal; v++) {
+          const actualV = v < 2 ? 14 : v;
+          const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+          if (!rank) return 0.001;
+          const hasIt = ownCards.some(c => c.rank === rank && c.suit === sfSuit);
+          if (hasIt) continue;
+          // 1 specific card among unseenCards, otherCards drawn
+          const pNone = this.hypergeomNone(unseenCards, 1, otherCards);
+          pSF *= (1 - pNone);
+        }
+        return pSF;
       }
 
       case HandType.ROYAL_FLUSH: {
-        if (totalCards < 5) return 0.001;
-        return 0.005;
+        if (totalCards < 5) return 0.0005;
+        const rfSuit = (hand as { suit: Suit }).suit;
+        const royalRanks: Rank[] = ['10', 'J', 'Q', 'K', 'A'];
+        let pRF = 1;
+        for (const rank of royalRanks) {
+          const hasIt = ownCards.some(c => c.rank === rank && c.suit === rfSuit);
+          if (hasIt) continue;
+          const pNone = this.hypergeomNone(unseenCards, 1, otherCards);
+          pRF *= (1 - pNone);
+        }
+        return pRF;
       }
 
       default:
