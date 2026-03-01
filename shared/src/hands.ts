@@ -23,7 +23,8 @@ export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean 
       return rankHigher(newHand.rank, (currentHand as typeof newHand).rank);
 
     case HandType.FLUSH:
-      return suitHigher(newHand.suit, (currentHand as typeof newHand).suit);
+      // All flushes are equal — must raise to a higher hand type
+      return false;
 
     case HandType.STRAIGHT:
       return rankHigher(newHand.highRank, (currentHand as typeof newHand).highRank);

@@ -80,8 +80,8 @@ describe('HandSelector', () => {
     it('shows two rank selectors for TWO_PAIR', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.TWO_PAIR);
-      expect(container.textContent).toContain('High Pair');
-      expect(container.textContent).toContain('Low Pair');
+      expect(container.textContent).toContain('First Pair');
+      expect(container.textContent).toContain('Second Pair');
     });
 
     it('shows three-of and pair-of labels for FULL_HOUSE', () => {
@@ -102,7 +102,7 @@ describe('HandSelector', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
-      // Default rank is A, which should auto-promote
+      clickRank(container, 'A');
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.ROYAL_FLUSH, suit: 'spades' });
     });
@@ -128,8 +128,8 @@ describe('HandSelector', () => {
   describe('hand preview', () => {
     it('shows hand preview text when hand is valid', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      // Default is HIGH_CARD with rank A — should show "Ace High"
-      expect(container.textContent).toContain('Ace High');
+      // Default is HIGH_CARD with rank 2 — should show "2 High"
+      expect(container.textContent).toContain('2 High');
     });
 
     it('shows straight range in preview', () => {
@@ -169,6 +169,8 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
+      // Default rank is '2' which ties with current — select a higher rank
+      clickRank(container, 'A');
       const callButton = getSubmitButton(container);
       expect(callButton.disabled).toBe(false);
     });
@@ -180,7 +182,7 @@ describe('HandSelector', () => {
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.HIGH_CARD, rank: 'A' });
+      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.HIGH_CARD, rank: '2' });
     });
 
     it('fires onSubmit with correct HandCall for PAIR', () => {
@@ -189,7 +191,7 @@ describe('HandSelector', () => {
       clickHandType(container, HandType.PAIR);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.PAIR, rank: 'A' });
+      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.PAIR, rank: '2' });
     });
 
     it('fires onSubmit with correct HandCall for FLUSH', () => {
@@ -235,13 +237,13 @@ describe('HandSelector', () => {
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       clickHandType(container, HandType.FULL_HOUSE);
 
-      // Default rank = A, default rank2 = K
+      // Default rank = 2, default rank2 = 3
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({
         type: HandType.FULL_HOUSE,
-        threeRank: 'A',
-        twoRank: 'K',
+        threeRank: '2',
+        twoRank: '3',
       });
     });
   });

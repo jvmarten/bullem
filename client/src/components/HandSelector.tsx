@@ -100,7 +100,7 @@ function getPreviewCards(hand: HandCall | null): Card[] {
     case HandType.THREE_OF_A_KIND:
       return suits.slice(0, 3).map(s => ({ rank: hand.rank, suit: s }));
     case HandType.FLUSH:
-      return (['A', 'K', 'Q', 'J', '10'] as Rank[]).map(r => ({ rank: r, suit: hand.suit }));
+      return (['2', '5', '8', 'J', 'A'] as Rank[]).map(r => ({ rank: r, suit: hand.suit }));
     case HandType.STRAIGHT:
       return straightCards(hand.highRank);
     case HandType.FULL_HOUSE:
@@ -191,14 +191,14 @@ function RankFan({ ranks, selected, onSelect, label, testId }: {
 
 export function HandSelector({ currentHand, onSubmit }: Props) {
   const [handType, setHandType] = useState<HandType>(currentHand?.type ?? HandType.HIGH_CARD);
-  const [rank, setRank] = useState<Rank>('A');
-  const [rank2, setRank2] = useState<Rank>('K');
+  const [rank, setRank] = useState<Rank>('2');
+  const [rank2, setRank2] = useState<Rank>('3');
   const [suit, setSuit] = useState<Suit>('spades');
 
   const handleTypeChange = useCallback((ht: HandType) => {
     setHandType(ht);
     if ((ht === HandType.STRAIGHT || ht === HandType.STRAIGHT_FLUSH) && RANK_VALUES[rank] < 5) {
-      setRank('A');
+      setRank('5');
     }
   }, [rank]);
 
@@ -338,14 +338,14 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
             ranks={ALL_RANKS}
             selected={rank}
             onSelect={handleRank1Change}
-            label={handType === HandType.FULL_HOUSE ? 'Three of' : 'High Pair'}
+            label={handType === HandType.FULL_HOUSE ? 'Three of' : 'First Pair'}
             testId="rank-picker"
           />
           <RankFan
             ranks={rank2List}
             selected={rank2}
             onSelect={setRank2}
-            label={handType === HandType.FULL_HOUSE ? 'Pair of' : 'Low Pair'}
+            label={handType === HandType.FULL_HOUSE ? 'Pair of' : 'Second Pair'}
             testId="rank2-picker"
           />
         </>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import type { Player, PlayerId } from '@bull-em/shared';
 
@@ -29,25 +29,39 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const phaseLabel = isBotTurn ? 'Thinking\u2026' : PHASE_LABELS[roundPhase];
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [fraction, setFraction] = useState(1);
+  const totalDurationRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!turnDeadline || !isMyTurn) {
       setSecondsLeft(null);
+      setFraction(1);
+      totalDurationRef.current = null;
       return;
     }
 
+    const now = Date.now();
+    if (totalDurationRef.current === null) {
+      totalDurationRef.current = turnDeadline - now;
+    }
+    const totalMs = totalDurationRef.current;
+
     const update = () => {
-      const remaining = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
-      setSecondsLeft(remaining);
+      const remainingMs = Math.max(0, turnDeadline - Date.now());
+      setSecondsLeft(Math.ceil(remainingMs / 1000));
+      setFraction(totalMs > 0 ? remainingMs / totalMs : 0);
     };
 
     update();
-    const interval = setInterval(update, 250);
+    const interval = setInterval(update, 100);
     return () => clearInterval(interval);
   }, [turnDeadline, isMyTurn]);
 
   const isWarning = secondsLeft !== null && secondsLeft <= 5;
   const isTimedOut = secondsLeft === 0;
+  const showTimer = secondsLeft !== null && secondsLeft > 0;
+
+  const meterColor = isWarning ? 'var(--danger)' : 'var(--gold)';
 
   return (
     <div className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
@@ -62,12 +76,24 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
         <span className={`text-xs font-normal ml-2 ${isWarning ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'}`}>
           {phaseLabel}
         </span>
-        {secondsLeft !== null && secondsLeft > 0 && (
+        {showTimer && (
           <span className={`ml-2 text-sm font-mono ${isWarning ? 'text-[var(--danger)] font-bold' : 'text-[var(--gold-dim)]'}`}>
             {secondsLeft}s
           </span>
         )}
       </p>
+      {showTimer && (
+        <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${fraction * 100}%`,
+              background: meterColor,
+              transition: 'width 0.15s linear, background 0.3s ease',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -158,8 +158,13 @@ export class BotPlayer {
         }
       }
 
-      // When desperate, avoid calling bull on plausible hands (risky)
-      if (desperate && plausibility > 0.4) {
+      // Avoid calling bull on plausible hands — try to raise instead
+      if (plausibility > 0.5) {
+        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
+        if (bluff && isHigherHand(bluff, currentHand)) {
+          return { action: 'call', hand: bluff };
+        }
+      } else if (desperate && plausibility > 0.3) {
         const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
         if (bluff && isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
@@ -174,7 +179,7 @@ export class BotPlayer {
       const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
 
       // Consider raising in bull phase if we have a good hand
-      if (Math.random() < (desperate ? 0.2 : 0.12)) {
+      if (Math.random() < (desperate ? 0.25 : 0.15)) {
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) {
           return { action: 'call', hand: higher };
@@ -185,15 +190,15 @@ export class BotPlayer {
       const adjustedPlausibility = plausibility + bias * 0.15;
 
       // When desperate, lean toward true (avoid penalties)
-      const trueBonus = desperate ? 0.15 : 0;
+      const trueBonus = desperate ? 0.2 : 0;
 
-      if (adjustedPlausibility > 0.6) {
-        return Math.random() < 0.75 + trueBonus ? { action: 'true' } : { action: 'bull' };
+      if (adjustedPlausibility > 0.55) {
+        return Math.random() < 0.80 + trueBonus ? { action: 'true' } : { action: 'bull' };
       }
-      if (adjustedPlausibility > 0.35) {
-        return Math.random() < 0.45 + trueBonus ? { action: 'true' } : { action: 'bull' };
+      if (adjustedPlausibility > 0.3) {
+        return Math.random() < 0.55 + trueBonus ? { action: 'true' } : { action: 'bull' };
       }
-      return Math.random() < 0.85 - trueBonus ? { action: 'bull' } : { action: 'true' };
+      return Math.random() < 0.80 - trueBonus ? { action: 'bull' } : { action: 'true' };
     }
 
     // Fallback
@@ -214,8 +219,8 @@ export class BotPlayer {
   ): HandCall | null {
     const candidates: HandCall[] = [];
 
-    // Flush bluff: plausible when total cards >= 8
-    if (totalCards >= 8 && currentHand.type <= HandType.FLUSH) {
+    // Flush bluff: plausible when total cards >= 8 (flush can't raise flush)
+    if (totalCards >= 8 && currentHand.type < HandType.FLUSH) {
       // Pick a suit we have at least 1 card of (more believable)
       const suitCounts = this.getSuitCounts(ownCards);
       for (const [suit] of suitCounts) {
@@ -733,12 +738,7 @@ export class BotPlayer {
     }
 
     if (currentHand.type === HandType.FLUSH) {
-      const cr = currentHand as { type: HandType.FLUSH; suit: Suit };
-      // Try next suit up
-      const nextSuitVal = SUIT_ORDER[cr.suit] + 1;
-      const nextSuit = ALL_SUITS.find(s => SUIT_ORDER[s] === nextSuitVal);
-      if (nextSuit) return { type: HandType.FLUSH, suit: nextSuit };
-      // Escalate to straight
+      // Flushes can't be raised with another flush — escalate to straight
       return { type: HandType.STRAIGHT, highRank: '6' };
     }
 
