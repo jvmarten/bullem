@@ -44,11 +44,11 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 784, duration: 0.25, type: 'sine', gain: 0.18, delay: 0.2 },
   ],
   roundLose: [
-    // "Wah wah wah waaah" sad trombone — Bb4, A4, Ab4, G4 descending
-    { frequency: 466, duration: 0.28, type: 'sawtooth', gain: 0.1, ramp: 0.25 },
-    { frequency: 440, duration: 0.28, type: 'sawtooth', gain: 0.1, ramp: 0.25, delay: 0.3 },
-    { frequency: 415, duration: 0.28, type: 'sawtooth', gain: 0.1, ramp: 0.25, delay: 0.6 },
-    { frequency: 392, duration: 0.6, type: 'sawtooth', gain: 0.12, ramp: 0.55, delay: 0.9 },
+    // "FAH" — punchy descending burst, buzzy attack with fast drop-off
+    { frequency: 300, duration: 0.35, type: 'sawtooth', gain: 0.18, ramp: 0.3 },
+    { frequency: 250, duration: 0.3, type: 'square', gain: 0.06, ramp: 0.25 },
+    { frequency: 180, duration: 0.25, type: 'sawtooth', gain: 0.1, ramp: 0.2, delay: 0.03 },
+    { frequency: 120, duration: 0.4, type: 'triangle', gain: 0.08, ramp: 0.35, delay: 0.05 },
   ],
   eliminated: [
     { frequency: 350, duration: 0.3, type: 'sawtooth', gain: 0.1, ramp: 0.25 },
