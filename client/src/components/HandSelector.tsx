@@ -393,7 +393,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       {/* ── Live Preview ──────────────────────────────── */}
       {hand && (
         <div className="hs-preview-area">
-          <div className="flex justify-center gap-0.5 flex-wrap">
+          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default">
             {previewCards.slice(0, 5).map((card, i) => {
               const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
               return (

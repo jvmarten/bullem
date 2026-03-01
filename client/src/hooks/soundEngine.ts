@@ -7,7 +7,8 @@ type SoundName =
   | 'roundLose'
   | 'eliminated'
   | 'gameOver'
-  | 'yourTurn';
+  | 'yourTurn'
+  | 'timerTick';
 
 interface ToneConfig {
   frequency: number;
@@ -60,6 +61,10 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   yourTurn: [
     { frequency: 880, duration: 0.08, type: 'sine', gain: 0.12 },
     { frequency: 1100, duration: 0.1, type: 'sine', gain: 0.15, delay: 0.08 },
+  ],
+  timerTick: [
+    { frequency: 1000, duration: 0.08, type: 'sine', gain: 0.2, ramp: 0.07 },
+    { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
   ],
 };
 

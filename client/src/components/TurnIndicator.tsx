@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import type { Player, PlayerId } from '@bull-em/shared';
+import { useSound } from '../hooks/useSound.js';
 
 interface Props {
   currentPlayerId: PlayerId;
@@ -21,6 +22,7 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const isMyTurn = currentPlayerId === myPlayerId;
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
   const isBotTurn = currentPlayer?.isBot && !isMyTurn;
+  const { play } = useSound();
 
   const turnLabel = isMyTurn
     ? 'Your Turn'
@@ -30,13 +32,16 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [fraction, setFraction] = useState(1);
+  const [tickPulse, setTickPulse] = useState(false);
   const totalDurationRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!turnDeadline || !isMyTurn) {
       setSecondsLeft(null);
       setFraction(1);
       totalDurationRef.current = null;
+      lastTickRef.current = null;
       return;
     }
 
@@ -48,14 +53,23 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
 
     const update = () => {
       const remainingMs = Math.max(0, turnDeadline - Date.now());
-      setSecondsLeft(Math.ceil(remainingMs / 1000));
+      const secs = Math.ceil(remainingMs / 1000);
+      setSecondsLeft(secs);
       setFraction(totalMs > 0 ? remainingMs / totalMs : 0);
+
+      // Play tick sound each second during last 5 seconds
+      if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
+        lastTickRef.current = secs;
+        play('timerTick');
+        setTickPulse(true);
+        setTimeout(() => setTickPulse(false), 300);
+      }
     };
 
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline, isMyTurn]);
+  }, [turnDeadline, isMyTurn, play]);
 
   const isWarning = secondsLeft !== null && secondsLeft <= 5;
   const isTimedOut = secondsLeft === 0;
@@ -67,7 +81,7 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
     <div className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
       isMyTurn
         ? isWarning
-          ? 'glass-raised border-[var(--danger)] animate-shake'
+          ? `glass-raised border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
           : 'glass-raised animate-pulse-glow border-[var(--gold)]'
         : 'glass'
     }`}>
