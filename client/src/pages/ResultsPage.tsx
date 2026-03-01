@@ -1,32 +1,36 @@
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
+import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
 
 export function ResultsPage() {
   const navigate = useNavigate();
-  const { winnerId, gameState, playerId, leaveRoom } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom } = useGameContext();
 
   const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
   const isWinner = winnerId === playerId;
 
   return (
     <Layout>
-      <div className="flex flex-col items-center gap-8 pt-12 text-center animate-scale-in">
-        {/* Trophy / crown */}
-        <div className="text-6xl animate-float">
+      <div className="flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
+        <div className="text-5xl animate-float">
           {isWinner ? '\uD83C\uDFC6' : '\uD83D\uDE14'}
         </div>
 
         <div>
-          <h2 className="font-display text-4xl font-bold text-[var(--gold)]">
+          <h2 className="font-display text-3xl font-bold text-[var(--gold)]">
             {isWinner ? 'You Win!' : `${winnerName} Wins!`}
           </h2>
-          <p className="text-[var(--gold-dim)] mt-2">
+          <p className="text-[var(--gold-dim)] mt-1 text-sm">
             {isWinner
               ? 'You outsmarted everyone at the table.'
               : 'Better luck next time.'}
           </p>
         </div>
+
+        {gameStats && gameState && (
+          <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+        )}
 
         <button
           onClick={() => { leaveRoom(); navigate('/'); }}

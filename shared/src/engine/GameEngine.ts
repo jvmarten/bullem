@@ -5,7 +5,7 @@ import {
 } from '../types.js';
 import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
-  GameSettings,
+  GameSettings, GameStats, PlayerGameStats,
 } from '../types.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
@@ -31,10 +31,24 @@ export class GameEngine {
   private respondedPlayers = new Set<PlayerId>();
   private lastRoundResult: RoundResult | null = null;
   private lastChanceUsed = false;
+  private gameStats: GameStats;
 
   constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
     this.settings = { ...settings };
+    const playerStats: Record<PlayerId, PlayerGameStats> = {};
+    for (const p of players) {
+      playerStats[p.id] = {
+        bullsCalled: 0,
+        truesCalled: 0,
+        callsMade: 0,
+        correctBulls: 0,
+        correctTrues: 0,
+        bluffsSuccessful: 0,
+        roundsSurvived: 0,
+      };
+    }
+    this.gameStats = { totalRounds: 0, playerStats };
   }
 
   startRound(): void {
@@ -124,6 +138,7 @@ export class GameEngine {
     this.currentHand = hand;
     this.lastCallerId = playerId;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
+    this.gameStats.playerStats[playerId].callsMade++;
 
     // A raise resets the bull phase
     this.roundPhase = RoundPhase.CALLING;
@@ -140,6 +155,7 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.BULL);
     this.respondedPlayers.add(playerId);
+    this.gameStats.playerStats[playerId].bullsCalled++;
 
     if (this.roundPhase === RoundPhase.CALLING) {
       this.roundPhase = RoundPhase.BULL_PHASE;
@@ -178,6 +194,7 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.TRUE);
     this.respondedPlayers.add(playerId);
+    this.gameStats.playerStats[playerId].truesCalled++;
 
     if (this.allNonCallersResponded()) {
       return this.resolveRound();
@@ -235,12 +252,17 @@ export class GameEngine {
     };
   }
 
+  getGameStats(): GameStats {
+    return this.gameStats;
+  }
+
   getActivePlayers(): ServerPlayer[] {
     return this.players.filter(p => !p.isEliminated);
   }
 
   private resolveRound(): TurnResult {
     this.roundPhase = RoundPhase.RESOLVING;
+    this.gameStats.totalRounds++;
     const allCards = this.getAllCards();
     const allCardsOwned = this.getAllCardsWithOwnership();
     const handExists = HandChecker.exists(allCards, this.currentHand!);
@@ -253,16 +275,23 @@ export class GameEngine {
     for (const p of this.getActivePlayers()) {
       const lastAction = this.getPlayerLastAction(p.id);
       let incorrect = false;
+      const stats = this.gameStats.playerStats[p.id];
 
       if (p.id === this.lastCallerId) {
         // The caller is wrong if the hand doesn't exist
         incorrect = !handExists;
+        if (handExists) {
+          // Caller's hand actually existed — bluff was successful (or honest call)
+          stats.bluffsSuccessful++;
+        }
       } else if (lastAction === TurnAction.BULL) {
         // Bull callers are wrong if the hand exists
         incorrect = handExists;
+        if (!handExists) stats.correctBulls++;
       } else if (lastAction === TurnAction.TRUE) {
         // True callers are wrong if the hand doesn't exist
         incorrect = !handExists;
+        if (handExists) stats.correctTrues++;
       }
 
       if (incorrect) {
@@ -271,6 +300,11 @@ export class GameEngine {
           p.isEliminated = true;
           eliminatedPlayerIds.push(p.id);
         }
+      }
+
+      // Track rounds survived (everyone still active survived this round)
+      if (!p.isEliminated) {
+        stats.roundsSurvived++;
       }
 
       penalties[p.id] = p.cardCount || STARTING_CARDS;

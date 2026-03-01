@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 
 export function HomePage() {
@@ -64,6 +64,12 @@ export function HomePage() {
             <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
               Join Online Room
             </button>
+            <Link
+              to="/how-to-play"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              How to Play
+            </Link>
           </div>
         )}
 

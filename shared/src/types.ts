@@ -115,6 +115,21 @@ export interface GameSettings {
   maxCards: number;
 }
 
+export interface PlayerGameStats {
+  bullsCalled: number;
+  truesCalled: number;
+  callsMade: number;
+  correctBulls: number;
+  correctTrues: number;
+  bluffsSuccessful: number;
+  roundsSurvived: number;
+}
+
+export interface GameStats {
+  totalRounds: number;
+  playerStats: Record<PlayerId, PlayerGameStats>;
+}
+
 export interface RoomState {
   roomCode: string;
   players: Player[];

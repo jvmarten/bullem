@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats } from '@bull-em/shared';
 import {
   GamePhase, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
@@ -28,6 +28,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
+  const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
   const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
@@ -112,6 +113,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'game_over':
         setWinnerId(result.winnerId);
+        if (engineRef.current) setGameStats(engineRef.current.getGameStats());
         break;
     }
   }, [broadcastState, scheduleBotTurn]);
@@ -198,6 +200,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setRoundResult(null);
     setRoundTransition(false);
     setWinnerId(null);
+    setGameStats(null);
   }, []);
 
   const startGame = useCallback(() => {
@@ -263,6 +266,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const nextResult = engine.startNextRound();
     if (nextResult.type === 'game_over') {
       setWinnerId(nextResult.winnerId);
+      setGameStats(engine.getGameStats());
     } else {
       broadcastState();
       scheduleBotTurn();
@@ -334,6 +338,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     roundResult,
     roundTransition,
     winnerId,
+    gameStats,
     playerId: HUMAN_ID,
     error,
     isConnected: true,
