@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
   isHigherHand, getHandTypeName, handToString,
@@ -127,6 +127,7 @@ function RankFan({ ranks, selected, onSelect, label, testId }: {
   testId: string;
 }) {
   const selectedIndex = ranks.indexOf(selected);
+  const touchActiveRef = useRef(false);
 
   const handleKeyDown = (e: React.KeyboardEvent, i: number) => {
     let next = i;
@@ -140,12 +141,33 @@ function RankFan({ ranks, selected, onSelect, label, testId }: {
     if (next !== i) onSelect(ranks[next]);
   };
 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchActiveRef.current) return;
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!el) return;
+    const btn = el.closest('[role="radio"]') as HTMLElement | null;
+    if (!btn) return;
+    const rankLabel = btn.getAttribute('aria-label');
+    if (!rankLabel) return;
+    const r = rankLabel.replace('Rank ', '') as Rank;
+    if (ranks.includes(r) && r !== selected) onSelect(r);
+  };
+
   return (
     <div>
       <div className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
         {label}
       </div>
-      <div className="hs-rank-fan" role="radiogroup" aria-label={label} data-testid={testId}>
+      <div
+        className="hs-rank-fan"
+        role="radiogroup"
+        aria-label={label}
+        data-testid={testId}
+        onTouchStart={() => { touchActiveRef.current = true; }}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={() => { touchActiveRef.current = false; }}
+      >
         {ranks.map((r, i) => (
           <button
             key={r}
