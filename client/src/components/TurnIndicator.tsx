@@ -36,8 +36,10 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const totalDurationRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
 
+  const isResolving = roundPhase === RoundPhase.RESOLVING;
+
   useEffect(() => {
-    if (!turnDeadline || !isMyTurn) {
+    if (!turnDeadline || !isMyTurn || isResolving) {
       setSecondsLeft(null);
       setFraction(1);
       totalDurationRef.current = null;
@@ -69,7 +71,7 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline, isMyTurn, play]);
+  }, [turnDeadline, isMyTurn, isResolving, play]);
 
   const isWarning = secondsLeft !== null && secondsLeft <= 5;
   const isTimedOut = secondsLeft === 0;

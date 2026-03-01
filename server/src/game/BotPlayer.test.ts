@@ -21,6 +21,7 @@ function makeState(overrides: Partial<ClientGameState> = {}): ClientGameState {
     roundPhase: RoundPhase.CALLING,
     turnHistory: [],
     roundNumber: 1,
+    maxCards: 5,
     ...overrides,
   };
 }

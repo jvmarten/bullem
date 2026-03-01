@@ -252,6 +252,7 @@ export class GameEngine {
       gamePhase: GamePhase.PLAYING,
       roundPhase: this.roundPhase,
       roundNumber: this.roundNumber,
+      maxCards: this.settings.maxCards,
       players: this.players.map(toPublicPlayer),
       myCards: player?.cards ?? [],
       currentPlayerId: this.currentPlayerId,
@@ -293,6 +294,7 @@ export class GameEngine {
 
     // Determine who was right and wrong
     const penalties: Record<PlayerId, number> = {};
+    const penalizedPlayerIds: PlayerId[] = [];
     const eliminatedPlayerIds: PlayerId[] = [];
 
     for (const p of this.getActivePlayers()) {
@@ -315,9 +317,13 @@ export class GameEngine {
         // True callers are wrong if the hand doesn't exist
         incorrect = !handExists;
         if (handExists) stats.correctTrues++;
+      } else {
+        // Player never responded (no bull/true action) — treat as wrong
+        incorrect = true;
       }
 
       if (incorrect) {
+        penalizedPlayerIds.push(p.id);
         p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
         if (p.cardCount > this.settings.maxCards) {
           p.isEliminated = true;
@@ -339,6 +345,7 @@ export class GameEngine {
       handExists,
       revealedCards,
       penalties,
+      penalizedPlayerIds,
       eliminatedPlayerIds,
       turnHistory: [...this.turnHistory],
     };

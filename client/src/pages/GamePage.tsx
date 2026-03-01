@@ -132,6 +132,7 @@ export function GamePage() {
           players={gameState.players}
           currentPlayerId={gameState.currentPlayerId}
           myPlayerId={playerId}
+          maxCards={gameState.maxCards}
         />
 
         {/* Current call display */}

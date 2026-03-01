@@ -125,7 +125,7 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
           </p>
           {players.filter(p => result.penalties[p.id] !== undefined).map((p) => {
             const newCardCount = result.penalties[p.id];
-            const wasWrong = newCardCount > p.cardCount;
+            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount > p.cardCount;
             const isEliminated = result.eliminatedPlayerIds.includes(p.id);
             return (
               <div key={p.id} className={`flex justify-between items-center text-sm px-3 py-1.5 rounded-lg ${
