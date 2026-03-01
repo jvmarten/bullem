@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, BotDifficulty, GameSettings } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 export interface GameContextValue {
@@ -8,6 +8,7 @@ export interface GameContextValue {
   roundResult: RoundResult | null;
   roundTransition: boolean;
   winnerId: PlayerId | null;
+  gameStats: GameStats | null;
   playerId: string | null;
   error: string | null;
   isConnected: boolean;
@@ -42,6 +43,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
+  const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() =>
     sessionStorage.getItem(PLAYER_ID_KEY),
   );
@@ -111,7 +113,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:state', handleNewGameState);
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
-    socket.on('game:over', setWinnerId);
+    socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
     socket.on('room:error', setError);
 
     return () => {
@@ -159,6 +161,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setRoundResult(null);
     setRoundTransition(false);
     setWinnerId(null);
+    setGameStats(null);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -199,6 +202,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     roundResult,
     roundTransition,
     winnerId,
+    gameStats,
     playerId,
     error,
     isConnected,

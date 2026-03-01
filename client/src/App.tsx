@@ -8,6 +8,7 @@ import { ResultsPage } from './pages/ResultsPage.js';
 import { LocalLobbyPage } from './pages/LocalLobbyPage.js';
 import { LocalGamePage } from './pages/LocalGamePage.js';
 import { LocalResultsPage } from './pages/LocalResultsPage.js';
+import { HowToPlayPage } from './pages/HowToPlayPage.js';
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -22,6 +23,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/how-to-play" element={<HowToPlayPage />} />
 
         {/* Online multiplayer routes */}
         <Route element={<OnlineLayout />}>

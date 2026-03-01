@@ -137,7 +137,7 @@ export class BotManager {
           const nextResult = room.game!.startNextRound();
           if (nextResult.type === 'game_over') {
             room.gamePhase = GamePhase.GAME_OVER;
-            io.to(room.roomCode).emit('game:over', nextResult.winnerId);
+            io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
           } else {
             room.gamePhase = GamePhase.PLAYING;
             broadcastNewRound(io, room);
@@ -150,7 +150,7 @@ export class BotManager {
 
       case 'game_over':
         room.gamePhase = GamePhase.GAME_OVER;
-        io.to(room.roomCode).emit('game:over', result.winnerId);
+        io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
     }
   }

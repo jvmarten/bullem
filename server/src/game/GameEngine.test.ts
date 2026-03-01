@@ -767,4 +767,147 @@ describe('GameEngine', () => {
       expect(12 * 5).toBeGreaterThan(DECK_SIZE);
     });
   });
+
+  describe('GameStats tracking', () => {
+    it('initializes stats for all players', () => {
+      const stats = engine.getGameStats();
+      expect(stats.totalRounds).toBe(0);
+      expect(stats.playerStats['p1']).toBeDefined();
+      expect(stats.playerStats['p2']).toBeDefined();
+      expect(stats.playerStats['p3']).toBeDefined();
+      expect(stats.playerStats['p1'].callsMade).toBe(0);
+      expect(stats.playerStats['p1'].bullsCalled).toBe(0);
+    });
+
+    it('increments callsMade on handleCall', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      const stats = engine.getGameStats();
+      expect(stats.playerStats['p1'].callsMade).toBe(1);
+    });
+
+    it('increments bullsCalled on handleBull', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      const stats = engine.getGameStats();
+      expect(stats.playerStats['p2'].bullsCalled).toBe(1);
+    });
+
+    it('increments truesCalled on handleTrue', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+      const stats = engine.getGameStats();
+      expect(stats.playerStats['p3'].truesCalled).toBe(1);
+    });
+
+    it('tracks correctBulls after a round with a non-existent hand', () => {
+      // Force cards so we know the outcome
+      p1.cards = [{ rank: '2', suit: 'clubs' }];
+      p2.cards = [{ rank: '3', suit: 'hearts' }];
+      p3.cards = [{ rank: '4', suit: 'diamonds' }];
+
+      // Call a pair of Aces — impossible with these cards
+      engine.handleCall('p1', { type: HandType.PAIR, rank: 'A' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const stats = engine.getGameStats();
+      // Hand doesn't exist, so p2 (bull) was correct, p3 (true) was wrong
+      expect(stats.playerStats['p2'].correctBulls).toBe(1);
+      expect(stats.playerStats['p3'].correctTrues).toBe(0);
+    });
+
+    it('tracks correctTrues after a round with an existing hand', () => {
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: 'K', suit: 'hearts' }];
+      p3.cards = [{ rank: '2', suit: 'clubs' }];
+
+      // Call high card 7 — exists (p1 has 7 of spades)
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const stats = engine.getGameStats();
+      expect(stats.playerStats['p3'].correctTrues).toBe(1);
+      expect(stats.playerStats['p2'].correctBulls).toBe(0);
+    });
+
+    it('tracks bluffsSuccessful when caller hand exists', () => {
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: 'K', suit: 'hearts' }];
+      p3.cards = [{ rank: '2', suit: 'clubs' }];
+
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const stats = engine.getGameStats();
+      expect(stats.playerStats['p1'].bluffsSuccessful).toBe(1);
+    });
+
+    it('increments totalRounds on resolution', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const stats = engine.getGameStats();
+      expect(stats.totalRounds).toBe(1);
+    });
+
+    it('tracks roundsSurvived for non-eliminated players', () => {
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      const stats = engine.getGameStats();
+      // All 3 players survive (no one eliminated with just 1-2 cards)
+      expect(stats.playerStats['p1'].roundsSurvived).toBeGreaterThanOrEqual(1);
+      expect(stats.playerStats['p2'].roundsSurvived).toBeGreaterThanOrEqual(1);
+      expect(stats.playerStats['p3'].roundsSurvived).toBeGreaterThanOrEqual(1);
+    });
+
+    it('accumulates stats across multiple rounds', () => {
+      // Round 1
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+
+      engine.startNextRound();
+
+      // Round 2 — p2 starts
+      const starter = engine.currentPlayerId;
+      engine.handleCall(starter, { type: HandType.HIGH_CARD, rank: '3' });
+      const next1 = engine.currentPlayerId;
+      engine.handleBull(next1);
+      const next2 = engine.currentPlayerId;
+      engine.handleTrue(next2);
+
+      const stats = engine.getGameStats();
+      expect(stats.totalRounds).toBe(2);
+    });
+
+    it('tracks stats through game over', () => {
+      const pa = makePlayer('pa', 'A', MAX_CARDS);
+      const pb = makePlayer('pb', 'B', 1);
+      const eng = new GameEngine([pa, pb]);
+      eng.startRound();
+
+      pa.cards = [{ rank: '2', suit: 'clubs' }, { rank: '3', suit: 'clubs' },
+                  { rank: '4', suit: 'clubs' }, { rank: '5', suit: 'clubs' },
+                  { rank: '6', suit: 'clubs' }];
+      pb.cards = [{ rank: '7', suit: 'hearts' }];
+
+      eng.handleCall('pa', { type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      eng.handleBull('pb');
+      eng.handleLastChancePass('pa');
+
+      const stats = eng.getGameStats();
+      expect(stats.totalRounds).toBe(1);
+      expect(stats.playerStats['pa'].callsMade).toBe(1);
+      expect(stats.playerStats['pb'].bullsCalled).toBe(1);
+      expect(stats.playerStats['pb'].correctBulls).toBe(1);
+      // pb survived, pa was eliminated
+      expect(stats.playerStats['pb'].roundsSurvived).toBe(1);
+    });
+  });
 });
