@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats } from '@bull-em/shared';
 import {
-  GamePhase, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
+  GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards,
 } from '@bull-em/shared';
@@ -37,6 +37,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const playersRef = useRef<ServerPlayer[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
   const gameSettingsRef = useRef<GameSettings>(gameSettings);
 
@@ -61,11 +62,20 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     return () => {
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+      if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
     };
+  }, []);
+
+  const clearHumanTimer = useCallback(() => {
+    if (turnTimerRef.current) {
+      clearTimeout(turnTimerRef.current);
+      turnTimerRef.current = null;
+    }
   }, []);
 
   const broadcastState = useCallback(() => {
     if (!engineRef.current) return;
+    clearHumanTimer();
     const state = engineRef.current.getClientState(HUMAN_ID);
     setGameState(state);
     setRoundResult(null);
@@ -74,7 +84,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-  }, []);
+  }, [clearHumanTimer]);
 
   const scheduleBotTurn = useCallback(() => {
     const engine = engineRef.current;
@@ -92,9 +102,55 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }, delay);
   }, []);
 
+  const executeAutoAction = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.currentPlayerId !== HUMAN_ID) return;
+
+    const state = engine.getClientState(HUMAN_ID);
+    let result: TurnResult;
+
+    if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+      result = engine.handleLastChancePass(HUMAN_ID);
+    } else if (state.roundPhase === RoundPhase.BULL_PHASE) {
+      result = engine.handleBull(HUMAN_ID);
+    } else if (state.roundPhase === RoundPhase.CALLING && state.currentHand) {
+      result = engine.handleBull(HUMAN_ID);
+    } else {
+      // CALLING with no current hand — auto-call High Card 2
+      result = engine.handleCall(HUMAN_ID, { type: HandType.HIGH_CARD, rank: '2' });
+    }
+
+    if (result.type !== 'error') {
+      handleTurnResult(result);
+    }
+  }, []);
+
+  const scheduleHumanTimer = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.currentPlayerId !== HUMAN_ID) return;
+
+    const timerSeconds = gameSettingsRef.current.turnTimer;
+    if (!timerSeconds || timerSeconds <= 0) {
+      engine.setTurnDeadline(null);
+      return;
+    }
+
+    const deadline = Date.now() + timerSeconds * 1000;
+    engine.setTurnDeadline(deadline);
+
+    turnTimerRef.current = setTimeout(() => {
+      turnTimerRef.current = null;
+      executeAutoAction();
+    }, timerSeconds * 1000);
+  }, [executeAutoAction]);
+
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
     if (!engine) return;
+
+    clearHumanTimer();
 
     switch (result.type) {
       case 'error':
@@ -105,6 +161,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       case 'last_chance':
         broadcastState();
         scheduleBotTurn();
+        scheduleHumanTimer();
         break;
 
       case 'resolve':
@@ -116,7 +173,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         if (engineRef.current) setGameStats(engineRef.current.getGameStats());
         break;
     }
-  }, [broadcastState, scheduleBotTurn]);
+  }, [broadcastState, scheduleBotTurn, clearHumanTimer]);
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -193,6 +250,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const leaveRoom = useCallback(() => {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    clearHumanTimer();
     engineRef.current = null;
     playersRef.current = [];
     setRoomState(null);
@@ -221,7 +279,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
     broadcastState();
     scheduleBotTurn();
-  }, [broadcastState, scheduleBotTurn]);
+    scheduleHumanTimer();
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
 
   const callHand = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
@@ -270,8 +329,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     } else {
       broadcastState();
       scheduleBotTurn();
+      scheduleHumanTimer();
     }
-  }, [broadcastState, scheduleBotTurn]);
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
 
   // Auto-dismiss round result after 30 seconds
   useEffect(() => {

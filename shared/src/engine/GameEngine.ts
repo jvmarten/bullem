@@ -32,6 +32,7 @@ export class GameEngine {
   private lastRoundResult: RoundResult | null = null;
   private lastChanceUsed = false;
   private gameStats: GameStats;
+  private _turnDeadline: number | null = null;
 
   constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
@@ -49,6 +50,14 @@ export class GameEngine {
       };
     }
     this.gameStats = { totalRounds: 0, playerStats };
+  }
+
+  get turnTimer(): number {
+    return this.settings.turnTimer ?? 0;
+  }
+
+  setTurnDeadline(deadline: number | null): void {
+    this._turnDeadline = deadline;
   }
 
   startRound(): void {
@@ -249,6 +258,7 @@ export class GameEngine {
       turnHistory: [...this.turnHistory],
       startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
       roundResult: this.lastRoundResult,
+      turnDeadline: this._turnDeadline,
     };
   }
 

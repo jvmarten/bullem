@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io';
 import {
-  GamePhase, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
+  GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
   MAX_PLAYERS, BotDifficulty,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
@@ -41,22 +41,67 @@ export class BotManager {
 
   /**
    * Check if the current player is a bot, and if so schedule their turn.
+   * If the current player is human, schedule their turn timer (if enabled).
    */
   scheduleBotTurn(room: Room, io: TypedServer): void {
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
 
     const currentId = room.game.currentPlayerId;
     const player = room.players.get(currentId);
-    if (!player || !player.isBot) return;
+    if (!player) return;
 
-    const delay = BOT_THINK_DELAY_MIN +
-      Math.floor(Math.random() * (BOT_THINK_DELAY_MAX - BOT_THINK_DELAY_MIN));
+    if (player.isBot) {
+      const delay = BOT_THINK_DELAY_MIN +
+        Math.floor(Math.random() * (BOT_THINK_DELAY_MAX - BOT_THINK_DELAY_MIN));
+
+      const timer = setTimeout(() => {
+        this.pendingTimers.delete(timer);
+        this.executeBotTurn(room, io, currentId);
+      }, delay);
+      this.pendingTimers.add(timer);
+    } else {
+      this.scheduleHumanTurnTimer(room, io, currentId);
+    }
+  }
+
+  private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId): void {
+    if (!room.game) return;
+    const timerSeconds = room.settings.turnTimer;
+    if (!timerSeconds || timerSeconds <= 0) {
+      room.game.setTurnDeadline(null);
+      return;
+    }
+
+    const deadline = Date.now() + timerSeconds * 1000;
+    room.game.setTurnDeadline(deadline);
 
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
-      this.executeBotTurn(room, io, currentId);
-    }, delay);
+      this.executeAutoAction(room, io, playerId);
+    }, timerSeconds * 1000);
     this.pendingTimers.add(timer);
+  }
+
+  private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
+    if (room.game.currentPlayerId !== playerId) return;
+
+    const state = room.game.getClientState(playerId);
+    let result: TurnResult;
+
+    if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+      result = room.game.handleLastChancePass(playerId);
+    } else if (state.roundPhase === RoundPhase.BULL_PHASE) {
+      result = room.game.handleBull(playerId);
+    } else if (state.roundPhase === RoundPhase.CALLING && state.currentHand) {
+      result = room.game.handleBull(playerId);
+    } else {
+      result = room.game.handleCall(playerId, { type: HandType.HIGH_CARD, rank: '2' });
+    }
+
+    if (result.type !== 'error') {
+      this.handleBotResult(io, room, result);
+    }
   }
 
   clearTimers(): void {
@@ -99,6 +144,7 @@ export class BotManager {
   }
 
   private handleBotResult(io: TypedServer, room: Room, result: TurnResult): void {
+    if (room.game) room.game.setTurnDeadline(null);
     switch (result.type) {
       case 'error':
         // Bot made an invalid move — try bull as fallback
