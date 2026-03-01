@@ -1,5 +1,5 @@
 import { RANK_VALUES } from '../constants.js';
-import type { Card, HandCall, Rank, Suit } from '../types.js';
+import type { Card, HandCall, OwnedCard, Rank, Suit } from '../types.js';
 import { HandType } from '../types.js';
 
 export class HandChecker {
@@ -80,6 +80,52 @@ export class HandChecker {
 
       case HandType.ROYAL_FLUSH:
         return findStraightFlushCards(allCards, hand.suit, 'A' as Rank);
+    }
+  }
+
+  static findAllRelevantCards(allCards: OwnedCard[], hand: HandCall): OwnedCard[] {
+    switch (hand.type) {
+      case HandType.HIGH_CARD:
+        return allCards.filter(c => c.rank === hand.rank);
+
+      case HandType.PAIR:
+        return allCards.filter(c => c.rank === hand.rank);
+
+      case HandType.TWO_PAIR:
+        return allCards.filter(c => c.rank === hand.highRank || c.rank === hand.lowRank);
+
+      case HandType.THREE_OF_A_KIND:
+        return allCards.filter(c => c.rank === hand.rank);
+
+      case HandType.FLUSH:
+        return allCards.filter(c => c.suit === hand.suit);
+
+      case HandType.STRAIGHT: {
+        const ranks = getStraightRanks(hand.highRank);
+        if (!ranks) return [];
+        const rankSet = new Set<Rank>(ranks);
+        return allCards.filter(c => rankSet.has(c.rank));
+      }
+
+      case HandType.FULL_HOUSE:
+        return allCards.filter(c => c.rank === hand.threeRank || c.rank === hand.twoRank);
+
+      case HandType.FOUR_OF_A_KIND:
+        return allCards.filter(c => c.rank === hand.rank);
+
+      case HandType.STRAIGHT_FLUSH: {
+        const ranks = getStraightRanks(hand.highRank);
+        if (!ranks) return [];
+        const rankSet = new Set<Rank>(ranks);
+        return allCards.filter(c => c.suit === hand.suit && rankSet.has(c.rank));
+      }
+
+      case HandType.ROYAL_FLUSH: {
+        const ranks = getStraightRanks('A' as Rank);
+        if (!ranks) return [];
+        const rankSet = new Set<Rank>(ranks);
+        return allCards.filter(c => c.suit === hand.suit && rankSet.has(c.rank));
+      }
     }
   }
 }

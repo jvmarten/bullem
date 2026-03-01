@@ -27,8 +27,8 @@ export const DEFAULT_GAME_SETTINGS = { maxCards: MAX_CARDS } as const;
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
 
-export const BOT_THINK_DELAY_MIN = 1000;
-export const BOT_THINK_DELAY_MAX = 3000;
+export const BOT_THINK_DELAY_MIN = 1500;
+export const BOT_THINK_DELAY_MAX = 4000;
 
 export const DEFAULT_BOT_DIFFICULTY = 'easy' as const;
 export const BOT_NAMES = [

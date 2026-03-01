@@ -33,6 +33,11 @@ export type HandCall =
 
 export type PlayerId = string;
 
+export interface OwnedCard extends Card {
+  playerId: PlayerId;
+  playerName: string;
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
@@ -82,7 +87,7 @@ export interface RoundResult {
   calledHand: HandCall;
   callerId: PlayerId;
   handExists: boolean;
-  revealedCards: Card[];
+  revealedCards: OwnedCard[];
   penalties: Record<PlayerId, number>;
   eliminatedPlayerIds: PlayerId[];
 }

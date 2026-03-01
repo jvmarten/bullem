@@ -1,5 +1,5 @@
 import { handToString } from '@bull-em/shared';
-import type { RoundResult, Player } from '@bull-em/shared';
+import type { RoundResult, Player, OwnedCard } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 import { useEffect, useState } from 'react';
 
@@ -38,22 +38,40 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
           {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
         </div>
 
-        {result.revealedCards.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
-              Revealed Cards
-            </p>
-            <div className="flex justify-center gap-1.5 flex-wrap" style={{ perspective: '600px' }}>
-              {result.revealedCards.map((card, i) => (
-                <CardDisplay
-                  key={i}
-                  card={card}
-                  className={`animate-stagger-reveal reveal-delay-${Math.min(i, 4)}`}
-                />
+        {result.revealedCards.length > 0 && (() => {
+          const grouped = result.revealedCards.reduce<Record<string, { name: string; cards: OwnedCard[] }>>((acc, card) => {
+            if (!acc[card.playerId]) {
+              acc[card.playerId] = { name: card.playerName, cards: [] };
+            }
+            acc[card.playerId].cards.push(card);
+            return acc;
+          }, {});
+          let cardIndex = 0;
+          return (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
+                Revealed Cards
+              </p>
+              {Object.entries(grouped).map(([playerId, { name, cards }]) => (
+                <div key={playerId} className="mb-2">
+                  <p className="text-xs text-[var(--card-face)] font-medium mb-1">{name}</p>
+                  <div className="flex justify-center gap-1.5 flex-wrap" style={{ perspective: '600px' }}>
+                    {cards.map((card) => {
+                      const i = cardIndex++;
+                      return (
+                        <CardDisplay
+                          key={i}
+                          card={card}
+                          className={`animate-stagger-reveal reveal-delay-${Math.min(i, 4)}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="text-left space-y-1">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">

@@ -4,7 +4,7 @@ import {
   GamePhase, RoundPhase, TurnAction,
 } from '../types.js';
 import type {
-  Card, HandCall, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
+  Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
   GameSettings,
 } from '../types.js';
 import { Deck } from './Deck.js';
@@ -242,8 +242,9 @@ export class GameEngine {
   private resolveRound(): TurnResult {
     this.roundPhase = RoundPhase.RESOLVING;
     const allCards = this.getAllCards();
+    const allCardsOwned = this.getAllCardsWithOwnership();
     const handExists = HandChecker.exists(allCards, this.currentHand!);
-    const revealedCards = HandChecker.findMatchingCards(allCards, this.currentHand!) ?? [];
+    const revealedCards = HandChecker.findAllRelevantCards(allCardsOwned, this.currentHand!);
 
     // Determine who was right and wrong
     const penalties: Record<PlayerId, number> = {};
@@ -340,6 +341,16 @@ export class GameEngine {
 
   private getAllCards(): Card[] {
     return this.getActivePlayers().flatMap(p => p.cards);
+  }
+
+  private getAllCardsWithOwnership(): OwnedCard[] {
+    return this.getActivePlayers().flatMap(p =>
+      p.cards.map(card => ({
+        ...card,
+        playerId: p.id,
+        playerName: p.name,
+      }))
+    );
   }
 
   private addTurnEntry(playerId: PlayerId, action: TurnAction, hand?: HandCall): void {
