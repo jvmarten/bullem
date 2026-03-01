@@ -96,6 +96,14 @@ export function LocalLobbyPage() {
           onRemoveBot={removeBot}
         />
 
+        <button
+          onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+          disabled={!canAddBot}
+          className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+        >
+          + Add Bot
+        </button>
+
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -176,13 +184,6 @@ export function LocalLobbyPage() {
         )}
 
         <div className="flex flex-col gap-3">
-          <button
-            onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
-            disabled={!canAddBot}
-            className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-          >
-            + Add Bot
-          </button>
           <button
             onClick={startGame}
             disabled={!canStart}

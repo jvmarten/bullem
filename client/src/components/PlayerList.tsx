@@ -11,14 +11,14 @@ interface Props {
 
 export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot, onRemoveBot }: Props) {
   return (
-    <div className="space-y-0.5">
+    <div className="grid grid-cols-2 gap-1">
       {players.map((p, i) => {
         const isMe = p.id === myPlayerId;
         const isCurrent = p.id === currentPlayerId;
         return (
           <div
             key={p.id}
-            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm transition-all duration-200 ${
+            className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-200 ${
               p.isEliminated
                 ? 'glass opacity-40'
                 : isCurrent
@@ -26,8 +26,8 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot
                   : 'glass'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <div className={`avatar ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
                 {p.isBot ? '\u2699' : playerInitial(p.name)}
               </div>
               <div className="flex flex-col">

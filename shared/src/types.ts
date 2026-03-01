@@ -90,6 +90,7 @@ export interface RoundResult {
   revealedCards: OwnedCard[];
   penalties: Record<PlayerId, number>;
   eliminatedPlayerIds: PlayerId[];
+  turnHistory?: TurnEntry[];
 }
 
 export interface ClientGameState {
