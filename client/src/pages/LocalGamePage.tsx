@@ -131,6 +131,7 @@ export function LocalGamePage() {
           currentPlayerId={gameState.currentPlayerId}
           myPlayerId={playerId}
           maxCards={gameState.maxCards}
+          roundNumber={gameState.roundNumber}
         />
 
         {/* Current call display */}
