@@ -1,3 +1,5 @@
+import fahSoundUrl from '../assets/sounds/fah.mp3';
+
 type SoundName =
   | 'cardDeal'
   | 'callMade'
@@ -19,6 +21,11 @@ interface ToneConfig {
   detune?: number;
   delay?: number;         // start delay in seconds
 }
+
+// Sounds that use an audio file instead of oscillator tones
+const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, string>> = {
+  roundLose: fahSoundUrl,
+};
 
 // Each sound is one or more tones layered together
 const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
@@ -43,13 +50,7 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 659, duration: 0.15, type: 'sine', gain: 0.15, delay: 0.1 },
     { frequency: 784, duration: 0.25, type: 'sine', gain: 0.18, delay: 0.2 },
   ],
-  roundLose: [
-    // "FAH" — punchy descending burst, buzzy attack with fast drop-off
-    { frequency: 300, duration: 0.35, type: 'sawtooth', gain: 0.18, ramp: 0.3 },
-    { frequency: 250, duration: 0.3, type: 'square', gain: 0.06, ramp: 0.25 },
-    { frequency: 180, duration: 0.25, type: 'sawtooth', gain: 0.1, ramp: 0.2, delay: 0.03 },
-    { frequency: 120, duration: 0.4, type: 'triangle', gain: 0.08, ramp: 0.35, delay: 0.05 },
-  ],
+  roundLose: [], // uses audio file (fah.mp3) — see AUDIO_FILE_SOUNDS
   eliminated: [
     { frequency: 350, duration: 0.3, type: 'sawtooth', gain: 0.1, ramp: 0.25 },
     { frequency: 250, duration: 0.4, type: 'sine', gain: 0.08, delay: 0.1 },
@@ -142,6 +143,15 @@ export function createSoundController(): SoundController {
 
     play(name: SoundName) {
       if (muted) return;
+
+      const audioFile = AUDIO_FILE_SOUNDS[name];
+      if (audioFile) {
+        const audio = new Audio(audioFile);
+        audio.volume = volume;
+        audio.play().catch(() => {});
+        return;
+      }
+
       const tones = SOUND_DEFS[name];
       if (tones) playTones(tones, volume);
     },
