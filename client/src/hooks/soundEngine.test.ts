@@ -1,4 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock the mp3 import before importing the module under test
+vi.mock('../assets/sounds/fah.mp3', () => ({ default: 'fah.mp3' }));
+
+const mockAudioPlay = vi.fn().mockResolvedValue(undefined);
+vi.stubGlobal('Audio', vi.fn(() => ({
+  play: mockAudioPlay,
+  volume: 1,
+})));
+
 import { createSoundController } from './soundEngine.js';
 
 // Mock AudioContext since jsdom doesn't provide Web Audio API
@@ -114,5 +124,13 @@ describe('createSoundController', () => {
     localStorage.setItem('bull-em-volume', 'not-a-number');
     const ctrl = createSoundController();
     expect(ctrl.volume).toBeCloseTo(0.7); // falls back to default
+  });
+
+  it('plays audio file for roundLose instead of oscillators', () => {
+    const ctrl = createSoundController();
+    ctrl.play('roundLose');
+    expect(mockAudioPlay).toHaveBeenCalled();
+    // Should NOT create oscillators for audio-file-backed sounds
+    expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
   });
 });
