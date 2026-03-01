@@ -14,9 +14,26 @@ describe('HandSelector', () => {
     onSubmit: vi.fn(),
   };
 
-  function getHandTypeSelect(container: HTMLElement): HTMLSelectElement {
-    const selects = container.querySelectorAll('select');
-    return selects[0] as HTMLSelectElement;
+  function getHandTypePicker(container: HTMLElement) {
+    return container.querySelector('[data-testid="hand-type-picker"]')!;
+  }
+
+  function clickHandType(container: HTMLElement, handType: HandType) {
+    const picker = getHandTypePicker(container);
+    const options = picker.querySelectorAll('[role="radio"]');
+    fireEvent.click(options[handType]);
+  }
+
+  function clickRank(container: HTMLElement, rank: string, testId = 'rank-picker') {
+    const picker = container.querySelector(`[data-testid="${testId}"]`)!;
+    const cards = picker.querySelectorAll('[role="radio"]');
+    for (const card of cards) {
+      if (card.textContent?.trim() === rank) {
+        fireEvent.click(card);
+        return;
+      }
+    }
+    throw new Error(`Rank card "${rank}" not found in ${testId}`);
   }
 
   function getSubmitButton(container: HTMLElement): HTMLButtonElement {
@@ -28,69 +45,63 @@ describe('HandSelector', () => {
     throw new Error('Submit button not found');
   }
 
-  describe('hand type dropdown', () => {
-    it('renders all hand type options (excluding Royal Flush)', () => {
+  describe('hand type picker', () => {
+    it('renders all hand type options', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      const options = handTypeSelect.querySelectorAll('option');
-      expect(options.length).toBe(9);
+      const picker = getHandTypePicker(container);
+      const options = picker.querySelectorAll('[role="radio"]');
+      expect(options.length).toBe(10);
     });
 
     it('defaults to HIGH_CARD when no current hand', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      expect(handTypeSelect.value).toBe(String(HandType.HIGH_CARD));
+      const picker = getHandTypePicker(container);
+      const options = picker.querySelectorAll('[role="radio"]');
+      expect(options[HandType.HIGH_CARD].getAttribute('aria-checked')).toBe('true');
     });
 
     it('shows rank selector for HIGH_CARD', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      // Second select should be the rank dropdown
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBeGreaterThanOrEqual(2);
+      expect(container.textContent).toContain('Rank');
     });
 
     it('shows suit selector when FLUSH is selected', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.FLUSH) } });
-      // Should have a suit select with suit options
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBeGreaterThanOrEqual(2);
-      expect(container.textContent).toContain('Spades');
+      clickHandType(container, HandType.FLUSH);
+      expect(container.textContent).toContain('Suit');
     });
 
     it('shows high card selector when STRAIGHT is selected', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.STRAIGHT) } });
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBeGreaterThanOrEqual(2);
+      clickHandType(container, HandType.STRAIGHT);
+      expect(container.textContent).toContain('High Card');
     });
 
     it('shows two rank selectors for TWO_PAIR', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.TWO_PAIR) } });
-      // Should have 3 selects: hand type + 2 rank selects
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBe(3);
+      clickHandType(container, HandType.TWO_PAIR);
+      expect(container.textContent).toContain('High Pair');
+      expect(container.textContent).toContain('Low Pair');
     });
 
-    it('shows two rank selectors for FULL_HOUSE', () => {
+    it('shows three-of and pair-of labels for FULL_HOUSE', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.FULL_HOUSE) } });
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBe(3);
+      clickHandType(container, HandType.FULL_HOUSE);
+      expect(container.textContent).toContain('Three of');
+      expect(container.textContent).toContain('Pair of');
     });
 
     it('shows both suit and high card selectors for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.STRAIGHT_FLUSH) } });
-      // Should have 3 selects: hand type + high card + suit
-      const selects = container.querySelectorAll('select');
-      expect(selects.length).toBe(3);
+      clickHandType(container, HandType.STRAIGHT_FLUSH);
+      expect(container.textContent).toContain('Suit');
+      expect(container.textContent).toContain('High Card');
+    });
+
+    it('shows suit selector for ROYAL_FLUSH', () => {
+      const { container } = render(<HandSelector {...defaultProps} />);
+      clickHandType(container, HandType.ROYAL_FLUSH);
+      expect(container.textContent).toContain('Suit');
     });
   });
 
@@ -120,8 +131,7 @@ describe('HandSelector', () => {
 
     it('shows straight range in preview', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.STRAIGHT) } });
+      clickHandType(container, HandType.STRAIGHT);
       // Default rank for straight should be A, showing "Straight, 10 to Ace"
       expect(container.textContent).toContain('Straight');
     });
@@ -135,8 +145,6 @@ describe('HandSelector', () => {
     });
 
     it('disables submit when new hand is not higher than current hand', () => {
-      // currentHand is PAIR of A; component initializes with handType=PAIR, rank=A
-      // That's equal, not higher, so button should be disabled
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
@@ -158,7 +166,6 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
-      // Default is HIGH_CARD with rank A which is higher than HIGH_CARD 2
       const callButton = getSubmitButton(container);
       expect(callButton.disabled).toBe(false);
     });
@@ -168,7 +175,6 @@ describe('HandSelector', () => {
     it('fires onSubmit with correct HandCall for HIGH_CARD', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      // Default hand type is HIGH_CARD, default rank is A
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.HIGH_CARD, rank: 'A' });
@@ -177,9 +183,7 @@ describe('HandSelector', () => {
     it('fires onSubmit with correct HandCall for PAIR', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.PAIR) } });
-      // Default rank is A
+      clickHandType(container, HandType.PAIR);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.PAIR, rank: 'A' });
@@ -188,18 +192,23 @@ describe('HandSelector', () => {
     it('fires onSubmit with correct HandCall for FLUSH', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.FLUSH) } });
-      // Default suit is spades
+      clickHandType(container, HandType.FLUSH);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.FLUSH, suit: 'spades' });
     });
 
+    it('fires onSubmit with correct HandCall for ROYAL_FLUSH', () => {
+      const onSubmit = vi.fn();
+      const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
+      clickHandType(container, HandType.ROYAL_FLUSH);
+      fireEvent.click(getSubmitButton(container));
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.ROYAL_FLUSH, suit: 'spades' });
+    });
+
     it('does not fire onSubmit when button is disabled', () => {
       const onSubmit = vi.fn();
-      // PAIR of A is the highest pair; component initializes to handType=PAIR, rank=A
-      // which equals the current hand, so it's not higher and button should be disabled
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(<HandSelector currentHand={currentHand} onSubmit={onSubmit} />);
       fireEvent.click(getSubmitButton(container));
@@ -209,13 +218,8 @@ describe('HandSelector', () => {
     it('fires onSubmit with correct HandCall for STRAIGHT with changed rank', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.STRAIGHT) } });
-
-      // Find the High Card select (should be the second select)
-      const selects = container.querySelectorAll('select');
-      const highCardSelect = selects[1] as HTMLSelectElement;
-      fireEvent.change(highCardSelect, { target: { value: '9' } });
+      clickHandType(container, HandType.STRAIGHT);
+      clickRank(container, '9');
 
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
@@ -225,10 +229,8 @@ describe('HandSelector', () => {
     it('fires onSubmit with correct HandCall for FULL_HOUSE', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      const handTypeSelect = getHandTypeSelect(container);
-      fireEvent.change(handTypeSelect, { target: { value: String(HandType.FULL_HOUSE) } });
+      clickHandType(container, HandType.FULL_HOUSE);
 
-      // Full house has two rank selects: Three of + Pair of
       // Default rank = A, default rank2 = K
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
