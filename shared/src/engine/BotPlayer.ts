@@ -179,12 +179,16 @@ export class BotPlayer {
     turnHistory: { playerId: string; action: TurnAction }[],
     botId: string,
   ): BotAction {
-    const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+
+    // Truthfulness prior: callers usually hold cards related to their call.
+    // Boost plausibility to account for this information asymmetry.
+    const truthBoost = this.getTruthfulnessBoost(currentHand);
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
-    const adjustedP = Math.max(0, Math.min(1, p - positionAdj));
+    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
     // Confident bull: hand is very unlikely to exist
     if (adjustedP < 0.25 && !desperate) {
@@ -250,11 +254,14 @@ export class BotPlayer {
     turnHistory: { playerId: string; action: TurnAction }[],
     botId: string,
   ): BotAction {
-    const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+
+    // Truthfulness prior: callers usually hold cards related to their call
+    const truthBoost = this.getTruthfulnessBoost(currentHand);
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
-    const adjustedP = Math.max(0, Math.min(1, p - positionAdj));
+    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
     // Optional: consider raising in bull phase if we have a strong legitimate hand
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
@@ -920,6 +927,43 @@ export class BotPlayer {
   }
 
   // ─── GTO BLUFFING UTILITIES ────────────────────────────────────────
+
+  /**
+   * Truthfulness prior: players tend to call hands related to cards they hold.
+   *
+   * In practice, most players (especially non-bluffers) call hands they have
+   * at least partial evidence for. E.g., someone calling "pair of 7s" likely
+   * holds at least one 7. This makes the called hand more likely to exist
+   * than pure card-probability would suggest.
+   *
+   * The boost is higher for lower hands (HIGH_CARD, PAIR — almost always truthful)
+   * and lower for higher hands (STRAIGHT_FLUSH — more likely a bluff).
+   */
+  private static getTruthfulnessBoost(hand: HandCall): number {
+    switch (hand.type) {
+      case HandType.HIGH_CARD:
+        return 0.25; // Very likely truthful — they almost certainly have this card
+      case HandType.PAIR:
+        return 0.20; // Likely they hold at least 1 of the pair
+      case HandType.TWO_PAIR:
+        return 0.15; // Probably hold at least 1 of each pair rank
+      case HandType.THREE_OF_A_KIND:
+        return 0.15; // Probably hold 1-2 of the rank
+      case HandType.FLUSH:
+        return 0.10; // Probably hold a couple cards of the suit
+      case HandType.STRAIGHT:
+        return 0.10; // Might hold some of the ranks
+      case HandType.FULL_HOUSE:
+        return 0.08; // High hand — still somewhat likely held partially
+      case HandType.FOUR_OF_A_KIND:
+        return 0.05; // Big claim — less credible
+      case HandType.STRAIGHT_FLUSH:
+      case HandType.ROYAL_FLUSH:
+        return 0.02; // Very likely a bluff at this level
+      default:
+        return 0.10;
+    }
+  }
 
   /**
    * Nash equilibrium optimal bluff frequency.

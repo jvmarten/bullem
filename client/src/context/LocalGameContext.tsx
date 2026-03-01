@@ -75,7 +75,6 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const broadcastState = useCallback(() => {
     if (!engineRef.current) return;
-    clearHumanTimer();
     const state = engineRef.current.getClientState(HUMAN_ID);
     setGameState(state);
     setRoundResult(null);
@@ -84,7 +83,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-  }, [clearHumanTimer]);
+  }, []);
 
   const scheduleBotTurn = useCallback(() => {
     const engine = engineRef.current;
@@ -159,9 +158,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'continue':
       case 'last_chance':
-        broadcastState();
         scheduleBotTurn();
         scheduleHumanTimer();
+        broadcastState();
         break;
 
       case 'resolve':
@@ -277,9 +276,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     engine.startRound();
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
-    broadcastState();
     scheduleBotTurn();
     scheduleHumanTimer();
+    broadcastState();
   }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
 
   const callHand = useCallback((hand: HandCall) => {
@@ -327,11 +326,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       setWinnerId(nextResult.winnerId);
       setGameStats(engine.getGameStats());
     } else {
-      broadcastState();
+      clearHumanTimer();
       scheduleBotTurn();
       scheduleHumanTimer();
+      broadcastState();
     }
-  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer]);
 
   // Auto-dismiss round result after 30 seconds
   useEffect(() => {

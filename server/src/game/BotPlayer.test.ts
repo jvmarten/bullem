@@ -555,29 +555,30 @@ describe('BotPlayer', () => {
   // ─── GTO Bluffing Behavior ─────────────────────────────────────────
 
   describe('GTO bluffing (Hard mode)', () => {
-    it('bluffs less frequently with more opponents', () => {
-      // With many opponents, bluffs should be rarer
+    it('bluffs less frequently with more opponents (same card count)', () => {
+      // Use a higher hand with same per-player card count so total card pool
+      // difference doesn't dominate the bluff-frequency effect
       const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
-      const currentHand: HandCall = { type: HandType.PAIR, rank: '7' };
+      const currentHand: HandCall = { type: HandType.THREE_OF_A_KIND, rank: '7' };
 
-      // 2-player game (1 opponent)
+      // 2-player game (1 opponent), 1 card each → 2 total
       const state2p = makeState({
         roundPhase: RoundPhase.CALLING,
         currentHand,
         lastCallerId: 'p1',
       });
 
-      // 5-player game (4 opponents)
+      // 5-player game (4 opponents), 1 card each → 5 total
       const state5p = makeState({
         roundPhase: RoundPhase.CALLING,
         currentHand,
         lastCallerId: 'p1',
         players: [
-          { id: 'bot1', name: 'Bot', cardCount: 2, isConnected: true, isEliminated: false, isHost: false, isBot: true },
-          { id: 'p1', name: 'Alice', cardCount: 2, isConnected: true, isEliminated: false, isHost: true },
-          { id: 'p2', name: 'Bob', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
-          { id: 'p3', name: 'Carol', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
-          { id: 'p4', name: 'Dave', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'bot1', name: 'Bot', cardCount: 1, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 1, isConnected: true, isEliminated: false, isHost: true },
+          { id: 'p2', name: 'Bob', cardCount: 1, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'Carol', cardCount: 1, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'Dave', cardCount: 1, isConnected: true, isEliminated: false, isHost: false },
         ],
       });
 
@@ -592,8 +593,9 @@ describe('BotPlayer', () => {
         if (a5.action === 'call') bluffs5p++;
       }
 
-      // With more opponents, bot should bluff less often (or at least not more)
-      expect(bluffs5p).toBeLessThanOrEqual(bluffs2p + runs * 0.15);
+      // 3-of-a-kind with few total cards is implausible — bot mostly calls bull
+      // With 5 players the GTO bluff rate is lower (1/5 vs 1/2)
+      expect(bluffs5p).toBeLessThanOrEqual(bluffs2p + runs * 0.1);
     });
 
     it('position-aware: more suspicious of hands after many raises', () => {

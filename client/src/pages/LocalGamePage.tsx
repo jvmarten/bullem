@@ -63,9 +63,14 @@ export function LocalGamePage() {
       <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
         {/* Top bar */}
         <div className="flex justify-between items-center text-xs">
-          <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
-            Round {gameState.roundNumber}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
+              Round {gameState.roundNumber}
+            </span>
+            <span className="text-[var(--gold-dim)] font-mono">
+              {gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0)} cards
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={toggleMute}

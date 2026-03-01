@@ -204,7 +204,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
-.playing-card:hover {
+.playing-card:not(.no-hover):hover {
   transform: translateY(-4px) rotate(-1deg);
   box-shadow:
     0 8px 20px var(--card-shadow),
@@ -559,9 +559,9 @@ body {
 .hs-preview-card {
   transition: opacity 0.3s ease, transform 0.2s ease;
 }
-.hs-preview-area:hover .hs-preview-card {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 20px var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+.hs-preview-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 /* ── Card Flip Reveal ───────────────────────────────── */
