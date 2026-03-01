@@ -24,7 +24,7 @@ export function maxPlayersForMaxCards(maxCards: number): number {
 }
 
 export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const;
-export const DEFAULT_TURN_TIMER = 30;
+export const DEFAULT_TURN_TIMER = 0;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
@@ -32,7 +32,7 @@ export const ROOM_CODE_LENGTH = 4;
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;
 
-export const DEFAULT_BOT_DIFFICULTY = 'easy' as const;
+export const DEFAULT_BOT_DIFFICULTY = 'hard' as const;
 export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
   'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',
