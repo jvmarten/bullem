@@ -1,9 +1,32 @@
-import { ROOM_CODE_LENGTH } from '@bull-em/shared';
+import { ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS } from '@bull-em/shared';
 import { Room } from './Room.js';
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  startCleanup(): void {
+    this.cleanupInterval = setInterval(() => this.cleanupStaleRooms(), ROOM_CLEANUP_INTERVAL_MS);
+  }
+
+  stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  private cleanupStaleRooms(): void {
+    const now = Date.now();
+    for (const [code, room] of this.rooms) {
+      const hasConnectedHumans = [...room.players.values()].some(p => !p.isBot && p.isConnected);
+      if (!hasConnectedHumans && now - room.lastActivity > ROOM_MAX_INACTIVE_MS) {
+        room.clearTurnTimer();
+        this.rooms.delete(code);
+      }
+    }
+  }
 
   createRoom(): Room {
     let code: string;

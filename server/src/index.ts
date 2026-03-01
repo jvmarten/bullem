@@ -29,6 +29,7 @@ if (process.env.NODE_ENV === 'production') {
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 const roomManager = new RoomManager();
+roomManager.startCleanup();
 const botManager = new BotManager();
 registerHandlers(io, roomManager, botManager);
 

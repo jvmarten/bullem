@@ -7,7 +7,7 @@ import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull
 import type { Room } from '../rooms/Room.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
-import { broadcastGameState, broadcastNewRound } from '../socket/broadcast.js';
+import { handleTurnResult } from '../socket/turnTimer.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -95,63 +95,20 @@ export class BotManager {
         break;
     }
 
-    this.handleBotResult(io, room, result);
-  }
-
-  private handleBotResult(io: TypedServer, room: Room, result: TurnResult): void {
-    switch (result.type) {
-      case 'error':
-        // Bot made an invalid move — try bull as fallback
-        if (room.game) {
-          const currentId = room.game.currentPlayerId;
-          const player = room.players.get(currentId);
-          if (player?.isBot) {
-            const fallback = room.game.handleBull(currentId);
-            if (fallback.type !== 'error') {
-              this.handleBotResult(io, room, fallback);
-              return;
-            }
-            // Try pass for last chance
-            const passFallback = room.game.handleLastChancePass(currentId);
-            if (passFallback.type !== 'error') {
-              this.handleBotResult(io, room, passFallback);
-              return;
-            }
-          }
+    // Fallback if bot made invalid move
+    if (result.type === 'error' && room.game) {
+      const currentId = room.game.currentPlayerId;
+      const player = room.players.get(currentId);
+      if (player?.isBot) {
+        result = room.game.handleBull(currentId);
+        if (result.type === 'error') {
+          result = room.game.handleLastChancePass(currentId);
         }
-        break;
+      }
+    }
 
-      case 'continue':
-      case 'last_chance':
-        broadcastGameState(io, room);
-        // Check if the next player is also a bot
-        this.scheduleBotTurn(room, io);
-        break;
-
-      case 'resolve':
-        room.gamePhase = GamePhase.ROUND_RESULT;
-        io.to(room.roomCode).emit('game:roundResult', result.result);
-        // Start next round after a delay
-        const resolveTimer = setTimeout(() => {
-          this.pendingTimers.delete(resolveTimer);
-          const nextResult = room.game!.startNextRound();
-          if (nextResult.type === 'game_over') {
-            room.gamePhase = GamePhase.GAME_OVER;
-            io.to(room.roomCode).emit('game:over', nextResult.winnerId);
-          } else {
-            room.gamePhase = GamePhase.PLAYING;
-            broadcastNewRound(io, room);
-            // Check if first player of new round is a bot
-            this.scheduleBotTurn(room, io);
-          }
-        }, 3000);
-        this.pendingTimers.add(resolveTimer);
-        break;
-
-      case 'game_over':
-        room.gamePhase = GamePhase.GAME_OVER;
-        io.to(room.roomCode).emit('game:over', result.winnerId);
-        break;
+    if (result.type !== 'error') {
+      handleTurnResult(io, room, result, this);
     }
   }
 

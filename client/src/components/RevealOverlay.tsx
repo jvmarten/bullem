@@ -22,7 +22,7 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
          style={{ background: 'var(--overlay)' }}>
-      <div className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in">
+      <div className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in max-h-[90vh] overflow-y-auto">
         <h2 className="font-display text-2xl font-bold text-[var(--gold)]">Round Over</h2>
 
         <p className="text-[var(--card-face)]">

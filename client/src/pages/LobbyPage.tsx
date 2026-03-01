@@ -60,10 +60,11 @@ export function LobbyPage() {
     startGame();
   };
 
-  const copyRoomCode = async () => {
+  const copyInviteLink = async () => {
     if (!roomState) return;
     try {
-      await navigator.clipboard.writeText(roomState.roomCode);
+      const url = `${window.location.origin}/room/${roomState.roomCode}`;
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -146,7 +147,7 @@ export function LobbyPage() {
             Room Code
           </p>
           <button
-            onClick={copyRoomCode}
+            onClick={copyInviteLink}
             className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)] hover:text-[var(--gold-light)] transition-colors cursor-pointer"
             title="Click to copy"
           >
@@ -154,13 +155,13 @@ export function LobbyPage() {
           </button>
           <p className="text-sm text-[var(--gold-dim)] mt-1.5">
             {copied ? (
-              <span className="text-[var(--gold-light)] animate-fade-in">Copied!</span>
+              <span className="text-[var(--gold-light)] animate-fade-in">Invite link copied!</span>
             ) : (
               <>
                 {roomState.players.length} player{roomState.players.length !== 1 ? 's' : ''} in lobby
                 {' \u00b7 '}
-                <span className="cursor-pointer hover:text-[var(--gold)] transition-colors" onClick={copyRoomCode}>
-                  tap code to copy
+                <span className="cursor-pointer hover:text-[var(--gold)] transition-colors" onClick={copyInviteLink}>
+                  tap to copy invite link
                 </span>
               </>
             )}

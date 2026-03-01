@@ -1,10 +1,11 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, DEFAULT_TURN_TIMER_SECONDS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState } from './broadcast.js';
+import { scheduleNextTurn } from './turnTimer.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -103,9 +104,9 @@ export function registerLobbyHandlers(
       socket.emit('room:error', `Need at least ${MIN_PLAYERS} players`);
       return;
     }
+    // Online games always use turn timer
+    room.settings.turnTimerSeconds = DEFAULT_TURN_TIMER_SECONDS;
     room.startGame();
-    broadcastGameState(io, room);
-    // Check if first player is a bot
-    botManager.scheduleBotTurn(room, io);
+    scheduleNextTurn(io, room, botManager);
   });
 }

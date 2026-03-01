@@ -23,9 +23,12 @@ export function maxPlayersForMaxCards(maxCards: number): number {
   return Math.floor(DECK_SIZE / maxCards);
 }
 
+export const DEFAULT_TURN_TIMER_SECONDS = 30;
 export const DEFAULT_GAME_SETTINGS = { maxCards: MAX_CARDS } as const;
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
+export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000;
 
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;

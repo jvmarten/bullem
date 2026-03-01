@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { GameProvider } from './context/GameContext.js';
 import { LocalGameProvider } from './context/LocalGameContext.js';
 import { HomePage } from './pages/HomePage.js';
@@ -19,6 +20,7 @@ function LocalLayout() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -38,5 +40,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

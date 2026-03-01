@@ -15,10 +15,39 @@ export class Room {
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
   settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
+  lastActivity = Date.now();
   private disconnectTimers = new Map<PlayerId, ReturnType<typeof setTimeout>>();
+  private turnTimerHandle: ReturnType<typeof setTimeout> | null = null;
+  private _turnDeadline?: number;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
+  }
+
+  touch(): void {
+    this.lastActivity = Date.now();
+  }
+
+  scheduleTurnTimer(seconds: number, onTimeout: () => void): void {
+    this.clearTurnTimer();
+    this._turnDeadline = Date.now() + seconds * 1000;
+    this.turnTimerHandle = setTimeout(() => {
+      this._turnDeadline = undefined;
+      this.turnTimerHandle = null;
+      onTimeout();
+    }, seconds * 1000);
+  }
+
+  clearTurnTimer(): void {
+    if (this.turnTimerHandle) {
+      clearTimeout(this.turnTimerHandle);
+      this.turnTimerHandle = null;
+    }
+    this._turnDeadline = undefined;
+  }
+
+  get turnDeadline(): number | undefined {
+    return this._turnDeadline;
   }
 
   addPlayer(socketId: string, playerId: PlayerId, name: string): ServerPlayer {
@@ -143,7 +172,11 @@ export class Room {
 
   getClientGameState(playerId: PlayerId): ClientGameState | null {
     if (!this.game) return null;
-    return this.game.getClientState(playerId);
+    const state = this.game.getClientState(playerId);
+    if (this._turnDeadline) {
+      state.turnDeadline = this._turnDeadline;
+    }
+    return state;
   }
 
   get playerCount(): number {

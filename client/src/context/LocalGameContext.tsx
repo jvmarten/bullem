@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings } from '@bull-em/shared';
 import {
-  GamePhase, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
+  GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards,
 } from '@bull-em/shared';
@@ -36,6 +36,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const playersRef = useRef<ServerPlayer[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
   const gameSettingsRef = useRef<GameSettings>(gameSettings);
 
@@ -60,12 +61,23 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     return () => {
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+      if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
     };
   }, []);
 
-  const broadcastState = useCallback(() => {
+  const clearTurnTimer = useCallback(() => {
+    if (turnTimerRef.current) {
+      clearTimeout(turnTimerRef.current);
+      turnTimerRef.current = null;
+    }
+  }, []);
+
+  const broadcastState = useCallback((turnDeadline?: number) => {
     if (!engineRef.current) return;
     const state = engineRef.current.getClientState(HUMAN_ID);
+    if (turnDeadline) {
+      state.turnDeadline = turnDeadline;
+    }
     setGameState(state);
     setRoundResult(null);
     setRoundTransition(false);
@@ -75,25 +87,58 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const scheduleBotTurn = useCallback(() => {
+  const autoActHumanTurn = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.currentPlayerId !== HUMAN_ID) return;
+
+    const state = engine.getClientState(HUMAN_ID);
+    let result: TurnResult;
+    if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+      result = engine.handleLastChancePass(HUMAN_ID);
+    } else if (!state.currentHand) {
+      result = engine.handleCall(HUMAN_ID, { type: HandType.HIGH_CARD, rank: '2' });
+    } else {
+      result = engine.handleBull(HUMAN_ID);
+    }
+
+    // handleTurnResult will be called via the ref below
+    handleTurnResultRef.current(result);
+  }, []);
+
+  const scheduleNextLocalTurn = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
 
+    clearTurnTimer();
     const currentId = engine.currentPlayerId;
     const player = playersRef.current.find(p => p.id === currentId);
-    if (!player?.isBot) return;
 
-    const delay = BOT_THINK_DELAY_MIN +
-      Math.floor(Math.random() * (BOT_THINK_DELAY_MAX - BOT_THINK_DELAY_MIN));
-
-    botTimerRef.current = setTimeout(() => {
-      executeBotTurn(currentId);
-    }, delay);
-  }, []);
+    if (player?.isBot) {
+      broadcastState();
+      const delay = BOT_THINK_DELAY_MIN +
+        Math.floor(Math.random() * (BOT_THINK_DELAY_MAX - BOT_THINK_DELAY_MIN));
+      botTimerRef.current = setTimeout(() => {
+        executeBotTurnRef.current(currentId);
+      }, delay);
+    } else {
+      // Human turn — set up turn timer if configured
+      const seconds = gameSettingsRef.current.turnTimerSeconds;
+      if (seconds) {
+        const deadline = Date.now() + seconds * 1000;
+        turnTimerRef.current = setTimeout(autoActHumanTurn, seconds * 1000);
+        broadcastState(deadline);
+      } else {
+        broadcastState();
+      }
+    }
+  }, [broadcastState, clearTurnTimer, autoActHumanTurn]);
 
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
     if (!engine) return;
+
+    clearTurnTimer();
 
     switch (result.type) {
       case 'error':
@@ -102,8 +147,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'continue':
       case 'last_chance':
-        broadcastState();
-        scheduleBotTurn();
+        scheduleNextLocalTurn();
         break;
 
       case 'resolve':
@@ -114,7 +158,11 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         setWinnerId(result.winnerId);
         break;
     }
-  }, [broadcastState, scheduleBotTurn]);
+  }, [clearTurnTimer, scheduleNextLocalTurn]);
+
+  // Refs to avoid stale closures in setTimeout callbacks
+  const handleTurnResultRef = useRef(handleTurnResult);
+  handleTurnResultRef.current = handleTurnResult;
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -159,6 +207,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, [handleTurnResult]);
 
+  const executeBotTurnRef = useRef(executeBotTurn);
+  executeBotTurnRef.current = executeBotTurn;
+
   // --- Context API methods ---
 
   const createRoom = useCallback(async (playerName: string): Promise<string> => {
@@ -191,6 +242,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const leaveRoom = useCallback(() => {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    clearTurnTimer();
     engineRef.current = null;
     playersRef.current = [];
     setRoomState(null);
@@ -198,7 +250,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setRoundResult(null);
     setRoundTransition(false);
     setWinnerId(null);
-  }, []);
+  }, [clearTurnTimer]);
 
   const startGame = useCallback(() => {
     if (playersRef.current.length < 2) {
@@ -216,39 +268,43 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     engine.startRound();
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
-    broadcastState();
-    scheduleBotTurn();
-  }, [broadcastState, scheduleBotTurn]);
+    scheduleNextLocalTurn();
+  }, [scheduleNextLocalTurn]);
 
   const callHand = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
+    clearTurnTimer();
     const result = engineRef.current.handleCall(HUMAN_ID, hand);
     handleTurnResult(result);
-  }, [handleTurnResult]);
+  }, [handleTurnResult, clearTurnTimer]);
 
   const callBull = useCallback(() => {
     if (!engineRef.current) return;
+    clearTurnTimer();
     const result = engineRef.current.handleBull(HUMAN_ID);
     handleTurnResult(result);
-  }, [handleTurnResult]);
+  }, [handleTurnResult, clearTurnTimer]);
 
   const callTrue = useCallback(() => {
     if (!engineRef.current) return;
+    clearTurnTimer();
     const result = engineRef.current.handleTrue(HUMAN_ID);
     handleTurnResult(result);
-  }, [handleTurnResult]);
+  }, [handleTurnResult, clearTurnTimer]);
 
   const lastChanceRaise = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
+    clearTurnTimer();
     const result = engineRef.current.handleLastChanceRaise(HUMAN_ID, hand);
     handleTurnResult(result);
-  }, [handleTurnResult]);
+  }, [handleTurnResult, clearTurnTimer]);
 
   const lastChancePass = useCallback(() => {
     if (!engineRef.current) return;
+    clearTurnTimer();
     const result = engineRef.current.handleLastChancePass(HUMAN_ID);
     handleTurnResult(result);
-  }, [handleTurnResult]);
+  }, [handleTurnResult, clearTurnTimer]);
 
   const clearRoundResult = useCallback(() => {
     setRoundResult(null);
@@ -264,10 +320,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     if (nextResult.type === 'game_over') {
       setWinnerId(nextResult.winnerId);
     } else {
-      broadcastState();
-      scheduleBotTurn();
+      scheduleNextLocalTurn();
     }
-  }, [broadcastState, scheduleBotTurn]);
+  }, [scheduleNextLocalTurn]);
 
   // Auto-dismiss round result after 30 seconds
   useEffect(() => {

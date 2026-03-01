@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, DEFAULT_TURN_TIMER_SECONDS } from '@bull-em/shared';
 import { useEffect, useState } from 'react';
 
 export function LocalLobbyPage() {
@@ -149,6 +149,34 @@ export function LocalLobbyPage() {
                 Hard
               </button>
             </div>
+          </div>
+        )}
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Turn Timer
+            </p>
+            <div className="flex gap-1.5">
+              {([undefined, 15, 30, 60] as const).map(seconds => (
+                <button
+                  key={seconds ?? 'off'}
+                  onClick={() => setGameSettings({ ...gameSettings, turnTimerSeconds: seconds })}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    gameSettings.turnTimerSeconds === seconds
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {seconds ? `${seconds}s` : 'Off'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {gameSettings.turnTimerSeconds
+                ? `Auto-action after ${gameSettings.turnTimerSeconds} seconds`
+                : 'No time limit per turn'}
+            </p>
           </div>
         )}
 

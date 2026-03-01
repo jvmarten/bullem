@@ -8,6 +8,7 @@ import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
+import { SpectatorView } from '../components/SpectatorView.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
@@ -113,6 +114,7 @@ export function GamePage() {
           roundPhase={gameState.roundPhase}
           players={gameState.players}
           myPlayerId={playerId}
+          turnDeadline={gameState.turnDeadline}
         />
 
         <PlayerList
@@ -133,8 +135,11 @@ export function GamePage() {
           </div>
         )}
 
-        {/* My cards */}
+        {/* My cards (or spectator view) */}
         {!isEliminated && <HandDisplay cards={gameState.myCards} />}
+        {isEliminated && gameState.spectatorCards && (
+          <SpectatorView spectatorCards={gameState.spectatorCards} />
+        )}
 
         <CallHistory history={gameState.turnHistory} />
 
