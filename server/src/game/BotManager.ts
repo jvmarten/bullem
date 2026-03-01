@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
-  MAX_PLAYERS, BotDifficulty,
+  MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -51,7 +51,12 @@ export class BotManager {
     if (!player) return;
 
     if (player.isBot) {
-      const delay = this.computeBotDelay(room);
+      const state = room.game.getClientState(currentId);
+      const inBullPhase = state.roundPhase === RoundPhase.BULL_PHASE
+        || state.roundPhase === RoundPhase.LAST_CHANCE;
+      const delay = inBullPhase
+        ? this.computeBullDelay()
+        : this.computeBotDelay(room);
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
@@ -199,6 +204,10 @@ export class BotManager {
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
     }
+  }
+
+  private computeBullDelay(): number {
+    return BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN));
   }
 
   private computeBotDelay(room: Room): number {

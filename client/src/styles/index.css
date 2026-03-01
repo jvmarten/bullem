@@ -42,6 +42,7 @@ body {
   background: var(--felt-dark);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
 /* ── Felt Table Background ───────────────────────────── */
@@ -50,6 +51,7 @@ body {
     radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 /* ── Display Font ────────────────────────────────────── */
@@ -411,6 +413,7 @@ body {
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: var(--gold-dim) transparent;
+  touch-action: pan-x pan-y;
 }
 .hs-type-strip::-webkit-scrollbar { height: 3px; }
 .hs-type-strip::-webkit-scrollbar-track { background: transparent; }
@@ -494,6 +497,7 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   padding: 14px 0 4px;
+  touch-action: pan-y;
 }
 .hs-rank-fan::-webkit-scrollbar { display: none; }
 

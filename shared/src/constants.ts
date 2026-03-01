@@ -31,6 +31,8 @@ export const ROOM_CODE_LENGTH = 4;
 
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;
+export const BOT_BULL_DELAY_MIN = 800;
+export const BOT_BULL_DELAY_MAX = 2000;
 
 export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000; // 10 minutes

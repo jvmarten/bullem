@@ -44,11 +44,11 @@ export function HowToPlayPage() {
             <section className="glass p-4 animate-fade-in">
               <h2 className="font-display text-lg font-bold text-[var(--gold)] mb-2">Card Dealing</h2>
               <ul className="space-y-1 text-sm text-[#e8e0d4]">
-                <li>2&ndash;9 players, one standard 52-card deck.</li>
+                <li>2&ndash;12 players, one standard 52-card deck.</li>
                 <li>Round 1: each player gets <strong>1 card</strong>.</li>
                 <li>You see your own cards but <strong>never</strong> other players' cards.</li>
                 <li>Lose a round? You get <strong>+1 card</strong> next round.</li>
-                <li>Maximum hand size is <strong>5 cards</strong>. A 6th card = <strong>eliminated</strong>.</li>
+                <li>Max cards is configurable (1&ndash;5). Exceeding it = <strong>eliminated</strong>.</li>
               </ul>
             </section>
 
@@ -66,6 +66,7 @@ export function HowToPlayPage() {
                 <li><strong>Full House</strong> &mdash; e.g., "queens over 3s"</li>
                 <li><strong>Four of a Kind</strong> &mdash; e.g., "four 2s"</li>
                 <li><strong>Straight Flush</strong> &mdash; e.g., "straight flush in spades, 5&ndash;9"</li>
+                <li><strong>Royal Flush</strong> &mdash; e.g., "royal flush in diamonds"</li>
               </ol>
             </section>
 

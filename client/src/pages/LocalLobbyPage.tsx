@@ -92,6 +92,7 @@ export function LocalLobbyPage() {
         <PlayerList
           players={roomState.players}
           myPlayerId={playerId}
+          maxCards={maxCards}
           showRemoveBot
           onRemoveBot={removeBot}
         />

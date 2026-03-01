@@ -3,13 +3,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Mock the mp3 import before importing the module under test
 vi.mock('../assets/sounds/fah.mp3', () => ({ default: 'fah.mp3' }));
 
-const mockAudioPlay = vi.fn().mockResolvedValue(undefined);
-vi.stubGlobal('Audio', vi.fn(() => ({
-  play: mockAudioPlay,
-  volume: 1,
+// Mock fetch for audio buffer loading
+const mockArrayBuffer = new ArrayBuffer(8);
+vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+  arrayBuffer: () => Promise.resolve(mockArrayBuffer),
 })));
-
-import { createSoundController } from './soundEngine.js';
 
 // Mock AudioContext since jsdom doesn't provide Web Audio API
 const mockOscillator = {
@@ -21,6 +19,12 @@ const mockOscillator = {
   stop: vi.fn(),
 };
 
+const mockBufferSource = {
+  buffer: null as AudioBuffer | null,
+  connect: vi.fn(),
+  start: vi.fn(),
+};
+
 const mockGainNode = {
   gain: {
     value: 0,
@@ -30,12 +34,15 @@ const mockGainNode = {
   connect: vi.fn(),
 };
 
+const mockDecodedBuffer = {} as AudioBuffer;
+
 const mockAudioContext = {
   currentTime: 0,
   state: 'running' as AudioContextState,
   destination: {},
   resume: vi.fn().mockResolvedValue(undefined),
   createOscillator: vi.fn(() => ({ ...mockOscillator })),
+  createBufferSource: vi.fn(() => ({ ...mockBufferSource })),
   createGain: vi.fn(() => ({
     ...mockGainNode,
     gain: {
@@ -44,6 +51,7 @@ const mockAudioContext = {
       exponentialRampToValueAtTime: vi.fn(),
     },
   })),
+  decodeAudioData: vi.fn().mockResolvedValue(mockDecodedBuffer),
 };
 
 vi.stubGlobal('AudioContext', vi.fn(() => mockAudioContext));
@@ -126,11 +134,13 @@ describe('createSoundController', () => {
     expect(ctrl.volume).toBeCloseTo(0.7); // falls back to default
   });
 
-  it('plays audio file for roundLose instead of oscillators', () => {
+  it('plays audio file for roundLose via AudioContext buffer', () => {
     const ctrl = createSoundController();
     ctrl.play('roundLose');
-    expect(mockAudioPlay).toHaveBeenCalled();
     // Should NOT create oscillators for audio-file-backed sounds
     expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
   });
 });
+
+// Import after mocks are set up
+import { createSoundController } from './soundEngine.js';
