@@ -5,11 +5,12 @@ interface Props {
   players: Player[];
   currentPlayerId?: PlayerId;
   myPlayerId?: string | null;
+  maxCards?: number;
   showRemoveBot?: boolean;
   onRemoveBot?: (botId: string) => void;
 }
 
-export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot, onRemoveBot }: Props) {
+export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot }: Props) {
   return (
     <div className="grid grid-cols-2 gap-1">
       {players.map((p, i) => {
@@ -56,9 +57,9 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, showRemoveBot
                 <span className="text-[var(--danger)] font-bold tracking-wide text-[10px]">OUT</span>
               ) : (
                 <span className={`font-bold text-xs ${
-                  p.cardCount === 5 ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
+                  p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
                 }`}>
-                  {p.cardCount}/{5}
+                  {p.cardCount}/{maxCards}
                 </span>
               )}
               {showRemoveBot && p.isBot && onRemoveBot && (

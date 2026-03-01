@@ -89,6 +89,7 @@ export interface RoundResult {
   handExists: boolean;
   revealedCards: OwnedCard[];
   penalties: Record<PlayerId, number>;
+  penalizedPlayerIds: PlayerId[];
   eliminatedPlayerIds: PlayerId[];
   turnHistory?: TurnEntry[];
 }
@@ -110,6 +111,7 @@ export interface ClientGameState {
   roundPhase: RoundPhase;
   turnHistory: TurnEntry[];
   roundNumber: number;
+  maxCards: number;
   roundResult?: RoundResult | null;
   turnDeadline?: number | null;
   spectatorCards?: SpectatorPlayerCards[];

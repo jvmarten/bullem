@@ -85,6 +85,28 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const computeBotDelay = useCallback((): number => {
+    const engine = engineRef.current;
+    if (!engine) return BOT_THINK_DELAY_MIN;
+
+    const state = engine.getClientState('__delay_calc__');
+    const activePlayers = state.players.filter(p => !p.isEliminated);
+    const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
+    const turnCount = state.turnHistory.length;
+
+    // Base: 2-3.5s random
+    const base = 2000 + Math.floor(Math.random() * 1500);
+    // More total cards = more to think about (+0-2s)
+    const cardsFactor = Math.min(totalCards / 20, 1) * 2000;
+    // Later in the round = more pressure, think longer (+0-1.5s)
+    const roundDepth = Math.min(turnCount / (activePlayers.length * 2), 1) * 1500;
+    // Some randomness (±500ms)
+    const jitter = (Math.random() - 0.5) * 1000;
+
+    const delay = Math.round(base + cardsFactor + roundDepth + jitter);
+    return Math.max(BOT_THINK_DELAY_MIN, Math.min(delay, 7000));
+  }, []);
+
   const scheduleBotTurn = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -93,13 +115,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const player = playersRef.current.find(p => p.id === currentId);
     if (!player?.isBot) return;
 
-    const delay = BOT_THINK_DELAY_MIN +
-      Math.floor(Math.random() * (BOT_THINK_DELAY_MAX - BOT_THINK_DELAY_MIN));
+    const delay = computeBotDelay();
 
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
     }, delay);
-  }, []);
+  }, [computeBotDelay]);
 
   const executeAutoAction = useCallback(() => {
     const engine = engineRef.current;
@@ -164,10 +185,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         break;
 
       case 'resolve':
+        engine.setTurnDeadline(null);
+        // Update game state so UI sees null deadline (without clearing roundResult)
+        setGameState(engine.getClientState(HUMAN_ID));
         setRoundResult(result.result);
         break;
 
       case 'game_over':
+        engine.setTurnDeadline(null);
         setWinnerId(result.winnerId);
         if (engineRef.current) setGameStats(engineRef.current.getGameStats());
         break;

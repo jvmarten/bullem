@@ -115,12 +115,8 @@ export function useGameSounds(
     if (roundResult.eliminatedPlayerIds.includes(playerId)) {
       play('eliminated');
     } else if (roundResult.penalties[playerId] !== undefined) {
-      // penalties maps playerId -> new card count
-      // We compare to current card count from gameState to detect a penalty
-      const myPlayer = gameState?.players.find(p => p.id === playerId);
-      const oldCount = myPlayer?.cardCount ?? 0;
-      const newCount = roundResult.penalties[playerId];
-      play(newCount > oldCount ? 'roundLose' : 'roundWin');
+      const wasPenalized = roundResult.penalizedPlayerIds?.includes(playerId) ?? false;
+      play(wasPenalized ? 'roundLose' : 'roundWin');
     }
   }, [roundResult, playerId, play, gameState]);
 
