@@ -67,9 +67,15 @@ export function LocalGamePage() {
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
             </span>
-            <span className="text-[var(--gold-dim)] font-mono">
-              {gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0)} cards
-            </span>
+            {(() => {
+              const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
+              const pct = Math.round((total / 52) * 100);
+              return (
+                <span className="text-[var(--gold-dim)] font-mono" title={`${total} of 52 cards in play`}>
+                  {total}/52 cards ({pct}%)
+                </span>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-3">
             <button
