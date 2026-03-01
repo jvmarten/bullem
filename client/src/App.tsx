@@ -9,6 +9,7 @@ import { LocalLobbyPage } from './pages/LocalLobbyPage.js';
 import { LocalGamePage } from './pages/LocalGamePage.js';
 import { LocalResultsPage } from './pages/LocalResultsPage.js';
 import { HowToPlayPage } from './pages/HowToPlayPage.js';
+import { HostPage } from './pages/HostPage.js';
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -27,6 +28,7 @@ export default function App() {
 
         {/* Online multiplayer routes */}
         <Route element={<OnlineLayout />}>
+          <Route path="/host" element={<HostPage />} />
           <Route path="/room/:roomCode" element={<LobbyPage />} />
           <Route path="/game/:roomCode" element={<GamePage />} />
           <Route path="/results/:roomCode" element={<ResultsPage />} />

@@ -89,17 +89,26 @@ export class BotPlayer {
   private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId, turnHistory } = state;
     const totalCards = this.getTotalCards(state);
-    const otherCards = totalCards - botCards.length;
 
     // Analyze turn history for bias
     const bias = this.analyzeTurnHistory(turnHistory, botId);
 
+    // Desperation: near elimination (4+ cards), play much more aggressively
+    const desperate = botCards.length >= 4;
+
     // LAST_CHANCE phase
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
+        // When desperate, also try plausible bluffs for last chance
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
+        }
+        if (desperate) {
+          const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
+          if (bluff && isHigherHand(bluff, currentHand)) {
+            return { action: 'lastChanceRaise', hand: bluff };
+          }
         }
       }
       return { action: 'lastChancePass' };
@@ -121,8 +130,7 @@ export class BotPlayer {
       const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
 
       // Adaptive aggression based on card count
-      const myCardCount = botCards.length;
-      const aggressionBonus = myCardCount >= 4 ? 0.15 : myCardCount >= 3 ? 0.05 : 0;
+      const aggressionBonus = desperate ? 0.25 : botCards.length >= 3 ? 0.08 : 0;
 
       // Raise with legitimate hand
       if (higher) {
@@ -132,13 +140,27 @@ export class BotPlayer {
         }
       }
 
-      // Context-aware bluffing
-      const bluffThreshold = totalCards <= 5 ? 0.08
+      // Context-aware bluffing — try plausible cross-player bluffs first
+      const bluffThreshold = desperate ? 0.4
+        : totalCards <= 5 ? 0.08
         : totalCards <= 12 ? 0.18
         : 0.28;
 
-      if (Math.random() < bluffThreshold + aggressionBonus) {
-        const bluff = this.makeBluffHandHard(currentHand, totalCards);
+      if (Math.random() < bluffThreshold) {
+        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
+        if (bluff && isHigherHand(bluff, currentHand)) {
+          return { action: 'call', hand: bluff };
+        }
+        // Fallback to simple bluff
+        const simpleBluff = this.makeBluffHandHard(currentHand, totalCards);
+        if (simpleBluff && isHigherHand(simpleBluff, currentHand)) {
+          return { action: 'call', hand: simpleBluff };
+        }
+      }
+
+      // When desperate, avoid calling bull on plausible hands (risky)
+      if (desperate && plausibility > 0.4) {
+        const bluff = this.makePlausibleBluff(currentHand, botCards, totalCards);
         if (bluff && isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
         }
@@ -152,7 +174,7 @@ export class BotPlayer {
       const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
 
       // Consider raising in bull phase if we have a good hand
-      if (Math.random() < 0.12) {
+      if (Math.random() < (desperate ? 0.2 : 0.12)) {
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) {
           return { action: 'call', hand: higher };
@@ -162,18 +184,101 @@ export class BotPlayer {
       // Apply bias from turn history
       const adjustedPlausibility = plausibility + bias * 0.15;
 
+      // When desperate, lean toward true (avoid penalties)
+      const trueBonus = desperate ? 0.15 : 0;
+
       if (adjustedPlausibility > 0.6) {
-        return Math.random() < 0.75 ? { action: 'true' } : { action: 'bull' };
+        return Math.random() < 0.75 + trueBonus ? { action: 'true' } : { action: 'bull' };
       }
       if (adjustedPlausibility > 0.35) {
-        return Math.random() < 0.45 ? { action: 'true' } : { action: 'bull' };
+        return Math.random() < 0.45 + trueBonus ? { action: 'true' } : { action: 'bull' };
       }
-      return Math.random() < 0.85 ? { action: 'bull' } : { action: 'true' };
+      return Math.random() < 0.85 - trueBonus ? { action: 'bull' } : { action: 'true' };
     }
 
     // Fallback
     if (currentHand) return { action: 'bull' };
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+  }
+
+  // ─── PLAUSIBLE CROSS-PLAYER BLUFFS ─────────────────────────────────
+
+  /**
+   * Generate a bluff hand that could plausibly exist across all players' combined cards,
+   * even if the bot doesn't hold the cards itself. Uses probability to pick believable hands.
+   */
+  private static makePlausibleBluff(
+    currentHand: HandCall,
+    ownCards: Card[],
+    totalCards: number,
+  ): HandCall | null {
+    const candidates: HandCall[] = [];
+
+    // Flush bluff: plausible when total cards >= 8
+    if (totalCards >= 8 && currentHand.type <= HandType.FLUSH) {
+      // Pick a suit we have at least 1 card of (more believable)
+      const suitCounts = this.getSuitCounts(ownCards);
+      for (const [suit] of suitCounts) {
+        const hand: HandCall = { type: HandType.FLUSH, suit };
+        if (isHigherHand(hand, currentHand)) candidates.push(hand);
+      }
+      // Also consider a random suit if we have many total cards
+      if (totalCards >= 12) {
+        const randomSuit = ALL_SUITS[Math.floor(Math.random() * 4)];
+        const hand: HandCall = { type: HandType.FLUSH, suit: randomSuit };
+        if (isHigherHand(hand, currentHand)) candidates.push(hand);
+      }
+    }
+
+    // Straight bluff: plausible when total cards >= 7
+    if (totalCards >= 7 && currentHand.type <= HandType.STRAIGHT) {
+      const straightHighs: Rank[] = ['5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      for (const highRank of straightHighs) {
+        const hand: HandCall = { type: HandType.STRAIGHT, highRank };
+        if (isHigherHand(hand, currentHand)) {
+          candidates.push(hand);
+          break; // Just take the lowest valid one
+        }
+      }
+    }
+
+    // Pair/three-of-a-kind bluff using cards we partially hold
+    if (currentHand.type <= HandType.PAIR) {
+      const rankCounts = this.getRankCounts(ownCards);
+      for (const [rank, count] of rankCounts) {
+        if (count >= 1) {
+          const pairHand: HandCall = { type: HandType.PAIR, rank };
+          if (isHigherHand(pairHand, currentHand)) candidates.push(pairHand);
+        }
+      }
+    }
+
+    if (currentHand.type <= HandType.THREE_OF_A_KIND && totalCards >= 6) {
+      const rankCounts = this.getRankCounts(ownCards);
+      for (const [rank, count] of rankCounts) {
+        if (count >= 1) {
+          const threeHand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
+          if (isHigherHand(threeHand, currentHand)) candidates.push(threeHand);
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Weight candidates by plausibility — pick the most believable bluff
+    let bestCandidate = candidates[0];
+    let bestScore = this.estimatePlausibilityHard(candidates[0], ownCards, totalCards);
+    for (let i = 1; i < candidates.length; i++) {
+      const score = this.estimatePlausibilityHard(candidates[i], ownCards, totalCards);
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidate = candidates[i];
+      }
+    }
+
+    // Only bluff if the hand is at least somewhat plausible
+    if (bestScore < 0.08) return null;
+    return bestCandidate;
   }
 
   // ─── HAND FINDING (SIMPLE — Easy mode) ──────────────────────────────

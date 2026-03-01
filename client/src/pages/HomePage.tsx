@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout.js';
 
 export function HomePage() {
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<'menu' | 'local' | 'join'>('menu');
+  const [mode, setMode] = useState<'menu' | 'local' | 'host' | 'join'>('menu');
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -13,6 +13,12 @@ export function HomePage() {
     if (!name.trim()) return setError('Enter your name');
     sessionStorage.setItem('bull-em-local-name', name.trim());
     navigate('/local');
+  };
+
+  const handleHost = () => {
+    if (!name.trim()) return setError('Enter your name');
+    sessionStorage.setItem('bull-em-player-name', name.trim());
+    navigate('/host');
   };
 
   const handleJoin = () => {
@@ -25,6 +31,7 @@ export function HomePage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       if (mode === 'local') handlePlayLocal();
+      else if (mode === 'host') handleHost();
       else if (mode === 'join') handleJoin();
     }
   };
@@ -61,6 +68,9 @@ export function HomePage() {
             <button onClick={() => setMode('local')} className="w-full btn-gold py-4 text-lg">
               Play vs Bots
             </button>
+            <button onClick={() => setMode('host')} className="w-full btn-gold py-4 text-lg">
+              Host Online Game
+            </button>
             <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
               Join Online Room
             </button>
@@ -89,6 +99,32 @@ export function HomePage() {
               className="w-full btn-gold py-3 text-lg"
             >
               Start Game
+            </button>
+            <button
+              onClick={() => { setMode('menu'); setError(''); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
+          </div>
+        )}
+
+        {mode === 'host' && (
+          <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={20}
+              autoFocus
+              className="w-full input-felt"
+            />
+            <button
+              onClick={handleHost}
+              className="w-full btn-gold py-3 text-lg"
+            >
+              Create Room
             </button>
             <button
               onClick={() => { setMode('menu'); setError(''); }}
