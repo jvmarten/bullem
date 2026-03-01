@@ -33,6 +33,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
   const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
 
+  const [isPaused, setIsPaused] = useState(false);
+
   const engineRef = useRef<GameEngine | null>(null);
   const playersRef = useRef<ServerPlayer[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,6 +42,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
   const gameSettingsRef = useRef<GameSettings>(gameSettings);
+  const isPausedRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => {
@@ -49,6 +52,10 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     gameSettingsRef.current = gameSettings;
   }, [gameSettings]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Auto-clear errors
   useEffect(() => {
@@ -109,7 +116,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const scheduleBotTurn = useCallback(() => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || isPausedRef.current) return;
 
     const currentId = engine.currentPlayerId;
     const player = playersRef.current.find(p => p.id === currentId);
@@ -148,7 +155,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const scheduleHumanTimer = useCallback(() => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || isPausedRef.current) return;
     if (engine.currentPlayerId !== HUMAN_ID) return;
 
     const timerSeconds = gameSettingsRef.current.turnTimer;
@@ -242,6 +249,28 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, [handleTurnResult]);
 
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => {
+      const next = !prev;
+      isPausedRef.current = next;
+      if (next) {
+        // Pausing: clear all pending timers
+        if (botTimerRef.current) { clearTimeout(botTimerRef.current); botTimerRef.current = null; }
+        if (turnTimerRef.current) { clearTimeout(turnTimerRef.current); turnTimerRef.current = null; }
+        // Clear turn deadline so timer UI stops
+        if (engineRef.current) {
+          engineRef.current.setTurnDeadline(null);
+          setGameState(engineRef.current.getClientState(HUMAN_ID));
+        }
+      } else {
+        // Resuming: re-schedule bot/human timers
+        scheduleBotTurn();
+        scheduleHumanTimer();
+      }
+      return next;
+    });
+  }, [scheduleBotTurn, scheduleHumanTimer]);
+
   // --- Context API methods ---
 
   const createRoom = useCallback(async (playerName: string): Promise<string> => {
@@ -283,6 +312,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setRoundTransition(false);
     setWinnerId(null);
     setGameStats(null);
+    setIsPaused(false);
+    isPausedRef.current = false;
   }, []);
 
   const startGame = useCallback(() => {
@@ -444,6 +475,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setBotDifficulty,
     gameSettings,
     setGameSettings,
+    isPaused,
+    togglePause,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

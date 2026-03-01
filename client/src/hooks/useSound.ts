@@ -7,16 +7,22 @@ import type { SoundName } from './soundEngine.js';
 // Single shared instance so mute state is consistent
 const sound = createSoundController();
 
-// Tiny external-store for muted state so React re-renders on toggle
-let muteListeners = new Set<() => void>();
-function subscribeMute(cb: () => void) {
-  muteListeners.add(cb);
-  return () => { muteListeners.delete(cb); };
+// Tiny external-store for muted/volume state so React re-renders on toggle
+let soundListeners = new Set<() => void>();
+function subscribeSoundState(cb: () => void) {
+  soundListeners.add(cb);
+  return () => { soundListeners.delete(cb); };
 }
 function getMuted() { return sound.muted; }
+function getVolume() { return sound.volume; }
+
+function notifyListeners() {
+  soundListeners.forEach(cb => cb());
+}
 
 export function useSound() {
-  const muted = useSyncExternalStore(subscribeMute, getMuted);
+  const muted = useSyncExternalStore(subscribeSoundState, getMuted);
+  const volume = useSyncExternalStore(subscribeSoundState, getVolume);
 
   const play = useCallback((name: SoundName) => {
     sound.play(name);
@@ -24,10 +30,15 @@ export function useSound() {
 
   const toggleMute = useCallback(() => {
     sound.toggleMute();
-    muteListeners.forEach(cb => cb());
+    notifyListeners();
   }, []);
 
-  return { play, muted, toggleMute };
+  const setVolume = useCallback((v: number) => {
+    sound.setVolume(v);
+    notifyListeners();
+  }, []);
+
+  return { play, muted, toggleMute, volume, setVolume };
 }
 
 /**

@@ -34,7 +34,7 @@ const mockGainNode = {
   connect: vi.fn(),
 };
 
-const mockDecodedBuffer = {} as AudioBuffer;
+const mockDecodedBuffer = { duration: 1.3 } as AudioBuffer;
 
 const mockAudioContext = {
   currentTime: 0,
@@ -49,6 +49,7 @@ const mockAudioContext = {
       value: 0,
       setValueAtTime: vi.fn(),
       exponentialRampToValueAtTime: vi.fn(),
+      linearRampToValueAtTime: vi.fn(),
     },
   })),
   decodeAudioData: vi.fn().mockResolvedValue(mockDecodedBuffer),

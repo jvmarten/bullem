@@ -9,8 +9,9 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
-import { useSound, useGameSounds } from '../hooks/useSound.js';
+import { useGameSounds } from '../hooks/useSound.js';
 import { useEffect } from 'react';
 
 export function LocalGamePage() {
@@ -18,9 +19,8 @@ export function LocalGamePage() {
   const {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult, leaveRoom,
+    clearRoundResult, leaveRoom, isPaused, togglePause,
   } = useGameContext();
-  const { muted, toggleMute } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 
   useEffect(() => {
@@ -78,26 +78,26 @@ export function LocalGamePage() {
             })()}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleMute}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
-              title={muted ? 'Unmute sounds' : 'Mute sounds'}
-              aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
-            >
-              {muted ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-              )}
-            </button>
+            {togglePause && (
+              <button
+                onClick={togglePause}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
+                title={isPaused ? 'Resume game' : 'Pause game'}
+                aria-label={isPaused ? 'Resume game' : 'Pause game'}
+              >
+                {isPaused ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" />
+                    <rect x="14" y="4" width="4" height="16" />
+                  </svg>
+                )}
+              </button>
+            )}
+            <VolumeControl />
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
@@ -205,6 +205,24 @@ export function LocalGamePage() {
             players={gameState.players}
             onDismiss={clearRoundResult}
           />
+        )}
+
+        {/* Pause overlay */}
+        {isPaused && !roundResult && (
+          <div className="fixed inset-0 flex items-center justify-center z-40"
+               style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
+            <div className="text-center space-y-4 animate-fade-in">
+              <p className="text-[var(--gold)] font-display text-2xl font-bold uppercase tracking-widest">
+                Paused
+              </p>
+              <button
+                onClick={togglePause}
+                className="btn-gold px-6 py-2 text-sm font-semibold"
+              >
+                Resume
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </Layout>

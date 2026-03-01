@@ -12,16 +12,17 @@ interface Props {
 }
 
 /* Mini card-back fan: shows card backs matching the player's card count */
-function CardBackFan({ count, animate, playerIndex }: { count: number; animate: boolean; playerIndex: number }) {
+function CardBackFan({ count, roundNumber, playerIndex }: { count: number; roundNumber?: number; playerIndex: number }) {
   if (count <= 0) return null;
+  // Use roundNumber as key suffix so animation re-triggers each round
+  const animate = roundNumber !== undefined;
   const cards = Array.from({ length: count }, (_, i) => {
-    // Fan angle: spread cards slightly, centered around 0
     const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 6;
-    const baseDelay = playerIndex * 80; // stagger per player
-    const cardDelay = baseDelay + i * 60;   // stagger per card within player
+    const baseDelay = playerIndex * 80;
+    const cardDelay = baseDelay + i * 60;
     return (
       <div
-        key={i}
+        key={`${roundNumber ?? 0}-${i}`}
         className={`card-back-mini${animate ? ' animate-mini-deal' : ''}`}
         style={{
           transform: `rotate(${angle}deg)`,
@@ -80,18 +81,18 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               {p.isEliminated ? (
                 <span className="text-[var(--danger)] font-bold tracking-wide text-[10px]">OUT</span>
               ) : (
-                <>
-                  <CardBackFan
-                    count={p.cardCount}
-                    animate={roundNumber !== undefined}
-                    playerIndex={i}
-                  />
+                <div className="flex flex-col items-center gap-0.5">
                   <span className={`font-bold text-xs ${
                     p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
                   }`}>
                     {p.cardCount}/{maxCards}
                   </span>
-                </>
+                  <CardBackFan
+                    count={p.cardCount}
+                    roundNumber={roundNumber}
+                    playerIndex={i}
+                  />
+                </div>
               )}
               {showRemoveBot && p.isBot && onRemoveBot && (
                 <button
