@@ -228,15 +228,15 @@ describe('isHigherHand', () => {
       )).toBe(false);
     });
 
-    it('flush: higher suit wins', () => {
+    it('flush: no flush can beat another flush (all flushes equal)', () => {
       expect(isHigherHand(
         { type: HandType.FLUSH, suit: 'spades' },
         { type: HandType.FLUSH, suit: 'hearts' },
-      )).toBe(true);
+      )).toBe(false);
       expect(isHigherHand(
         { type: HandType.FLUSH, suit: 'diamonds' },
         { type: HandType.FLUSH, suit: 'clubs' },
-      )).toBe(true);
+      )).toBe(false);
     });
 
     it('flush: same suit is not higher', () => {

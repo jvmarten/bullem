@@ -399,11 +399,15 @@ body {
   gap: 0.5rem;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  padding: 0.25rem 0;
+  padding: 4px 0;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-dim) transparent;
 }
-.hs-type-strip::-webkit-scrollbar { display: none; }
+.hs-type-strip::-webkit-scrollbar { height: 3px; }
+.hs-type-strip::-webkit-scrollbar-track { background: transparent; }
+.hs-type-strip::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
 
 /* ── Hand type card ──────────────────────────────────── */
 .hs-type-card {
@@ -424,6 +428,11 @@ body {
   transition: all 0.2s ease;
   will-change: transform;
   padding: 4px 2px;
+}
+.hs-type-card:hover:not(.hs-type-card-selected):not(.hs-type-card-dimmed) {
+  opacity: 0.85;
+  transform: translateY(-3px);
+  border-color: rgba(212, 168, 67, 0.4);
 }
 .hs-type-card-selected {
   opacity: 1;
@@ -501,6 +510,11 @@ body {
   flex-shrink: 0;
 }
 .hs-rank-card:first-child { margin-left: 0; }
+.hs-rank-card:hover:not(.hs-rank-card-selected) {
+  transform: translateY(-6px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
 .hs-rank-card-selected {
   transform: translateY(-12px) scale(1.05);
   border-color: var(--gold);
@@ -543,7 +557,11 @@ body {
   padding: 0.25rem 0;
 }
 .hs-preview-card {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.2s ease;
+}
+.hs-preview-area:hover .hs-preview-card {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 20px var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 /* ── Card Flip Reveal ───────────────────────────────── */
