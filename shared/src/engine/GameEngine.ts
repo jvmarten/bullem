@@ -5,7 +5,7 @@ import {
 } from '../types.js';
 import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
-  GameSettings, GameStats, PlayerGameStats,
+  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards,
 } from '../types.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
@@ -246,7 +246,9 @@ export class GameEngine {
 
   getClientState(playerId: PlayerId): ClientGameState {
     const player = this.players.find(p => p.id === playerId);
-    return {
+    const isEliminated = player?.isEliminated ?? false;
+
+    const state: ClientGameState = {
       gamePhase: GamePhase.PLAYING,
       roundPhase: this.roundPhase,
       roundNumber: this.roundNumber,
@@ -260,6 +262,17 @@ export class GameEngine {
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
     };
+
+    // Spectators (eliminated players) can see all active players' cards
+    if (isEliminated) {
+      state.spectatorCards = this.getActivePlayers().map(p => ({
+        playerId: p.id,
+        playerName: p.name,
+        cards: [...p.cards],
+      }));
+    }
+
+    return state;
   }
 
   getGameStats(): GameStats {

@@ -8,6 +8,7 @@ import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
+import { SpectatorView } from '../components/SpectatorView.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useEffect } from 'react';
@@ -134,6 +135,11 @@ export function LocalGamePage() {
 
         {/* My cards */}
         {!isEliminated && <HandDisplay cards={gameState.myCards} large />}
+
+        {/* Spectator view — eliminated players see all cards */}
+        {isEliminated && gameState.spectatorCards && (
+          <SpectatorView spectatorCards={gameState.spectatorCards} />
+        )}
 
         <CallHistory history={gameState.turnHistory} />
 

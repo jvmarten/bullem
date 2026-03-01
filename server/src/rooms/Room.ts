@@ -15,10 +15,15 @@ export class Room {
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
   settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
+  lastActivity = Date.now();
   private disconnectTimers = new Map<PlayerId, ReturnType<typeof setTimeout>>();
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
+  }
+
+  touch(): void {
+    this.lastActivity = Date.now();
   }
 
   addPlayer(socketId: string, playerId: PlayerId, name: string): ServerPlayer {
@@ -35,6 +40,7 @@ export class Room {
     this.players.set(playerId, player);
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+    this.touch();
     return player;
   }
 
@@ -113,6 +119,7 @@ export class Room {
     player.isConnected = true;
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+    this.touch();
     return true;
   }
 
@@ -129,6 +136,7 @@ export class Room {
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     this.game = new GameEngine(activePlayers, this.settings);
     this.game.startRound();
+    this.touch();
     return this.game;
   }
 

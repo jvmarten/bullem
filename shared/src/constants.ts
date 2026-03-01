@@ -32,6 +32,9 @@ export const ROOM_CODE_LENGTH = 4;
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;
 
+export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000; // 10 minutes
+
 export const DEFAULT_BOT_DIFFICULTY = 'hard' as const;
 export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',

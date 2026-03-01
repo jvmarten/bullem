@@ -93,6 +93,12 @@ export interface RoundResult {
   turnHistory?: TurnEntry[];
 }
 
+export interface SpectatorPlayerCards {
+  playerId: PlayerId;
+  playerName: string;
+  cards: Card[];
+}
+
 export interface ClientGameState {
   gamePhase: GamePhase;
   players: Player[];
@@ -106,6 +112,7 @@ export interface ClientGameState {
   roundNumber: number;
   roundResult?: RoundResult | null;
   turnDeadline?: number | null;
+  spectatorCards?: SpectatorPlayerCards[];
 }
 
 export enum BotDifficulty {
