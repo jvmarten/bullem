@@ -72,7 +72,6 @@ function handleResult(
   socket: TypedSocket,
   botManager: BotManager,
 ): void {
-  if (room.game) room.game.setTurnDeadline(null);
   switch (result.type) {
     case 'error':
       socket.emit('room:error', result.message);
@@ -80,12 +79,14 @@ function handleResult(
 
     case 'continue':
     case 'last_chance':
-      broadcastGameState(io, room);
-      // Check if next player is a bot
+      if (room.game) room.game.setTurnDeadline(null);
+      // Schedule next turn first (sets deadline for human), then broadcast with correct deadline
       botManager.scheduleBotTurn(room, io);
+      broadcastGameState(io, room);
       break;
 
     case 'resolve':
+      if (room.game) room.game.setTurnDeadline(null);
       room.gamePhase = GamePhase.ROUND_RESULT;
       io.to(room.roomCode).emit('game:roundResult', result.result);
       // Start next round after a delay
@@ -96,9 +97,9 @@ function handleResult(
           io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
         } else {
           room.gamePhase = GamePhase.PLAYING;
-          broadcastNewRound(io, room);
-          // Check if first player of new round is a bot
+          // Schedule before broadcast so deadline is included in state
           botManager.scheduleBotTurn(room, io);
+          broadcastNewRound(io, room);
         }
       }, 3000);
       break;

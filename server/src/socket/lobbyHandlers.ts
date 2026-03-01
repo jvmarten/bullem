@@ -104,8 +104,8 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
-    broadcastGameState(io, room);
-    // Check if first player is a bot
+    // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
+    broadcastGameState(io, room);
   });
 }

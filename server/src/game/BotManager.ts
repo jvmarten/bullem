@@ -144,7 +144,6 @@ export class BotManager {
   }
 
   private handleBotResult(io: TypedServer, room: Room, result: TurnResult): void {
-    if (room.game) room.game.setTurnDeadline(null);
     switch (result.type) {
       case 'error':
         // Bot made an invalid move — try bull as fallback
@@ -169,12 +168,14 @@ export class BotManager {
 
       case 'continue':
       case 'last_chance':
-        broadcastGameState(io, room);
-        // Check if the next player is also a bot
+        if (room.game) room.game.setTurnDeadline(null);
+        // Schedule next turn first (sets deadline for human), then broadcast
         this.scheduleBotTurn(room, io);
+        broadcastGameState(io, room);
         break;
 
       case 'resolve':
+        if (room.game) room.game.setTurnDeadline(null);
         room.gamePhase = GamePhase.ROUND_RESULT;
         io.to(room.roomCode).emit('game:roundResult', result.result);
         // Start next round after a delay
@@ -186,9 +187,9 @@ export class BotManager {
             io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
           } else {
             room.gamePhase = GamePhase.PLAYING;
-            broadcastNewRound(io, room);
-            // Check if first player of new round is a bot
+            // Schedule before broadcast so deadline is included in state
             this.scheduleBotTurn(room, io);
+            broadcastNewRound(io, room);
           }
         }, 3000);
         this.pendingTimers.add(resolveTimer);
