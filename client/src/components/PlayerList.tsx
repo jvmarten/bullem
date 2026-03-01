@@ -8,9 +8,33 @@ interface Props {
   maxCards?: number;
   showRemoveBot?: boolean;
   onRemoveBot?: (botId: string) => void;
+  roundNumber?: number;
 }
 
-export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot }: Props) {
+/* Mini card-back fan: shows card backs matching the player's card count */
+function CardBackFan({ count, animate, playerIndex }: { count: number; animate: boolean; playerIndex: number }) {
+  if (count <= 0) return null;
+  const cards = Array.from({ length: count }, (_, i) => {
+    // Fan angle: spread cards slightly, centered around 0
+    const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 6;
+    const baseDelay = playerIndex * 80; // stagger per player
+    const cardDelay = baseDelay + i * 60;   // stagger per card within player
+    return (
+      <div
+        key={i}
+        className={`card-back-mini${animate ? ' animate-mini-deal' : ''}`}
+        style={{
+          transform: `rotate(${angle}deg)`,
+          marginLeft: i > 0 ? '-4px' : undefined,
+          animationDelay: animate ? `${cardDelay}ms` : undefined,
+        }}
+      />
+    );
+  });
+  return <div className="flex items-center">{cards}</div>;
+}
+
+export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber }: Props) {
   return (
     <div className="grid grid-cols-2 gap-1">
       {players.map((p, i) => {
@@ -52,15 +76,22 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-xs flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
               {p.isEliminated ? (
                 <span className="text-[var(--danger)] font-bold tracking-wide text-[10px]">OUT</span>
               ) : (
-                <span className={`font-bold text-xs ${
-                  p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
-                }`}>
-                  {p.cardCount}/{maxCards}
-                </span>
+                <>
+                  <CardBackFan
+                    count={p.cardCount}
+                    animate={roundNumber !== undefined}
+                    playerIndex={i}
+                  />
+                  <span className={`font-bold text-xs ${
+                    p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
+                  }`}>
+                    {p.cardCount}/{maxCards}
+                  </span>
+                </>
               )}
               {showRemoveBot && p.isBot && onRemoveBot && (
                 <button
