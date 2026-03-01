@@ -135,7 +135,7 @@ export function GamePage() {
         )}
 
         {/* My cards */}
-        {!isEliminated && <HandDisplay cards={gameState.myCards} />}
+        {!isEliminated && <HandDisplay cards={gameState.myCards} large />}
 
         <CallHistory history={gameState.turnHistory} />
 

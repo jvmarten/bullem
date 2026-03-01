@@ -1,10 +1,10 @@
 import type { Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 
-export function HandDisplay({ cards }: { cards: Card[] }) {
+export function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }) {
   if (cards.length === 0) return null;
   return (
-    <div className="flex justify-center gap-1.5 py-1">
+    <div className={`flex justify-center gap-1.5 py-1${large ? ' scale-115' : ''}`}>
       {cards.map((card, i) => (
         <CardDisplay
           key={`${card.rank}-${card.suit}-${i}`}

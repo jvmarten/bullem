@@ -327,6 +327,7 @@ export class GameEngine {
       revealedCards,
       penalties,
       eliminatedPlayerIds,
+      turnHistory: [...this.turnHistory],
     };
     this.lastRoundResult = result;
 
