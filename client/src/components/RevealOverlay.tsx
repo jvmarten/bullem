@@ -1,7 +1,20 @@
 import { handToString, TurnAction } from '@bull-em/shared';
-import type { RoundResult, Player, OwnedCard, TurnEntry } from '@bull-em/shared';
+import type { RoundResult, Player, OwnedCard, TurnEntry, Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 import { useEffect, useState } from 'react';
+
+function FlipCard({ card, delay }: { card: Card; delay: number }) {
+  return (
+    <div className="card-flip-container">
+      <div className={`card-flip-inner flip-delay-${Math.min(delay, 4)}`}>
+        <div className="card-flip-front">
+          <CardDisplay card={card} />
+        </div>
+        <div className="card-flip-back" />
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   result: RoundResult;
@@ -94,16 +107,10 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
               {Object.entries(grouped).map(([playerId, { name, cards }]) => (
                 <div key={playerId} className="mb-2">
                   <p className="text-xs text-[var(--card-face)] font-medium mb-1">{name}</p>
-                  <div className="flex justify-center gap-1.5 flex-wrap" style={{ perspective: '600px' }}>
+                  <div className="flex justify-center gap-1.5 flex-wrap">
                     {cards.map((card) => {
                       const i = cardIndex++;
-                      return (
-                        <CardDisplay
-                          key={i}
-                          card={card}
-                          className={`animate-stagger-reveal reveal-delay-${Math.min(i, 4)}`}
-                        />
-                      );
+                      return <FlipCard key={i} card={card} delay={i} />;
                     })}
                   </div>
                 </div>
