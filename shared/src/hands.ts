@@ -44,7 +44,8 @@ export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean 
     }
 
     case HandType.ROYAL_FLUSH:
-      return suitHigher(newHand.suit, (currentHand as typeof newHand).suit);
+      // Royal Flush is the absolute highest hand — nothing can beat it
+      return false;
 
     default:
       return false;

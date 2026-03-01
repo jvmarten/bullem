@@ -334,11 +334,11 @@ describe('isHigherHand', () => {
       )).toBe(false);
     });
 
-    it('royal flush: higher suit wins', () => {
+    it('royal flush: nothing beats a royal flush (absolute highest)', () => {
       expect(isHigherHand(
         { type: HandType.ROYAL_FLUSH, suit: 'spades' },
         { type: HandType.ROYAL_FLUSH, suit: 'diamonds' },
-      )).toBe(true);
+      )).toBe(false);
     });
 
     it('royal flush: same suit is not higher', () => {
@@ -346,20 +346,6 @@ describe('isHigherHand', () => {
         { type: HandType.ROYAL_FLUSH, suit: 'spades' },
         { type: HandType.ROYAL_FLUSH, suit: 'spades' },
       )).toBe(false);
-    });
-
-    it('royal flush: full suit ordering (clubs < diamonds < hearts < spades)', () => {
-      const suits: Suit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
-      for (let i = 0; i < suits.length - 1; i++) {
-        expect(isHigherHand(
-          { type: HandType.ROYAL_FLUSH, suit: suits[i + 1] },
-          { type: HandType.ROYAL_FLUSH, suit: suits[i] },
-        )).toBe(true);
-        expect(isHigherHand(
-          { type: HandType.ROYAL_FLUSH, suit: suits[i] },
-          { type: HandType.ROYAL_FLUSH, suit: suits[i + 1] },
-        )).toBe(false);
-      }
     });
   });
 });

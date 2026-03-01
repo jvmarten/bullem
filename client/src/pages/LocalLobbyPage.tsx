@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
 import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS } from '@bull-em/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export function LocalLobbyPage() {
     gameSettings, setGameSettings,
   } = useGameContext();
   const [localError, setLocalError] = useState('');
-  const [initialized, setInitialized] = useState(false);
+  const initializedRef = useRef(false);
 
   const maxCards = gameSettings?.maxCards ?? MAX_CARDS;
   const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
@@ -21,8 +21,8 @@ export function LocalLobbyPage() {
 
   // Initialize the local room on mount
   useEffect(() => {
-    if (initialized || roomState) return;
-    setInitialized(true);
+    if (initializedRef.current || roomState) return;
+    initializedRef.current = true;
     const name = sessionStorage.getItem('bull-em-local-name') || 'Player';
     createRoom(name).then(() => {
       // Auto-add 5 bots for a quick start
@@ -30,7 +30,7 @@ export function LocalLobbyPage() {
     }).catch(e => {
       setLocalError(e instanceof Error ? e.message : 'Failed to set up game');
     });
-  }, [initialized, roomState, createRoom, addBot]);
+  }, [roomState, createRoom, addBot]);
 
   // Navigate to game when it starts
   useEffect(() => {

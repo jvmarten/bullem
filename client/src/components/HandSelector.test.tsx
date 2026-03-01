@@ -50,7 +50,7 @@ describe('HandSelector', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       const picker = getHandTypePicker(container);
       const options = picker.querySelectorAll('[role="radio"]');
-      expect(options.length).toBe(10);
+      expect(options.length).toBe(9); // Royal Flush is not selectable (auto-promoted from Straight Flush A-high)
     });
 
     it('defaults to HIGH_CARD when no current hand', () => {
@@ -98,10 +98,13 @@ describe('HandSelector', () => {
       expect(container.textContent).toContain('High Card');
     });
 
-    it('shows suit selector for ROYAL_FLUSH', () => {
-      const { container } = render(<HandSelector {...defaultProps} />);
-      clickHandType(container, HandType.ROYAL_FLUSH);
-      expect(container.textContent).toContain('Suit');
+    it('auto-promotes Straight Flush with Ace high to Royal Flush', () => {
+      const onSubmit = vi.fn();
+      const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
+      clickHandType(container, HandType.STRAIGHT_FLUSH);
+      // Default rank is A, which should auto-promote
+      fireEvent.click(getSubmitButton(container));
+      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.ROYAL_FLUSH, suit: 'spades' });
     });
   });
 
@@ -198,13 +201,14 @@ describe('HandSelector', () => {
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.FLUSH, suit: 'spades' });
     });
 
-    it('fires onSubmit with correct HandCall for ROYAL_FLUSH', () => {
+    it('fires onSubmit with STRAIGHT_FLUSH when high card is not Ace', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
-      clickHandType(container, HandType.ROYAL_FLUSH);
+      clickHandType(container, HandType.STRAIGHT_FLUSH);
+      clickRank(container, 'K');
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.ROYAL_FLUSH, suit: 'spades' });
+      expect(onSubmit).toHaveBeenCalledWith({ type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: 'K' });
     });
 
     it('does not fire onSubmit when button is disabled', () => {

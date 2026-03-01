@@ -13,7 +13,7 @@ interface Props {
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
 const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
-  .filter((v): v is HandType => typeof v === 'number');
+  .filter((v): v is HandType => typeof v === 'number' && v !== HandType.ROYAL_FLUSH);
 
 /* ── Mini card illustrations for hand type picker ──────── */
 
@@ -65,8 +65,8 @@ function HandIllustration({ type }: { type: HandType }) {
           {[0, 1, 2].map(i => mini(i, { marginLeft: i > 0 ? '-3px' : undefined, marginBottom: `${i * 3}px` }, heart))}
         </div>
       );
-    case HandType.ROYAL_FLUSH:
-      return <div className="hs-illus">{mini(0, undefined, <span className="text-[7px] leading-none" style={{ color: 'var(--gold)' }}>★</span>)}</div>;
+    default:
+      return null;
   }
 }
 
@@ -100,7 +100,7 @@ function getPreviewCards(hand: HandCall | null): Card[] {
     case HandType.THREE_OF_A_KIND:
       return suits.slice(0, 3).map(s => ({ rank: hand.rank, suit: s }));
     case HandType.FLUSH:
-      return (['A', 'K', 'Q'] as Rank[]).map(r => ({ rank: r, suit: hand.suit }));
+      return (['A', 'K', 'Q', 'J', '10'] as Rank[]).map(r => ({ rank: r, suit: hand.suit }));
     case HandType.STRAIGHT:
       return straightCards(hand.highRank);
     case HandType.FULL_HOUSE:
@@ -233,9 +233,12 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       case HandType.FOUR_OF_A_KIND: return { type: HandType.FOUR_OF_A_KIND, rank };
       case HandType.STRAIGHT_FLUSH: {
         if (RANK_VALUES[rank] < 5) return null;
+        // Straight Flush with Ace high = Royal Flush
+        if (rank === 'A') return { type: HandType.ROYAL_FLUSH, suit };
         return { type: HandType.STRAIGHT_FLUSH, suit, highRank: rank };
       }
-      case HandType.ROYAL_FLUSH: return { type: HandType.ROYAL_FLUSH, suit };
+      default:
+        return null;
     }
   };
 
@@ -249,7 +252,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
   const needsRank2 = [HandType.TWO_PAIR, HandType.FULL_HOUSE].includes(handType);
-  const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH, HandType.ROYAL_FLUSH].includes(handType);
+  const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH].includes(handType);
 
   const handleSubmit = () => {
     if (hand && isValid) onSubmit(hand);
