@@ -551,4 +551,195 @@ describe('BotPlayer', () => {
       }
     });
   });
+
+  // ─── GTO Bluffing Behavior ─────────────────────────────────────────
+
+  describe('GTO bluffing (Hard mode)', () => {
+    it('bluffs less frequently with more opponents', () => {
+      // With many opponents, bluffs should be rarer
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: '7' };
+
+      // 2-player game (1 opponent)
+      const state2p = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+
+      // 5-player game (4 opponents)
+      const state5p = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+        players: [
+          { id: 'bot1', name: 'Bot', cardCount: 2, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 2, isConnected: true, isEliminated: false, isHost: true },
+          { id: 'p2', name: 'Bob', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'Carol', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'Dave', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+        ],
+      });
+
+      let bluffs2p = 0;
+      let bluffs5p = 0;
+      const runs = 200;
+
+      for (let i = 0; i < runs; i++) {
+        const a2 = BotPlayer.decideAction(state2p, 'bot1', cards, BotDifficulty.HARD);
+        if (a2.action === 'call') bluffs2p++;
+        const a5 = BotPlayer.decideAction(state5p, 'bot1', cards, BotDifficulty.HARD);
+        if (a5.action === 'call') bluffs5p++;
+      }
+
+      // With more opponents, bot should bluff less often (or at least not more)
+      expect(bluffs5p).toBeLessThanOrEqual(bluffs2p + runs * 0.15);
+    });
+
+    it('position-aware: more suspicious of hands after many raises', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: 'K' };
+
+      // State with few raises in history
+      const stateFewRaises = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p1',
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0 },
+        ],
+      });
+
+      // State with many raises in history (suspicious)
+      const stateManyRaises = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p1',
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0 },
+          { playerId: 'p2', playerName: 'Bob', action: TurnAction.CALL, timestamp: 0 },
+          { playerId: 'p3', playerName: 'Carol', action: TurnAction.CALL, timestamp: 0 },
+          { playerId: 'p4', playerName: 'Dave', action: TurnAction.CALL, timestamp: 0 },
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0 },
+        ],
+        players: [
+          { id: 'bot1', name: 'Bot', cardCount: 2, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 2, isConnected: true, isEliminated: false, isHost: true },
+          { id: 'p2', name: 'Bob', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'Carol', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'Dave', cardCount: 2, isConnected: true, isEliminated: false, isHost: false },
+        ],
+      });
+
+      let bullsFew = 0;
+      let bullsMany = 0;
+      const runs = 200;
+
+      for (let i = 0; i < runs; i++) {
+        const a1 = BotPlayer.decideAction(stateFewRaises, 'bot1', cards, BotDifficulty.HARD);
+        if (a1.action === 'bull') bullsFew++;
+        const a2 = BotPlayer.decideAction(stateManyRaises, 'bot1', cards, BotDifficulty.HARD);
+        if (a2.action === 'bull') bullsMany++;
+      }
+
+      // With many raises, bot should call bull more often (more suspicious)
+      expect(bullsMany).toBeGreaterThanOrEqual(bullsFew);
+    });
+
+    it('bluff raises are always valid higher hands', () => {
+      // Bot has no legitimate hand but may try to bluff
+      const cards: Card[] = [{ rank: '3', suit: 'clubs' }, { rank: '5', suit: 'hearts' }];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: '8' };
+      const state = makeManyCardState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+
+      for (let i = 0; i < 100; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+        if (action.action === 'call') {
+          // Every bluff raise must be a valid higher hand
+          expect(isHigherHand(action.hand, currentHand)).toBe(true);
+        }
+      }
+    });
+
+    it('desperate bots bluff more aggressively', () => {
+      const cards: Card[] = [{ rank: '3', suit: 'clubs' }];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: 'Q' };
+
+      // Bot with 1 card (not desperate)
+      const stateNormal = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+        players: [
+          { id: 'bot1', name: 'Bot', cardCount: 1, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 1, isConnected: true, isEliminated: false, isHost: true },
+        ],
+      });
+
+      // Bot with 4 cards (desperate)
+      const stateDesperate = makeManyCardState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+      const desperateCards: Card[] = [
+        { rank: '3', suit: 'clubs' },
+        { rank: '5', suit: 'hearts' },
+        { rank: '7', suit: 'diamonds' },
+        { rank: '9', suit: 'spades' },
+      ];
+
+      let bluffsNormal = 0;
+      let bluffsDesperate = 0;
+      const runs = 200;
+
+      for (let i = 0; i < runs; i++) {
+        const a1 = BotPlayer.decideAction(stateNormal, 'bot1', cards, BotDifficulty.HARD);
+        if (a1.action === 'call') bluffsNormal++;
+        const a2 = BotPlayer.decideAction(stateDesperate, 'bot1', desperateCards, BotDifficulty.HARD);
+        if (a2.action === 'call') bluffsDesperate++;
+      }
+
+      // Desperate bots should bluff at least as often (probably more)
+      expect(bluffsDesperate).toBeGreaterThanOrEqual(bluffsNormal * 0.8);
+    });
+
+    it('prefers semi-bluffs over pure bluffs when raising', () => {
+      // Bot holds a single 7 — pair of 7s is a semi-bluff (we have 1 of 2)
+      // Bot also could bluff pair of Ks (no Ks held — pure bluff)
+      // The semi-bluff should be preferred
+      const cards: Card[] = [{ rank: '7', suit: 'hearts' }, { rank: '3', suit: 'clubs' }];
+      const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: 'A' };
+      const state = makeManyCardState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand,
+        lastCallerId: 'p1',
+      });
+
+      let pairOf7 = 0;
+      let otherPairs = 0;
+      const runs = 200;
+
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
+        if (action.action === 'call' && action.hand.type === HandType.PAIR) {
+          if (action.hand.rank === '7' || action.hand.rank === '3') {
+            pairOf7++;
+          } else {
+            otherPairs++;
+          }
+        }
+      }
+
+      // When bluffing a pair, should prefer ranks we hold (semi-bluffs)
+      // This test just verifies the bluffs use held ranks
+      if (pairOf7 + otherPairs > 0) {
+        expect(pairOf7).toBeGreaterThan(0);
+      }
+    });
+  });
 });

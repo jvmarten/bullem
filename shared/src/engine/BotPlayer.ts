@@ -84,12 +84,13 @@ export class BotPlayer {
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
   }
 
-  // ─── HARD MODE (Probability-Driven) ─────────────────────────────────
+  // ─── HARD MODE (Probability-Driven + GTO Bluffing) ──────────────────
 
   private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
     const totalCards = this.getTotalCards(state);
     const desperate = botCards.length >= 4;
+    const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
 
     // LAST_CHANCE phase — raise with any valid hand we can find
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
@@ -97,7 +98,7 @@ export class BotPlayer {
         // Try legitimate hand first
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) return { action: 'lastChanceRaise', hand: higher };
-        // Try plausible bluff (we're about to lose anyway)
+        // Try plausible bluff (we're about to lose anyway — always bluff in last chance)
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'lastChanceRaise', hand: bluff };
       }
@@ -109,14 +110,14 @@ export class BotPlayer {
       return this.handleHardOpening(botCards, totalCards);
     }
 
-    // Calling phase — EV-driven raise vs bull
+    // Calling phase — EV-driven raise vs bull with GTO bluff frequency
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      return this.handleHardCallingPhase(currentHand, botCards, totalCards, desperate);
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, desperate, numOpponents, state.turnHistory, botId);
     }
 
-    // Bull phase — pure probability threshold
+    // Bull phase — probability threshold with position-aware adjustment
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleHardBullPhase(currentHand, botCards, totalCards, desperate);
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, desperate, state.turnHistory, botId);
     }
 
     // Fallback
@@ -158,79 +159,102 @@ export class BotPlayer {
   }
 
   /**
-   * Calling phase: Compute P(called hand exists), then decide:
-   * - If P < bullThreshold: call bull (hand probably doesn't exist)
-   * - If we have a legitimate raise: raise with lowest valid hand
-   * - If P > raiseThreshold and we can bluff raise: bluff (calling bull is too risky)
-   * - Otherwise: call bull
+   * Calling phase: GTO-inspired decision framework.
+   *
+   * Uses Nash equilibrium bluff frequency: bluff at rate 1/(N+1) where N = opponents.
+   * This makes opponents indifferent between calling bull and true on our raises.
+   *
+   * Decision tree:
+   * 1. If P(hand exists) is very low → bull (profitable call)
+   * 2. If we have a legitimate raise → value raise
+   * 3. If P is high + GTO says bluff → bluff raise (semi-bluff preferred)
+   * 4. Otherwise → bull
    */
   private static handleHardCallingPhase(
     currentHand: HandCall,
     botCards: Card[],
     totalCards: number,
     desperate: boolean,
+    numOpponents: number,
+    turnHistory: { playerId: string; action: TurnAction }[],
+    botId: string,
   ): BotAction {
     const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
 
+    // Factor in position: more raises → more likely someone is bluffing
+    const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
+    const adjustedP = Math.max(0, Math.min(1, p - positionAdj));
+
     // Confident bull: hand is very unlikely to exist
-    if (p < 0.25 && !desperate) {
+    if (adjustedP < 0.25 && !desperate) {
       return { action: 'bull' };
     }
 
-    // We have a legitimate higher hand — raise is almost always correct
-    // (avoid bull penalty by passing the decision to the next player)
+    // We have a legitimate higher hand — value raise
     if (higher) {
       // Even with a legitimate hand, sometimes call bull on very implausible hands
-      if (p < 0.15 && Math.random() < 0.3) {
+      if (adjustedP < 0.15 && Math.random() < 0.3) {
         return { action: 'bull' };
       }
       return { action: 'call', hand: higher };
     }
 
-    // No legitimate hand. Decision depends on how plausible the called hand is.
-    // If P is high (hand likely real), calling bull will probably penalize us.
-    // If P is low (hand likely fake), calling bull is profitable.
+    // No legitimate hand — decide whether to bluff raise or call bull.
+    // GTO optimal bluff frequency: 1/(N+1) of our total raises should be bluffs.
+    // Since we always value-raise when we can, we bluff when:
+    // (a) the hand is likely real (bull would penalize us), AND
+    // (b) random roll < bluff frequency
+    const bluffFreq = this.getOptimalBluffFrequency(numOpponents, desperate);
 
-    if (p > 0.55) {
-      // Hand is probably real — try to find a plausible bluff raise
-      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-      if (bluff) return { action: 'call', hand: bluff };
-      // Can't raise — calling bull is risky but our only option
-      return { action: 'bull' };
-    }
-
-    if (p > 0.35) {
-      // Uncertain — try bluff raise if desperate, otherwise lean bull
-      if (desperate) {
+    if (adjustedP > 0.4) {
+      // Hand is probably real — consider bluff raise
+      if (Math.random() < bluffFreq) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'call', hand: bluff };
       }
-      // Lean toward bull (55/45)
-      return Math.random() < 0.55 ? { action: 'bull' } : (() => {
+      // High P but didn't bluff (or no viable bluff) — bull is risky but only option
+      if (adjustedP > 0.6) {
+        // Very likely real — one more attempt to find any bluff
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-        return bluff ? { action: 'call' as const, hand: bluff } : { action: 'bull' as const };
-      })();
+        if (bluff) return { action: 'call', hand: bluff };
+      }
+      return { action: 'bull' };
     }
 
-    // p <= 0.35 — hand likely doesn't exist, call bull
+    // adjustedP 0.25-0.4 — uncertain zone
+    if (desperate) {
+      // When desperate, bluff more aggressively to avoid elimination
+      if (Math.random() < bluffFreq * 1.5) {
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        if (bluff) return { action: 'call', hand: bluff };
+      }
+    }
+
+    // Default: call bull
     return { action: 'bull' };
   }
 
   /**
-   * Bull phase: Pure expected value decision.
-   * EV(true)  = P(hand exists) × 0 + P(hand doesn't exist) × (-1) = -P(doesn't exist)
-   * EV(bull)  = P(hand doesn't exist) × 0 + P(hand exists) × (-1) = -P(exists)
-   * ⟹ Call true when P(exists) > 0.5, bull when P(exists) < 0.5
-   * Add small noise (5%) to avoid being perfectly predictable.
+   * Bull phase: EV decision with position-aware bluff detection.
+   *
+   * Base model: call true when P(exists) > 0.5, bull when < 0.5.
+   * Position adjustment: more raises in the round → caller more likely bluffing → lower effective P.
+   * Escalation adjustment: big jumps in hand type → more suspicious.
    */
   private static handleHardBullPhase(
     currentHand: HandCall,
     botCards: Card[],
     totalCards: number,
     desperate: boolean,
+    turnHistory: { playerId: string; action: TurnAction }[],
+    botId: string,
   ): BotAction {
     const p = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+
+    // Factor in position and escalation patterns
+    const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
+    const adjustedP = Math.max(0, Math.min(1, p - positionAdj));
 
     // Optional: consider raising in bull phase if we have a strong legitimate hand
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
@@ -243,42 +267,49 @@ export class BotPlayer {
     const threshold = desperate ? 0.4 : 0.5;
     const noise = 0.05;
 
-    if (p > threshold + noise) {
+    if (adjustedP > threshold + noise) {
       return { action: 'true' };
     }
-    if (p < threshold - noise) {
+    if (adjustedP < threshold - noise) {
       return { action: 'bull' };
     }
     // Within noise band — randomize
-    return Math.random() < p ? { action: 'true' } : { action: 'bull' };
+    return Math.random() < adjustedP ? { action: 'true' } : { action: 'bull' };
   }
 
   /**
-   * Find the best plausible raise hand — used when we can't raise legitimately
-   * but need to raise to avoid calling bull on a likely-real hand.
-   * Returns the MOST plausible hand that is higher than currentHand.
+   * Find the best plausible raise hand — GTO-inspired bluff selection.
+   *
+   * Principles:
+   * 1. Semi-bluffs preferred: use ranks we partially hold (1 of needed 2, etc.)
+   *    These have backup equity — might actually exist across all cards.
+   * 2. Minimal escalation: raise as little as possible above current hand.
+   *    Small raises are harder to distinguish from value raises.
+   * 3. Plausibility gating: only bluff hands with P >= threshold.
+   *
+   * Returns the best bluff hand (balancing plausibility + minimal escalation).
    */
   private static findBestPlausibleRaise(
     currentHand: HandCall,
     ownCards: Card[],
     totalCards: number,
   ): HandCall | null {
-    const candidates: HandCall[] = [];
+    const candidates: { hand: HandCall; semiBluff: boolean }[] = [];
     const rankCounts = this.getRankCounts(ownCards);
 
     // Generate candidates across hand types that are higher than current
 
-    // Pair bluffs — use ranks we have at least 1 of (more believable)
+    // Pair bluffs — prefer semi-bluffs (ranks we have exactly 1 of)
     if (currentHand.type <= HandType.PAIR) {
       for (const [rank, count] of rankCounts) {
-        if (count >= 1) {
-          const hand: HandCall = { type: HandType.PAIR, rank };
-          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        const hand: HandCall = { type: HandType.PAIR, rank };
+        if (isHigherHand(hand, currentHand)) {
+          candidates.push({ hand, semiBluff: count === 1 }); // count=1 is a semi-bluff
         }
       }
     }
 
-    // Two pair bluffs
+    // Two pair bluffs — semi-bluff if we hold at least one of each rank
     if (currentHand.type <= HandType.TWO_PAIR && totalCards >= 6) {
       const heldRanks = [...rankCounts.keys()];
       for (let i = 0; i < heldRanks.length; i++) {
@@ -287,49 +318,69 @@ export class BotPlayer {
             ? [heldRanks[i], heldRanks[j]]
             : [heldRanks[j], heldRanks[i]];
           const hand: HandCall = { type: HandType.TWO_PAIR, highRank: a, lowRank: b };
-          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+          if (isHigherHand(hand, currentHand)) {
+            candidates.push({ hand, semiBluff: true }); // Always semi since we hold 1+ of each
+          }
         }
       }
     }
 
-    // Three of a kind bluffs
+    // Three of a kind bluffs — semi-bluff if we hold 1-2 of the rank
     if (currentHand.type <= HandType.THREE_OF_A_KIND && totalCards >= 6) {
       for (const [rank, count] of rankCounts) {
-        if (count >= 1) {
-          const hand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
-          if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        const hand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
+        if (isHigherHand(hand, currentHand)) {
+          candidates.push({ hand, semiBluff: count >= 1 && count < 3 });
         }
       }
     }
 
-    // Flush bluffs (flush can't raise flush)
+    // Flush bluffs — semi-bluff if we hold 2+ of the suit
     if (totalCards >= 8 && currentHand.type < HandType.FLUSH) {
       const suitCounts = this.getSuitCounts(ownCards);
-      for (const [suit] of suitCounts) {
+      for (const [suit, count] of suitCounts) {
         const hand: HandCall = { type: HandType.FLUSH, suit };
-        if (isHigherHand(hand, currentHand)) candidates.push(hand);
+        if (isHigherHand(hand, currentHand)) {
+          candidates.push({ hand, semiBluff: count >= 2 });
+        }
       }
     }
 
-    // Straight bluffs
+    // Straight bluffs — semi-bluff if we hold 2+ of the required ranks
     if (totalCards >= 7 && currentHand.type <= HandType.STRAIGHT) {
       const straightHighs: Rank[] = ['5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
       for (const highRank of straightHighs) {
         const hand: HandCall = { type: HandType.STRAIGHT, highRank };
         if (isHigherHand(hand, currentHand)) {
-          candidates.push(hand);
-          break; // Take lowest valid straight
+          // Count how many of the 5 required ranks we hold
+          const highVal = RANK_VALUES[highRank];
+          let heldCount = 0;
+          for (let v = highVal - 4; v <= highVal; v++) {
+            const actualV = v < 2 ? 14 : v;
+            const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+            if (rank && rankCounts.has(rank)) heldCount++;
+          }
+          candidates.push({ hand, semiBluff: heldCount >= 2 });
+          break; // Take lowest valid straight (minimal escalation)
         }
       }
     }
 
     if (candidates.length === 0) return null;
 
-    // Score each candidate by plausibility and pick the most plausible
+    // Score each candidate by combined metric:
+    // score = plausibility × (1 + semiBluffBonus) × escalationPenalty
+    // Semi-bluffs get 30% bonus (they have backup equity)
+    // Higher hand types get penalized (minimal escalation preferred)
     let best: HandCall | null = null;
     let bestScore = -1;
-    for (const hand of candidates) {
-      const score = this.estimatePlausibilityHard(hand, ownCards, totalCards);
+    for (const { hand, semiBluff } of candidates) {
+      const plausibility = this.estimatePlausibilityHard(hand, ownCards, totalCards);
+      const semiBluffBonus = semiBluff ? 1.3 : 1.0;
+      // Penalize big jumps: each hand type above current costs 10%
+      const typeGap = hand.type - currentHand.type;
+      const escalationFactor = Math.pow(0.9, Math.max(0, typeGap - 1));
+      const score = plausibility * semiBluffBonus * escalationFactor;
       if (score > bestScore) {
         bestScore = score;
         best = hand;
@@ -866,6 +917,59 @@ export class BotPlayer {
 
     // Fallback
     return { type: HandType.HIGH_CARD, rank: 'A' };
+  }
+
+  // ─── GTO BLUFFING UTILITIES ────────────────────────────────────────
+
+  /**
+   * Nash equilibrium optimal bluff frequency.
+   *
+   * In a simplified model where calling bull costs +1 card if wrong:
+   * - With 1 opponent: bluff 50% of raises → opponent is indifferent
+   * - With N opponents: bluff 1/(N+1) of raises → each opponent is indifferent
+   *
+   * The intuition: more opponents means more chances someone calls bull correctly,
+   * so we should bluff less frequently.
+   *
+   * Desperation bonus: when close to elimination, increase bluff frequency
+   * (risking +1 card from a failed bluff is better than the certainty of getting
+   * caught for bull on a hand that probably exists).
+   */
+  private static getOptimalBluffFrequency(numOpponents: number, desperate: boolean): number {
+    // Base GTO frequency: 1/(N+1)
+    const base = 1 / (Math.max(1, numOpponents) + 1);
+
+    // Desperation multiplier: when at 4+ cards, bluff more aggressively
+    // (the cost of not bluffing — being stuck calling bull on real hands — is higher)
+    const desperationMult = desperate ? 1.5 : 1.0;
+
+    return Math.min(0.6, base * desperationMult);
+  }
+
+  /**
+   * Position-aware bluff detection adjustment.
+   *
+   * More raises in a round means higher chance someone is bluffing.
+   * The first caller is more likely honest (they chose their hand freely).
+   * Each subsequent raise is increasingly suspect.
+   *
+   * Returns a positive adjustment (subtract from plausibility) when
+   * many raises have occurred (making us more likely to call bull).
+   */
+  private static getPositionBluffAdjustment(
+    turnHistory: { playerId: string; action: TurnAction }[],
+    botId: string,
+  ): number {
+    // Count raises (CALL actions) in the turn history
+    let raiseCount = 0;
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.CALL) raiseCount++;
+    }
+
+    // First 1-2 calls are normal; after that, each additional raise adds suspicion
+    // Each extra raise beyond 2 adds ~5% bluff suspicion
+    const extraRaises = Math.max(0, raiseCount - 2);
+    return extraRaises * 0.05;
   }
 
   // ─── TURN HISTORY ANALYSIS ──────────────────────────────────────────
