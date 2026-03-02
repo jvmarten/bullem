@@ -107,11 +107,6 @@ export function HomePage() {
   return (
     <Layout>
       <div className="flex flex-col items-center gap-8 pt-8">
-        {/* Hero tagline */}
-        <p className="text-[var(--gold-dim)] text-center text-sm tracking-wide">
-          A multiplayer bluffing card game
-        </p>
-
         {/* Interactive deck */}
         <div
           className="relative flex justify-center items-center mb-2 cursor-pointer select-none"

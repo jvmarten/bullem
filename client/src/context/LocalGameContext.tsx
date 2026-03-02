@@ -215,11 +215,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     if (!botPlayer?.isBot) return;
 
     const state = engine.getClientState(botId);
-    // For IMPOSSIBLE difficulty, pass all players' combined cards for perfect info
-    const allCards = botDifficultyRef.current === BotDifficulty.IMPOSSIBLE
-      ? playersRef.current.filter(p => !p.isEliminated).flatMap(p => p.cards)
+    // For IMPOSSIBLE difficulty, bots see their own cards + human players' cards (not other bots')
+    const visibleCards = botDifficultyRef.current === BotDifficulty.IMPOSSIBLE
+      ? playersRef.current
+          .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
+          .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, allCards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards);
 
     let result: TurnResult;
     switch (decision.action) {

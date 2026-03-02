@@ -14,7 +14,7 @@ export type BotAction =
 export class BotPlayer {
   /**
    * Decide what action a bot should take given the current game state, its cards, and difficulty.
-   * For IMPOSSIBLE difficulty, allCards must contain every player's cards combined.
+   * For IMPOSSIBLE difficulty, allCards should contain the bot's own cards + human players' cards.
    */
   static decideAction(
     state: ClientGameState,
