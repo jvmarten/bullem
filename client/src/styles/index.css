@@ -585,9 +585,8 @@ body {
   z-index: 5;
 }
 .hs-rank-card-selected {
-  transform: translateY(-14px) scale(1.25);
   border-color: var(--gold);
-  box-shadow: 0 6px 20px var(--gold-glow);
+  box-shadow: 0 4px 16px var(--gold-glow);
   z-index: 10;
 }
 .hs-rank-card:focus-visible {
