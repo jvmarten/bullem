@@ -81,7 +81,7 @@ export function GamePage() {
 
   return (
     <Layout>
-      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
+      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''} max-w-5xl mx-auto`}>
         {/* Top bar */}
         <div className="flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
@@ -129,13 +129,14 @@ export function GamePage() {
           hasCurrentHand={gameState.currentHand !== null}
         />
 
-        <PlayerList
-          players={gameState.players}
-          currentPlayerId={gameState.currentPlayerId}
-          myPlayerId={playerId}
-          maxCards={gameState.maxCards}
-          roundNumber={gameState.roundNumber}
-        />
+        <div className="lg:grid lg:grid-cols-2 lg:gap-4">
+          <PlayerList
+            players={gameState.players}
+            currentPlayerId={gameState.currentPlayerId}
+            myPlayerId={playerId}
+            maxCards={gameState.maxCards}
+            roundNumber={gameState.roundNumber}
+          />
 
         {/* Current call display */}
         {gameState.currentHand && (
@@ -162,9 +163,11 @@ export function GamePage() {
           <SpectatorView spectatorCards={gameState.spectatorCards} />
         )}
 
-        <CallHistory history={gameState.turnHistory} />
+          <CallHistory history={gameState.turnHistory} />
+        </div>
 
         {/* Action buttons */}
+        <div className="lg:max-w-xl lg:mx-auto">
         {!isEliminated && (
           <ActionButtons
             roundPhase={gameState.roundPhase}
@@ -192,6 +195,7 @@ export function GamePage() {
             onSubmit={lastChanceRaise}
           />
         )}
+        </div>
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (

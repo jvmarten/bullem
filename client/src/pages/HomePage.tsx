@@ -193,6 +193,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { play } = useSound();
   const { onlinePlayerCount, listRooms, roomState, createRoom } = useGameContext();
+  const { onlinePlayerCount, listRooms, roomState, createRoom, addBot } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -238,6 +239,10 @@ export function HomePage() {
   const handleQuickStart = async () => {
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
+      const playerName = getPlayerName();
+      sessionStorage.setItem('bull-em-player-name', playerName);
+      const roomCode = await createRoom(playerName);
+      await addBot();
       navigate(`/room/${roomCode}`);
     } catch {
       setError('Failed to quick start');
