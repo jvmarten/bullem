@@ -544,22 +544,19 @@ export function HomePage() {
                   Join Room
                 </button>
                 <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-                  Lobby
+                  Browse Games
                 </button>
               </>
             ) : (
               <>
                 <button onClick={handleHost} className="w-full btn-gold py-4 text-lg">
-                  Quick Start
-                </button>
-                <button onClick={handleHost} className="w-full btn-ghost py-4 text-lg">
                   Host Game
                 </button>
                 <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
                   Join Room
                 </button>
                 <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-                  Lobby
+                  Browse Games
                 </button>
               </>
             )}
