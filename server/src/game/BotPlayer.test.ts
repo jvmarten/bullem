@@ -366,7 +366,7 @@ describe('BotPlayer', () => {
       expect(actions.has('call')).toBe(true); // Should raise at least sometimes
     });
 
-    it('hard mode passes in last chance when no higher hand', () => {
+    it('hard mode attempts desperate raise in last chance even with weak hand', () => {
       const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
       const state = makeState({
         roundPhase: RoundPhase.LAST_CHANCE,
@@ -374,7 +374,8 @@ describe('BotPlayer', () => {
         lastCallerId: 'bot1',
       });
       const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.HARD);
-      expect(action.action).toBe('lastChancePass');
+      // Hard bot tries a desperate bluff rather than passing (passing guarantees loss)
+      expect(action.action).toBe('lastChanceRaise');
     });
 
     it('hard mode fallback returns bull when current hand exists', () => {

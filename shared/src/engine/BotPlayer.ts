@@ -92,15 +92,20 @@ export class BotPlayer {
     const desperate = botCards.length >= 4;
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
 
-    // LAST_CHANCE phase — raise with any valid hand we can find
+    // LAST_CHANCE phase — everyone called bull, so we raise or lose
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
         // Try legitimate hand first
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) return { action: 'lastChanceRaise', hand: higher };
-        // Try plausible bluff (we're about to lose anyway — always bluff in last chance)
+        // Try plausible bluff — we lose if we pass, so always attempt a raise
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'lastChanceRaise', hand: bluff };
+        // Last resort: use any bluff even if implausible — passing guarantees loss
+        const desperateBluff = this.makeBluffHandHard(currentHand, totalCards);
+        if (isHigherHand(desperateBluff, currentHand)) {
+          return { action: 'lastChanceRaise', hand: desperateBluff };
+        }
       }
       return { action: 'lastChancePass' };
     }
@@ -126,15 +131,19 @@ export class BotPlayer {
   }
 
   /**
-   * Opening: call the LOWEST truthful hand from own cards.
-   * This is optimal because it leaves room for future raises and reveals minimum info.
+   * Opening: pick from truthful hands with controlled randomization.
+   *
+   * Instead of always picking the lowest truthful hand (deterministic and exploitable),
+   * we vary our opening to be unpredictable:
+   * - 70% pick a random truthful hand (weighted toward lower ones)
+   * - 15% pick a mid-range bluff (harder to challenge, keeps opponents guessing)
+   * - 15% pick the lowest truthful hand (classic conservative play)
    */
   private static handleHardOpening(botCards: Card[], totalCards: number): BotAction {
-    // Find lowest truthful hand — sort all hands from own cards by rank
     const candidates: HandCall[] = [];
     const rankCounts = this.getRankCounts(botCards);
 
-    // All high cards we have (sorted lowest first)
+    // All high cards we have
     for (const c of botCards) {
       candidates.push({ type: HandType.HIGH_CARD, rank: c.rank });
     }
@@ -144,18 +153,36 @@ export class BotPlayer {
       if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
     }
 
-    // Sort by hand strength (lowest first) and pick the lowest
+    // Sort by hand strength (lowest first)
     candidates.sort((a, b) => {
       if (a.type !== b.type) return a.type - b.type;
       return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
     });
 
-    if (candidates.length > 0) {
+    if (candidates.length === 0) {
+      return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+    }
+
+    const roll = Math.random();
+
+    // 15% strategic bluff opening — pick a plausible hand we don't hold
+    if (roll < 0.15) {
+      const bluff = this.makeBluffHandHard(null, totalCards);
+      return { action: 'call', hand: bluff };
+    }
+
+    // 15% conservative — lowest truthful hand
+    if (roll < 0.30) {
       return { action: 'call', hand: candidates[0] };
     }
 
-    // Fallback: bluff with a low, plausible hand
-    return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+    // 70% weighted random from truthful hands — bias toward lower half
+    // Use triangular distribution favoring lower index
+    const idx = Math.min(
+      Math.floor(Math.random() * Math.random() * candidates.length),
+      candidates.length - 1,
+    );
+    return { action: 'call', hand: candidates[idx] };
   }
 
   /**
@@ -191,48 +218,47 @@ export class BotPlayer {
     const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
     // Confident bull: hand is very unlikely to exist
-    if (adjustedP < 0.25 && !desperate) {
+    if (adjustedP < 0.20 && !desperate) {
       return { action: 'bull' };
     }
 
     // We have a legitimate higher hand — value raise
     if (higher) {
       // Even with a legitimate hand, sometimes call bull on very implausible hands
-      if (adjustedP < 0.15 && Math.random() < 0.3) {
+      if (adjustedP < 0.12 && Math.random() < 0.4) {
         return { action: 'bull' };
       }
       return { action: 'call', hand: higher };
     }
 
     // No legitimate hand — decide whether to bluff raise or call bull.
-    // GTO optimal bluff frequency: 1/(N+1) of our total raises should be bluffs.
-    // Since we always value-raise when we can, we bluff when:
-    // (a) the hand is likely real (bull would penalize us), AND
-    // (b) random roll < bluff frequency
     const bluffFreq = this.getOptimalBluffFrequency(numOpponents, desperate);
 
-    if (adjustedP > 0.4) {
-      // Hand is probably real — consider bluff raise
-      if (Math.random() < bluffFreq) {
+    if (adjustedP > 0.45) {
+      // Hand is probably real — bluff raise to avoid a bull penalty
+      if (Math.random() < bluffFreq * 1.3) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'call', hand: bluff };
       }
-      // High P but didn't bluff (or no viable bluff) — bull is risky but only option
-      if (adjustedP > 0.6) {
-        // Very likely real — one more attempt to find any bluff
+      // Very likely real — try harder to find any viable raise
+      if (adjustedP > 0.55) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'call', hand: bluff };
       }
       return { action: 'bull' };
     }
 
-    // adjustedP 0.25-0.4 — uncertain zone
+    // adjustedP 0.20-0.45 — uncertain zone
     if (desperate) {
       // When desperate, bluff more aggressively to avoid elimination
-      if (Math.random() < bluffFreq * 1.5) {
+      if (Math.random() < bluffFreq * 2.0) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'call', hand: bluff };
       }
+    } else if (Math.random() < bluffFreq * 0.7) {
+      // Even when not desperate, occasionally bluff in uncertain zone
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      if (bluff) return { action: 'call', hand: bluff };
     }
 
     // Default: call bull
@@ -263,15 +289,19 @@ export class BotPlayer {
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
     const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
-    // Optional: consider raising in bull phase if we have a strong legitimate hand
+    // Consider raising in bull phase — strong strategic move that disrupts opponents
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-    if (higher && Math.random() < 0.15) {
-      return { action: 'call', hand: higher };
+    if (higher) {
+      // Raise more when desperate (need to avoid a bull penalty) or when hand is suspicious
+      const raiseChance = desperate ? 0.45 : 0.30;
+      if (Math.random() < raiseChance) {
+        return { action: 'call', hand: higher };
+      }
     }
 
     // When desperate (4+ cards), shift threshold slightly toward true
     // to avoid the penalty that would eliminate us
-    const threshold = desperate ? 0.4 : 0.5;
+    const threshold = desperate ? 0.35 : 0.48;
     const noise = 0.05;
 
     if (adjustedP > threshold + noise) {
@@ -356,10 +386,10 @@ export class BotPlayer {
     // Straight bluffs — semi-bluff if we hold 2+ of the required ranks
     if (totalCards >= 7 && currentHand.type <= HandType.STRAIGHT) {
       const straightHighs: Rank[] = ['5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      let straightCount = 0;
       for (const highRank of straightHighs) {
         const hand: HandCall = { type: HandType.STRAIGHT, highRank };
         if (isHigherHand(hand, currentHand)) {
-          // Count how many of the 5 required ranks we hold
           const highVal = RANK_VALUES[highRank];
           let heldCount = 0;
           for (let v = highVal - 4; v <= highVal; v++) {
@@ -368,8 +398,25 @@ export class BotPlayer {
             if (rank && rankCounts.has(rank)) heldCount++;
           }
           candidates.push({ hand, semiBluff: heldCount >= 2 });
-          break; // Take lowest valid straight (minimal escalation)
+          straightCount++;
+          if (straightCount >= 2) break; // Consider up to 2 straight options
         }
+      }
+    }
+
+    // Full house bluffs — semi-bluff if we hold 2+ of the triple rank
+    if (totalCards >= 8 && currentHand.type <= HandType.FULL_HOUSE) {
+      const heldRanks = [...rankCounts.entries()].sort((a, b) => b[1] - a[1]);
+      for (const [threeRank, count] of heldRanks) {
+        for (const twoRank of ALL_RANKS) {
+          if (twoRank === threeRank) continue;
+          const hand: HandCall = { type: HandType.FULL_HOUSE, threeRank, twoRank };
+          if (isHigherHand(hand, currentHand)) {
+            candidates.push({ hand, semiBluff: count >= 2 });
+            break; // One full house per threeRank
+          }
+        }
+        if (candidates.length > 8) break; // Limit candidate explosion
       }
     }
 
@@ -395,7 +442,7 @@ export class BotPlayer {
     }
 
     // Only bluff if the hand is at least somewhat plausible
-    return bestScore >= 0.08 ? best : null;
+    return bestScore >= 0.05 ? best : null;
   }
 
   // ─── HAND FINDING (SIMPLE — Easy mode) ──────────────────────────────
@@ -938,26 +985,26 @@ export class BotPlayer {
   private static getTruthfulnessBoost(hand: HandCall): number {
     switch (hand.type) {
       case HandType.HIGH_CARD:
-        return 0.25; // Very likely truthful — they almost certainly have this card
+        return 0.12; // Likely truthful but not certain
       case HandType.PAIR:
-        return 0.20; // Likely they hold at least 1 of the pair
+        return 0.10; // Likely they hold at least 1 of the pair
       case HandType.TWO_PAIR:
-        return 0.15; // Probably hold at least 1 of each pair rank
+        return 0.07; // Moderate evidence — might hold 1 of each
       case HandType.FLUSH:
-        return 0.15; // Probably hold a couple cards of the suit
+        return 0.06; // Might hold a couple suited cards
       case HandType.THREE_OF_A_KIND:
-        return 0.10; // Probably hold 1-2 of the rank
+        return 0.05; // Might hold 1-2 of the rank
       case HandType.STRAIGHT:
-        return 0.10; // Might hold some of the ranks
+        return 0.04; // Might hold some of the ranks
       case HandType.FULL_HOUSE:
-        return 0.08; // High hand — still somewhat likely held partially
+        return 0.03; // High hand — weak signal
       case HandType.FOUR_OF_A_KIND:
-        return 0.05; // Big claim — less credible
+        return 0.02; // Big claim — often a bluff
       case HandType.STRAIGHT_FLUSH:
       case HandType.ROYAL_FLUSH:
-        return 0.02; // Very likely a bluff at this level
+        return 0.01; // Very likely a bluff at this level
       default:
-        return 0.10;
+        return 0.05;
     }
   }
 
@@ -1006,10 +1053,10 @@ export class BotPlayer {
       if (entry.action === TurnAction.CALL) raiseCount++;
     }
 
-    // First 1-2 calls are normal; after that, each additional raise adds suspicion
-    // Each extra raise beyond 2 adds ~5% bluff suspicion
-    const extraRaises = Math.max(0, raiseCount - 2);
-    return extraRaises * 0.05;
+    // First call is normal; after that, each additional raise adds suspicion
+    // Each extra raise beyond 1 adds ~8% bluff suspicion
+    const extraRaises = Math.max(0, raiseCount - 1);
+    return extraRaises * 0.08;
   }
 
   // ─── TURN HISTORY ANALYSIS ──────────────────────────────────────────
