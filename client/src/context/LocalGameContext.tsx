@@ -485,8 +485,10 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     isPaused,
     togglePause,
     onlinePlayerCount: 0,
+    onlinePlayerNames: [],
     listRooms: async () => [],
     updateSettings: () => {},
+    deleteRoom: () => {},
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

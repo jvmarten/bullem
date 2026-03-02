@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
+import type { RoomManager } from '../rooms/RoomManager.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -28,4 +29,8 @@ export function broadcastNewRound(io: TypedServer, room: Room): void {
       io.to(socketId).emit('game:newRound', state);
     }
   }
+}
+
+export function broadcastPlayerNames(io: TypedServer, roomManager: RoomManager): void {
+  io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
 }

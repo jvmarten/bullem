@@ -126,6 +126,7 @@ export enum BotDifficulty {
 export interface GameSettings {
   maxCards: number;
   turnTimer: number;
+  maxPlayers?: number;
 }
 
 export interface PlayerGameStats {

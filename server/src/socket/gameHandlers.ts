@@ -97,9 +97,11 @@ function handleResult(
           io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
         } else {
           room.gamePhase = GamePhase.PLAYING;
-          // Schedule before broadcast so deadline is included in state
-          botManager.scheduleBotTurn(room, io);
+          // Broadcast new round first, then schedule timer with grace period
+          // so clients have time to dismiss the round result overlay
           broadcastNewRound(io, room);
+          botManager.scheduleBotTurn(room, io, 5000);
+          broadcastGameState(io, room);
         }
       }, 3000);
       break;

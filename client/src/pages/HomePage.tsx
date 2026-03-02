@@ -541,7 +541,7 @@ export function HomePage() {
                   Return to Room ({roomState.roomCode})
                 </button>
                 <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
-                  Join Room
+                  Join with Code
                 </button>
                 <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
                   Browse Games
@@ -553,7 +553,7 @@ export function HomePage() {
                   Host Game
                 </button>
                 <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
-                  Join Room
+                  Join with Code
                 </button>
                 <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
                   Browse Games

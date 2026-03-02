@@ -53,22 +53,46 @@ export class RoomManager {
     this.socketToRoom.delete(socketId);
   }
 
+  deleteRoom(roomCode: string): void {
+    this.rooms.delete(roomCode);
+    // Clean up socket mappings pointing to this room
+    for (const [socketId, code] of this.socketToRoom) {
+      if (code === roomCode) this.socketToRoom.delete(socketId);
+    }
+  }
+
   getAvailableRooms(): RoomListing[] {
     const listings: RoomListing[] = [];
     for (const room of this.rooms.values()) {
       if (room.gamePhase !== GamePhase.LOBBY) continue;
-      const maxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(room.settings.maxCards));
-      if (room.playerCount >= maxPlayers) continue;
+      const effectiveMax = this.effectiveMaxPlayers(room);
+      if (room.playerCount >= effectiveMax) continue;
       const host = [...room.players.values()].find(p => p.isHost);
       listings.push({
         roomCode: room.roomCode,
         playerCount: room.playerCount,
-        maxPlayers,
+        maxPlayers: effectiveMax,
         hostName: host?.name ?? '???',
         settings: { ...room.settings },
       });
     }
     return listings;
+  }
+
+  effectiveMaxPlayers(room: Room): number {
+    const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
+    const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
+    return Math.min(MAX_PLAYERS, cardBased, userCap);
+  }
+
+  getOnlinePlayerNames(): string[] {
+    const names: string[] = [];
+    for (const room of this.rooms.values()) {
+      for (const player of room.players.values()) {
+        if (!player.isBot) names.push(player.name);
+      }
+    }
+    return names;
   }
 
   startCleanup(): void {
