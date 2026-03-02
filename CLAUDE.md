@@ -1,21 +1,107 @@
 # Bull 'Em
 
+## Vision
+
+Bull 'Em is a global-scale real-time multiplayer card game — built to handle millions of concurrent players across web and mobile. Think Supercell building Clash Royale: buttery smooth, rock solid, ready for viral growth. Every line of code is building that foundation.
+
 ## Project Overview
 
-Bull 'Em is a multiplayer bluffing card game that combines elements of Liar's Dice with Texas Hold'em hand rankings. Players are dealt cards and take turns calling increasingly higher poker hands that they claim can be formed from ALL players' combined cards. Other players can call "bull" (bullshit) or raise. The game is played online via browser — friends join through a room code or invite link.
+A multiplayer bluffing card game that combines elements of Liar's Dice with Texas Hold'em hand rankings. Players are dealt cards and take turns calling increasingly higher poker hands that they claim can be formed from ALL players' combined cards. Other players can call "bull" (bullshit) or raise. The game is played online via browser — friends join through a room code or invite link.
 
 ## Tech Stack
 
-- **Frontend:** React (web app, mobile-friendly responsive design)
+- **Frontend:** React (web app, mobile-first responsive design, future native wrapper via Capacitor/React Native)
 - **Backend:** Node.js with WebSockets (Socket.io) for real-time multiplayer
-- **State Management:** Server-authoritative game state
-- **Future:** Potential iOS app (keep architecture portable)
+- **State Management:** Server-authoritative game state — clients are untrusted rendering layers
+- **Infrastructure:** Fly.io (single region today, multi-region when needed)
+- **Future:** Native iOS/Android apps, Redis for session store + Socket.io adapter, PostgreSQL for persistence
+
+## Engineering Philosophy
+
+**Production-grade from day one.** No "we'll fix it later" shortcuts. If a temporary solution is justified at the current stage, it MUST include a `// TODO(scale):` comment explaining what needs to change and when. Every PR either moves toward production quality or explicitly documents the gap.
+
+### Core Principles
+
+1. **Code Quality**
+   - Strict TypeScript everywhere — `strict: true`, no `any`, no `@ts-ignore` without justification
+   - Proper error handling at every boundary — network, user input, state transitions
+   - Input validation on every server endpoint — clients are untrusted
+   - Comments explain *why*, not *what* — the code should explain what
+   - `// TODO(scale):` markers for intentional temporary solutions with migration path
+
+2. **Architecture for Horizontal Scale**
+   - No in-memory state that can't be externalized to Redis/database
+   - Socket.io designed for Redis adapter from the start — room state must be serializable
+   - Stateless request handling where possible — any server instance should handle any request
+   - Game engine is a pure function machine: input state + action → output state (no side effects)
+   - When adding state: ask "what happens with 10 server instances?" If the answer is "it breaks," redesign
+
+3. **Mobile-First Always**
+   - Every UI decision must work on 320px-wide screens, touch-first, with variable network conditions
+   - No hover-only interactions — everything must work with tap/swipe
+   - Touch targets minimum 44px, generous spacing for fat fingers
+   - Assume high-latency, lossy connections — optimistic UI with server reconciliation
+   - CSS: `touch-action`, `overscroll-behavior`, no accidental horizontal scroll
+   - Test on actual phones, not just DevTools responsive mode
+   - Compatible with future native wrappers (Capacitor/React Native Web)
+
+4. **Security Is Not Optional**
+   - Server-authoritative: ALL game logic runs server-side, clients only render
+   - Never send other players' cards to the client — anti-cheat by architecture
+   - Validate every socket event server-side — type check, bounds check, turn ownership
+   - Rate limiting on all endpoints (socket events and HTTP)
+   - Restrictive CORS — only allow known origins
+   - No secrets, tokens, or API keys in client code — ever
+   - Sanitize all user-provided strings (player names, room codes)
+
+5. **Clean Monorepo Boundaries**
+   - `shared/` is the single source of truth for types, constants, and pure game logic
+   - Server NEVER imports from client, client NEVER imports from server
+   - Both import from `shared/` only
+   - Game engine logic lives in pure, testable functions — no I/O, no timers, no randomness injection
+   - Socket handlers are thin dispatchers: validate → call engine → broadcast result
+
+6. **Test What Matters**
+   - Comprehensive unit tests on game engine logic — every hand type, edge case, resolution scenario
+   - Integration tests on socket event handlers — full round-trip from emit to state change
+   - Regression test for every bug fix — if it broke once, prove it can't break again
+   - Test game state transitions, not UI rendering (unless testing interaction logic)
+   - Tests must be deterministic — seed randomness, mock time
+
+7. **Performance as a Feature**
+   - Minimize WebSocket payload sizes — send diffs, not full state, when practical
+   - Debounce/throttle client events — no spamming the server
+   - Code split the client — lobby code shouldn't load game code
+   - Lazy load assets (sounds, animations) — don't block initial render
+   - Server: O(1) lookups for rooms/players, avoid scanning all rooms for any operation
+
+8. **Observability**
+   - Health check endpoint: `GET /health` with meaningful status
+   - Structured logging for monitoring — JSON logs with correlation IDs when possible
+   - Game state snapshots for debugging and future replay features
+   - Error tracking integration points — ready for Sentry/similar
+   - Metrics for room count, active players, round duration, error rates
+
+9. **Document Decisions**
+   - Comments explain *why* a non-obvious approach was chosen
+   - `// TODO(scale):` for any intentional temporary solution — include what changes and at what scale
+   - Architecture Decision Records (ADRs) for significant choices (in `docs/adr/` when needed)
+   - This file (CLAUDE.md) is the canonical source of project standards
+
+### When Presenting Solutions
+
+Always lead with the production-grade approach. If a simpler interim approach is justified for the current stage, present it as a clearly labeled alternative with:
+- Why the shortcut is acceptable now
+- What trigger (user count, feature, timeline) requires upgrading
+- A `// TODO(scale):` comment in the code
+
+**Never silently take a shortcut.**
 
 ## Game Rules
 
 ### Setup
 
-- 2–9 players
+- 2–12 players (configurable max cards determines player limit: `floor(52 / maxCards)`)
 - One standard 52-card deck
 - Suits matter (spades, hearts, diamonds, clubs)
 - Players join a room via invite link or room code
@@ -26,8 +112,8 @@ Bull 'Em is a multiplayer bluffing card game that combines elements of Liar's Di
 - Round 1: each player is dealt 1 card
 - Players can see their own cards but NOT other players' cards
 - Players gain cards by losing rounds (+1 card per loss)
-- Maximum hand size is 5 cards
-- If a player would receive a 6th card, they are eliminated
+- Maximum hand size is configurable (1–5, default 5)
+- If a player would exceed max cards, they are eliminated
 - Last player standing wins the game
 
 ### Hand Rankings (LOW to HIGH)
@@ -69,53 +155,148 @@ Within the same hand category, standard poker value ordering applies (2 is lowes
 - **Scoring:**
   - Players who called correctly (bull on a fake hand, or true on a real hand) keep the same number of cards next round
   - Players who called incorrectly get +1 card next round
-  - Reaching 6 cards = elimination
+  - Exceeding max cards = elimination
 
 ### Elimination & Winning
 
-- When a player would receive their 6th card, they are out of the game
+- When a player would exceed their max card count, they are out of the game
 - The last player remaining wins
 - Eliminated players can spectate
 
 ## Multiplayer Architecture
 
-- Server-authoritative: all game logic runs on the server, clients only see what they're allowed to see
-- Each player only receives their own cards — never other players' cards (anti-cheat)
-- Room system: host creates a room, gets a code/link to share
-- Real-time updates via WebSocket events
-- Handle disconnections gracefully (give players time to reconnect)
+- **Server-authoritative:** All game logic runs on the server. Clients are rendering layers only
+- **Anti-cheat by design:** Each player only receives their own cards — never other players' cards
+- **Room system:** Host creates a room, gets a code/link to share
+- **Real-time:** WebSocket events via Socket.io (designed for Redis adapter at scale)
+- **Reconnection:** Graceful disconnection handling with reconnect window
+- **State serialization:** All game state must be serializable (JSON-safe) — no class instances, functions, or circular refs in state
 
 ## UI/UX Guidelines
 
-- Mobile-first responsive design (friends will likely play on phones)
-- Clean, card-game aesthetic
-- Clear indication of whose turn it is
-- Easy hand selection UI (don't make players type — use dropdowns/pickers for hand type + card values)
-- Show each player's card count (but not their cards)
-- Visual feedback for bull/true calls
-- Spectator view for eliminated players
-- Lobby/waiting room before game starts
+- **Mobile-first:** Design for phones first, then scale up — most players will be on mobile
+- **Touch-first interactions:** Swipe/tap pickers, not dropdowns — designed for one-handed play
+- **Clear game state:** Always obvious whose turn it is, what phase the round is in
+- **Accessible controls:** Hand selection via visual pickers (card fans, type strips), not text input
+- **Visual feedback:** Animations for bull/true calls, card deals, eliminations
+- **Spectator mode:** Eliminated players can watch with full card visibility
+- **Lobby:** Waiting room with player management, settings, bot configuration
+- **Sound design:** Audio feedback for game events, with volume control and mute
 
 ## Project Structure
 
 ```
 bull-em/
-├── client/          # React frontend
-│   ├── components/  # UI components
-│   ├── hooks/       # Custom React hooks
-│   ├── pages/       # Lobby, Game, Results
-│   └── utils/       # Hand evaluation, display helpers
-├── server/          # Node.js backend
-│   ├── game/        # Game logic engine
-│   ├── socket/      # WebSocket event handlers
-│   └── rooms/       # Room management
-├── shared/          # Shared types and constants
-│   ├── types.ts     # Game state types
-│   ├── hands.ts     # Hand rankings and comparison
-│   └── constants.ts # Game configuration
-├── CLAUDE.md        # This file
-└── package.json
+├── client/              # React frontend (Vite)
+│   ├── src/
+│   │   ├── components/  # Reusable UI components
+│   │   ├── context/     # React context providers (GameContext, LocalGameContext)
+│   │   ├── hooks/       # Custom React hooks (useSound, soundEngine)
+│   │   ├── pages/       # Route pages (Lobby, Game, Results — online & local)
+│   │   ├── styles/      # Global CSS
+│   │   ├── assets/      # Static assets (sounds, images)
+│   │   └── utils/       # Display helpers, card utilities
+│   └── vitest.config.ts
+├── server/              # Node.js backend (Express + Socket.io)
+│   ├── src/
+│   │   ├── game/        # Game engine, bot AI, deck management
+│   │   ├── socket/      # WebSocket event handlers (thin dispatchers)
+│   │   └── rooms/       # Room lifecycle management
+│   └── vitest.config.ts
+├── shared/              # Single source of truth for types & logic
+│   ├── src/
+│   │   ├── types.ts     # All game state types
+│   │   ├── hands.ts     # Hand rankings and comparison (pure functions)
+│   │   └── constants.ts # Game configuration constants
+│   └── vitest.config.ts
+├── .github/workflows/   # CI/CD (ci.yml + deploy.yml)
+├── Dockerfile           # Multi-stage production build
+├── fly.toml             # Fly.io deployment config
+├── CLAUDE.md            # This file — canonical project standards
+└── package.json         # Workspace root
 ```
+
+### Boundary Rules
+
+- `shared/` → imported by both `client/` and `server/`
+- `client/` → imports from `shared/` only. NEVER from `server/`
+- `server/` → imports from `shared/` only. NEVER from `client/`
+- Game logic (hand evaluation, turn resolution, scoring) lives in `shared/` as pure functions
+- Socket handlers in `server/` are thin: validate input → call engine → emit result
+
+## Development Workflow
+
+### Running Locally
+
+```bash
+npm install          # Install all workspace dependencies
+npm run dev          # Start server + client concurrently
+npm run build        # Build shared → server → client
+npm test             # Run all tests across workspaces
+```
+
+### TypeScript Standards
+
+- `strict: true` is non-negotiable — configured in `tsconfig.base.json`
+- No `any` types — use `unknown` and narrow, or define proper types in `shared/`
+- No `@ts-ignore` or `@ts-expect-error` without a comment explaining why
+- All public APIs have explicit return types
+- Exhaustive switch statements with `never` default for discriminated unions
+
+### Testing Standards
+
+- Game engine: test every hand type, every resolution path, every edge case
+- Bot AI: test decision-making for each difficulty level
+- Socket handlers: integration tests for full event round-trips
+- Bug fixes: every fix includes a regression test proving the bug is gone
+- Deterministic: seed RNG, mock `Date.now()`, no flaky tests
+
+## Deployment
+
+Bull 'Em is deployed on [Fly.io](https://fly.io).
+
+- **App URL:** `https://bullem.fly.dev`
+- **Config:** `fly.toml` at repo root
+- **Health check:** `GET /health` returns `{ "status": "ok" }`
+- **Docker:** Multi-stage build — build all workspaces, copy only production artifacts
+
+### Manual Deploy
+
+```bash
+fly deploy
+```
+
+### CI/CD
+
+Pushes to `main` trigger `.github/workflows/deploy.yml`, which:
+1. Runs CI (build + tests) via `.github/workflows/ci.yml`
+2. Deploys to Fly.io using the Dockerfile
+
+### Required Secrets
+
+Add these to the GitHub repo settings (`Settings > Secrets > Actions`):
+- `FLY_API_TOKEN` — generate with `fly tokens create deploy -x 999999h`
+
+### First-Time Setup
+
+```bash
+fly apps create bullem
+fly tokens create deploy -x 999999h  # add output as FLY_API_TOKEN secret
+fly deploy
+```
+
+## Development Priorities
+
+1. ~~Core game engine (deck, deal, hand evaluation with custom rankings)~~ ✓
+2. ~~Turn logic and bull/true/raise flow~~ ✓
+3. ~~Room creation and joining (WebSocket)~~ ✓
+4. ~~Basic playable UI~~ ✓
+5. ~~Polish (animations, sounds, mobile optimization)~~ ✓
+6. ~~Deployment (so friends can actually play)~~ ✓
+7. Scale infrastructure (Redis adapter, session persistence, multi-region)
+8. Native mobile apps (Capacitor or React Native wrapper)
+9. Matchmaking, ranked play, player accounts
+10. Analytics, replay system, spectator improvements
 
 ## Agent PR Merge Permissions
 
@@ -151,45 +332,3 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 - **Delete the branch** after merging to keep the repo clean.
 - If merge fails due to conflicts, rebase onto the target branch, resolve conflicts, force-push, then merge.
 - If merge fails due to required status checks, wait for checks to pass and retry.
-
-## Deployment
-
-Bull 'Em is deployed on [Fly.io](https://fly.io).
-
-- **App URL:** `https://bullem.fly.dev`
-- **Config:** `fly.toml` at repo root
-- **Health check:** `GET /health` returns `{ "status": "ok" }`
-
-### Manual Deploy
-
-```bash
-fly deploy
-```
-
-### CI/CD
-
-Pushes to `main` trigger `.github/workflows/deploy.yml`, which:
-1. Runs CI (build + tests) via `.github/workflows/ci.yml`
-2. Deploys to Fly.io using the Dockerfile
-
-### Required Secrets
-
-Add these to the GitHub repo settings (`Settings > Secrets > Actions`):
-- `FLY_API_TOKEN` — generate with `fly tokens create deploy -x 999999h`
-
-### First-Time Setup
-
-```bash
-fly apps create bullem
-fly tokens create deploy -x 999999h  # add output as FLY_API_TOKEN secret
-fly deploy
-```
-
-## Development Priorities
-
-1. Core game engine (deck, deal, hand evaluation with custom rankings)
-2. Turn logic and bull/true/raise flow
-3. Room creation and joining (WebSocket)
-4. Basic playable UI
-5. Polish (animations, sounds, mobile optimization)
-6. Deployment (so friends can actually play)
