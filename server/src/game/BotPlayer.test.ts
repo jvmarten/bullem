@@ -408,20 +408,20 @@ describe('BotPlayer', () => {
       expect(bluff.type).toBeGreaterThanOrEqual(HandType.PAIR);
     });
 
-    it('escalates from pair of aces to three of a kind', () => {
+    it('escalates from pair of aces to flush', () => {
       const current: HandCall = { type: HandType.PAIR, rank: 'A' };
-      const bluff = BotPlayer.makeBluffHand(current);
-      expect(bluff.type).toBeGreaterThanOrEqual(HandType.THREE_OF_A_KIND);
-    });
-
-    it('escalates from three of a kind to flush', () => {
-      const current: HandCall = { type: HandType.THREE_OF_A_KIND, rank: '5' };
       const bluff = BotPlayer.makeBluffHand(current);
       expect(bluff.type).toBeGreaterThanOrEqual(HandType.FLUSH);
     });
 
-    it('escalates from flush to straight', () => {
+    it('escalates from flush to three of a kind', () => {
       const current: HandCall = { type: HandType.FLUSH, suit: 'spades' };
+      const bluff = BotPlayer.makeBluffHand(current);
+      expect(bluff.type).toBeGreaterThanOrEqual(HandType.THREE_OF_A_KIND);
+    });
+
+    it('escalates from three of a kind to straight', () => {
+      const current: HandCall = { type: HandType.THREE_OF_A_KIND, rank: '5' };
       const bluff = BotPlayer.makeBluffHand(current);
       expect(bluff.type).toBeGreaterThanOrEqual(HandType.STRAIGHT);
     });
