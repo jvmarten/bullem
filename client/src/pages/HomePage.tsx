@@ -477,12 +477,14 @@ export function HomePage() {
                 >
                   {handToString(handCall)}
                 </span>
-                <span
-                  className="text-[10px] text-[var(--gold-dim)] opacity-60 animate-fade-in block"
-                  style={{ animationDelay: '0.8s', animationFillMode: 'both' }}
-                >
-                  {getHandProbability(handCall.type)}
-                </span>
+                {handCall.type >= HandType.PAIR && (
+                  <span
+                    className="text-[10px] text-[var(--gold-dim)] opacity-60 animate-fade-in block"
+                    style={{ animationDelay: '0.8s', animationFillMode: 'both' }}
+                  >
+                    {getHandProbability(handCall.type)}
+                  </span>
+                )}
               </>
             )}
           </div>

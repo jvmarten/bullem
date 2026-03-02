@@ -592,6 +592,7 @@ body {
 .hs-rank-card-selected {
   border-color: var(--gold);
   box-shadow: 0 4px 16px var(--gold-glow);
+  transform: translateY(-8px);
   z-index: 10;
 }
 .hs-rank-card:focus-visible {

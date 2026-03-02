@@ -12,6 +12,7 @@ export interface ClientToServerEvents {
   'game:true': () => void;
   'game:lastChanceRaise': (data: { hand: HandCall }) => void;
   'game:lastChancePass': () => void;
+  'game:continue': () => void;
   'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
   'room:removeBot': (data: { botId: string }) => void;
   'room:delete': () => void;

@@ -7,12 +7,11 @@ import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull
 import type { Room } from '../rooms/Room.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
-import { broadcastGameState, broadcastNewRound } from '../socket/broadcast.js';
+import { broadcastGameState } from '../socket/broadcast.js';
+import { beginRoundResultPhase } from '../socket/roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
-/** Grace period added to timer after round results so players have time to see the new round */
-const POST_RESOLVE_GRACE_MS = 5000;
 /** Timeout for disconnected players when no turn timer is configured */
 const DISCONNECT_AUTO_ACTION_MS = 10_000;
 
@@ -216,26 +215,7 @@ export class BotManager {
         break;
 
       case 'resolve': {
-        if (room.game) room.game.setTurnDeadline(null);
-        room.gamePhase = GamePhase.ROUND_RESULT;
-        io.to(room.roomCode).emit('game:roundResult', result.result);
-        // Start next round after a delay
-        const resolveTimer = setTimeout(() => {
-          this.pendingTimers.delete(resolveTimer);
-          const nextResult = room.game!.startNextRound();
-          if (nextResult.type === 'game_over') {
-            room.gamePhase = GamePhase.GAME_OVER;
-            io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
-          } else {
-            room.gamePhase = GamePhase.PLAYING;
-            // Broadcast new round first WITHOUT timer, then schedule timer with grace
-            broadcastNewRound(io, room);
-            this.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
-            // Re-broadcast after deadline is set so clients get the timer
-            broadcastGameState(io, room);
-          }
-        }, 3000);
-        this.pendingTimers.add(resolveTimer);
+        beginRoundResultPhase(io, room, this, result.result);
         break;
       }
 
