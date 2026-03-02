@@ -989,12 +989,151 @@ describe('GameEngine', () => {
       expect(state.turnDeadline).toBeNull();
     });
 
+    it('auto-passes last chance when eliminated caller had last chance', () => {
+      // 2-player: p1 calls, p2 bulls → last_chance for p1. p1 leaves → auto-resolve
+      const pa = makePlayer('pa', 'A');
+      const pb = makePlayer('pb', 'B');
+      const eng = new GameEngine([pa, pb]);
+      eng.startRound();
+
+      eng.handleCall('pa', { type: HandType.HIGH_CARD, rank: '7' });
+      const bullResult = eng.handleBull('pb');
+      expect(bullResult.type).toBe('last_chance');
+
+      const result = eng.eliminatePlayer('pa');
+      // Only 1 player left → game over
+      expect(result.type).toBe('game_over');
+      if (result.type === 'game_over') expect(result.winnerId).toBe('pb');
+    });
+
     it('TURN_TIMER_OPTIONS contains expected values', () => {
       expect(TURN_TIMER_OPTIONS).toEqual([0, 15, 30, 60]);
     });
 
     it('DEFAULT_TURN_TIMER is 0 (off)', () => {
       expect(DEFAULT_TURN_TIMER).toBe(0);
+    });
+  });
+
+  describe('eliminatePlayer', () => {
+    it('returns game_over when only 1 player remains after elimination', () => {
+      const pa = makePlayer('pa', 'A');
+      const pb = makePlayer('pb', 'B');
+      const eng = new GameEngine([pa, pb]);
+      eng.startRound();
+
+      const result = eng.eliminatePlayer('pa');
+      expect(result.type).toBe('game_over');
+      if (result.type === 'game_over') expect(result.winnerId).toBe('pb');
+      expect(pa.isEliminated).toBe(true);
+      expect(pa.cards).toEqual([]);
+    });
+
+    it('returns continue and advances turn when current player leaves (no hand called)', () => {
+      // p1 is current. p1 leaves. p2 becomes current.
+      const result = engine.eliminatePlayer('p1');
+      expect(result.type).toBe('continue');
+      expect(engine.currentPlayerId).toBe('p2');
+    });
+
+    it('returns continue and keeps turn when non-current player leaves (no hand called)', () => {
+      // p1 is current. p3 leaves. p1 stays current.
+      expect(engine.currentPlayerId).toBe('p1');
+      const result = engine.eliminatePlayer('p3');
+      expect(result.type).toBe('continue');
+      expect(engine.currentPlayerId).toBe('p1');
+    });
+
+    it('advances turn correctly when current player leaves during calling with a hand', () => {
+      // p1 calls, now it's p2's turn. p2 leaves → p3 should be current.
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      expect(engine.currentPlayerId).toBe('p2');
+
+      const result = engine.eliminatePlayer('p2');
+      expect(result.type).toBe('continue');
+      expect(engine.currentPlayerId).toBe('p3');
+    });
+
+    it('resolves round when elimination causes all non-callers to have responded', () => {
+      // p1 calls, p2 bulls, p3 is next. p3 leaves → all non-callers responded → resolve.
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      // p3 is current (should call bull or true). p3 leaves.
+      expect(engine.currentPlayerId).toBe('p3');
+
+      const result = engine.eliminatePlayer('p3');
+      // p2 called bull, no true calls → last_chance for p1 (caller still active)
+      expect(result.type).toBe('last_chance');
+    });
+
+    it('resolves round when caller leaves during bull phase', () => {
+      // 3 players. p1 calls, p2 bulls. p1 (caller) leaves.
+      // With only p2 and p3 left, p2 already responded, p3 hasn't → continues
+      // Actually: p1 leaves → active = [p2, p3]. lastCallerId = p1 (eliminated).
+      // allNonCallersResponded: since p1 (caller) is not in active, all active are non-callers.
+      // p2 responded (bull), p3 hasn't → not all responded → continue.
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      expect(engine.currentPlayerId).toBe('p3');
+
+      const result = engine.eliminatePlayer('p1');
+      expect(result.type).toBe('continue');
+      // p3 should now be current
+      expect(engine.currentPlayerId).toBe('p3');
+    });
+
+    it('resolves round when caller leaves and all remaining have responded', () => {
+      // p1 calls, p2 bulls, p3 bulls → last_chance for p1. Suppose we reset...
+      // Actually, let's use 3 players: p1 calls, p2 bulls, p3 true → resolve.
+      // Instead, let me craft a scenario where the caller leaves and everyone has responded.
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      engine.handleBull('p2');
+      engine.handleTrue('p3');
+      // This already resolved. Let me use a different scenario.
+
+      // Fresh engine: 4 players
+      const px = makePlayer('px', 'X');
+      const py = makePlayer('py', 'Y');
+      const pz = makePlayer('pz', 'Z');
+      const pw = makePlayer('pw', 'W');
+      const eng4 = new GameEngine([px, py, pz, pw]);
+      eng4.startRound();
+
+      eng4.handleCall('px', { type: HandType.HIGH_CARD, rank: '7' });
+      eng4.handleBull('py');
+      eng4.handleBull('pz');
+      // pw is next. pw bulls → all non-callers responded, last_chance for px.
+      eng4.handleBull('pw');
+      // Now in LAST_CHANCE, px (caller) has last chance. px leaves.
+      const result = eng4.eliminatePlayer('px');
+      // Caller left during LAST_CHANCE → auto-resolve
+      expect(result.type === 'resolve' || result.type === 'game_over').toBe(true);
+    });
+
+    it('skips caller when eliminated player was current and next is the caller', () => {
+      // p1 calls. Now p2 is current. If p2 leaves, p3 should be current (not p1, the caller).
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      expect(engine.currentPlayerId).toBe('p2');
+
+      engine.eliminatePlayer('p2');
+      expect(engine.currentPlayerId).toBe('p3');
+    });
+
+    it('does nothing for already-eliminated player', () => {
+      p3.isEliminated = true;
+      const result = engine.eliminatePlayer('p3');
+      expect(result.type).toBe('continue');
+    });
+
+    it('does nothing for unknown player ID', () => {
+      const result = engine.eliminatePlayer('unknown');
+      expect(result.type).toBe('continue');
+    });
+
+    it('clears eliminated player cards', () => {
+      expect(p1.cards.length).toBeGreaterThan(0);
+      engine.eliminatePlayer('p1');
+      expect(p1.cards).toEqual([]);
     });
 
     it('auto-action: handleCall with High Card 2 works for first turn', () => {
