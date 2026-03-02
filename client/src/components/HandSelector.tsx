@@ -120,13 +120,14 @@ function getPreviewCards(hand: HandCall | null): Card[] {
 
 /* ── Rank Fan Sub-component ────────────────────────────── */
 
-function RankFan({ ranks, selected, onSelect, label, testId, onHover }: {
+function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }: {
   ranks: readonly Rank[];
   selected: Rank;
   onSelect: (r: Rank) => void;
   label: string;
   testId: string;
   onHover?: () => void;
+  onSlide?: () => void;
 }) {
   const selectedIndex = ranks.indexOf(selected);
   const touchActiveRef = useRef(false);
@@ -153,7 +154,10 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover }: {
     const rankLabel = btn.getAttribute('aria-label');
     if (!rankLabel) return;
     const r = rankLabel.replace('Rank ', '') as Rank;
-    if (ranks.includes(r) && r !== selected) onSelect(r);
+    if (ranks.includes(r) && r !== selected) {
+      onSelect(r);
+      onSlide?.();
+    }
   };
 
   return (
@@ -363,6 +367,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
           label={needsStraightRank ? 'High Card' : 'Rank'}
           testId="rank-picker"
           onHover={playHover}
+          onSlide={playHover}
         />
       )}
 
@@ -376,6 +381,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
             label={handType === HandType.FULL_HOUSE ? 'Three of' : 'First Pair'}
             testId="rank-picker"
             onHover={playHover}
+            onSlide={playHover}
           />
           <RankFan
             ranks={rank2List}
@@ -384,6 +390,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
             label={handType === HandType.FULL_HOUSE ? 'Pair of' : 'Second Pair'}
             testId="rank2-picker"
             onHover={playHover}
+            onSlide={playHover}
           />
         </>
       )}
@@ -410,7 +417,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
                   aria-checked={isSelected}
                   aria-label={s}
                   tabIndex={isSelected ? 0 : -1}
-                  onClick={() => setSuit(s)}
+                  onClick={() => { setSuit(s); playClick(); }}
                   onKeyDown={(e) => {
                     let next = i;
                     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next = (i + 1) % ALL_SUITS.length; }
@@ -430,7 +437,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       {/* ── Live Preview ──────────────────────────────── */}
       {hand && (
         <div className="hs-preview-area">
-          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default" onPointerEnter={playHover}>
+          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default">
             {previewCards.slice(0, 5).map((card, i) => {
               const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
               return (

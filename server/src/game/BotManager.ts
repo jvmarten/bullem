@@ -11,6 +11,11 @@ import { broadcastGameState, broadcastNewRound } from '../socket/broadcast.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
+/** Grace period added to timer after round results so players have time to see the new round */
+const POST_RESOLVE_GRACE_MS = 5000;
+/** Timeout for disconnected players when no turn timer is configured */
+const DISCONNECT_AUTO_ACTION_MS = 10_000;
+
 let botCounter = 0;
 
 export class BotManager {
@@ -43,7 +48,7 @@ export class BotManager {
    * Check if the current player is a bot, and if so schedule their turn.
    * If the current player is human, schedule their turn timer (if enabled).
    */
-  scheduleBotTurn(room: Room, io: TypedServer): void {
+  scheduleBotTurn(room: Room, io: TypedServer, graceMs = 0): void {
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
 
     const currentId = room.game.currentPlayerId;
@@ -61,14 +66,23 @@ export class BotManager {
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
         this.executeBotTurn(room, io, currentId);
-      }, delay);
+      }, delay + graceMs);
       this.pendingTimers.add(timer);
     } else {
-      this.scheduleHumanTurnTimer(room, io, currentId);
+      this.scheduleHumanTurnTimer(room, io, currentId, graceMs);
     }
   }
 
-  private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId): void {
+  /** Schedule an auto-action for a disconnected player who has no turn timer */
+  scheduleDisconnectAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    const timer = setTimeout(() => {
+      this.pendingTimers.delete(timer);
+      this.executeAutoAction(room, io, playerId);
+    }, DISCONNECT_AUTO_ACTION_MS);
+    this.pendingTimers.add(timer);
+  }
+
+  private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId, graceMs = 0): void {
     if (!room.game) return;
     const timerSeconds = room.settings.turnTimer;
     if (!timerSeconds || timerSeconds <= 0) {
@@ -76,13 +90,14 @@ export class BotManager {
       return;
     }
 
-    const deadline = Date.now() + timerSeconds * 1000;
+    const totalMs = timerSeconds * 1000 + graceMs;
+    const deadline = Date.now() + totalMs;
     room.game.setTurnDeadline(deadline);
 
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
       this.executeAutoAction(room, io, playerId);
-    }, timerSeconds * 1000);
+    }, totalMs);
     this.pendingTimers.add(timer);
   }
 
@@ -184,7 +199,7 @@ export class BotManager {
         broadcastGameState(io, room);
         break;
 
-      case 'resolve':
+      case 'resolve': {
         if (room.game) room.game.setTurnDeadline(null);
         room.gamePhase = GamePhase.ROUND_RESULT;
         io.to(room.roomCode).emit('game:roundResult', result.result);
@@ -197,13 +212,16 @@ export class BotManager {
             io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
           } else {
             room.gamePhase = GamePhase.PLAYING;
-            // Schedule before broadcast so deadline is included in state
-            this.scheduleBotTurn(room, io);
+            // Broadcast new round first WITHOUT timer, then schedule timer with grace
             broadcastNewRound(io, room);
+            this.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
+            // Re-broadcast after deadline is set so clients get the timer
+            broadcastGameState(io, room);
           }
         }, 3000);
         this.pendingTimers.add(resolveTimer);
         break;
+      }
 
       case 'game_over':
         room.gamePhase = GamePhase.GAME_OVER;

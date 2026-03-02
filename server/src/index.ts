@@ -34,10 +34,11 @@ const botManager = new BotManager();
 registerHandlers(io, roomManager, botManager);
 roomManager.startCleanup();
 
-// Broadcast online player count on connect/disconnect
+// Broadcast online player count and names on connect/disconnect
 function broadcastPlayerCount(): void {
   const count = io.engine.clientsCount;
   io.emit('server:playerCount', count);
+  io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
 }
 io.on('connection', () => broadcastPlayerCount());
 io.engine.on('close', () => {

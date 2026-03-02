@@ -13,9 +13,11 @@ export interface GameContextValue {
   error: string | null;
   isConnected: boolean;
   onlinePlayerCount: number;
+  onlinePlayerNames: string[];
   createRoom: (playerName: string) => Promise<string>;
   joinRoom: (roomCode: string, playerName: string) => Promise<void>;
   leaveRoom: () => void;
+  deleteRoom: () => void;
   listRooms: () => Promise<RoomListing[]>;
   updateSettings: (settings: GameSettings) => void;
   startGame: () => void;
@@ -55,6 +57,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
+  const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
@@ -102,6 +105,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const clearRoomState = () => {
+      setRoomState(null);
+      setGameState(null);
+      setRoundResult(null);
+      setRoundTransition(false);
+      setWinnerId(null);
+      setGameStats(null);
+      sessionStorage.removeItem(PLAYER_ID_KEY);
+      sessionStorage.removeItem(PLAYER_NAME_KEY);
+      sessionStorage.removeItem(ROOM_CODE_KEY);
+    };
+
     socket.on('connect', () => setIsConnected(true));
     socket.on('disconnect', () => setIsConnected(false));
 
@@ -118,7 +133,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:roundResult', setRoundResult);
     socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
     socket.on('room:error', setError);
+    socket.on('room:deleted', clearRoomState);
     socket.on('server:playerCount', setOnlinePlayerCount);
+    socket.on('server:playerNames', setOnlinePlayerNames);
 
     return () => {
       socket.off('connect');
@@ -129,7 +146,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:roundResult');
       socket.off('game:over');
       socket.off('room:error');
+      socket.off('room:deleted');
       socket.off('server:playerCount');
+      socket.off('server:playerNames');
       socket.disconnect();
     };
   }, []);
@@ -161,6 +180,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const leaveRoom = useCallback(() => {
     socket.emit('room:leave');
+    setRoomState(null);
+    setGameState(null);
+    setRoundResult(null);
+    setRoundTransition(false);
+    setWinnerId(null);
+    setGameStats(null);
+    sessionStorage.removeItem(PLAYER_ID_KEY);
+    sessionStorage.removeItem(PLAYER_NAME_KEY);
+    sessionStorage.removeItem(ROOM_CODE_KEY);
+  }, []);
+
+  const deleteRoom = useCallback(() => {
+    socket.emit('room:delete');
     setRoomState(null);
     setGameState(null);
     setRoundResult(null);
@@ -222,9 +254,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected,
     onlinePlayerCount,
+    onlinePlayerNames,
     createRoom,
     joinRoom,
     leaveRoom,
+    deleteRoom,
     listRooms,
     updateSettings,
     startGame: () => socket.emit('game:start'),

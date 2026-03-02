@@ -14,6 +14,7 @@ export interface ClientToServerEvents {
   'game:lastChancePass': () => void;
   'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
   'room:removeBot': (data: { botId: string }) => void;
+  'room:delete': () => void;
 }
 
 export interface ServerToClientEvents {
@@ -26,4 +27,6 @@ export interface ServerToClientEvents {
   'player:disconnected': (playerId: PlayerId) => void;
   'player:reconnected': (playerId: PlayerId) => void;
   'server:playerCount': (count: number) => void;
+  'server:playerNames': (names: string[]) => void;
+  'room:deleted': () => void;
 }

@@ -2,13 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error, updateSettings } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, error, updateSettings } = useGameContext();
   const [copied, setCopied] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -58,6 +58,11 @@ export function LobbyPage() {
       return;
     }
     startGame();
+  };
+
+  const handleCloseRoom = () => {
+    deleteRoom();
+    navigate('/');
   };
 
   const copyInviteLink = async () => {
@@ -138,22 +143,44 @@ export function LobbyPage() {
   const isHost = playerId === roomState.hostId;
   const settings = roomState.settings;
   const maxCards = settings?.maxCards ?? MAX_CARDS;
-  const turnTimer = settings?.turnTimer ?? 30;
-  const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
+  const turnTimer = settings?.turnTimer ?? 0;
+  const maxPlayersSetting = settings?.maxPlayers ?? MAX_PLAYERS;
+  const cardBasedMax = maxPlayersForMaxCards(maxCards);
+  const effectiveMaxPlayers = Math.min(MAX_PLAYERS, cardBasedMax, maxPlayersSetting);
   const canStart = isHost && roomState.players.length >= MIN_PLAYERS;
+  // Settings locked once another human (non-bot) player has joined
+  const hasOtherHumans = roomState.players.some(p => !p.isBot && p.id !== roomState.hostId);
+  const settingsLocked = hasOtherHumans;
 
   const handleMaxCardsChange = (newMax: number) => {
-    if (roomState.players.length > Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax))) {
+    if (settingsLocked) return;
+    const newCardMax = maxPlayersForMaxCards(newMax);
+    const cap = Math.min(MAX_PLAYERS, newCardMax, maxPlayersSetting);
+    if (roomState.players.length > cap) {
       setLocalError(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
       return;
     }
     setLocalError('');
-    updateSettings({ maxCards: newMax, turnTimer });
+    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting });
   };
 
   const handleTimerChange = (seconds: number) => {
-    updateSettings({ maxCards, turnTimer: seconds });
+    if (settingsLocked) return;
+    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting });
   };
+
+  const handleMaxPlayersChange = (cap: number) => {
+    if (settingsLocked) return;
+    if (roomState.players.length > cap) {
+      setLocalError(`Can't set max players to ${cap} with ${roomState.players.length} players`);
+      return;
+    }
+    setLocalError('');
+    updateSettings({ maxCards, turnTimer, maxPlayers: cap });
+  };
+
+  // Filter max player options to only show values <= card-based max
+  const availableMaxPlayerOptions = MAX_PLAYERS_OPTIONS.filter(n => n <= Math.min(MAX_PLAYERS, cardBasedMax));
 
   return (
     <Layout>
@@ -175,7 +202,7 @@ export function LobbyPage() {
               <span className="text-[var(--gold-light)] animate-fade-in">Invite link copied!</span>
             ) : (
               <>
-                {roomState.players.length} player{roomState.players.length !== 1 ? 's' : ''} in lobby
+                {roomState.players.length}/{effectiveMaxPlayers} players in lobby
                 {' \u00b7 '}
                 <span className="cursor-pointer hover:text-[var(--gold)] transition-colors" onClick={copyInviteLink}>
                   tap to copy invite link
@@ -200,15 +227,18 @@ export function LobbyPage() {
         />
 
         {isHost && (
-          <>
-            <button
-              onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
-              disabled={roomState.players.length >= dynamicMaxPlayers}
-              className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              + Add Bot
-            </button>
+          <button
+            onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+            disabled={roomState.players.length >= effectiveMaxPlayers}
+            className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            + Add Bot
+          </button>
+        )}
 
+        {/* Settings — host can edit until other humans join */}
+        {isHost && !settingsLocked && (
+          <>
             {/* Max Cards setting */}
             <div className="glass px-4 py-3">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -230,8 +260,32 @@ export function LobbyPage() {
                 ))}
               </div>
               <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-                Eliminated after {maxCards + 1} cards &middot; Max {dynamicMaxPlayers} players
+                Eliminated after {maxCards + 1} cards
               </p>
+            </div>
+
+            {/* Max Players setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Max Players
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {availableMaxPlayerOptions.map(n => (
+                  <button
+                    key={n}
+                    onClick={() => handleMaxPlayersChange(n)}
+                    className={`flex-1 min-w-[2.5rem] px-2 py-2 text-sm rounded transition-colors ${
+                      maxPlayersSetting === n || (n === Math.min(MAX_PLAYERS, cardBasedMax) && maxPlayersSetting >= n)
+                        ? maxPlayersSetting === n
+                          ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                          : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Turn Timer setting */}
@@ -258,9 +312,26 @@ export function LobbyPage() {
           </>
         )}
 
-        {!isHost && settings && (
-          <div className="glass px-4 py-3 text-center text-xs text-[var(--gold-dim)]">
-            Max {maxCards} cards &middot; {turnTimer}s turn timer
+        {/* Settings display — shown when host settings are locked, or for non-host players */}
+        {((!isHost) || (isHost && settingsLocked)) && settings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Game Settings{settingsLocked ? ' (Locked)' : ''}
+            </p>
+            <div className="flex justify-around text-center text-xs">
+              <div>
+                <p className="text-[var(--gold)] font-bold text-base">{maxCards}</p>
+                <p className="text-[var(--gold-dim)]">Max Cards</p>
+              </div>
+              <div>
+                <p className="text-[var(--gold)] font-bold text-base">{turnTimer}s</p>
+                <p className="text-[var(--gold-dim)]">Turn Timer</p>
+              </div>
+              <div>
+                <p className="text-[var(--gold)] font-bold text-base">{effectiveMaxPlayers}</p>
+                <p className="text-[var(--gold-dim)]">Max Players</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -285,6 +356,14 @@ export function LobbyPage() {
           >
             Leave Room
           </button>
+          {isHost && (
+            <button
+              onClick={handleCloseRoom}
+              className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+            >
+              Close Room
+            </button>
+          )}
         </div>
       </div>
     </Layout>

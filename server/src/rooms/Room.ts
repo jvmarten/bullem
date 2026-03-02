@@ -1,5 +1,5 @@
 import {
-  GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_GAME_SETTINGS,
+  GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_ONLINE_GAME_SETTINGS,
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
@@ -14,7 +14,7 @@ export class Room {
   hostId: PlayerId = '';
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
-  settings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
+  settings: GameSettings = { ...DEFAULT_ONLINE_GAME_SETTINGS };
   lastActivity = Date.now();
   private disconnectTimers = new Map<PlayerId, ReturnType<typeof setTimeout>>();
 
@@ -163,6 +163,11 @@ export class Room {
 
   get playerCount(): number {
     return this.players.size;
+  }
+
+  /** True if any non-bot player besides the host has joined */
+  get hasOtherHumanPlayers(): boolean {
+    return [...this.players.values()].some(p => !p.isBot && p.id !== this.hostId);
   }
 
   get isEmpty(): boolean {

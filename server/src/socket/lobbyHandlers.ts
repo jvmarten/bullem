@@ -1,10 +1,10 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
-import { broadcastGameState, broadcastRoomState } from './broadcast.js';
+import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -22,6 +22,7 @@ export function registerLobbyHandlers(
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
+    broadcastPlayerNames(io, roomManager);
     callback({ roomCode: room.roomCode });
   });
 
@@ -36,10 +37,12 @@ export function registerLobbyHandlers(
       broadcastRoomState(io, room);
       if (room.game) broadcastGameState(io, room);
       io.to(room.roomCode).emit('player:reconnected', data.playerId);
+      broadcastPlayerNames(io, roomManager);
       return callback({ playerId: data.playerId });
     }
 
-    if (room.playerCount >= MAX_PLAYERS) return callback({ error: 'Room is full' });
+    const effectiveMax = roomManager.effectiveMaxPlayers(room);
+    if (room.playerCount >= effectiveMax) return callback({ error: 'Room is full' });
     if (room.gamePhase !== 'lobby') return callback({ error: 'Game already in progress' });
 
     const playerId = randomUUID();
@@ -47,6 +50,7 @@ export function registerLobbyHandlers(
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
+    broadcastPlayerNames(io, roomManager);
     callback({ playerId });
   });
 
@@ -57,6 +61,22 @@ export function registerLobbyHandlers(
     roomManager.removeSocketMapping(socket.id);
     socket.leave(room.roomCode);
     broadcastRoomState(io, room);
+    broadcastPlayerNames(io, roomManager);
+  });
+
+  socket.on('room:delete', () => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can close the room');
+      return;
+    }
+    // Notify all clients in the room
+    io.to(room.roomCode).emit('room:deleted');
+    // Remove all socket mappings for this room
+    roomManager.deleteRoom(room.roomCode);
+    broadcastPlayerNames(io, roomManager);
   });
 
   socket.on('room:list', (callback) => {
@@ -71,10 +91,19 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Only the host can change settings');
       return;
     }
+    // Lock settings once other human players have joined
+    if (room.hasOtherHumanPlayers) {
+      socket.emit('room:error', 'Settings are locked after other players join');
+      return;
+    }
     // Validate settings
     const { maxCards, turnTimer } = data.settings;
     if (maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS) return;
     if (!([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) return;
+    const maxPlayers = data.settings.maxPlayers;
+    if (maxPlayers !== undefined) {
+      if (maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS) return;
+    }
 
     room.updateSettings(data.settings);
     broadcastRoomState(io, room);
@@ -87,6 +116,11 @@ export function registerLobbyHandlers(
     const playerId = room.getPlayerId(socket.id);
     if (playerId !== room.hostId) {
       return callback({ error: 'Only the host can add bots' });
+    }
+
+    const effectiveMax = roomManager.effectiveMaxPlayers(room);
+    if (room.playerCount >= effectiveMax) {
+      return callback({ error: 'Room is full' });
     }
 
     try {
