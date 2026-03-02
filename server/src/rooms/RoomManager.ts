@@ -1,4 +1,8 @@
-import { ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS } from '@bull-em/shared';
+import {
+  ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS,
+  GamePhase, MAX_PLAYERS, maxPlayersForMaxCards,
+} from '@bull-em/shared';
+import type { RoomListing } from '@bull-em/shared';
 import { Room } from './Room.js';
 
 export class RoomManager {
@@ -47,6 +51,24 @@ export class RoomManager {
 
   removeSocketMapping(socketId: string): void {
     this.socketToRoom.delete(socketId);
+  }
+
+  getAvailableRooms(): RoomListing[] {
+    const listings: RoomListing[] = [];
+    for (const room of this.rooms.values()) {
+      if (room.gamePhase !== GamePhase.LOBBY) continue;
+      const maxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(room.settings.maxCards));
+      if (room.playerCount >= maxPlayers) continue;
+      const host = [...room.players.values()].find(p => p.isHost);
+      listings.push({
+        roomCode: room.roomCode,
+        playerCount: room.playerCount,
+        maxPlayers,
+        hostName: host?.name ?? '???',
+        settings: { ...room.settings },
+      });
+    }
+    return listings;
   }
 
   startCleanup(): void {

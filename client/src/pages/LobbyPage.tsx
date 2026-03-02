@@ -2,13 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error, gameSettings } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, addBot, removeBot, error, updateSettings } = useGameContext();
   const [copied, setCopied] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -136,7 +136,24 @@ export function LobbyPage() {
   }
 
   const isHost = playerId === roomState.hostId;
+  const settings = roomState.settings;
+  const maxCards = settings?.maxCards ?? MAX_CARDS;
+  const turnTimer = settings?.turnTimer ?? 30;
+  const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
   const canStart = isHost && roomState.players.length >= MIN_PLAYERS;
+
+  const handleMaxCardsChange = (newMax: number) => {
+    if (roomState.players.length > Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax))) {
+      setLocalError(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
+      return;
+    }
+    setLocalError('');
+    updateSettings({ maxCards: newMax, turnTimer });
+  };
+
+  const handleTimerChange = (seconds: number) => {
+    updateSettings({ maxCards, turnTimer: seconds });
+  };
 
   return (
     <Layout>
@@ -177,29 +194,85 @@ export function LobbyPage() {
         <PlayerList
           players={roomState.players}
           myPlayerId={playerId}
-          maxCards={gameSettings?.maxCards}
+          maxCards={maxCards}
           showRemoveBot={isHost}
           onRemoveBot={removeBot}
         />
 
+        {isHost && (
+          <>
+            <button
+              onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+              disabled={roomState.players.length >= dynamicMaxPlayers}
+              className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              + Add Bot
+            </button>
+
+            {/* Max Cards setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Max Cards
+              </p>
+              <div className="flex gap-1.5">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => handleMaxCardsChange(n)}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      maxCards === n
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                Eliminated after {maxCards + 1} cards &middot; Max {dynamicMaxPlayers} players
+              </p>
+            </div>
+
+            {/* Turn Timer setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Turn Timer
+              </p>
+              <div className="flex gap-1.5">
+                {ONLINE_TURN_TIMER_OPTIONS.map(seconds => (
+                  <button
+                    key={seconds}
+                    onClick={() => handleTimerChange(seconds)}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      turnTimer === seconds
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {seconds}s
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!isHost && settings && (
+          <div className="glass px-4 py-3 text-center text-xs text-[var(--gold-dim)]">
+            Max {maxCards} cards &middot; {turnTimer}s turn timer
+          </div>
+        )}
+
         <div className="flex flex-col gap-3">
           {isHost && (
-            <>
-              <button
-                onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
-                disabled={roomState.players.length >= MAX_PLAYERS}
-                className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-              >
-                + Add Bot
-              </button>
-              <button
-                onClick={handleStartGame}
-                disabled={!canStart}
-                className="w-full btn-gold py-3 text-lg"
-              >
-                {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
-              </button>
-            </>
+            <button
+              onClick={handleStartGame}
+              disabled={!canStart}
+              className="w-full btn-gold py-3 text-lg"
+            >
+              {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
+            </button>
           )}
           {!isHost && (
             <p className="text-center text-[var(--gold-dim)] text-sm">

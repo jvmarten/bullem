@@ -152,6 +152,8 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
+      // Manually select a lower hand type to test disabled state
+      clickHandType(container, HandType.HIGH_CARD);
       const callButton = getSubmitButton(container);
       expect(callButton.disabled).toBe(true);
     });
@@ -161,6 +163,8 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
+      // Manually select a lower hand type to trigger validation
+      clickHandType(container, HandType.HIGH_CARD);
       expect(container.textContent).toContain('Must be higher than current call');
     });
 
@@ -217,6 +221,8 @@ describe('HandSelector', () => {
       const onSubmit = vi.fn();
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(<HandSelector currentHand={currentHand} onSubmit={onSubmit} />);
+      // Manually select a lower hand type so the button becomes disabled
+      clickHandType(container, HandType.HIGH_CARD);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).not.toHaveBeenCalled();
     });

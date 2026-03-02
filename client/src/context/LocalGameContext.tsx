@@ -297,6 +297,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       players: [toPublicPlayer(humanPlayer)],
       hostId: HUMAN_ID,
       gamePhase: GamePhase.LOBBY,
+      settings: { ...DEFAULT_GAME_SETTINGS },
     });
 
     return 'LOCAL';
@@ -483,6 +484,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setGameSettings,
     isPaused,
     togglePause,
+    onlinePlayerCount: 0,
+    listRooms: async () => [],
+    updateSettings: () => {},
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
