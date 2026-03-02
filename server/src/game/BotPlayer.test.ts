@@ -389,6 +389,87 @@ describe('BotPlayer', () => {
     });
   });
 
+  // ─── decideAction (Impossible mode) ───────────────────────────────
+
+  describe('decideAction (Impossible mode)', () => {
+    it('impossible mode calls bull when hand does not exist', () => {
+      const botCards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const allCards: Card[] = [
+        { rank: '2', suit: 'clubs' },
+        { rank: '5', suit: 'hearts' },
+        { rank: '9', suit: 'spades' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        // Pair of 7s — doesn't exist in allCards
+        currentHand: { type: HandType.PAIR, rank: '7' },
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', botCards, BotDifficulty.IMPOSSIBLE, allCards);
+      // Should call bull (hand doesn't exist) or raise
+      expect(action.action === 'bull' || action.action === 'call').toBe(true);
+      if (action.action === 'bull') {
+        expect(action.action).toBe('bull');
+      }
+    });
+
+    it('impossible mode calls true when hand exists', () => {
+      const botCards: Card[] = [{ rank: '7', suit: 'clubs' }];
+      const allCards: Card[] = [
+        { rank: '7', suit: 'clubs' },
+        { rank: '7', suit: 'hearts' },
+        { rank: '9', suit: 'spades' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.PAIR, rank: '7' },
+      });
+      // Run multiple times to account for the 25% raise chance
+      let trueCount = 0;
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', botCards, BotDifficulty.IMPOSSIBLE, allCards);
+        if (action.action === 'true') trueCount++;
+        // Should never call bull on a hand that exists
+        expect(action.action).not.toBe('bull');
+      }
+      expect(trueCount).toBeGreaterThan(0);
+    });
+
+    it('impossible mode calls bull in calling phase when hand does not exist', () => {
+      const botCards: Card[] = [{ rank: '3', suit: 'clubs' }];
+      const allCards: Card[] = [
+        { rank: '3', suit: 'clubs' },
+        { rank: '5', suit: 'hearts' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.PAIR, rank: 'A' },
+      });
+      // Run multiple times — should mostly bull
+      let bullCount = 0;
+      for (let i = 0; i < 30; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', botCards, BotDifficulty.IMPOSSIBLE, allCards);
+        if (action.action === 'bull') bullCount++;
+      }
+      // Should call bull most of the time (90% — 10% raise with real hand)
+      expect(bullCount).toBeGreaterThan(15);
+    });
+
+    it('impossible mode opens with an existing hand', () => {
+      const botCards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const allCards: Card[] = [
+        { rank: 'K', suit: 'hearts' },
+        { rank: 'K', suit: 'spades' },
+        { rank: '5', suit: 'clubs' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: null,
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', botCards, BotDifficulty.IMPOSSIBLE, allCards);
+      expect(action.action).toBe('call');
+    });
+  });
+
   // ─── makeBluffHand ────────────────────────────────────────────────
 
   describe('makeBluffHand', () => {

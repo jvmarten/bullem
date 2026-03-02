@@ -120,6 +120,7 @@ export interface ClientGameState {
 export enum BotDifficulty {
   EASY = 'easy',
   HARD = 'hard',
+  IMPOSSIBLE = 'impossible',
 }
 
 export interface GameSettings {

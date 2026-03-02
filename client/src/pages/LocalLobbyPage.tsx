@@ -158,6 +158,16 @@ export function LocalLobbyPage() {
                 Hard
               </button>
             </div>
+            <button
+              onClick={() => setBotDifficulty(BotDifficulty.IMPOSSIBLE)}
+              className={`mt-2 px-2 py-1 text-[10px] rounded transition-colors ${
+                botDifficulty === BotDifficulty.IMPOSSIBLE
+                  ? 'bg-[var(--danger)] text-white font-semibold'
+                  : 'text-[var(--danger)] opacity-50 hover:opacity-80 border border-[var(--danger)] border-opacity-30'
+              }`}
+            >
+              Impossible
+            </button>
           </div>
         )}
 
