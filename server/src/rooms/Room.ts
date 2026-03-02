@@ -18,6 +18,9 @@ export class Room {
   lastActivity = Date.now();
   private disconnectTimers = new Map<PlayerId, ReturnType<typeof setTimeout>>();
 
+  private roundContinueReady = new Set<PlayerId>();
+  private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(roomCode: string) {
     this.roomCode = roomCode;
   }
@@ -123,6 +126,42 @@ export class Room {
     return true;
   }
 
+
+  beginRoundContinueWindow(timeoutMs: number, onTimeout: () => void): void {
+    this.cancelRoundContinueWindow();
+    this.roundContinueReady.clear();
+
+    // Bots are ready instantly; humans can press Continue or auto-timeout.
+    for (const p of this.players.values()) {
+      if (!p.isEliminated && p.isBot) this.roundContinueReady.add(p.id);
+    }
+
+    this.roundContinueTimer = setTimeout(() => {
+      this.roundContinueTimer = null;
+      onTimeout();
+    }, timeoutMs);
+  }
+
+  markRoundContinueReady(playerId: PlayerId): void {
+    const p = this.players.get(playerId);
+    if (!p || p.isEliminated) return;
+    this.roundContinueReady.add(playerId);
+  }
+
+  get isRoundContinueComplete(): boolean {
+    const active = [...this.players.values()].filter(p => !p.isEliminated);
+    if (active.length === 0) return true;
+    return active.every(p => this.roundContinueReady.has(p.id));
+  }
+
+  cancelRoundContinueWindow(): void {
+    if (this.roundContinueTimer) {
+      clearTimeout(this.roundContinueTimer);
+      this.roundContinueTimer = null;
+    }
+    this.roundContinueReady.clear();
+  }
+
   getSocketId(playerId: PlayerId): string | undefined {
     return this.playerToSocket.get(playerId);
   }
@@ -139,6 +178,7 @@ export class Room {
       const j = Math.floor(Math.random() * (i + 1));
       [activePlayers[i], activePlayers[j]] = [activePlayers[j], activePlayers[i]];
     }
+    this.cancelRoundContinueWindow();
     this.game = new GameEngine(activePlayers, this.settings);
     this.game.startRound();
     this.touch();

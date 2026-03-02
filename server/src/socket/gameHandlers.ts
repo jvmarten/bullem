@@ -4,7 +4,8 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
-import { broadcastGameState, broadcastNewRound } from './broadcast.js';
+import { broadcastGameState } from './broadcast.js';
+import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -18,6 +19,7 @@ export function registerGameHandlers(
   socket.on('game:call', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -25,6 +27,7 @@ export function registerGameHandlers(
   socket.on('game:bull', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleBull(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -32,6 +35,7 @@ export function registerGameHandlers(
   socket.on('game:true', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleTrue(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -39,6 +43,7 @@ export function registerGameHandlers(
   socket.on('game:lastChanceRaise', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -46,8 +51,17 @@ export function registerGameHandlers(
   socket.on('game:lastChancePass', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChancePass(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
+  });
+
+  socket.on('game:continue', () => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (!playerId) return;
+    markContinueReady(io, room, botManager, playerId);
   });
 }
 
@@ -86,24 +100,7 @@ function handleResult(
       break;
 
     case 'resolve':
-      if (room.game) room.game.setTurnDeadline(null);
-      room.gamePhase = GamePhase.ROUND_RESULT;
-      io.to(room.roomCode).emit('game:roundResult', result.result);
-      // Start next round after a delay
-      setTimeout(() => {
-        const nextResult = room.game!.startNextRound();
-        if (nextResult.type === 'game_over') {
-          room.gamePhase = GamePhase.GAME_OVER;
-          io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
-        } else {
-          room.gamePhase = GamePhase.PLAYING;
-          // Broadcast new round first, then schedule timer with grace period
-          // so clients have time to dismiss the round result overlay
-          broadcastNewRound(io, room);
-          botManager.scheduleBotTurn(room, io, 5000);
-          broadcastGameState(io, room);
-        }
-      }, 3000);
+      beginRoundResultPhase(io, room, botManager, result.result);
       break;
 
     case 'game_over':

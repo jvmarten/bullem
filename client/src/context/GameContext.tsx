@@ -78,15 +78,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!roundResult) return;
     roundResultTimerRef.current = setTimeout(() => {
+      socket.emit('game:continue');
       setRoundResult(null);
       roundResultRef.current = null;
-      if (pendingGameStateRef.current) {
-        setGameState(pendingGameStateRef.current);
-        setRoundTransition(false);
-        pendingGameStateRef.current = null;
-      } else {
-        setRoundTransition(true);
-      }
+      setRoundTransition(true);
+      pendingGameStateRef.current = null;
     }, 30000);
     return () => {
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
@@ -215,19 +211,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearRoundResult = useCallback(() => {
+    if (!roundResultRef.current) return;
+    socket.emit('game:continue');
     setRoundResult(null);
     roundResultRef.current = null;
     if (roundResultTimerRef.current) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-    if (pendingGameStateRef.current) {
-      setGameState(pendingGameStateRef.current);
-      setRoundTransition(false);
-      pendingGameStateRef.current = null;
-    } else {
-      setRoundTransition(true);
-    }
+    setRoundTransition(true);
+    pendingGameStateRef.current = null;
   }, []);
 
   const addBot = useCallback((botName?: string): Promise<string> => {
