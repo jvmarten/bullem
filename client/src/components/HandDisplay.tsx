@@ -1,12 +1,7 @@
 import type { Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
-import { useSound } from '../hooks/useSound.js';
-import { useCallback } from 'react';
 
 export function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }) {
-  const { play } = useSound();
-  const playHover = useCallback(() => play('uiHover'), [play]);
-
   if (cards.length === 0) return null;
   const count = cards.length;
   return (
@@ -21,7 +16,6 @@ export function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }
             key={`${card.rank}-${card.suit}-${i}`}
             card={card}
             className={`animate-card-deal deal-delay-${i}`}
-            onPointerEnter={playHover}
             style={{
               transform: `rotate(${angle}deg) translateY(${lift}px)`,
               marginLeft: i > 0 ? '-6px' : undefined,
