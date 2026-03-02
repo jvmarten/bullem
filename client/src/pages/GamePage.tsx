@@ -107,6 +107,7 @@ export function GamePage() {
           players={gameState.players}
           myPlayerId={playerId}
           turnDeadline={gameState.turnDeadline}
+          hasCurrentHand={gameState.currentHand !== null}
         />
 
         <PlayerList

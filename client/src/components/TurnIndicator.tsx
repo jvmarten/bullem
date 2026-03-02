@@ -9,16 +9,23 @@ interface Props {
   players: Player[];
   myPlayerId: string | null;
   turnDeadline?: number | null;
+  hasCurrentHand?: boolean;
 }
 
-const PHASE_LABELS: Record<RoundPhase, string> = {
-  [RoundPhase.CALLING]: 'Call or Raise',
-  [RoundPhase.BULL_PHASE]: 'Bull, True, or Raise',
-  [RoundPhase.LAST_CHANCE]: 'Last Chance to Raise',
-  [RoundPhase.RESOLVING]: 'Revealing\u2026',
-};
+function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string {
+  switch (roundPhase) {
+    case RoundPhase.CALLING:
+      return hasCurrentHand ? 'Call or Raise' : 'Call a Hand';
+    case RoundPhase.BULL_PHASE:
+      return 'Bull, True, or Raise';
+    case RoundPhase.LAST_CHANCE:
+      return 'Last Chance to Raise';
+    case RoundPhase.RESOLVING:
+      return 'Revealing\u2026';
+  }
+}
 
-export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline }: Props) {
+export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline, hasCurrentHand = false }: Props) {
   const isMyTurn = currentPlayerId === myPlayerId;
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
   const isBotTurn = currentPlayer?.isBot && !isMyTurn;
@@ -28,7 +35,7 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
     ? 'Your Turn'
     : `${currentPlayer?.name ?? '\u2026'}\u2019s Turn`;
 
-  const phaseLabel = isBotTurn ? 'Thinking\u2026' : PHASE_LABELS[roundPhase];
+  const phaseLabel = isBotTurn ? 'Thinking\u2026' : getPhaseLabel(roundPhase, hasCurrentHand);
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [fraction, setFraction] = useState(1);

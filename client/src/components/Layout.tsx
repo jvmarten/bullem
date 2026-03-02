@@ -34,12 +34,14 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              {onlinePlayerCount}
+              {onlinePlayerNames.length > 0
+                ? onlinePlayerNames.slice(0, 2).join(', ') + (onlinePlayerNames.length > 2 ? ` +${onlinePlayerNames.length - 2}` : '')
+                : `${onlinePlayerCount} online`}
             </button>
             {showPopup && (
               <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
                 <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
-                  Players Online
+                  Online ({onlinePlayerNames.length || onlinePlayerCount})
                 </p>
                 {onlinePlayerNames.length > 0 ? (
                   <ul className="space-y-0.5">
@@ -52,7 +54,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
                   </ul>
                 ) : (
                   <p className="text-xs text-[var(--gold-dim)]">
-                    {onlinePlayerCount} connected
+                    {onlinePlayerCount} online
                   </p>
                 )}
               </div>
