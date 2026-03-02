@@ -19,14 +19,15 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   },
 });
 
+// Health check must be registered before the SPA catch-all
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
 // In production, serve built client
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
-
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 const roomManager = new RoomManager();
 const botManager = new BotManager();
