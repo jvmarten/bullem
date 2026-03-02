@@ -81,6 +81,12 @@ export class BotManager {
       this.roomTurnTimers.set(room.roomCode, timer);
     } else {
       this.scheduleHumanTurnTimer(room, io, currentId, graceMs);
+      // If the player is disconnected and no turn timer is configured,
+      // scheduleHumanTurnTimer is a no-op. Schedule an auto-action so the
+      // game doesn't stall waiting for a player who may never return.
+      if (!player.isConnected && !room.settings.turnTimer) {
+        this.scheduleDisconnectAutoAction(room, io, currentId);
+      }
     }
   }
 
