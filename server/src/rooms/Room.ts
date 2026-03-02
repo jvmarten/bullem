@@ -134,6 +134,11 @@ export class Room {
   startGame(): GameEngine {
     this.gamePhase = GamePhase.PLAYING;
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
+    // Shuffle seating order — positions stay fixed for the entire game
+    for (let i = activePlayers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [activePlayers[i], activePlayers[j]] = [activePlayers[j], activePlayers[i]];
+    }
     this.game = new GameEngine(activePlayers, this.settings);
     this.game.startRound();
     this.touch();
