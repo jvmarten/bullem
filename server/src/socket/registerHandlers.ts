@@ -6,7 +6,7 @@ import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames } from './broadcast.js';
-import { markContinueReady } from './roundTransition.js';
+import { markContinueReady, beginRoundResultPhase } from './roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -19,7 +19,36 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
 
     socket.on('disconnect', () => {
       console.log(`Disconnected: ${socket.id}`);
-      const result = roomManager.handleDisconnect(socket.id);
+
+      // Callback fired when the 30s disconnect timer expires and the player
+      // hasn't reconnected. Properly eliminates the player through the game
+      // engine so turn order, game-over checks, and round resolution all work.
+      const onDisconnectTimeout = (playerId: string): void => {
+        const room = roomManager.getRoomForPlayer(playerId);
+        if (!room || !room.game) return;
+
+        botManager.clearTurnTimer(room.roomCode);
+        const elimResult = room.game.eliminatePlayer(playerId);
+
+        switch (elimResult.type) {
+          case 'game_over':
+            room.gamePhase = GamePhase.GAME_OVER;
+            room.cancelRoundContinueWindow();
+            io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
+            break;
+          case 'resolve':
+            beginRoundResultPhase(io, room, botManager, elimResult.result);
+            break;
+          case 'last_chance':
+          case 'continue':
+            botManager.scheduleBotTurn(room, io);
+            broadcastGameState(io, room);
+            break;
+        }
+        broadcastRoomState(io, room);
+      };
+
+      const result = roomManager.handleDisconnect(socket.id, onDisconnectTimeout);
       if (result) {
         // Do NOT clear the turn timer here. If a turn timer is running for the
         // current player, it should keep ticking — the auto-action will fire
