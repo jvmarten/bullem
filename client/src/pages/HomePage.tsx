@@ -163,7 +163,7 @@ export function HomePage() {
     }
   };
 
-  const isFanned = isHovered || isDealing;
+  const isShuffling = isHovered && !isDealing;
   const isDealt = dealtCards !== null;
   const isRoyal = handCall?.type === HandType.ROYAL_FLUSH;
 
@@ -174,7 +174,7 @@ export function HomePage() {
         <div className="relative flex flex-col items-center mb-2">
           <div
             className="relative flex justify-center items-center cursor-pointer select-none"
-            style={{ height: '100px', width: '220px' }}
+            style={{ height: '100px', width: '280px' }}
             onMouseEnter={handleDeckHover}
             onMouseLeave={handleDeckLeave}
             onTouchStart={handleDeckHover}
@@ -184,17 +184,18 @@ export function HomePage() {
               const card = dealtCards?.[i];
               const centered = i - (CARD_COUNT - 1) / 2;
 
-              const fanX = centered * 18;
-              const fanY = -Math.abs(centered) * 3;
-              const fanAngle = centered * 5;
+              // Dealt: spread horizontally so all 5 card faces are visible
+              const dealX = centered * 46;
+              const dealY = 0;
+              const dealAngle = 0;
 
               const stackX = i * 0.5;
               const stackY = -i * 1.2;
               const stackAngle = centered * 1.5;
 
-              const x = isFanned ? fanX : stackX;
-              const y = isFanned ? fanY : stackY;
-              const angle = isFanned ? fanAngle : stackAngle;
+              const x = isDealing ? dealX : stackX;
+              const y = isDealing ? dealY : stackY;
+              const angle = isDealing ? dealAngle : stackAngle;
 
               return (
                 <div
@@ -207,70 +208,76 @@ export function HomePage() {
                     perspective: '600px',
                   }}
                 >
+                  {/* Shuffle animation wrapper */}
                   <div
-                    style={{
-                      transformStyle: 'preserve-3d',
-                      transform: `rotateY(${isDealt ? 180 : 0}deg)`,
-                      transition: 'transform 0.55s ease-out',
-                      transitionDelay: isDealt ? `${i * 0.1}s` : '0s',
-                      width: '42px',
-                      height: '58px',
-                      position: 'relative',
-                    }}
+                    className={isShuffling ? 'deck-shuffle-anim' : ''}
+                    style={{ animationDelay: `${i * 0.1}s` }}
                   >
-                    {/* Card back */}
                     <div
-                      className="deck-card-back"
                       style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        backfaceVisibility: 'hidden',
-                      }}
-                    />
-                    {/* Card face */}
-                    <div
-                      className={isDealt && isRoyal ? 'deck-joker-glow' : ''}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
+                        transformStyle: 'preserve-3d',
+                        transform: `rotateY(${isDealt ? 180 : 0}deg)`,
+                        transition: 'transform 0.55s ease-out',
+                        transitionDelay: isDealt ? `${i * 0.1}s` : '0s',
                         width: '42px',
                         height: '58px',
-                        backfaceVisibility: 'hidden',
-                        transform: 'rotateY(180deg)',
-                        background: '#f5f0e8',
-                        border: '1.5px solid #d9d0c0',
-                        borderRadius: '5px',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        position: 'relative',
                       }}
                     >
-                      {card && (
-                        <>
-                          <span style={{
-                            fontSize: '11px', fontWeight: 700,
-                            color: getSuitColor(card.suit),
-                            position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
-                          }}>
-                            {card.rank}
-                          </span>
-                          <span style={{ fontSize: '20px', color: getSuitColor(card.suit), lineHeight: 1 }}>
-                            {SUIT_SYMBOLS[card.suit]}
-                          </span>
-                          <span style={{
-                            fontSize: '11px', fontWeight: 700,
-                            color: getSuitColor(card.suit),
-                            position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
-                            transform: 'rotate(180deg)',
-                          }}>
-                            {card.rank}
-                          </span>
-                        </>
-                      )}
+                      {/* Card back */}
+                      <div
+                        className="deck-card-back"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          backfaceVisibility: 'hidden',
+                        }}
+                      />
+                      {/* Card face */}
+                      <div
+                        className={isDealt && isRoyal ? 'deck-royal-glow' : ''}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '42px',
+                          height: '58px',
+                          backfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                          background: '#f5f0e8',
+                          border: '1.5px solid #d9d0c0',
+                          borderRadius: '5px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {card && (
+                          <>
+                            <span style={{
+                              fontSize: '11px', fontWeight: 700,
+                              color: getSuitColor(card.suit),
+                              position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
+                            }}>
+                              {card.rank}
+                            </span>
+                            <span style={{ fontSize: '20px', color: getSuitColor(card.suit), lineHeight: 1 }}>
+                              {SUIT_SYMBOLS[card.suit]}
+                            </span>
+                            <span style={{
+                              fontSize: '11px', fontWeight: 700,
+                              color: getSuitColor(card.suit),
+                              position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
+                              transform: 'rotate(180deg)',
+                            }}>
+                              {card.rank}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
