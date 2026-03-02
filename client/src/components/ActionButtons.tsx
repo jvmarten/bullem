@@ -1,4 +1,5 @@
 import { RoundPhase } from '@bull-em/shared';
+import { useSound } from '../hooks/useSound.js';
 
 interface Props {
   roundPhase: RoundPhase;
@@ -19,12 +20,19 @@ export function ActionButtons({
   onTrue,
   onLastChancePass,
 }: Props) {
+  const { play } = useSound();
+
   if (!isMyTurn) return null;
+
+  const handleClick = (action: () => void) => {
+    play('uiClick');
+    action();
+  };
 
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     return (
       <div className="flex gap-2 justify-center animate-slide-up">
-        <button onClick={onLastChancePass} className="btn-ghost px-8 py-2 text-base">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-ghost px-8 py-2 text-base">
           Pass
         </button>
       </div>
@@ -39,12 +47,12 @@ export function ActionButtons({
   return (
     <div className="flex gap-2 justify-center animate-slide-up">
       {showBull && (
-        <button onClick={onBull} className="btn-danger flex-1 max-w-40 py-2 text-base">
+        <button onClick={() => handleClick(onBull)} className="btn-danger flex-1 max-w-40 py-2 text-base">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button onClick={onTrue} className="btn-info flex-1 max-w-40 py-2 text-base">
+        <button onClick={() => handleClick(onTrue)} className="btn-info flex-1 max-w-40 py-2 text-base">
           TRUE
         </button>
       )}

@@ -5,6 +5,7 @@ import {
 } from '@bull-em/shared';
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
+import { useSound } from '../hooks/useSound.js';
 
 interface Props {
   currentHand: HandCall | null;
@@ -119,12 +120,13 @@ function getPreviewCards(hand: HandCall | null): Card[] {
 
 /* ── Rank Fan Sub-component ────────────────────────────── */
 
-function RankFan({ ranks, selected, onSelect, label, testId }: {
+function RankFan({ ranks, selected, onSelect, label, testId, onHover }: {
   ranks: readonly Rank[];
   selected: Rank;
   onSelect: (r: Rank) => void;
   label: string;
   testId: string;
+  onHover?: () => void;
 }) {
   const selectedIndex = ranks.indexOf(selected);
   const touchActiveRef = useRef(false);
@@ -176,6 +178,7 @@ function RankFan({ ranks, selected, onSelect, label, testId }: {
             aria-label={`Rank ${r}`}
             tabIndex={i === selectedIndex ? 0 : -1}
             onClick={() => onSelect(r)}
+            onPointerEnter={onHover}
             onKeyDown={(e) => handleKeyDown(e, i)}
             className={`hs-rank-card${selected === r ? ' hs-rank-card-selected' : ''}`}
           >
@@ -190,10 +193,14 @@ function RankFan({ ranks, selected, onSelect, label, testId }: {
 /* ── Main Component ────────────────────────────────────── */
 
 export function HandSelector({ currentHand, onSubmit }: Props) {
+  const { play } = useSound();
   const [handType, setHandType] = useState<HandType>(currentHand?.type ?? HandType.HIGH_CARD);
   const [rank, setRank] = useState<Rank>('2');
   const [rank2, setRank2] = useState<Rank>('3');
   const [suit, setSuit] = useState<Suit>('spades');
+
+  const playHover = useCallback(() => play('uiHover'), [play]);
+  const playClick = useCallback(() => play('uiClick'), [play]);
 
   const handleTypeChange = useCallback((ht: HandType) => {
     setHandType(ht);
@@ -255,7 +262,10 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
   const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH].includes(handType);
 
   const handleSubmit = () => {
-    if (hand && isValid) onSubmit(hand);
+    if (hand && isValid) {
+      playClick();
+      onSubmit(hand);
+    }
   };
 
   const validationMsg = useMemo(() => {
@@ -309,6 +319,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
                 aria-label={getHandTypeName(ht)}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => handleTypeChange(ht)}
+                onPointerEnter={playHover}
                 onKeyDown={(e) => handleTypeKeyDown(e, i)}
                 className={`hs-type-card${isSelected ? ' hs-type-card-selected' : ''}${isDimmed ? ' hs-type-card-dimmed' : ''}`}
               >
@@ -328,6 +339,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
           onSelect={setRank}
           label={needsStraightRank ? 'High Card' : 'Rank'}
           testId="rank-picker"
+          onHover={playHover}
         />
       )}
 
@@ -340,6 +352,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
             onSelect={handleRank1Change}
             label={handType === HandType.FULL_HOUSE ? 'Three of' : 'First Pair'}
             testId="rank-picker"
+            onHover={playHover}
           />
           <RankFan
             ranks={rank2List}
@@ -347,6 +360,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
             onSelect={setRank2}
             label={handType === HandType.FULL_HOUSE ? 'Pair of' : 'Second Pair'}
             testId="rank2-picker"
+            onHover={playHover}
           />
         </>
       )}
@@ -374,6 +388,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
                   aria-label={s}
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => setSuit(s)}
+                  onPointerEnter={playHover}
                   onKeyDown={(e) => {
                     let next = i;
                     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next = (i + 1) % ALL_SUITS.length; }

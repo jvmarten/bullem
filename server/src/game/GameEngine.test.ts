@@ -219,6 +219,43 @@ describe('GameEngine', () => {
       const passResult = engine.handleLastChancePass('p1');
       expect(passResult.type === 'resolve' || passResult.type === 'game_over').toBe(true);
     });
+
+    it('all bull → last chance raise → all true → hand exists → everyone safe (no penalties)', () => {
+      // Force known cards so the hand check is deterministic
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: 'K', suit: 'hearts' }];
+      p3.cards = [{ rank: '2', suit: 'clubs' }];
+
+      // p1 calls high card 2 (lowball, so we can raise later)
+      engine.handleCall('p1', { type: HandType.HIGH_CARD, rank: '2' });
+
+      // Everyone else calls bull
+      engine.handleBull('p2');
+      const lc = engine.handleBull('p3');
+      expect(lc.type).toBe('last_chance');
+
+      // p1 raises to high card 7 (which exists — p1 has 7 of spades)
+      const raiseResult = engine.handleLastChanceRaise('p1', { type: HandType.HIGH_CARD, rank: '7' });
+      expect(raiseResult.type).toBe('continue');
+
+      // Now p2 and p3 both call true on the raised hand
+      engine.handleTrue('p2');
+      const finalResult = engine.handleTrue('p3');
+      expect(finalResult.type === 'resolve' || finalResult.type === 'game_over').toBe(true);
+
+      if (finalResult.type === 'resolve') {
+        const { handExists, penalties, penalizedPlayerIds } = finalResult.result;
+        // The hand exists (p1 has 7 of spades)
+        expect(handExists).toBe(true);
+        // Everyone called correctly: caller's hand exists, true callers are right
+        // So nobody should be penalized — all safe
+        expect(penalizedPlayerIds).toEqual([]);
+        // All players keep their original card count
+        expect(penalties['p1']).toBe(STARTING_CARDS);
+        expect(penalties['p2']).toBe(STARTING_CARDS);
+        expect(penalties['p3']).toBe(STARTING_CARDS);
+      }
+    });
   });
 
   describe('round resolution', () => {

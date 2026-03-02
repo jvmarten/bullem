@@ -10,7 +10,9 @@ type SoundName =
   | 'eliminated'
   | 'gameOver'
   | 'yourTurn'
-  | 'timerTick';
+  | 'timerTick'
+  | 'uiHover'
+  | 'uiClick';
 
 interface ToneConfig {
   frequency: number;
@@ -68,6 +70,13 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   timerTick: [
     { frequency: 1000, duration: 0.08, type: 'sine', gain: 0.2, ramp: 0.07 },
     { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
+  ],
+  uiHover: [
+    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.06, ramp: 0.025 },
+  ],
+  uiClick: [
+    { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },
+    { frequency: 1400, duration: 0.04, type: 'triangle', gain: 0.06, delay: 0.02 },
   ],
 };
 
@@ -208,8 +217,8 @@ export interface SoundController {
 
 export function createSoundController(): SoundController {
   let muted = localStorage.getItem(MUTE_KEY) === 'true';
-  let volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '0.7');
-  if (isNaN(volume) || volume < 0 || volume > 1) volume = 0.7;
+  let volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
+  if (isNaN(volume) || volume < 0 || volume > 1) volume = 1;
 
   const controller: SoundController = {
     get muted() { return muted; },
