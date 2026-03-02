@@ -174,7 +174,7 @@ export function HomePage() {
         <div className="relative flex flex-col items-center mb-2">
           <div
             className="relative flex justify-center items-center cursor-pointer select-none"
-            style={{ height: '100px', width: '220px' }}
+            style={{ height: '100px', width: '280px' }}
             onMouseEnter={handleDeckHover}
             onMouseLeave={handleDeckLeave}
             onTouchStart={handleDeckHover}
@@ -184,18 +184,18 @@ export function HomePage() {
               const card = dealtCards?.[i];
               const centered = i - (CARD_COUNT - 1) / 2;
 
-              const fanX = centered * 18;
-              const fanY = -Math.abs(centered) * 3;
-              const fanAngle = centered * 5;
+              // Dealt: spread horizontally so all 5 card faces are visible
+              const dealX = centered * 46;
+              const dealY = 0;
+              const dealAngle = 0;
 
               const stackX = i * 0.5;
               const stackY = -i * 1.2;
               const stackAngle = centered * 1.5;
 
-              // Fan only when dealing, stack otherwise
-              const x = isDealing ? fanX : stackX;
-              const y = isDealing ? fanY : stackY;
-              const angle = isDealing ? fanAngle : stackAngle;
+              const x = isDealing ? dealX : stackX;
+              const y = isDealing ? dealY : stackY;
+              const angle = isDealing ? dealAngle : stackAngle;
 
               return (
                 <div
