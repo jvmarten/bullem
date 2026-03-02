@@ -32,8 +32,8 @@
   --overlay:     rgba(5, 20, 10, 0.85);
 
   /* Typography */
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
 }
 
 /* ── Base ────────────────────────────────────────────── */
