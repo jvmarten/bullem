@@ -12,7 +12,10 @@ type SoundName =
   | 'yourTurn'
   | 'timerTick'
   | 'uiHover'
-  | 'uiClick';
+  | 'uiClick'
+  | 'deckShuffle'
+  | 'bullCharge'
+  | 'cardScatter';
 
 interface ToneConfig {
   frequency: number;
@@ -77,6 +80,31 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   uiClick: [
     { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },
     { frequency: 1400, duration: 0.04, type: 'triangle', gain: 0.06, delay: 0.02 },
+  ],
+  deckShuffle: [
+    // Quick riffle shuffle sound — layered high-freq clicks
+    { frequency: 2000, duration: 0.03, type: 'sine', gain: 0.08, ramp: 0.025 },
+    { frequency: 2400, duration: 0.03, type: 'sine', gain: 0.06, delay: 0.04 },
+    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.07, delay: 0.08 },
+    { frequency: 2200, duration: 0.03, type: 'sine', gain: 0.05, delay: 0.12 },
+    { frequency: 2600, duration: 0.04, type: 'triangle', gain: 0.06, delay: 0.16 },
+  ],
+  bullCharge: [
+    // Low rumble building up — approaching hoofbeats
+    { frequency: 80, duration: 0.4, type: 'sawtooth', gain: 0.15, ramp: 0.35 },
+    { frequency: 120, duration: 0.3, type: 'sine', gain: 0.12, delay: 0.05 },
+    // Impact thud
+    { frequency: 60, duration: 0.2, type: 'sine', gain: 0.25, delay: 0.3, ramp: 0.18 },
+    { frequency: 150, duration: 0.15, type: 'square', gain: 0.08, delay: 0.32 },
+  ],
+  cardScatter: [
+    // Cards flying everywhere — multiple quick flutters
+    { frequency: 1200, duration: 0.05, type: 'sine', gain: 0.1, delay: 0.35 },
+    { frequency: 1600, duration: 0.04, type: 'triangle', gain: 0.08, delay: 0.4 },
+    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.09, delay: 0.45 },
+    { frequency: 1400, duration: 0.04, type: 'triangle', gain: 0.07, delay: 0.5 },
+    { frequency: 1100, duration: 0.05, type: 'sine', gain: 0.06, delay: 0.55 },
+    { frequency: 1800, duration: 0.04, type: 'triangle', gain: 0.05, delay: 0.6 },
   ],
 };
 
