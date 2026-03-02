@@ -83,6 +83,56 @@ function getSuitColor(suit: Suit): string {
   return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
 }
 
+/** Returns indices of cards that form the identified hand */
+function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
+  const indices = new Set<number>();
+
+  switch (hand.type) {
+    // All 5 cards matter
+    case HandType.ROYAL_FLUSH:
+    case HandType.STRAIGHT_FLUSH:
+    case HandType.STRAIGHT:
+    case HandType.FLUSH:
+    case HandType.FULL_HOUSE:
+      for (let i = 0; i < cards.length; i++) indices.add(i);
+      break;
+
+    case HandType.FOUR_OF_A_KIND:
+      for (let i = 0; i < cards.length; i++) {
+        if (cards[i].rank === hand.rank) indices.add(i);
+      }
+      break;
+
+    case HandType.THREE_OF_A_KIND:
+      for (let i = 0; i < cards.length; i++) {
+        if (cards[i].rank === hand.rank) indices.add(i);
+      }
+      break;
+
+    case HandType.TWO_PAIR:
+      for (let i = 0; i < cards.length; i++) {
+        if (cards[i].rank === hand.highRank || cards[i].rank === hand.lowRank) {
+          indices.add(i);
+        }
+      }
+      break;
+
+    case HandType.PAIR:
+      for (let i = 0; i < cards.length; i++) {
+        if (cards[i].rank === hand.rank) indices.add(i);
+      }
+      break;
+
+    case HandType.HIGH_CARD:
+      for (let i = 0; i < cards.length; i++) {
+        if (cards[i].rank === hand.rank) { indices.add(i); break; }
+      }
+      break;
+  }
+
+  return indices;
+}
+
 const CARD_COUNT = 5;
 
 export function HomePage() {
@@ -94,7 +144,9 @@ export function HomePage() {
   const [dealtCards, setDealtCards] = useState<DealCard[] | null>(null);
   const [handCall, setHandCall] = useState<HandCall | null>(null);
   const [isDealing, setIsDealing] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
 
@@ -138,6 +190,7 @@ export function HomePage() {
 
     setIsDealing(true);
     setIsHovered(true);
+    setShowHighlight(false);
     setDealtCards(cards);
     setHandCall(hand);
     play('cardReveal');
@@ -146,12 +199,17 @@ export function HomePage() {
       setTimeout(() => play('fanfare'), 600);
     }
 
+    // Pop up relevant cards after all 5 have flipped (~0.9s)
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setShowHighlight(true), 900);
+
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => {
       setDealtCards(null);
       setHandCall(null);
       setIsDealing(false);
       setIsHovered(false);
+      setShowHighlight(false);
     }, hand.type === HandType.ROYAL_FLUSH ? 4000 : 3000);
   }, [isDealing, play]);
 
@@ -166,6 +224,9 @@ export function HomePage() {
   const isShuffling = isHovered && !isDealing;
   const isDealt = dealtCards !== null;
   const isRoyal = handCall?.type === HandType.ROYAL_FLUSH;
+  const relevantIndices = dealtCards && handCall
+    ? getRelevantIndices(dealtCards, handCall)
+    : new Set<number>();
 
   return (
     <Layout>
@@ -193,9 +254,16 @@ export function HomePage() {
               const stackY = -i * 1.2;
               const stackAngle = centered * 1.5;
 
+              // Pop up relevant cards after reveal
+              const isHighlighted = showHighlight && relevantIndices.has(i);
+              const popY = isHighlighted ? -16 : 0;
+
               const x = isDealing ? dealX : stackX;
-              const y = isDealing ? dealY : stackY;
+              const y = (isDealing ? dealY : stackY) + popY;
               const angle = isDealing ? dealAngle : stackAngle;
+
+              // Riffle direction: alternate cards go left (-1) vs right (1)
+              const riffleDir = i % 2 === 0 ? -1 : 1;
 
               return (
                 <div
@@ -204,14 +272,17 @@ export function HomePage() {
                   style={{
                     transform: `translate(${x}px, ${y}px) rotate(${angle}deg)`,
                     transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                    zIndex: i,
+                    zIndex: isHighlighted ? 10 + i : i,
                     perspective: '600px',
                   }}
                 >
-                  {/* Shuffle animation wrapper */}
+                  {/* Shuffle animation wrapper — riffle left/right via CSS var */}
                   <div
                     className={isShuffling ? 'deck-shuffle-anim' : ''}
-                    style={{ animationDelay: `${i * 0.1}s` }}
+                    style={{
+                      '--shuffle-dir': riffleDir,
+                      animationDelay: `${i * 0.08}s`,
+                    } as React.CSSProperties}
                   >
                     <div
                       style={{
@@ -246,13 +317,16 @@ export function HomePage() {
                           backfaceVisibility: 'hidden',
                           transform: 'rotateY(180deg)',
                           background: '#f5f0e8',
-                          border: '1.5px solid #d9d0c0',
+                          border: isHighlighted ? '1.5px solid var(--gold)' : '1.5px solid #d9d0c0',
                           borderRadius: '5px',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                          boxShadow: isHighlighted
+                            ? '0 4px 12px rgba(212, 168, 67, 0.5), 0 0 8px rgba(212, 168, 67, 0.3)'
+                            : '0 2px 6px rgba(0,0,0,0.3)',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          transition: 'border 0.3s, box-shadow 0.3s',
                         }}
                       >
                         {card && (

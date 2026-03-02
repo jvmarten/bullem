@@ -708,16 +708,37 @@ body {
   );
 }
 
-/* ── Deck Shuffle Animation ────────────────────────── */
+/* ── Deck Shuffle Animation (riffle) ──────────────── */
+/* Cards split into two halves via --shuffle-dir (-1 = left, 1 = right) */
 .deck-shuffle-anim {
-  animation: deck-shuffle 0.5s ease-in-out infinite;
+  animation: deck-riffle 0.7s ease-in-out infinite;
 }
 
-@keyframes deck-shuffle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  30% { transform: translateY(-14px) rotate(3deg); }
-  60% { transform: translateY(-4px) rotate(-1deg); }
-  80% { transform: translateY(-2px) rotate(0.5deg); }
+@keyframes deck-riffle {
+  0%, 100% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+  }
+  /* Split apart */
+  30% {
+    transform:
+      translateX(calc(var(--shuffle-dir) * 14px))
+      translateY(-8px)
+      rotate(calc(var(--shuffle-dir) * 4deg));
+  }
+  /* Slide past each other */
+  55% {
+    transform:
+      translateX(calc(var(--shuffle-dir) * 6px))
+      translateY(-12px)
+      rotate(calc(var(--shuffle-dir) * -2deg));
+  }
+  /* Settle back together */
+  80% {
+    transform:
+      translateX(calc(var(--shuffle-dir) * 1px))
+      translateY(-2px)
+      rotate(0deg);
+  }
 }
 
 /* ── Royal Flush Glow ──────────────────────────────── */
