@@ -34,12 +34,33 @@ export function GamePage() {
   useEffect(() => {
     if (gameState || !roomCode || rejoinAttemptedRef.current) return;
     const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
-    if (!storedName) return;
-    rejoinAttemptedRef.current = true;
-    joinRoom(roomCode, storedName).catch(() => {
-      // If rejoin fails, send user home instead of trapping in loading state.
+    if (!storedName) {
+      // No stored name means we can't rejoin — redirect home instead of
+      // showing the loading spinner forever.
       navigate('/');
-    });
+      return;
+    }
+    rejoinAttemptedRef.current = true;
+
+    // Timeout: if the rejoin doesn't resolve within 8 seconds (socket buffering,
+    // server unreachable, etc.), redirect home instead of trapping in loading state.
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        navigate('/');
+      }
+    }, 8000);
+
+    joinRoom(roomCode, storedName)
+      .then(() => { settled = true; clearTimeout(timeout); })
+      .catch(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+          navigate('/');
+        }
+      });
   }, [gameState, roomCode, joinRoom, navigate]);
 
   useEffect(() => {
@@ -81,7 +102,7 @@ export function GamePage() {
 
   return (
     <Layout>
-      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''} max-w-5xl mx-auto`}>
+      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
         {/* Top bar */}
         <div className="flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
@@ -129,14 +150,13 @@ export function GamePage() {
           hasCurrentHand={gameState.currentHand !== null}
         />
 
-        <div className="lg:grid lg:grid-cols-2 lg:gap-4">
-          <PlayerList
-            players={gameState.players}
-            currentPlayerId={gameState.currentPlayerId}
-            myPlayerId={playerId}
-            maxCards={gameState.maxCards}
-            roundNumber={gameState.roundNumber}
-          />
+        <PlayerList
+          players={gameState.players}
+          currentPlayerId={gameState.currentPlayerId}
+          myPlayerId={playerId}
+          maxCards={gameState.maxCards}
+          roundNumber={gameState.roundNumber}
+        />
 
         {/* Current call display */}
         {gameState.currentHand && (
@@ -163,11 +183,9 @@ export function GamePage() {
           <SpectatorView spectatorCards={gameState.spectatorCards} />
         )}
 
-          <CallHistory history={gameState.turnHistory} />
-        </div>
+        <CallHistory history={gameState.turnHistory} />
 
         {/* Action buttons */}
-        <div className="lg:max-w-xl lg:mx-auto">
         {!isEliminated && (
           <ActionButtons
             roundPhase={gameState.roundPhase}
@@ -195,7 +213,6 @@ export function GamePage() {
             onSubmit={lastChanceRaise}
           />
         )}
-        </div>
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
