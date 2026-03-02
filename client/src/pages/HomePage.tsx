@@ -2,30 +2,88 @@ import { useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
+import { HandType, handToString } from '@bull-em/shared';
+import type { Suit, Rank, HandCall } from '@bull-em/shared';
 
-const SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'] as const;
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
+const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
+const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
+const RANK_ORDER: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-interface RevealedCard {
-  rank: string;
-  suit: string;
-  isJoker: boolean;
-  cardIndex: number;
+const RANK_VAL: Record<Rank, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8,
+  '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14,
+};
+
+interface DealCard { rank: Rank; suit: Suit }
+
+function dealFiveCards(): DealCard[] {
+  const deck: DealCard[] = [];
+  for (const suit of SUIT_NAMES) {
+    for (const rank of RANK_ORDER) {
+      deck.push({ rank, suit });
+    }
+  }
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck.slice(0, 5);
 }
 
-function getRandomCard(cardIndex: number): RevealedCard {
-  const roll = Math.floor(Math.random() * 53);
-  if (roll === 52) return { rank: '\u2605', suit: '', isJoker: true, cardIndex };
-  const suit = SUITS[Math.floor(roll / 13)];
-  const rank = RANKS[roll % 13];
-  return { rank, suit, isJoker: false, cardIndex };
+function classifyHand(cards: DealCard[]): HandCall {
+  const rankCounts = new Map<Rank, number>();
+  for (const c of cards) {
+    rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
+  }
+
+  const isFlush = cards.every(c => c.suit === cards[0].suit);
+  const values = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => a - b);
+  const isSequential = values.every((v, i) => i === 0 || v === values[i - 1] + 1);
+  const isWheel = values[0] === 2 && values[1] === 3 && values[2] === 4 && values[3] === 5 && values[4] === 14;
+  const isStraight = isSequential || isWheel;
+  const highVal = isWheel ? 5 : values[4];
+  const highRank = RANK_ORDER[highVal - 2];
+
+  const groups = [...rankCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || RANK_VAL[b[0]] - RANK_VAL[a[0]]);
+
+  if (isFlush && isStraight && values[4] === 14 && values[0] === 10) {
+    return { type: HandType.ROYAL_FLUSH, suit: cards[0].suit };
+  }
+  if (isFlush && isStraight) {
+    return { type: HandType.STRAIGHT_FLUSH, suit: cards[0].suit, highRank };
+  }
+  if (groups[0][1] === 4) {
+    return { type: HandType.FOUR_OF_A_KIND, rank: groups[0][0] };
+  }
+  if (groups[0][1] === 3 && groups[1][1] === 2) {
+    return { type: HandType.FULL_HOUSE, threeRank: groups[0][0], twoRank: groups[1][0] };
+  }
+  if (isStraight) {
+    return { type: HandType.STRAIGHT, highRank };
+  }
+  if (groups[0][1] === 3) {
+    return { type: HandType.THREE_OF_A_KIND, rank: groups[0][0] };
+  }
+  if (isFlush) {
+    return { type: HandType.FLUSH, suit: cards[0].suit };
+  }
+  if (groups[0][1] === 2 && groups[1][1] === 2) {
+    const [a, b] = [groups[0][0], groups[1][0]];
+    const [highPair, lowPair] = RANK_VAL[a] > RANK_VAL[b] ? [a, b] : [b, a];
+    return { type: HandType.TWO_PAIR, highRank: highPair, lowRank: lowPair };
+  }
+  if (groups[0][1] === 2) {
+    return { type: HandType.PAIR, rank: groups[0][0] };
+  }
+  return { type: HandType.HIGH_CARD, rank: groups[0][0] };
 }
 
-function getSuitColor(suit: string): string {
-  return suit === '\u2665' || suit === '\u2666' ? '#c0392b' : '#1a1a1a';
+function getSuitColor(suit: Suit): string {
+  return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
 }
 
-const CARD_COUNT = 8;
+const CARD_COUNT = 5;
 
 export function HomePage() {
   const [name, setName] = useState('');
@@ -33,8 +91,9 @@ export function HomePage() {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const [revealedCard, setRevealedCard] = useState<RevealedCard | null>(null);
-  const [isRevealing, setIsRevealing] = useState(false);
+  const [dealtCards, setDealtCards] = useState<DealCard[] | null>(null);
+  const [handCall, setHandCall] = useState<HandCall | null>(null);
+  const [isDealing, setIsDealing] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
@@ -59,40 +118,42 @@ export function HomePage() {
   };
 
   const handleDeckHover = useCallback(() => {
-    if (!isHovered && !isRevealing) {
+    if (!isHovered && !isDealing) {
       setIsHovered(true);
       play('deckShuffle');
     }
-  }, [isHovered, isRevealing, play]);
+  }, [isHovered, isDealing, play]);
 
   const handleDeckLeave = useCallback(() => {
-    if (!isRevealing) {
+    if (!isDealing) {
       setIsHovered(false);
     }
-  }, [isRevealing]);
+  }, [isDealing]);
 
   const handleDeckClick = useCallback(() => {
-    if (isRevealing) return;
+    if (isDealing) return;
 
-    const cardIndex = Math.floor(Math.random() * CARD_COUNT);
-    const card = getRandomCard(cardIndex);
+    const cards = dealFiveCards();
+    const hand = classifyHand(cards);
 
-    setIsRevealing(true);
+    setIsDealing(true);
     setIsHovered(true);
-    setRevealedCard(card);
+    setDealtCards(cards);
+    setHandCall(hand);
     play('cardReveal');
 
-    if (card.isJoker) {
-      setTimeout(() => play('jokerFanfare'), 400);
+    if (hand.type === HandType.ROYAL_FLUSH) {
+      setTimeout(() => play('fanfare'), 600);
     }
 
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => {
-      setRevealedCard(null);
-      setIsRevealing(false);
+      setDealtCards(null);
+      setHandCall(null);
+      setIsDealing(false);
       setIsHovered(false);
-    }, card.isJoker ? 3500 : 2500);
-  }, [isRevealing, play]);
+    }, hand.type === HandType.ROYAL_FLUSH ? 4000 : 3000);
+  }, [isDealing, play]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -102,123 +163,132 @@ export function HomePage() {
     }
   };
 
-  const isFanned = isHovered || isRevealing;
+  const isFanned = isHovered || isDealing;
+  const isDealt = dealtCards !== null;
+  const isRoyal = handCall?.type === HandType.ROYAL_FLUSH;
 
   return (
     <Layout>
       <div className="flex flex-col items-center gap-8 pt-8">
         {/* Interactive deck */}
-        <div
-          className="relative flex justify-center items-center mb-2 cursor-pointer select-none"
-          style={{ height: '120px', width: '240px' }}
-          onMouseEnter={handleDeckHover}
-          onMouseLeave={handleDeckLeave}
-          onTouchStart={handleDeckHover}
-          onClick={handleDeckClick}
-        >
-          {Array.from({ length: CARD_COUNT }, (_, i) => {
-            const isThisRevealed = revealedCard?.cardIndex === i;
-            const centered = i - (CARD_COUNT - 1) / 2;
+        <div className="relative flex flex-col items-center mb-2">
+          <div
+            className="relative flex justify-center items-center cursor-pointer select-none"
+            style={{ height: '100px', width: '220px' }}
+            onMouseEnter={handleDeckHover}
+            onMouseLeave={handleDeckLeave}
+            onTouchStart={handleDeckHover}
+            onClick={handleDeckClick}
+          >
+            {Array.from({ length: CARD_COUNT }, (_, i) => {
+              const card = dealtCards?.[i];
+              const centered = i - (CARD_COUNT - 1) / 2;
 
-            // Fan positions
-            const fanX = centered * 16;
-            const fanY = -Math.abs(centered) * 3;
-            const fanAngle = centered * 5;
+              const fanX = centered * 18;
+              const fanY = -Math.abs(centered) * 3;
+              const fanAngle = centered * 5;
 
-            // Stack positions
-            const stackX = i * 0.5;
-            const stackY = -i * 1.2;
-            const stackAngle = centered * 2;
+              const stackX = i * 0.5;
+              const stackY = -i * 1.2;
+              const stackAngle = centered * 1.5;
 
-            const x = isFanned ? fanX : stackX;
-            const y = isFanned ? fanY : stackY;
-            const angle = isThisRevealed ? 0 : (isFanned ? fanAngle : stackAngle);
-            const liftY = isThisRevealed ? -65 : 0;
+              const x = isFanned ? fanX : stackX;
+              const y = isFanned ? fanY : stackY;
+              const angle = isFanned ? fanAngle : stackAngle;
 
-            return (
-              <div
-                key={i}
-                className="absolute"
-                style={{
-                  transform: `translate(${x}px, ${y + liftY}px) rotate(${angle}deg)`,
-                  transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                  zIndex: isThisRevealed ? 20 : i,
-                  perspective: '600px',
-                }}
-              >
+              return (
                 <div
+                  key={i}
+                  className="absolute"
                   style={{
-                    transformStyle: 'preserve-3d',
-                    transform: `rotateY(${isThisRevealed ? 180 : 0}deg)`,
-                    transition: 'transform 0.55s ease-out',
-                    width: '42px',
-                    height: '58px',
-                    position: 'relative',
+                    transform: `translate(${x}px, ${y}px) rotate(${angle}deg)`,
+                    transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                    zIndex: i,
+                    perspective: '600px',
                   }}
                 >
-                  {/* Card back */}
                   <div
-                    className="deck-card-back"
                     style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      backfaceVisibility: 'hidden',
-                    }}
-                  />
-                  {/* Card face (shown after 3D flip) */}
-                  <div
-                    className={`${isThisRevealed && revealedCard?.isJoker ? 'deck-joker-glow' : ''}`}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
+                      transformStyle: 'preserve-3d',
+                      transform: `rotateY(${isDealt ? 180 : 0}deg)`,
+                      transition: 'transform 0.55s ease-out',
+                      transitionDelay: isDealt ? `${i * 0.1}s` : '0s',
                       width: '42px',
                       height: '58px',
-                      backfaceVisibility: 'hidden',
-                      transform: 'rotateY(180deg)',
-                      background: '#f5f0e8',
-                      border: '1.5px solid #d9d0c0',
-                      borderRadius: '5px',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      position: 'relative',
                     }}
                   >
-                    {revealedCard && isThisRevealed && (
-                      revealedCard.isJoker ? (
-                        <>
-                          <span style={{ fontSize: '22px', color: '#d4a843', lineHeight: 1 }}>{'\u2605'}</span>
-                          <span style={{ fontSize: '7px', fontWeight: 700, color: '#d4a843', letterSpacing: '1px' }}>JOKER</span>
-                        </>
-                      ) : (
+                    {/* Card back */}
+                    <div
+                      className="deck-card-back"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        backfaceVisibility: 'hidden',
+                      }}
+                    />
+                    {/* Card face */}
+                    <div
+                      className={isDealt && isRoyal ? 'deck-joker-glow' : ''}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '42px',
+                        height: '58px',
+                        backfaceVisibility: 'hidden',
+                        transform: 'rotateY(180deg)',
+                        background: '#f5f0e8',
+                        border: '1.5px solid #d9d0c0',
+                        borderRadius: '5px',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {card && (
                         <>
                           <span style={{
-                            fontSize: '11px', fontWeight: 700, color: getSuitColor(revealedCard.suit),
+                            fontSize: '11px', fontWeight: 700,
+                            color: getSuitColor(card.suit),
                             position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
                           }}>
-                            {revealedCard.rank}
+                            {card.rank}
                           </span>
-                          <span style={{ fontSize: '20px', color: getSuitColor(revealedCard.suit), lineHeight: 1 }}>
-                            {revealedCard.suit}
+                          <span style={{ fontSize: '20px', color: getSuitColor(card.suit), lineHeight: 1 }}>
+                            {SUIT_SYMBOLS[card.suit]}
                           </span>
                           <span style={{
-                            fontSize: '11px', fontWeight: 700, color: getSuitColor(revealedCard.suit),
+                            fontSize: '11px', fontWeight: 700,
+                            color: getSuitColor(card.suit),
                             position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
                             transform: 'rotate(180deg)',
                           }}>
-                            {revealedCard.rank}
+                            {card.rank}
                           </span>
                         </>
-                      )
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* Hand name */}
+          <div style={{ height: '24px', marginTop: '4px' }}>
+            {handCall && (
+              <span
+                className={`text-sm font-semibold animate-fade-in ${isRoyal ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}
+                style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
+              >
+                {handToString(handCall)}
+              </span>
+            )}
+          </div>
         </div>
 
         {error && (
