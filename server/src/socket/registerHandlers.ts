@@ -21,7 +21,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
       console.log(`Disconnected: ${socket.id}`);
       const result = roomManager.handleDisconnect(socket.id);
       if (result) {
-        botManager.clearTurnTimer(result.room.roomCode);
+        // Do NOT clear the turn timer here. If a turn timer is running for the
+        // current player, it should keep ticking — the auto-action will fire
+        // when it expires regardless of connection status. Clearing it on any
+        // disconnect (including non-current players) was an exploit: close the
+        // browser, reconnect, and the timer is gone → unlimited turn time.
         io.to(result.room.roomCode).emit('player:disconnected', result.playerId);
         broadcastRoomState(io, result.room);
         if (result.room.game) {
@@ -29,8 +33,10 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
             markContinueReady(io, result.room, botManager, result.playerId);
           }
           broadcastGameState(io, result.room);
-          // If the disconnected player is the current player and no turn timer is set,
-          // schedule an auto-action so the game doesn't get stuck
+          // If the disconnected player is the current player and no turn timer
+          // is configured, schedule a disconnect auto-action so the game
+          // doesn't stall. When a turn timer IS configured, it keeps running
+          // independently and will fire the auto-action when it expires.
           if (result.room.gamePhase === GamePhase.PLAYING
             && result.room.game.currentPlayerId === result.playerId
             && !result.room.settings.turnTimer) {
