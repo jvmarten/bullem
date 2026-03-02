@@ -417,7 +417,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
                   aria-checked={isSelected}
                   aria-label={s}
                   tabIndex={isSelected ? 0 : -1}
-                  onClick={() => { setSuit(s); playClick(); }}
+                  onClick={() => { setSuit(s); playHover(); }}
                   onKeyDown={(e) => {
                     let next = i;
                     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next = (i + 1) % ALL_SUITS.length; }
