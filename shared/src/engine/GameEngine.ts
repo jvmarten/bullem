@@ -284,6 +284,88 @@ export class GameEngine {
     return this.players.filter(p => !p.isEliminated);
   }
 
+  /** Eliminate a player mid-game (intentional leave). Returns the resulting game action. */
+  eliminatePlayer(playerId: PlayerId): TurnResult {
+    const player = this.players.find(p => p.id === playerId);
+    if (!player || player.isEliminated) return { type: 'continue' };
+
+    const wasCurrentPlayer = this.currentPlayerId === playerId;
+    const wasLastCaller = this.lastCallerId === playerId;
+
+    // Save the current player's ID for re-indexing (null if they're the one leaving)
+    const currentActiveId = wasCurrentPlayer ? null : this.currentPlayerId;
+
+    player.isEliminated = true;
+    player.cards = [];
+
+    const active = this.getActivePlayers();
+    if (active.length <= 1) {
+      return { type: 'game_over', winnerId: active[0]?.id ?? '' };
+    }
+
+    // During RESOLVING (round result phase), just fix the index — round is already done
+    if (this.roundPhase === RoundPhase.RESOLVING) {
+      this.reindexCurrentPlayer(currentActiveId, wasCurrentPlayer);
+      return { type: 'continue' };
+    }
+
+    // LAST_CHANCE: if the caller (who has last chance) left, auto-pass → resolve
+    if (this.roundPhase === RoundPhase.LAST_CHANCE && wasLastCaller) {
+      return this.resolveRound();
+    }
+
+    // Re-index the current player after the active array shrank
+    this.reindexCurrentPlayer(currentActiveId, wasCurrentPlayer);
+
+    // No hand called yet — just continue with the next player
+    if (!this.currentHand) {
+      return { type: 'continue' };
+    }
+
+    // Check if all remaining non-callers have now responded
+    if (this.allNonCallersResponded()) {
+      const hasTrue = this.turnHistory.some(
+        t => t.action === TurnAction.TRUE && this.isAfterLastCall(t),
+      );
+      if (!hasTrue) {
+        const callerStillActive = active.some(p => p.id === this.lastCallerId);
+        if (!this.lastChanceUsed && callerStillActive) {
+          this.roundPhase = RoundPhase.LAST_CHANCE;
+          this.currentPlayerIndex = this.getActivePlayerIndex(this.lastCallerId!);
+          return { type: 'last_chance', playerId: this.lastCallerId! };
+        }
+        // Caller left or already used last chance — resolve immediately
+        return this.resolveRound();
+      }
+      return this.resolveRound();
+    }
+
+    return { type: 'continue' };
+  }
+
+  /** Re-index currentPlayerIndex after the active-player array shrank by one. */
+  private reindexCurrentPlayer(prevActiveId: PlayerId | null, wasCurrentPlayer: boolean): void {
+    const active = this.getActivePlayers();
+    if (active.length === 0) return;
+
+    if (wasCurrentPlayer) {
+      // Same index now points to the next player (or wraps)
+      this.currentPlayerIndex = this.currentPlayerIndex % active.length;
+      // Skip the last caller (they don't respond to their own call)
+      if (active[this.currentPlayerIndex]?.id === this.lastCallerId) {
+        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % active.length;
+      }
+    } else if (prevActiveId) {
+      // Another player was eliminated — find where the current player moved to
+      const newIdx = active.findIndex(p => p.id === prevActiveId);
+      if (newIdx >= 0) {
+        this.currentPlayerIndex = newIdx;
+      } else {
+        this.currentPlayerIndex = this.currentPlayerIndex % active.length;
+      }
+    }
+  }
+
   private resolveRound(): TurnResult {
     this.roundPhase = RoundPhase.RESOLVING;
     this.gameStats.totalRounds++;

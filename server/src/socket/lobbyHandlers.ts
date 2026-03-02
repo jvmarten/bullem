@@ -1,10 +1,11 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
+import { beginRoundResultPhase } from './roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -57,10 +58,59 @@ export function registerLobbyHandlers(
   socket.on('room:leave', () => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
+
+    const playerId = room.getPlayerId(socket.id);
     botManager.clearTurnTimer(room.roomCode);
-    room.removePlayer(socket.id);
-    roomManager.removeSocketMapping(socket.id);
-    socket.leave(room.roomCode);
+
+    // If a game is in progress, eliminate the player in the engine first
+    if (playerId && room.game && room.gamePhase === GamePhase.PLAYING) {
+      const result = room.game.eliminatePlayer(playerId);
+
+      // Remove from room after engine elimination (engine keeps its own player list)
+      room.removePlayer(socket.id);
+      roomManager.removeSocketMapping(socket.id);
+      socket.leave(room.roomCode);
+
+      switch (result.type) {
+        case 'game_over':
+          room.gamePhase = GamePhase.GAME_OVER;
+          room.cancelRoundContinueWindow();
+          io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+          break;
+        case 'resolve':
+          beginRoundResultPhase(io, room, botManager, result.result);
+          break;
+        case 'last_chance':
+        case 'continue':
+          botManager.scheduleBotTurn(room, io);
+          broadcastGameState(io, room);
+          break;
+      }
+    } else if (playerId && room.game && room.gamePhase === GamePhase.ROUND_RESULT) {
+      // Leaving during round result — eliminate in engine, check for game over
+      const result = room.game.eliminatePlayer(playerId);
+      room.removePlayer(socket.id);
+      roomManager.removeSocketMapping(socket.id);
+      socket.leave(room.roomCode);
+
+      if (result.type === 'game_over') {
+        room.gamePhase = GamePhase.GAME_OVER;
+        room.cancelRoundContinueWindow();
+        io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+      } else {
+        broadcastGameState(io, room);
+      }
+    } else {
+      room.removePlayer(socket.id);
+      roomManager.removeSocketMapping(socket.id);
+      socket.leave(room.roomCode);
+    }
+
+    // Clean up empty rooms
+    if (room.isEmpty) {
+      roomManager.deleteRoom(room.roomCode);
+    }
+
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
   });
