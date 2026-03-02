@@ -24,8 +24,8 @@ export function ActionButtons({
 
   if (!isMyTurn) return null;
 
-  const handleClick = (action: () => void) => {
-    play('uiClick');
+  const handleClick = (action: () => void, sound: 'uiClick' | 'bullCalled' = 'uiClick') => {
+    play(sound);
     action();
   };
 
@@ -47,7 +47,7 @@ export function ActionButtons({
   return (
     <div className="flex gap-2 justify-center animate-slide-up">
       {showBull && (
-        <button onClick={() => handleClick(onBull)} className="btn-danger flex-1 max-w-40 py-2 text-base">
+        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger flex-1 max-w-40 py-2 text-base">
           BULL!
         </button>
       )}

@@ -20,6 +20,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
       console.log(`Disconnected: ${socket.id}`);
       const result = roomManager.handleDisconnect(socket.id);
       if (result) {
+        botManager.clearTurnTimer(result.room.roomCode);
         io.to(result.room.roomCode).emit('player:disconnected', result.playerId);
         broadcastRoomState(io, result.room);
         if (result.room.game) {

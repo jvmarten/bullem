@@ -20,7 +20,16 @@ let botCounter = 0;
 
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+  private roomTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private difficulty: BotDifficulty = BotDifficulty.EASY;
+
+  clearTurnTimer(roomCode: string): void {
+    const existing = this.roomTurnTimers.get(roomCode);
+    if (!existing) return;
+    clearTimeout(existing);
+    this.pendingTimers.delete(existing);
+    this.roomTurnTimers.delete(roomCode);
+  }
 
   setDifficulty(difficulty: BotDifficulty): void {
     this.difficulty = difficulty;
@@ -50,6 +59,7 @@ export class BotManager {
    */
   scheduleBotTurn(room: Room, io: TypedServer, graceMs = 0): void {
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
+    this.clearTurnTimer(room.roomCode);
 
     const currentId = room.game.currentPlayerId;
     const player = room.players.get(currentId);
@@ -65,9 +75,11 @@ export class BotManager {
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
+        this.roomTurnTimers.delete(room.roomCode);
         this.executeBotTurn(room, io, currentId);
       }, delay + graceMs);
       this.pendingTimers.add(timer);
+      this.roomTurnTimers.set(room.roomCode, timer);
     } else {
       this.scheduleHumanTurnTimer(room, io, currentId, graceMs);
     }
@@ -96,12 +108,15 @@ export class BotManager {
 
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
+      this.roomTurnTimers.delete(room.roomCode);
       this.executeAutoAction(room, io, playerId);
     }, totalMs);
     this.pendingTimers.add(timer);
+    this.roomTurnTimers.set(room.roomCode, timer);
   }
 
   private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
     if (room.game.currentPlayerId !== playerId) return;
 
@@ -126,6 +141,7 @@ export class BotManager {
   clearTimers(): void {
     for (const t of this.pendingTimers) clearTimeout(t);
     this.pendingTimers.clear();
+    this.roomTurnTimers.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {

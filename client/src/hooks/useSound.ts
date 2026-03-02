@@ -93,7 +93,7 @@ export function useGameSounds(
     if (!gameState) return;
     const roundNum = gameState.roundNumber;
 
-    if (roundNum > prevRoundNumberRef.current && prevRoundNumberRef.current > 0) {
+    if (roundNum > prevRoundNumberRef.current) {
       play('cardDeal');
     }
 
