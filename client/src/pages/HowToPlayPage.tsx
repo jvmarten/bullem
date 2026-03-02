@@ -55,13 +55,13 @@ export function HowToPlayPage() {
             {/* Hand Rankings */}
             <section className="glass p-4 animate-fade-in">
               <h2 className="font-display text-lg font-bold text-[var(--gold)] mb-2">Hand Rankings</h2>
-              <p className="text-xs text-[var(--gold-dim)] mb-2">Lowest to highest &mdash; note: flush is <em>lower</em> than straight!</p>
+              <p className="text-xs text-[var(--gold-dim)] mb-2">Lowest to highest &mdash; note: flush is <em>lower</em> than three of a kind!</p>
               <ol className="space-y-1 text-sm text-[#e8e0d4] list-decimal list-inside">
                 <li><strong>High Card</strong> &mdash; e.g., "King high"</li>
                 <li><strong>Pair</strong> &mdash; e.g., "pair of 7s"</li>
                 <li><strong>Two Pair</strong> &mdash; e.g., "jacks and 4s"</li>
+                <li><strong className="text-[var(--gold)]">Flush</strong> &mdash; e.g., "flush in hearts" <span className="text-[var(--gold-dim)] text-xs">(lower than three of a kind!)</span></li>
                 <li><strong>Three of a Kind</strong> &mdash; e.g., "three 9s"</li>
-                <li><strong className="text-[var(--gold)]">Flush</strong> &mdash; e.g., "flush in hearts" <span className="text-[var(--gold-dim)] text-xs">(lower than straight!)</span></li>
                 <li><strong>Straight</strong> &mdash; e.g., "5 through 9"</li>
                 <li><strong>Full House</strong> &mdash; e.g., "queens over 3s"</li>
                 <li><strong>Four of a Kind</strong> &mdash; e.g., "four 2s"</li>

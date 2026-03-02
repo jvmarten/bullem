@@ -332,23 +332,23 @@ export class BotPlayer {
       }
     }
 
+    // Flush bluffs — semi-bluff if we hold 2+ of the suit
+    if (totalCards >= 8 && currentHand.type <= HandType.FLUSH) {
+      const suitCounts = this.getSuitCounts(ownCards);
+      for (const [suit, count] of suitCounts) {
+        const hand: HandCall = { type: HandType.FLUSH, suit };
+        if (isHigherHand(hand, currentHand)) {
+          candidates.push({ hand, semiBluff: count >= 2 });
+        }
+      }
+    }
+
     // Three of a kind bluffs — semi-bluff if we hold 1-2 of the rank
     if (currentHand.type <= HandType.THREE_OF_A_KIND && totalCards >= 6) {
       for (const [rank, count] of rankCounts) {
         const hand: HandCall = { type: HandType.THREE_OF_A_KIND, rank };
         if (isHigherHand(hand, currentHand)) {
           candidates.push({ hand, semiBluff: count >= 1 && count < 3 });
-        }
-      }
-    }
-
-    // Flush bluffs — semi-bluff if we hold 2+ of the suit
-    if (totalCards >= 8 && currentHand.type < HandType.FLUSH) {
-      const suitCounts = this.getSuitCounts(ownCards);
-      for (const [suit, count] of suitCounts) {
-        const hand: HandCall = { type: HandType.FLUSH, suit };
-        if (isHigherHand(hand, currentHand)) {
-          candidates.push({ hand, semiBluff: count >= 2 });
         }
       }
     }
@@ -825,11 +825,11 @@ export class BotPlayer {
       const nextRankVal = RANK_VALUES[cr.rank] + 1;
       const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
       if (nextRank) return { type: HandType.PAIR, rank: nextRank };
-      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
     }
 
-    if (currentHand.type < HandType.FLUSH) {
-      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+    if (currentHand.type < HandType.THREE_OF_A_KIND) {
+      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
     }
     if (currentHand.type < HandType.STRAIGHT) {
       return { type: HandType.STRAIGHT, highRank: '6' };
@@ -878,10 +878,15 @@ export class BotPlayer {
       if (totalCards >= 6) {
         return { type: HandType.TWO_PAIR, highRank: 'A', lowRank: '2' };
       }
-      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
     }
 
     if (currentHand.type === HandType.TWO_PAIR) {
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+    }
+
+    if (currentHand.type === HandType.FLUSH) {
+      // Flushes can't be raised with another flush — escalate to three of a kind
       return { type: HandType.THREE_OF_A_KIND, rank: '2' };
     }
 
@@ -890,15 +895,6 @@ export class BotPlayer {
       const nextRankVal = RANK_VALUES[cr.rank] + 1;
       const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
       if (nextRank) return { type: HandType.THREE_OF_A_KIND, rank: nextRank };
-      // Escalate to flush if enough cards
-      if (totalCards >= 8) {
-        return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
-      }
-      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
-    }
-
-    if (currentHand.type === HandType.FLUSH) {
-      // Flushes can't be raised with another flush — escalate to straight
       return { type: HandType.STRAIGHT, highRank: '6' };
     }
 
@@ -947,10 +943,10 @@ export class BotPlayer {
         return 0.20; // Likely they hold at least 1 of the pair
       case HandType.TWO_PAIR:
         return 0.15; // Probably hold at least 1 of each pair rank
-      case HandType.THREE_OF_A_KIND:
-        return 0.15; // Probably hold 1-2 of the rank
       case HandType.FLUSH:
-        return 0.10; // Probably hold a couple cards of the suit
+        return 0.15; // Probably hold a couple cards of the suit
+      case HandType.THREE_OF_A_KIND:
+        return 0.10; // Probably hold 1-2 of the rank
       case HandType.STRAIGHT:
         return 0.10; // Might hold some of the ranks
       case HandType.FULL_HOUSE:

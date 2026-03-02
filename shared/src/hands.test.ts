@@ -62,12 +62,12 @@ describe('constants', () => {
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 describe('enums', () => {
-  it('HandType has custom ordering: flush < straight', () => {
+  it('HandType has custom ordering: flush < three of a kind < straight', () => {
     expect(HandType.HIGH_CARD).toBe(0);
     expect(HandType.PAIR).toBe(1);
     expect(HandType.TWO_PAIR).toBe(2);
-    expect(HandType.THREE_OF_A_KIND).toBe(3);
-    expect(HandType.FLUSH).toBe(4);
+    expect(HandType.FLUSH).toBe(3);
+    expect(HandType.THREE_OF_A_KIND).toBe(4);
     expect(HandType.STRAIGHT).toBe(5);
     expect(HandType.FULL_HOUSE).toBe(6);
     expect(HandType.FOUR_OF_A_KIND).toBe(7);
@@ -110,18 +110,18 @@ describe('isHigherHand', () => {
       expect(isHigherHand(high, pair)).toBe(false);
     });
 
-    it('flush beats three of a kind (custom ranking)', () => {
+    it('three of a kind beats flush (custom ranking)', () => {
       const flush: HandCall = { type: HandType.FLUSH, suit: 'clubs' };
       const three: HandCall = { type: HandType.THREE_OF_A_KIND, rank: 'A' };
-      expect(isHigherHand(flush, three)).toBe(true);
-      expect(isHigherHand(three, flush)).toBe(false);
+      expect(isHigherHand(three, flush)).toBe(true);
+      expect(isHigherHand(flush, three)).toBe(false);
     });
 
-    it('straight beats flush (custom ranking)', () => {
+    it('straight beats three of a kind (custom ranking)', () => {
       const straight: HandCall = { type: HandType.STRAIGHT, highRank: '6' };
-      const flush: HandCall = { type: HandType.FLUSH, suit: 'spades' };
-      expect(isHigherHand(straight, flush)).toBe(true);
-      expect(isHigherHand(flush, straight)).toBe(false);
+      const three: HandCall = { type: HandType.THREE_OF_A_KIND, rank: 'A' };
+      expect(isHigherHand(straight, three)).toBe(true);
+      expect(isHigherHand(three, straight)).toBe(false);
     });
 
     it('royal flush beats straight flush', () => {
@@ -136,8 +136,8 @@ describe('isHigherHand', () => {
         { type: HandType.HIGH_CARD, rank: 'A' },
         { type: HandType.PAIR, rank: '2' },
         { type: HandType.TWO_PAIR, highRank: '3', lowRank: '2' },
-        { type: HandType.THREE_OF_A_KIND, rank: '2' },
         { type: HandType.FLUSH, suit: 'clubs' },
+        { type: HandType.THREE_OF_A_KIND, rank: '2' },
         { type: HandType.STRAIGHT, highRank: '6' },
         { type: HandType.FULL_HOUSE, threeRank: '2', twoRank: '3' },
         { type: HandType.FOUR_OF_A_KIND, rank: '2' },

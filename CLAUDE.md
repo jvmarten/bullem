@@ -118,13 +118,13 @@ Always lead with the production-grade approach. If a simpler interim approach is
 
 ### Hand Rankings (LOW to HIGH)
 
-This is a CUSTOM ranking order — flush comes BEFORE straight, not after:
+This is a CUSTOM ranking order — flush is LOWER than three of a kind, and both are lower than straight:
 
 1. High card (e.g., "King high")
 2. Pair (e.g., "pair of 7s")
 3. Two pair (e.g., "two pair, jacks and 4s")
-4. Three of a kind (e.g., "three 9s")
-5. Flush (e.g., "flush in hearts") — NOTE: ranked LOWER than straight
+4. Flush (e.g., "flush in hearts") — NOTE: ranked LOWER than three of a kind
+5. Three of a kind (e.g., "three 9s")
 6. Straight (e.g., "straight, 5 through 9")
 7. Full house (e.g., "full house, queens over 3s")
 8. Four of a kind (e.g., "four 2s")
