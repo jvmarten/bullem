@@ -30,6 +30,14 @@ export class BotManager {
     this.roomTurnTimers.delete(roomCode);
   }
 
+  clearTurnTimer(roomCode: string): void {
+    const existing = this.roomTurnTimers.get(roomCode);
+    if (!existing) return;
+    clearTimeout(existing);
+    this.pendingTimers.delete(existing);
+    this.roomTurnTimers.delete(roomCode);
+  }
+
   setDifficulty(difficulty: BotDifficulty): void {
     this.difficulty = difficulty;
   }

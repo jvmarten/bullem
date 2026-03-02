@@ -81,13 +81,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('game:continue');
       setRoundResult(null);
       roundResultRef.current = null;
-      if (pendingGameStateRef.current) {
-        setGameState(pendingGameStateRef.current);
-        setRoundTransition(false);
-        pendingGameStateRef.current = null;
-      } else {
-        setRoundTransition(true);
-      }
+      setRoundTransition(true);
+      pendingGameStateRef.current = null;
     }, 30000);
     return () => {
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
@@ -224,13 +219,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-    if (pendingGameStateRef.current) {
-      setGameState(pendingGameStateRef.current);
-      setRoundTransition(false);
-      pendingGameStateRef.current = null;
-    } else {
-      setRoundTransition(true);
-    }
+    setRoundTransition(true);
+    pendingGameStateRef.current = null;
   }, []);
 
   const addBot = useCallback((botName?: string): Promise<string> => {
