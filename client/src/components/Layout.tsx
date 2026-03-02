@@ -4,6 +4,7 @@ import { GameContext } from '../context/GameContext.js';
 export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
+  const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
@@ -11,6 +12,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
         <h1 className={`font-display font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'}`}>
           Bull &rsquo;Em
         </h1>
+        {onlinePlayerCount > 0 && (
+          <div className="absolute top-1/2 left-3 -translate-y-1/2 flex items-center gap-1 text-[10px] text-[var(--gold-dim)]">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+            {onlinePlayerCount}
+          </div>
+        )}
         {!isConnected && (
           <div className="absolute top-1/2 right-4 -translate-y-1/2 flex items-center gap-1.5 text-xs text-[var(--gold)]">
             <span className="dot-disconnected" />

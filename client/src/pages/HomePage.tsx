@@ -192,10 +192,10 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms } = useGameContext();
+  const { onlinePlayerCount, listRooms, roomState } = useGameContext();
 
-  // Shuffle card positions on interval while hovering
-  const isShuffling = isHovered && !isDealing;
+  // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
+  const isShuffling = isHovered && !isDealing && !dealtCards;
   useEffect(() => {
     if (!isShuffling) {
       setShuffleOrder(INITIAL_ORDER);
@@ -260,16 +260,16 @@ export function HomePage() {
   };
 
   const handleDeckHover = useCallback(() => {
-    if (!isHovered && !isDealing) {
+    if (!isHovered && !isDealing && !dealtCards) {
       setIsHovered(true);
     }
-  }, [isHovered, isDealing]);
+  }, [isHovered, isDealing, dealtCards]);
 
   const handleDeckLeave = useCallback(() => {
-    if (!isDealing) {
+    if (!isDealing && !dealtCards) {
       setIsHovered(false);
     }
-  }, [isDealing]);
+  }, [isDealing, dealtCards]);
 
   const handleDeckClick = useCallback(() => {
     // If cards are already dealt and showing, reset back to deck
@@ -357,9 +357,9 @@ export function HomePage() {
               const isHighlighted = showHighlight && relevantIndices.has(i);
               const popY = isHighlighted ? -16 : 0;
 
-              const x = isDealing ? dealX : stackX;
-              const y = (isDealing ? dealY : stackY) + popY;
-              const angle = isDealing ? dealAngle : stackAngle;
+              const x = isDealt ? dealX : stackX;
+              const y = (isDealt ? dealY : stackY) + popY;
+              const angle = isDealt ? dealAngle : stackAngle;
 
               const riffleDir = i % 2 === 0 ? -1 : 1;
 
@@ -475,13 +475,6 @@ export function HomePage() {
           </div>
         </div>
 
-        {/* Online player count */}
-        {onlinePlayerCount > 0 && (
-          <p className="text-xs text-[var(--gold-dim)]">
-            {onlinePlayerCount} player{onlinePlayerCount !== 1 ? 's' : ''} online
-          </p>
-        )}
-
         {error && (
           <div className="w-full glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
             {error}
@@ -539,15 +532,37 @@ export function HomePage() {
 
         {mode === 'online' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <button onClick={handleHost} className="w-full btn-gold py-4 text-lg">
-              Host Game
-            </button>
-            <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
-              Join Room
-            </button>
-            <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-              Browse Games
-            </button>
+            {roomState ? (
+              <>
+                <button
+                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                  className="w-full btn-gold py-4 text-lg"
+                >
+                  Return to Room ({roomState.roomCode})
+                </button>
+                <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
+                  Join Room
+                </button>
+                <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={handleHost} className="w-full btn-gold py-4 text-lg">
+                  Quick Start
+                </button>
+                <button onClick={handleHost} className="w-full btn-ghost py-4 text-lg">
+                  Host Game
+                </button>
+                <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
+                  Join Room
+                </button>
+                <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
+                </button>
+              </>
+            )}
             <button
               onClick={() => { setMode('menu'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
