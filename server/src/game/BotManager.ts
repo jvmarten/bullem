@@ -123,11 +123,13 @@ export class BotManager {
     if (!botPlayer || !botPlayer.isBot) return;
 
     const state = room.game.getClientState(botId);
-    // For IMPOSSIBLE difficulty, pass all players' combined cards
-    const allCards = this.difficulty === BotDifficulty.IMPOSSIBLE
-      ? [...room.players.values()].filter(p => !p.isEliminated).flatMap(p => p.cards)
+    // For IMPOSSIBLE difficulty, bots see their own cards + human players' cards (not other bots')
+    const visibleCards = this.difficulty === BotDifficulty.IMPOSSIBLE
+      ? [...room.players.values()]
+          .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
+          .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, allCards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards);
 
     let result: TurnResult;
     switch (decision.action) {
