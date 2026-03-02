@@ -158,9 +158,24 @@ function shuffleArray<T>(arr: T[]): T[] {
 const CARD_COUNT = 5;
 const INITIAL_ORDER = [0, 1, 2, 3, 4];
 
+const PLAYER_NAME_STORAGE_KEY = 'bull-em-player-name';
+
+function generatePlayerName(): string {
+  return `Player${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function getOrCreatePlayerName(): string {
+  const stored = localStorage.getItem(PLAYER_NAME_STORAGE_KEY);
+  if (stored) return stored;
+  const name = generatePlayerName();
+  localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+  return name;
+}
+
 export function HomePage() {
-  const [name, setName] = useState('');
-  const [mode, setMode] = useState<'menu' | 'local' | 'host' | 'join' | 'browse'>('menu');
+  const [name, setName] = useState(() => getOrCreatePlayerName());
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>('menu');
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
@@ -174,6 +189,7 @@ export function HomePage() {
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
   const { onlinePlayerCount, listRooms } = useGameContext();
@@ -199,22 +215,28 @@ export function HomePage() {
     };
   }, [isShuffling]);
 
+  const getPlayerName = (): string => {
+    const current = name.trim() || getOrCreatePlayerName();
+    localStorage.setItem(PLAYER_NAME_STORAGE_KEY, current);
+    return current;
+  };
+
   const handlePlayLocal = () => {
-    if (!name.trim()) return setError('Enter your name');
-    sessionStorage.setItem('bull-em-local-name', name.trim());
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-local-name', playerName);
     navigate('/local');
   };
 
   const handleHost = () => {
-    if (!name.trim()) return setError('Enter your name');
-    sessionStorage.setItem('bull-em-player-name', name.trim());
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-player-name', playerName);
     navigate('/host');
   };
 
   const handleJoin = () => {
-    if (!name.trim()) return setError('Enter your name');
     if (!roomCode.trim()) return setError('Enter a room code');
-    sessionStorage.setItem('bull-em-player-name', name.trim());
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-player-name', playerName);
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
@@ -232,8 +254,8 @@ export function HomePage() {
   };
 
   const handleJoinFromBrowse = (code: string) => {
-    if (!name.trim()) return setError('Enter your name first');
-    sessionStorage.setItem('bull-em-player-name', name.trim());
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-player-name', playerName);
     navigate(`/room/${code}`);
   };
 
@@ -287,10 +309,16 @@ export function HomePage() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (mode === 'local') handlePlayLocal();
-      else if (mode === 'host') handleHost();
-      else if (mode === 'join') handleJoin();
+      if (mode === 'join') handleJoin();
     }
+  };
+
+  const handleNameSave = () => {
+    const trimmed = name.trim();
+    if (trimmed) {
+      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, trimmed);
+    }
+    setIsEditingName(false);
   };
 
   const isDealt = dealtCards !== null;
@@ -460,19 +488,45 @@ export function HomePage() {
           </div>
         )}
 
+        {/* Player name display — tap to edit */}
+        {mode === 'menu' && (
+          <div className="flex items-center justify-center gap-2 animate-fade-in">
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={handleNameSave}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleNameSave(); }}
+                  maxLength={20}
+                  autoFocus
+                  className="input-felt text-center text-sm py-1.5 px-3 w-40"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsEditingName(true);
+                  setTimeout(() => nameInputRef.current?.select(), 0);
+                }}
+                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5"
+              >
+                <span>{name}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              </button>
+            )}
+          </div>
+        )}
+
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <button onClick={() => setMode('local')} className="w-full btn-gold py-4 text-lg">
-              Play vs Bots
+            <button onClick={() => setMode('online')} className="w-full btn-gold py-4 text-lg">
+              Play Online
             </button>
-            <button onClick={() => setMode('host')} className="w-full btn-gold py-4 text-lg">
-              Host Online Game
-            </button>
-            <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
-              Join Online Room
-            </button>
-            <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-              Browse Games
+            <button onClick={handlePlayLocal} className="w-full btn-gold py-4 text-lg">
+              Play Offline
             </button>
             <Link
               to="/how-to-play"
@@ -483,48 +537,16 @@ export function HomePage() {
           </div>
         )}
 
-        {mode === 'local' && (
-          <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
-            <input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={20}
-              autoFocus
-              className="w-full input-felt"
-            />
-            <button
-              onClick={handlePlayLocal}
-              className="w-full btn-gold py-3 text-lg"
-            >
-              Start Game
+        {mode === 'online' && (
+          <div className="flex flex-col gap-3 w-full animate-fade-in">
+            <button onClick={handleHost} className="w-full btn-gold py-4 text-lg">
+              Host Game
             </button>
-            <button
-              onClick={() => { setMode('menu'); setError(''); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-            >
-              Back
+            <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
+              Join Room
             </button>
-          </div>
-        )}
-
-        {mode === 'host' && (
-          <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
-            <input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={20}
-              autoFocus
-              className="w-full input-felt"
-            />
-            <button
-              onClick={handleHost}
-              className="w-full btn-gold py-3 text-lg"
-            >
-              Create Room
+            <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
+              Browse Games
             </button>
             <button
               onClick={() => { setMode('menu'); setError(''); }}
@@ -539,19 +561,11 @@ export function HomePage() {
           <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
             <input
               type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={20}
-              autoFocus
-              className="w-full input-felt"
-            />
-            <input
-              type="text"
               placeholder="Room code"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
               maxLength={4}
+              autoFocus
               className="w-full input-felt uppercase tracking-[0.3em] text-center text-xl font-bold"
             />
             <button
@@ -561,7 +575,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { setMode('menu'); setError(''); }}
+              onClick={() => { setMode('online'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -571,17 +585,6 @@ export function HomePage() {
 
         {mode === 'browse' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            {!name.trim() && (
-              <input
-                type="text"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={20}
-                autoFocus
-                className="w-full input-felt"
-              />
-            )}
             {loadingRooms ? (
               <div className="text-center py-4">
                 <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
@@ -620,7 +623,7 @@ export function HomePage() {
               Refresh
             </button>
             <button
-              onClick={() => { setMode('menu'); setError(''); }}
+              onClick={() => { setMode('online'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back

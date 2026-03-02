@@ -25,7 +25,7 @@ export function LobbyPage() {
   // Auto-join room when navigating directly to /room/:roomCode
   useEffect(() => {
     if (roomState || !roomCode || joining || joinAttemptedRef.current) return;
-    const storedName = sessionStorage.getItem('bull-em-player-name');
+    const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (storedName) {
       joinAttemptedRef.current = true;
       setJoining(true);
@@ -75,7 +75,7 @@ export function LobbyPage() {
   const displayError = localError || error;
 
   // Show name input for direct URL visitors who have no stored name
-  if (!roomState && !joining && !joinAttemptedRef.current && !sessionStorage.getItem('bull-em-player-name')) {
+  if (!roomState && !joining && !joinAttemptedRef.current && !sessionStorage.getItem('bull-em-player-name') && !localStorage.getItem('bull-em-player-name')) {
     return (
       <Layout>
         <div className="flex items-center justify-center pt-16">
