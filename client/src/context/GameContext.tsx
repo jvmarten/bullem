@@ -81,8 +81,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('game:continue');
       setRoundResult(null);
       roundResultRef.current = null;
-      setRoundTransition(true);
+      // If the server already sent the next round state while the overlay was
+      // showing, apply it immediately instead of showing the transition overlay.
+      const pending = pendingGameStateRef.current;
       pendingGameStateRef.current = null;
+      if (pending) {
+        setGameState(pending);
+        setRoundTransition(false);
+      } else {
+        setRoundTransition(true);
+      }
     }, 30000);
     return () => {
       if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
@@ -219,8 +227,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-    setRoundTransition(true);
+    // If the server already sent the next round state while the overlay was
+    // showing, apply it immediately instead of showing the transition overlay.
+    const pending = pendingGameStateRef.current;
     pendingGameStateRef.current = null;
+    if (pending) {
+      setGameState(pending);
+      setRoundTransition(false);
+    } else {
+      setRoundTransition(true);
+    }
   }, []);
 
   const addBot = useCallback((botName?: string): Promise<string> => {
