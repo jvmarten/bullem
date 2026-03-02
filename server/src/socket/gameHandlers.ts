@@ -18,6 +18,7 @@ export function registerGameHandlers(
   socket.on('game:call', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -25,6 +26,7 @@ export function registerGameHandlers(
   socket.on('game:bull', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleBull(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -32,6 +34,7 @@ export function registerGameHandlers(
   socket.on('game:true', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleTrue(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -39,6 +42,7 @@ export function registerGameHandlers(
   socket.on('game:lastChanceRaise', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);
   });
@@ -46,6 +50,7 @@ export function registerGameHandlers(
   socket.on('game:lastChancePass', () => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChancePass(ctx.playerId);
     handleResult(io, ctx.room, result, socket, botManager);
   });

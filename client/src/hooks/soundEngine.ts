@@ -13,6 +13,7 @@ type SoundName =
   | 'timerTick'
   | 'uiHover'
   | 'uiClick'
+  | 'uiSoft'
   | 'deckShuffle'
   | 'cardReveal'
   | 'fanfare';
@@ -43,8 +44,8 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 780, duration: 0.08, type: 'sine', gain: 0.08, delay: 0.04 },
   ],
   bullCalled: [
-    { frequency: 200, duration: 0.25, type: 'sine', gain: 0.18, ramp: 0.22 },
-    { frequency: 160, duration: 0.3, type: 'triangle', gain: 0.1, delay: 0.08 },
+    { frequency: 200, duration: 0.25, type: 'sine', gain: 0.28, ramp: 0.22 },
+    { frequency: 160, duration: 0.3, type: 'triangle', gain: 0.16, delay: 0.08 },
   ],
   trueCalled: [
     { frequency: 660, duration: 0.15, type: 'sine', gain: 0.15, ramp: 0.12 },
@@ -79,8 +80,11 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 3800, duration: 0.01, type: 'sine', gain: 0.005, ramp: 0.008 },
   ],
   uiClick: [
-    { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },
-    { frequency: 1400, duration: 0.04, type: 'triangle', gain: 0.06, delay: 0.02 },
+    { frequency: 850, duration: 0.05, type: 'sine', gain: 0.08, ramp: 0.04 },
+    { frequency: 1250, duration: 0.03, type: 'triangle', gain: 0.04, delay: 0.015 },
+  ],
+  uiSoft: [
+    { frequency: 720, duration: 0.045, type: 'sine', gain: 0.05, ramp: 0.035 },
   ],
   deckShuffle: [
     // Gentle riffle shuffle — soft layered clicks

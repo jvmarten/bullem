@@ -1,4 +1,5 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { GameContext } from '../context/GameContext.js';
 
 export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
@@ -8,8 +9,19 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
   const [showPopup, setShowPopup] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Close popup when clicking outside
+  const handleTitleClick = () => {
+    const inPotentialSession = /^\/(room|game|local|results)/.test(location.pathname);
+    if (inPotentialSession) {
+      const ok = window.confirm('Leave current game/session and return home?');
+      if (!ok) return;
+      ctx?.leaveRoom?.();
+    }
+    navigate('/');
+  };
+
   useEffect(() => {
     if (!showPopup) return;
     const handler = (e: MouseEvent) => {
@@ -24,9 +36,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   return (
     <div className="felt-bg text-[#e8e0d4]">
       <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
-        <h1 className={`font-display font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'}`}>
+        <button
+          onClick={handleTitleClick}
+          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors`}
+        >
           Bull &rsquo;Em
-        </h1>
+        </button>
         {onlinePlayerCount > 0 && (
           <div ref={popupRef} className="absolute top-1/2 left-3 -translate-y-1/2">
             <button
@@ -34,9 +49,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              {onlinePlayerNames.length > 0
-                ? onlinePlayerNames.slice(0, 2).join(', ') + (onlinePlayerNames.length > 2 ? ` +${onlinePlayerNames.length - 2}` : '')
-                : `${onlinePlayerCount} online`}
+              {onlinePlayerCount}
             </button>
             {showPopup && (
               <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
@@ -54,7 +67,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
                   </ul>
                 ) : (
                   <p className="text-xs text-[var(--gold-dim)]">
-                    {onlinePlayerCount} online
+                    {onlinePlayerCount} players online
                   </p>
                 )}
               </div>
@@ -68,7 +81,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
           </div>
         )}
       </header>
-      <main className="max-w-lg mx-auto px-4 py-3">{children}</main>
+      <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
     </div>
   );
 }

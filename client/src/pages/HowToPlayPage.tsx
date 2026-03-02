@@ -46,7 +46,7 @@ export function HowToPlayPage() {
               <ul className="space-y-1 text-sm text-[#e8e0d4]">
                 <li>2&ndash;12 players, one standard 52-card deck.</li>
                 <li>Round 1: each player gets <strong>1 card</strong>.</li>
-                <li>You see your own cards but <strong>never</strong> other players' cards.</li>
+                <li>You mainly see <strong>your own cards</strong>; some cards are revealed to everyone at the end of each round.</li>
                 <li>Lose a round? You get <strong>+1 card</strong> next round.</li>
                 <li>Max cards is configurable (1&ndash;5). Exceeding it = <strong>eliminated</strong>.</li>
               </ul>
