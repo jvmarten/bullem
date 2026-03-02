@@ -72,7 +72,7 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
   ],
   uiHover: [
-    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.06, ramp: 0.025 },
+    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 },
   ],
   uiClick: [
     { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },

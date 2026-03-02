@@ -126,6 +126,11 @@ export function GamePage() {
             <span className="font-display text-base font-bold text-[var(--gold)]">
               {handToString(gameState.currentHand)}
             </span>
+            {gameState.lastCallerId && (
+              <span className="text-[10px] text-[var(--gold-dim)] ml-2">
+                by {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+              </span>
+            )}
           </div>
         )}
 
