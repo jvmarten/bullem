@@ -25,7 +25,10 @@ export function maxPlayersForMaxCards(maxCards: number): number {
 
 export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const;
 export const DEFAULT_TURN_TIMER = 0;
+export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const;
+export const DEFAULT_ONLINE_TURN_TIMER = 30;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
+export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER };
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
 

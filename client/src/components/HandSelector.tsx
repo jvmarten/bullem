@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
-  isHigherHand, getHandTypeName, handToString,
+  isHigherHand, getHandTypeName, handToString, getMinimumRaise,
 } from '@bull-em/shared';
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
@@ -192,12 +192,36 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover }: {
 
 /* ── Main Component ────────────────────────────────────── */
 
+function getInitialState(currentHand: HandCall | null): { handType: HandType; rank: Rank; rank2: Rank; suit: Suit } {
+  if (!currentHand) return { handType: HandType.HIGH_CARD, rank: '2', rank2: '3', suit: 'spades' };
+  const minRaise = getMinimumRaise(currentHand);
+  if (!minRaise) return { handType: currentHand.type, rank: 'A', rank2: 'K', suit: 'spades' };
+  const ht = minRaise.type;
+  let rank: Rank = '2';
+  let rank2: Rank = '3';
+  let suit: Suit = 'spades';
+  switch (minRaise.type) {
+    case HandType.HIGH_CARD: rank = minRaise.rank; break;
+    case HandType.PAIR: rank = minRaise.rank; break;
+    case HandType.TWO_PAIR: rank = minRaise.highRank; rank2 = minRaise.lowRank; break;
+    case HandType.THREE_OF_A_KIND: rank = minRaise.rank; break;
+    case HandType.FLUSH: suit = minRaise.suit; break;
+    case HandType.STRAIGHT: rank = minRaise.highRank; break;
+    case HandType.FULL_HOUSE: rank = minRaise.threeRank; rank2 = minRaise.twoRank; break;
+    case HandType.FOUR_OF_A_KIND: rank = minRaise.rank; break;
+    case HandType.STRAIGHT_FLUSH: suit = minRaise.suit; rank = minRaise.highRank; break;
+    case HandType.ROYAL_FLUSH: suit = minRaise.suit; break;
+  }
+  return { handType: ht, rank, rank2, suit };
+}
+
 export function HandSelector({ currentHand, onSubmit }: Props) {
   const { play } = useSound();
-  const [handType, setHandType] = useState<HandType>(currentHand?.type ?? HandType.HIGH_CARD);
-  const [rank, setRank] = useState<Rank>('2');
-  const [rank2, setRank2] = useState<Rank>('3');
-  const [suit, setSuit] = useState<Suit>('spades');
+  const initial = getInitialState(currentHand);
+  const [handType, setHandType] = useState<HandType>(initial.handType);
+  const [rank, setRank] = useState<Rank>(initial.rank);
+  const [rank2, setRank2] = useState<Rank>(initial.rank2);
+  const [suit, setSuit] = useState<Suit>(initial.suit);
 
   const playHover = useCallback(() => play('uiHover'), [play]);
   const playClick = useCallback(() => play('uiClick'), [play]);

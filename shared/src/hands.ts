@@ -1,4 +1,4 @@
-import { RANK_VALUES, SUIT_ORDER } from './constants.js';
+import { RANK_VALUES, SUIT_ORDER, ALL_RANKS, ALL_SUITS } from './constants.js';
 import { HandCall, HandType, type Rank, type Suit } from './types.js';
 
 export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean {
@@ -123,4 +123,85 @@ export function handToString(hand: HandCall): string {
 
 export function getHandTypeName(type: HandType): string {
   return HAND_TYPE_NAMES[type];
+}
+
+/** Returns the minimum valid hand that beats `currentHand`, or null if nothing can. */
+export function getMinimumRaise(currentHand: HandCall): HandCall | null {
+  function nextRank(r: Rank): Rank | null {
+    const idx = ALL_RANKS.indexOf(r);
+    return idx < ALL_RANKS.length - 1 ? ALL_RANKS[idx + 1] : null;
+  }
+
+  switch (currentHand.type) {
+    case HandType.HIGH_CARD: {
+      const nr = nextRank(currentHand.rank);
+      if (nr) return { type: HandType.HIGH_CARD, rank: nr };
+      return { type: HandType.PAIR, rank: '2' };
+    }
+    case HandType.PAIR: {
+      const nr = nextRank(currentHand.rank);
+      if (nr) return { type: HandType.PAIR, rank: nr };
+      return { type: HandType.TWO_PAIR, highRank: '3', lowRank: '2' };
+    }
+    case HandType.TWO_PAIR: {
+      const { highRank, lowRank } = currentHand;
+      // Try next lowRank that's still below highRank
+      for (let i = ALL_RANKS.indexOf(lowRank) + 1; i < ALL_RANKS.length; i++) {
+        if (RANK_VALUES[ALL_RANKS[i]] < RANK_VALUES[highRank]) {
+          return { type: HandType.TWO_PAIR, highRank, lowRank: ALL_RANKS[i] };
+        }
+      }
+      const nh = nextRank(highRank);
+      if (nh) return { type: HandType.TWO_PAIR, highRank: nh, lowRank: '2' };
+      return { type: HandType.FLUSH, suit: 'clubs' };
+    }
+    case HandType.FLUSH:
+      // All flushes are equal — must jump to next type
+      return { type: HandType.THREE_OF_A_KIND, rank: '2' };
+    case HandType.THREE_OF_A_KIND: {
+      const nr = nextRank(currentHand.rank);
+      if (nr) return { type: HandType.THREE_OF_A_KIND, rank: nr };
+      return { type: HandType.STRAIGHT, highRank: '5' };
+    }
+    case HandType.STRAIGHT: {
+      const nr = nextRank(currentHand.highRank);
+      if (nr) return { type: HandType.STRAIGHT, highRank: nr };
+      return { type: HandType.FULL_HOUSE, threeRank: '2', twoRank: '3' };
+    }
+    case HandType.FULL_HOUSE: {
+      const { threeRank, twoRank } = currentHand;
+      for (let i = ALL_RANKS.indexOf(twoRank) + 1; i < ALL_RANKS.length; i++) {
+        if (ALL_RANKS[i] !== threeRank) {
+          return { type: HandType.FULL_HOUSE, threeRank, twoRank: ALL_RANKS[i] };
+        }
+      }
+      const nt = nextRank(threeRank);
+      if (nt) {
+        const lowestTwo: Rank = nt === '2' ? '3' : '2';
+        return { type: HandType.FULL_HOUSE, threeRank: nt, twoRank: lowestTwo };
+      }
+      return { type: HandType.FOUR_OF_A_KIND, rank: '2' };
+    }
+    case HandType.FOUR_OF_A_KIND: {
+      const nr = nextRank(currentHand.rank);
+      if (nr) return { type: HandType.FOUR_OF_A_KIND, rank: nr };
+      return { type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: '5' };
+    }
+    case HandType.STRAIGHT_FLUSH: {
+      const { suit: sfSuit, highRank: sfHigh } = currentHand;
+      const nr = nextRank(sfHigh);
+      // Next rank in same suit (K+1 would be Ace = Royal Flush, different type)
+      if (nr && nr !== 'A') {
+        return { type: HandType.STRAIGHT_FLUSH, suit: sfSuit, highRank: nr };
+      }
+      // Try next suit with lowest straight flush
+      const suitIdx = ALL_SUITS.indexOf(sfSuit);
+      if (suitIdx < ALL_SUITS.length - 1) {
+        return { type: HandType.STRAIGHT_FLUSH, suit: ALL_SUITS[suitIdx + 1], highRank: '5' };
+      }
+      return { type: HandType.ROYAL_FLUSH, suit: 'clubs' };
+    }
+    case HandType.ROYAL_FLUSH:
+      return null;
+  }
 }

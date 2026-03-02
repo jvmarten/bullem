@@ -34,6 +34,17 @@ const botManager = new BotManager();
 registerHandlers(io, roomManager, botManager);
 roomManager.startCleanup();
 
+// Broadcast online player count on connect/disconnect
+function broadcastPlayerCount(): void {
+  const count = io.engine.clientsCount;
+  io.emit('server:playerCount', count);
+}
+io.on('connection', () => broadcastPlayerCount());
+io.engine.on('close', () => {
+  // engine 'close' fires after socket disconnect — delay to let count update
+  setTimeout(broadcastPlayerCount, 50);
+});
+
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {
   console.log(`Bull 'Em server running on port ${PORT}`);

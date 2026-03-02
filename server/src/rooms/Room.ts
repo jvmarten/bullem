@@ -140,12 +140,19 @@ export class Room {
     return this.game;
   }
 
+  updateSettings(settings: GameSettings): void {
+    if (this.gamePhase !== GamePhase.LOBBY) return;
+    this.settings = { ...settings };
+    this.touch();
+  }
+
   getRoomState(): RoomState {
     return {
       roomCode: this.roomCode,
       players: [...this.players.values()].map(toPublicPlayer),
       hostId: this.hostId,
       gamePhase: this.gamePhase,
+      settings: { ...this.settings },
     };
   }
 

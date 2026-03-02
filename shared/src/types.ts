@@ -148,4 +148,13 @@ export interface RoomState {
   players: Player[];
   hostId: PlayerId;
   gamePhase: GamePhase;
+  settings: GameSettings;
+}
+
+export interface RoomListing {
+  roomCode: string;
+  playerCount: number;
+  maxPlayers: number;
+  hostName: string;
+  settings: GameSettings;
 }

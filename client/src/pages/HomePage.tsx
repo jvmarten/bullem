@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
+import { useGameContext } from '../context/GameContext.js';
 import { HandType, handToString } from '@bull-em/shared';
-import type { Suit, Rank, HandCall } from '@bull-em/shared';
+import type { Suit, Rank, HandCall, RoomListing } from '@bull-em/shared';
 
 const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
@@ -83,12 +84,28 @@ function getSuitColor(suit: Suit): string {
   return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
 }
 
+/** Approximate probability of being dealt this hand type from 5 random cards. */
+function getHandProbability(type: HandType): string {
+  // Standard 5-card poker probabilities (rounded)
+  switch (type) {
+    case HandType.ROYAL_FLUSH:      return '1 in 649,740';
+    case HandType.STRAIGHT_FLUSH:   return '1 in 72,193';
+    case HandType.FOUR_OF_A_KIND:   return '1 in 4,165';
+    case HandType.FULL_HOUSE:       return '1 in 694';
+    case HandType.FLUSH:            return '1 in 509';
+    case HandType.STRAIGHT:         return '1 in 255';
+    case HandType.THREE_OF_A_KIND:  return '1 in 47';
+    case HandType.TWO_PAIR:         return '1 in 21';
+    case HandType.PAIR:             return '1 in 2.4';
+    case HandType.HIGH_CARD:        return '1 in 2';
+  }
+}
+
 /** Returns indices of cards that form the identified hand */
 function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
   const indices = new Set<number>();
 
   switch (hand.type) {
-    // All 5 cards matter
     case HandType.ROYAL_FLUSH:
     case HandType.STRAIGHT_FLUSH:
     case HandType.STRAIGHT:
@@ -96,19 +113,16 @@ function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
     case HandType.FULL_HOUSE:
       for (let i = 0; i < cards.length; i++) indices.add(i);
       break;
-
     case HandType.FOUR_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
         if (cards[i].rank === hand.rank) indices.add(i);
       }
       break;
-
     case HandType.THREE_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
         if (cards[i].rank === hand.rank) indices.add(i);
       }
       break;
-
     case HandType.TWO_PAIR:
       for (let i = 0; i < cards.length; i++) {
         if (cards[i].rank === hand.highRank || cards[i].rank === hand.lowRank) {
@@ -116,13 +130,11 @@ function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
         }
       }
       break;
-
     case HandType.PAIR:
       for (let i = 0; i < cards.length; i++) {
         if (cards[i].rank === hand.rank) indices.add(i);
       }
       break;
-
     case HandType.HIGH_CARD:
       for (let i = 0; i < cards.length; i++) {
         if (cards[i].rank === hand.rank) { indices.add(i); break; }
@@ -133,11 +145,22 @@ function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
   return indices;
 }
 
+/** Fisher-Yates shuffle of an array (returns new array) */
+function shuffleArray<T>(arr: T[]): T[] {
+  const next = [...arr];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
 const CARD_COUNT = 5;
+const INITIAL_ORDER = [0, 1, 2, 3, 4];
 
 export function HomePage() {
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<'menu' | 'local' | 'host' | 'join'>('menu');
+  const [mode, setMode] = useState<'menu' | 'local' | 'host' | 'join' | 'browse'>('menu');
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
@@ -145,10 +168,36 @@ export function HomePage() {
   const [handCall, setHandCall] = useState<HandCall | null>(null);
   const [isDealing, setIsDealing] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
+  const [shuffleOrder, setShuffleOrder] = useState(INITIAL_ORDER);
+  const [rooms, setRooms] = useState<RoomListing[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
+  const { onlinePlayerCount, listRooms } = useGameContext();
+
+  // Shuffle card positions on interval while hovering
+  const isShuffling = isHovered && !isDealing;
+  useEffect(() => {
+    if (!isShuffling) {
+      setShuffleOrder(INITIAL_ORDER);
+      if (shuffleIntervalRef.current) {
+        clearInterval(shuffleIntervalRef.current);
+        shuffleIntervalRef.current = null;
+      }
+      return;
+    }
+    // Immediately shuffle once, then on interval
+    setShuffleOrder(prev => shuffleArray(prev));
+    shuffleIntervalRef.current = setInterval(() => {
+      setShuffleOrder(prev => shuffleArray(prev));
+    }, 700);
+    return () => {
+      if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current);
+    };
+  }, [isShuffling]);
 
   const handlePlayLocal = () => {
     if (!name.trim()) return setError('Enter your name');
@@ -169,12 +218,30 @@ export function HomePage() {
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
+  const handleBrowse = async () => {
+    setLoadingRooms(true);
+    try {
+      const result = await listRooms();
+      setRooms(result);
+    } catch {
+      setError('Failed to load rooms');
+    } finally {
+      setLoadingRooms(false);
+    }
+    setMode('browse');
+  };
+
+  const handleJoinFromBrowse = (code: string) => {
+    if (!name.trim()) return setError('Enter your name first');
+    sessionStorage.setItem('bull-em-player-name', name.trim());
+    navigate(`/room/${code}`);
+  };
+
   const handleDeckHover = useCallback(() => {
     if (!isHovered && !isDealing) {
       setIsHovered(true);
-      play('deckShuffle');
     }
-  }, [isHovered, isDealing, play]);
+  }, [isHovered, isDealing]);
 
   const handleDeckLeave = useCallback(() => {
     if (!isDealing) {
@@ -183,6 +250,15 @@ export function HomePage() {
   }, [isDealing]);
 
   const handleDeckClick = useCallback(() => {
+    // If cards are already dealt and showing, reset back to deck
+    if (dealtCards && !isDealing) {
+      setDealtCards(null);
+      setHandCall(null);
+      setIsHovered(false);
+      setShowHighlight(false);
+      return;
+    }
+
     if (isDealing) return;
 
     const cards = dealFiveCards();
@@ -199,19 +275,15 @@ export function HomePage() {
       setTimeout(() => play('fanfare'), 600);
     }
 
-    // Pop up relevant cards after all 5 have flipped (~0.9s)
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => setShowHighlight(true), 900);
 
+    // Mark dealing as complete after flip animation finishes, but keep cards shown
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => {
-      setDealtCards(null);
-      setHandCall(null);
       setIsDealing(false);
-      setIsHovered(false);
-      setShowHighlight(false);
-    }, hand.type === HandType.ROYAL_FLUSH ? 4000 : 3000);
-  }, [isDealing, play]);
+    }, 800);
+  }, [isDealing, dealtCards, play]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -221,7 +293,6 @@ export function HomePage() {
     }
   };
 
-  const isShuffling = isHovered && !isDealing;
   const isDealt = dealtCards !== null;
   const isRoyal = handCall?.type === HandType.ROYAL_FLUSH;
   const relevantIndices = dealtCards && handCall
@@ -245,16 +316,16 @@ export function HomePage() {
               const card = dealtCards?.[i];
               const centered = i - (CARD_COUNT - 1) / 2;
 
-              // Dealt: spread horizontally so all 5 card faces are visible
               const dealX = centered * 46;
               const dealY = 0;
               const dealAngle = 0;
 
-              const stackX = i * 0.5;
-              const stackY = -i * 1.2;
-              const stackAngle = centered * 1.5;
+              // Use shuffleOrder to determine stack position during shuffle
+              const pos = shuffleOrder[i];
+              const stackX = pos * 0.5;
+              const stackY = -pos * 1.2;
+              const stackAngle = (pos - (CARD_COUNT - 1) / 2) * 1.5;
 
-              // Pop up relevant cards after reveal
               const isHighlighted = showHighlight && relevantIndices.has(i);
               const popY = isHighlighted ? -16 : 0;
 
@@ -262,7 +333,6 @@ export function HomePage() {
               const y = (isDealing ? dealY : stackY) + popY;
               const angle = isDealing ? dealAngle : stackAngle;
 
-              // Riffle direction: alternate cards go left (-1) vs right (1)
               const riffleDir = i % 2 === 0 ? -1 : 1;
 
               return (
@@ -272,11 +342,10 @@ export function HomePage() {
                   style={{
                     transform: `translate(${x}px, ${y}px) rotate(${angle}deg)`,
                     transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                    zIndex: isHighlighted ? 10 + i : i,
+                    zIndex: isHighlighted ? 10 + i : pos,
                     perspective: '600px',
                   }}
                 >
-                  {/* Shuffle animation wrapper — riffle left/right via CSS var */}
                   <div
                     className={isShuffling ? 'deck-shuffle-anim' : ''}
                     style={{
@@ -295,7 +364,6 @@ export function HomePage() {
                         position: 'relative',
                       }}
                     >
-                      {/* Card back */}
                       <div
                         className="deck-card-back"
                         style={{
@@ -305,7 +373,6 @@ export function HomePage() {
                           backfaceVisibility: 'hidden',
                         }}
                       />
-                      {/* Card face */}
                       <div
                         className={isDealt && isRoyal ? 'deck-royal-glow' : ''}
                         style={{
@@ -359,18 +426,33 @@ export function HomePage() {
             })}
           </div>
 
-          {/* Hand name */}
-          <div style={{ height: '24px', marginTop: '4px' }}>
+          {/* Hand name + probability */}
+          <div style={{ minHeight: '36px', marginTop: '4px' }} className="text-center">
             {handCall && (
-              <span
-                className={`text-sm font-semibold animate-fade-in ${isRoyal ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}
-                style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
-              >
-                {handToString(handCall)}
-              </span>
+              <>
+                <span
+                  className={`text-sm font-semibold animate-fade-in block ${isRoyal ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}
+                  style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
+                >
+                  {handToString(handCall)}
+                </span>
+                <span
+                  className="text-[10px] text-[var(--gold-dim)] opacity-60 animate-fade-in block"
+                  style={{ animationDelay: '0.8s', animationFillMode: 'both' }}
+                >
+                  {getHandProbability(handCall.type)}
+                </span>
+              </>
             )}
           </div>
         </div>
+
+        {/* Online player count */}
+        {onlinePlayerCount > 0 && (
+          <p className="text-xs text-[var(--gold-dim)]">
+            {onlinePlayerCount} player{onlinePlayerCount !== 1 ? 's' : ''} online
+          </p>
+        )}
 
         {error && (
           <div className="w-full glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
@@ -388,6 +470,9 @@ export function HomePage() {
             </button>
             <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
               Join Online Room
+            </button>
+            <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
+              Browse Games
             </button>
             <Link
               to="/how-to-play"
@@ -474,6 +559,65 @@ export function HomePage() {
               className="w-full btn-gold py-3 text-lg"
             >
               Join
+            </button>
+            <button
+              onClick={() => { setMode('menu'); setError(''); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
+          </div>
+        )}
+
+        {mode === 'browse' && (
+          <div className="flex flex-col gap-3 w-full animate-fade-in">
+            {!name.trim() && (
+              <input
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={20}
+                autoFocus
+                className="w-full input-felt"
+              />
+            )}
+            {loadingRooms ? (
+              <div className="text-center py-4">
+                <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+              </div>
+            ) : rooms.length === 0 ? (
+              <div className="glass px-4 py-6 text-center">
+                <p className="text-[var(--gold-dim)] text-sm">No open games found</p>
+                <p className="text-[var(--gold-dim)] text-xs mt-1">Host a new game or check back later</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {rooms.map(room => (
+                  <button
+                    key={room.roomCode}
+                    onClick={() => handleJoinFromBrowse(room.roomCode)}
+                    className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
+                  >
+                    <div className="text-left">
+                      <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{room.roomCode}</span>
+                      <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {room.hostName}</span>
+                    </div>
+                    <div className="text-right text-xs text-[var(--gold-dim)]">
+                      <span>{room.playerCount}/{room.maxPlayers}</span>
+                      {room.settings.turnTimer > 0 && (
+                        <span className="ml-2">{room.settings.turnTimer}s</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={handleBrowse}
+              className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Refresh
             </button>
             <button
               onClick={() => { setMode('menu'); setError(''); }}

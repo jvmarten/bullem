@@ -1,9 +1,11 @@
-import type { HandCall, ClientGameState, RoomState, RoundResult, PlayerId, GameStats } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
 
 export interface ClientToServerEvents {
   'room:create': (data: { playerName: string }, callback: (response: { roomCode: string } | { error: string }) => void) => void;
   'room:join': (data: { roomCode: string; playerName: string; playerId?: string }, callback: (response: { playerId: string } | { error: string }) => void) => void;
   'room:leave': () => void;
+  'room:list': (callback: (response: { rooms: RoomListing[] }) => void) => void;
+  'room:updateSettings': (data: { settings: GameSettings }) => void;
   'game:start': () => void;
   'game:call': (data: { hand: HandCall }) => void;
   'game:bull': () => void;
@@ -23,4 +25,5 @@ export interface ServerToClientEvents {
   'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
   'player:disconnected': (playerId: PlayerId) => void;
   'player:reconnected': (playerId: PlayerId) => void;
+  'server:playerCount': (count: number) => void;
 }

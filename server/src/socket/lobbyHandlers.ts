@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -59,6 +59,27 @@ export function registerLobbyHandlers(
     broadcastRoomState(io, room);
   });
 
+  socket.on('room:list', (callback) => {
+    callback({ rooms: roomManager.getAvailableRooms() });
+  });
+
+  socket.on('room:updateSettings', (data) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can change settings');
+      return;
+    }
+    // Validate settings
+    const { maxCards, turnTimer } = data.settings;
+    if (maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS) return;
+    if (!([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) return;
+
+    room.updateSettings(data.settings);
+    broadcastRoomState(io, room);
+  });
+
   socket.on('room:addBot', (data, callback) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return callback({ error: 'No room found' });
@@ -106,6 +127,7 @@ export function registerLobbyHandlers(
     room.startGame();
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
+    broadcastRoomState(io, room);
     broadcastGameState(io, room);
   });
 }

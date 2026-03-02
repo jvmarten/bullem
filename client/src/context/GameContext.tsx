@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 export interface GameContextValue {
@@ -12,9 +12,12 @@ export interface GameContextValue {
   playerId: string | null;
   error: string | null;
   isConnected: boolean;
+  onlinePlayerCount: number;
   createRoom: (playerName: string) => Promise<string>;
   joinRoom: (roomCode: string, playerName: string) => Promise<void>;
   leaveRoom: () => void;
+  listRooms: () => Promise<RoomListing[]>;
+  updateSettings: (settings: GameSettings) => void;
   startGame: () => void;
   callHand: (hand: HandCall) => void;
   callBull: () => void;
@@ -51,6 +54,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
@@ -91,7 +95,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const handleNewGameState = (state: ClientGameState) => {
       if (roundResultRef.current !== null) {
-        // Overlay is showing — defer applying new state
         pendingGameStateRef.current = state;
       } else {
         setGameState(state);
@@ -104,8 +107,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     socket.on('room:state', (state) => {
       setRoomState(state);
-      // Auto-detect playerId for room creators: room:create doesn't return
-      // the playerId, but when we're the only player we must be the host
       if (!sessionStorage.getItem(PLAYER_ID_KEY) && state.players.length === 1) {
         const id = state.players[0].id;
         setPlayerId(id);
@@ -117,6 +118,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:roundResult', setRoundResult);
     socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
     socket.on('room:error', setError);
+    socket.on('server:playerCount', setOnlinePlayerCount);
 
     return () => {
       socket.off('connect');
@@ -127,6 +129,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:roundResult');
       socket.off('game:over');
       socket.off('room:error');
+      socket.off('server:playerCount');
       socket.disconnect();
     };
   }, []);
@@ -169,6 +172,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(ROOM_CODE_KEY);
   }, []);
 
+  const listRooms = useCallback((): Promise<RoomListing[]> => {
+    return new Promise((resolve) => {
+      socket.emit('room:list', (response) => resolve(response.rooms));
+    });
+  }, []);
+
+  const updateSettings = useCallback((settings: GameSettings) => {
+    socket.emit('room:updateSettings', { settings });
+  }, []);
+
   const clearRoundResult = useCallback(() => {
     setRoundResult(null);
     roundResultRef.current = null;
@@ -208,9 +221,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     playerId,
     error,
     isConnected,
+    onlinePlayerCount,
     createRoom,
     joinRoom,
     leaveRoom,
+    listRooms,
+    updateSettings,
     startGame: () => socket.emit('game:start'),
     callHand: (hand) => socket.emit('game:call', { hand }),
     callBull: () => socket.emit('game:bull'),
