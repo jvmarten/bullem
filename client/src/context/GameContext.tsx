@@ -78,6 +78,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!roundResult) return;
     roundResultTimerRef.current = setTimeout(() => {
+      socket.emit('game:continue');
       setRoundResult(null);
       roundResultRef.current = null;
       if (pendingGameStateRef.current) {
@@ -215,6 +216,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearRoundResult = useCallback(() => {
+    if (!roundResultRef.current) return;
+    socket.emit('game:continue');
     setRoundResult(null);
     roundResultRef.current = null;
     if (roundResultTimerRef.current) {

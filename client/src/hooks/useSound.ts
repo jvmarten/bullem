@@ -75,7 +75,7 @@ export function useGameSounds(
             play('callMade');
             break;
           case TurnAction.BULL:
-            play('bullCalled');
+            if (entry.playerId !== playerId) play('bullCalled');
             break;
           case TurnAction.TRUE:
             play('trueCalled');
@@ -93,7 +93,7 @@ export function useGameSounds(
     if (!gameState) return;
     const roundNum = gameState.roundNumber;
 
-    if (roundNum > prevRoundNumberRef.current && prevRoundNumberRef.current > 0) {
+    if (roundNum > prevRoundNumberRef.current) {
       play('cardDeal');
     }
 

@@ -131,6 +131,7 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }:
 }) {
   const selectedIndex = ranks.indexOf(selected);
   const touchActiveRef = useRef(false);
+  const touchIdRef = useRef<number | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent, i: number) => {
     let next = i;
@@ -144,9 +145,7 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }:
     if (next !== i) onSelect(ranks[next]);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchActiveRef.current) return;
-    const touch = e.touches[0];
+  const selectFromTouchPoint = (touch: { clientX: number; clientY: number }) => {
     const el = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!el) return;
     const btn = el.closest('[role="radio"]') as HTMLElement | null;
@@ -160,6 +159,23 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }:
     }
   };
 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchActiveRef.current) return;
+    let touch = e.touches[0];
+    if (touchIdRef.current !== null) {
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches.item(i);
+        if (t && t.identifier === touchIdRef.current) {
+          touch = t;
+          break;
+        }
+      }
+    }
+    if (!touch) return;
+    e.preventDefault();
+    selectFromTouchPoint(touch);
+  };
+
   return (
     <div>
       <div className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
@@ -170,9 +186,10 @@ function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }:
         role="radiogroup"
         aria-label={label}
         data-testid={testId}
-        onTouchStart={() => { touchActiveRef.current = true; }}
+        onTouchStart={(e) => { touchActiveRef.current = true; touchIdRef.current = e.touches[0]?.identifier ?? null; if (e.touches[0]) selectFromTouchPoint(e.touches[0]); }}
         onTouchMove={handleTouchMove}
-        onTouchEnd={() => { touchActiveRef.current = false; }}
+        onTouchEnd={() => { touchActiveRef.current = false; touchIdRef.current = null; }}
+        onTouchCancel={() => { touchActiveRef.current = false; touchIdRef.current = null; }}
       >
         {ranks.map((r, i) => (
           <button
