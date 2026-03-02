@@ -3,15 +3,39 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 
+const SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'] as const;
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
+
+interface RevealedCard {
+  rank: string;
+  suit: string;
+  isJoker: boolean;
+  cardIndex: number;
+}
+
+function getRandomCard(cardIndex: number): RevealedCard {
+  const roll = Math.floor(Math.random() * 53);
+  if (roll === 52) return { rank: '\u2605', suit: '', isJoker: true, cardIndex };
+  const suit = SUITS[Math.floor(roll / 13)];
+  const rank = RANKS[roll % 13];
+  return { rank, suit, isJoker: false, cardIndex };
+}
+
+function getSuitColor(suit: string): string {
+  return suit === '\u2665' || suit === '\u2666' ? '#c0392b' : '#1a1a1a';
+}
+
+const CARD_COUNT = 8;
+
 export function HomePage() {
   const [name, setName] = useState('');
   const [mode, setMode] = useState<'menu' | 'local' | 'host' | 'join'>('menu');
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const [bullCharging, setBullCharging] = useState(false);
-  const [cardsScattered, setCardsScattered] = useState(false);
-  const scatterSeedRef = useRef<{ x: number; y: number; r: number }[]>([]);
+  const [revealedCard, setRevealedCard] = useState<RevealedCard | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
 
@@ -35,40 +59,40 @@ export function HomePage() {
   };
 
   const handleDeckHover = useCallback(() => {
-    if (!isHovered && !bullCharging && !cardsScattered) {
+    if (!isHovered && !isRevealing) {
       setIsHovered(true);
       play('deckShuffle');
     }
-  }, [isHovered, bullCharging, cardsScattered, play]);
+  }, [isHovered, isRevealing, play]);
 
   const handleDeckLeave = useCallback(() => {
-    if (!bullCharging && !cardsScattered) {
+    if (!isRevealing) {
       setIsHovered(false);
     }
-  }, [bullCharging, cardsScattered]);
+  }, [isRevealing]);
 
   const handleDeckClick = useCallback(() => {
-    if (bullCharging || cardsScattered) return;
-    // Generate random scatter positions for each card
-    scatterSeedRef.current = Array.from({ length: 8 }, () => ({
-      x: (Math.random() - 0.5) * 300,
-      y: (Math.random() - 0.5) * 200 - 60,
-      r: (Math.random() - 0.5) * 720,
-    }));
-    setBullCharging(true);
-    setIsHovered(false);
-    play('bullCharge');
-    // After bull hits the deck, scatter cards
-    setTimeout(() => {
-      setBullCharging(false);
-      setCardsScattered(true);
-      play('cardScatter');
-      // Reset after animation completes
-      setTimeout(() => {
-        setCardsScattered(false);
-      }, 2000);
-    }, 500);
-  }, [bullCharging, cardsScattered, play]);
+    if (isRevealing) return;
+
+    const cardIndex = Math.floor(Math.random() * CARD_COUNT);
+    const card = getRandomCard(cardIndex);
+
+    setIsRevealing(true);
+    setIsHovered(true);
+    setRevealedCard(card);
+    play('cardReveal');
+
+    if (card.isJoker) {
+      setTimeout(() => play('jokerFanfare'), 400);
+    }
+
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = setTimeout(() => {
+      setRevealedCard(null);
+      setIsRevealing(false);
+      setIsHovered(false);
+    }, card.isJoker ? 3500 : 2500);
+  }, [isRevealing, play]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -77,6 +101,8 @@ export function HomePage() {
       else if (mode === 'join') handleJoin();
     }
   };
+
+  const isFanned = isHovered || isRevealing;
 
   return (
     <Layout>
@@ -89,88 +115,115 @@ export function HomePage() {
         {/* Interactive deck */}
         <div
           className="relative flex justify-center items-center mb-2 cursor-pointer select-none"
-          style={{ height: '100px', width: '200px' }}
+          style={{ height: '120px', width: '240px' }}
           onMouseEnter={handleDeckHover}
           onMouseLeave={handleDeckLeave}
           onTouchStart={handleDeckHover}
           onClick={handleDeckClick}
         >
-          {/* Stacked deck of card backs */}
-          {!cardsScattered && Array.from({ length: 8 }, (_, i) => (
-            <div
-              key={i}
-              className="deck-card-back absolute"
-              style={{
-                transform: `translate(${i * 0.5}px, ${-i * 1.2}px) rotate(${(i - 3.5) * 2}deg)`,
-                zIndex: i,
-                opacity: bullCharging ? 0 : 1,
-                transition: 'opacity 0.15s ease',
-              }}
-            />
-          ))}
+          {Array.from({ length: CARD_COUNT }, (_, i) => {
+            const isThisRevealed = revealedCard?.cardIndex === i;
+            const centered = i - (CARD_COUNT - 1) / 2;
 
-          {/* Scattered cards */}
-          {cardsScattered && scatterSeedRef.current.map((seed, i) => (
-            <div
-              key={`scatter-${i}`}
-              className="deck-card-back absolute deck-scatter"
-              style={{
-                '--scatter-x': `${seed.x}px`,
-                '--scatter-y': `${seed.y}px`,
-                '--scatter-r': `${seed.r}deg`,
-                zIndex: 20 + i,
-              } as React.CSSProperties}
-            />
-          ))}
+            // Fan positions
+            const fanX = centered * 16;
+            const fanY = -Math.abs(centered) * 3;
+            const fanAngle = centered * 5;
 
-          {/* Muleta (red cape) — appears on hover, waves continuously */}
-          {isHovered && !bullCharging && !cardsScattered && (
-            <div className="absolute muleta-cape" style={{ zIndex: 15 }}>
-              <svg width="60" height="50" viewBox="0 0 60 50" className="muleta-wave">
-                <defs>
-                  <linearGradient id="muletaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#dc3545" />
-                    <stop offset="50%" stopColor="#c0392b" />
-                    <stop offset="100%" stopColor="#8b1a1a" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M5 5 Q15 0 30 8 Q45 16 55 10 L55 40 Q45 48 30 42 Q15 36 5 45 Z"
-                  fill="url(#muletaGrad)"
-                  stroke="#8b1a1a"
-                  strokeWidth="1"
-                />
-                {/* Stick */}
-                <line x1="5" y1="5" x2="5" y2="45" stroke="#8b6914" strokeWidth="3" strokeLinecap="round" />
-              </svg>
-            </div>
-          )}
+            // Stack positions
+            const stackX = i * 0.5;
+            const stackY = -i * 1.2;
+            const stackAngle = centered * 2;
 
-          {/* Bull — charges from left on click */}
-          {bullCharging && (
-            <div className="absolute bull-charge" style={{ zIndex: 20 }}>
-              <svg width="70" height="50" viewBox="0 0 70 50">
-                {/* Body */}
-                <ellipse cx="35" cy="28" rx="22" ry="14" fill="#2d1810" />
-                {/* Head */}
-                <circle cx="55" cy="22" r="10" fill="#3d2418" />
-                {/* Horns */}
-                <path d="M58 14 Q62 6 66 8" stroke="#d4a843" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-                <path d="M58 14 Q60 4 56 4" stroke="#d4a843" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-                {/* Eye */}
-                <circle cx="58" cy="20" r="2" fill="#dc3545" />
-                {/* Nostril steam */}
-                <circle cx="63" cy="25" r="1.5" fill="#c0392b" opacity="0.6" />
-                {/* Legs */}
-                <line x1="22" y1="38" x2="18" y2="48" stroke="#2d1810" strokeWidth="3" strokeLinecap="round" />
-                <line x1="30" y1="38" x2="28" y2="48" stroke="#2d1810" strokeWidth="3" strokeLinecap="round" />
-                <line x1="40" y1="38" x2="42" y2="48" stroke="#2d1810" strokeWidth="3" strokeLinecap="round" />
-                <line x1="48" y1="36" x2="52" y2="46" stroke="#2d1810" strokeWidth="3" strokeLinecap="round" />
-                {/* Tail */}
-                <path d="M13 24 Q6 18 8 12" stroke="#2d1810" strokeWidth="2" fill="none" strokeLinecap="round" />
-              </svg>
-            </div>
-          )}
+            const x = isFanned ? fanX : stackX;
+            const y = isFanned ? fanY : stackY;
+            const angle = isThisRevealed ? 0 : (isFanned ? fanAngle : stackAngle);
+            const liftY = isThisRevealed ? -65 : 0;
+
+            return (
+              <div
+                key={i}
+                className="absolute"
+                style={{
+                  transform: `translate(${x}px, ${y + liftY}px) rotate(${angle}deg)`,
+                  transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                  zIndex: isThisRevealed ? 20 : i,
+                  perspective: '600px',
+                }}
+              >
+                <div
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    transform: `rotateY(${isThisRevealed ? 180 : 0}deg)`,
+                    transition: 'transform 0.55s ease-out',
+                    width: '42px',
+                    height: '58px',
+                    position: 'relative',
+                  }}
+                >
+                  {/* Card back */}
+                  <div
+                    className="deck-card-back"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      backfaceVisibility: 'hidden',
+                    }}
+                  />
+                  {/* Card face (shown after 3D flip) */}
+                  <div
+                    className={`${isThisRevealed && revealedCard?.isJoker ? 'deck-joker-glow' : ''}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '42px',
+                      height: '58px',
+                      backfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)',
+                      background: '#f5f0e8',
+                      border: '1.5px solid #d9d0c0',
+                      borderRadius: '5px',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {revealedCard && isThisRevealed && (
+                      revealedCard.isJoker ? (
+                        <>
+                          <span style={{ fontSize: '22px', color: '#d4a843', lineHeight: 1 }}>{'\u2605'}</span>
+                          <span style={{ fontSize: '7px', fontWeight: 700, color: '#d4a843', letterSpacing: '1px' }}>JOKER</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{
+                            fontSize: '11px', fontWeight: 700, color: getSuitColor(revealedCard.suit),
+                            position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
+                          }}>
+                            {revealedCard.rank}
+                          </span>
+                          <span style={{ fontSize: '20px', color: getSuitColor(revealedCard.suit), lineHeight: 1 }}>
+                            {revealedCard.suit}
+                          </span>
+                          <span style={{
+                            fontSize: '11px', fontWeight: 700, color: getSuitColor(revealedCard.suit),
+                            position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
+                            transform: 'rotate(180deg)',
+                          }}>
+                            {revealedCard.rank}
+                          </span>
+                        </>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {error && (

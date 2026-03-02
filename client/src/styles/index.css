@@ -708,59 +708,12 @@ body {
   );
 }
 
-/* ── Muleta Cape ────────────────────────────────────── */
-.muleta-cape {
-  top: -10px;
-  right: -20px;
-  animation: muleta-appear 0.3s ease-out both;
+/* ── Joker Glow ─────────────────────────────────────── */
+.deck-joker-glow {
+  animation: joker-glow 0.4s ease-in-out infinite alternate;
 }
 
-@keyframes muleta-appear {
-  from { opacity: 0; transform: translateX(10px) scale(0.8); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
-}
-
-.muleta-wave {
-  animation: muleta-wave 1.2s ease-in-out infinite;
-  transform-origin: 5px 25px;
-}
-
-@keyframes muleta-wave {
-  0% { transform: rotate(-8deg) scaleX(1); }
-  25% { transform: rotate(12deg) scaleX(1.05); }
-  50% { transform: rotate(-5deg) scaleX(0.95); }
-  75% { transform: rotate(10deg) scaleX(1.02); }
-  100% { transform: rotate(-8deg) scaleX(1); }
-}
-
-/* ── Bull Charge ────────────────────────────────────── */
-.bull-charge {
-  animation: bull-charge 0.5s cubic-bezier(0.2, 0, 0.6, 1) both;
-}
-
-@keyframes bull-charge {
-  0% { transform: translateX(-140px) scale(0.7); opacity: 0; }
-  30% { opacity: 1; }
-  70% { transform: translateX(0px) scale(1); }
-  85% { transform: translateX(5px) scale(1.05); }
-  100% { transform: translateX(0px) scale(1); opacity: 0; }
-}
-
-/* ── Card Scatter ───────────────────────────────────── */
-.deck-scatter {
-  animation: card-scatter 1.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-
-@keyframes card-scatter {
-  0% {
-    transform: translate(0, 0) rotate(0deg) scale(1);
-    opacity: 1;
-  }
-  20% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--scatter-x), var(--scatter-y)) rotate(var(--scatter-r)) scale(0.6);
-    opacity: 0;
-  }
+@keyframes joker-glow {
+  from { box-shadow: 0 0 8px rgba(212, 168, 67, 0.5), 0 0 16px rgba(212, 168, 67, 0.3); }
+  to { box-shadow: 0 0 16px rgba(212, 168, 67, 0.8), 0 0 32px rgba(212, 168, 67, 0.5), 0 0 48px rgba(212, 168, 67, 0.2); }
 }

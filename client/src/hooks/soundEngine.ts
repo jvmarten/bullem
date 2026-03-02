@@ -14,8 +14,8 @@ type SoundName =
   | 'uiHover'
   | 'uiClick'
   | 'deckShuffle'
-  | 'bullCharge'
-  | 'cardScatter';
+  | 'cardReveal'
+  | 'jokerFanfare';
 
 interface ToneConfig {
   frequency: number;
@@ -75,9 +75,8 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
   ],
   uiHover: [
-    // Soft card flick — gentle high-freq brush with quick fade
-    { frequency: 3200, duration: 0.015, type: 'sine', gain: 0.012, ramp: 0.012 },
-    { frequency: 1200, duration: 0.02, type: 'triangle', gain: 0.008, delay: 0.005 },
+    // Barely-there card flick — ultra-soft whisper
+    { frequency: 3800, duration: 0.01, type: 'sine', gain: 0.005, ramp: 0.008 },
   ],
   uiClick: [
     { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },
@@ -91,22 +90,20 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 2200, duration: 0.03, type: 'sine', gain: 0.05, delay: 0.12 },
     { frequency: 2600, duration: 0.04, type: 'triangle', gain: 0.06, delay: 0.16 },
   ],
-  bullCharge: [
-    // Low rumble building up — approaching hoofbeats
-    { frequency: 80, duration: 0.4, type: 'sawtooth', gain: 0.15, ramp: 0.35 },
-    { frequency: 120, duration: 0.3, type: 'sine', gain: 0.12, delay: 0.05 },
-    // Impact thud
-    { frequency: 60, duration: 0.2, type: 'sine', gain: 0.25, delay: 0.3, ramp: 0.18 },
-    { frequency: 150, duration: 0.15, type: 'square', gain: 0.08, delay: 0.32 },
+  cardReveal: [
+    // Satisfying card flip — crisp snap with resonance
+    { frequency: 600, duration: 0.1, type: 'sine', gain: 0.14, ramp: 0.08 },
+    { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
   ],
-  cardScatter: [
-    // Cards flying everywhere — multiple quick flutters
-    { frequency: 1200, duration: 0.05, type: 'sine', gain: 0.1, delay: 0.35 },
-    { frequency: 1600, duration: 0.04, type: 'triangle', gain: 0.08, delay: 0.4 },
-    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.09, delay: 0.45 },
-    { frequency: 1400, duration: 0.04, type: 'triangle', gain: 0.07, delay: 0.5 },
-    { frequency: 1100, duration: 0.05, type: 'sine', gain: 0.06, delay: 0.55 },
-    { frequency: 1800, duration: 0.04, type: 'triangle', gain: 0.05, delay: 0.6 },
+  jokerFanfare: [
+    // Celebratory trumpet fanfare for joker easter egg
+    { frequency: 523, duration: 0.2, type: 'sine', gain: 0.16 },
+    { frequency: 659, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.15 },
+    { frequency: 784, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.3 },
+    { frequency: 1047, duration: 0.5, type: 'sine', gain: 0.2, delay: 0.45 },
+    { frequency: 1047, duration: 0.3, type: 'triangle', gain: 0.08, delay: 0.45 },
+    { frequency: 784, duration: 0.15, type: 'sine', gain: 0.1, delay: 0.8 },
+    { frequency: 1047, duration: 0.6, type: 'sine', gain: 0.18, delay: 0.9 },
   ],
 };
 
