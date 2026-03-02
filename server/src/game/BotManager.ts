@@ -123,7 +123,14 @@ export class BotManager {
   private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
     this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
-    if (room.game.currentPlayerId !== playerId) return;
+    if (room.game.currentPlayerId !== playerId) {
+      // The player was already eliminated (e.g., by the disconnect timer) and
+      // the turn moved on. Re-schedule for the new current player so the game
+      // doesn't stall.
+      this.scheduleBotTurn(room, io);
+      broadcastGameState(io, room);
+      return;
+    }
 
     const state = room.game.getClientState(playerId);
     let result: TurnResult;

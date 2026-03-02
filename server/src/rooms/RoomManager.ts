@@ -34,11 +34,11 @@ export class RoomManager {
     this.socketToRoom.set(socketId, roomCode);
   }
 
-  handleDisconnect(socketId: string): { room: Room; playerId: string } | null {
+  handleDisconnect(socketId: string, onTimeout?: (playerId: string) => void): { room: Room; playerId: string } | null {
     const room = this.getRoomForSocket(socketId);
     if (!room) return null;
 
-    const playerId = room.handleDisconnect(socketId);
+    const playerId = room.handleDisconnect(socketId, onTimeout);
     this.socketToRoom.delete(socketId);
 
     if (room.isEmpty) {
@@ -83,6 +83,13 @@ export class RoomManager {
     const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
     const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
     return Math.min(MAX_PLAYERS, cardBased, userCap);
+  }
+
+  getRoomForPlayer(playerId: string): Room | undefined {
+    for (const room of this.rooms.values()) {
+      if (room.players.has(playerId)) return room;
+    }
+    return undefined;
   }
 
   getOnlinePlayerNames(): string[] {

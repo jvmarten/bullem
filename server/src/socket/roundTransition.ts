@@ -10,6 +10,9 @@ const ROUND_CONTINUE_TIMEOUT_MS = 30_000;
 const POST_RESOLVE_GRACE_MS = 5_000;
 
 function startNextRound(io: TypedServer, room: Room, botManager: BotManager): void {
+  // Guard against double execution — the timeout and the last player's
+  // "continue" can both fire startNextRound if they race.
+  if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   room.cancelRoundContinueWindow();
   const nextResult = room.game!.startNextRound();
   if (nextResult.type === 'game_over') {

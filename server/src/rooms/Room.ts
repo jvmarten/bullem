@@ -84,7 +84,7 @@ export class Room {
     return playerId;
   }
 
-  handleDisconnect(socketId: string): PlayerId | null {
+  handleDisconnect(socketId: string, onTimeout?: (playerId: PlayerId) => void): PlayerId | null {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return null;
 
@@ -101,8 +101,12 @@ export class Room {
     this.playerToSocket.delete(playerId);
 
     const timer = setTimeout(() => {
-      player.isEliminated = true;
       this.disconnectTimers.delete(playerId);
+      if (onTimeout) {
+        onTimeout(playerId);
+      } else {
+        player.isEliminated = true;
+      }
     }, DISCONNECT_TIMEOUT_MS);
     this.disconnectTimers.set(playerId, timer);
 
