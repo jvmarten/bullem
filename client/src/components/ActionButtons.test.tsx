@@ -3,6 +3,10 @@ import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ActionButtons } from './ActionButtons.js';
 import { RoundPhase } from '@bull-em/shared';
 
+vi.mock('../hooks/useSound.js', () => ({
+  useSound: () => ({ play: vi.fn(), muted: false, toggleMute: vi.fn(), volume: 1, setVolume: vi.fn() }),
+}));
+
 afterEach(() => {
   cleanup();
 });

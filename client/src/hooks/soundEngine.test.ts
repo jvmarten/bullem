@@ -66,7 +66,7 @@ describe('createSoundController', () => {
   it('creates a controller with default values', () => {
     const ctrl = createSoundController();
     expect(ctrl.muted).toBe(false);
-    expect(ctrl.volume).toBeCloseTo(0.7);
+    expect(ctrl.volume).toBeCloseTo(1);
   });
 
   it('respects muted state from localStorage', () => {
@@ -132,7 +132,7 @@ describe('createSoundController', () => {
   it('handles invalid volume in localStorage gracefully', () => {
     localStorage.setItem('bull-em-volume', 'not-a-number');
     const ctrl = createSoundController();
-    expect(ctrl.volume).toBeCloseTo(0.7); // falls back to default
+    expect(ctrl.volume).toBeCloseTo(1); // falls back to default
   });
 
   it('plays audio file for roundLose via AudioContext buffer', () => {
