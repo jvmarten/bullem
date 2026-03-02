@@ -328,7 +328,7 @@ export function HomePage() {
     : new Set<number>();
 
   return (
-    <Layout>
+    <Layout largeTitle>
       <div className="flex flex-col items-center gap-8 pt-8">
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">
