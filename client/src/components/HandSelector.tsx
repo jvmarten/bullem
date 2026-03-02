@@ -407,11 +407,11 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       {/* ── Live Preview ──────────────────────────────── */}
       {hand && (
         <div className="hs-preview-area">
-          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default">
+          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default" onPointerEnter={playHover}>
             {previewCards.slice(0, 5).map((card, i) => {
               const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
               return (
-                <div key={i} className="hs-preview-card playing-card no-hover inline-flex flex-col items-center justify-center w-10 h-14 mx-0 select-none" onPointerEnter={playHover}>
+                <div key={i} className="hs-preview-card playing-card no-hover inline-flex flex-col items-center justify-center w-10 h-14 mx-0 select-none">
                   <span className={`text-xs font-bold leading-tight ${sc}`}>{card.rank}</span>
                   <span className={`text-sm leading-tight ${sc}`}>{SUIT_SYMBOLS[card.suit]}</span>
                 </div>
