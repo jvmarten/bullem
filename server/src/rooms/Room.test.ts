@@ -104,6 +104,15 @@ describe('Room', () => {
       expect(room.gamePhase).toBe(GamePhase.PLAYING);
       expect(room.game).toBe(engine);
     });
+
+    it('randomized seating can make non-host start first', () => {
+      room.addPlayer('socket1', 'player1', 'Alice');
+      room.addPlayer('socket2', 'player2', 'Bob');
+      const rand = vi.spyOn(Math, 'random').mockReturnValue(0);
+      const engine = room.startGame();
+      expect(engine.currentPlayerId).toBe('player2');
+      rand.mockRestore();
+    });
   });
 
   describe('getRoomState', () => {

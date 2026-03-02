@@ -192,7 +192,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms, roomState, createRoom, addBot } = useGameContext();
+  const { onlinePlayerCount, listRooms, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -221,6 +221,13 @@ export function HomePage() {
     return current;
   };
 
+
+  const getOnlinePlayerName = (): string => {
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-player-name', playerName);
+    return playerName;
+  };
+
   const handlePlayLocal = () => {
     const playerName = getPlayerName();
     sessionStorage.setItem('bull-em-local-name', playerName);
@@ -230,10 +237,7 @@ export function HomePage() {
 
   const handleQuickStart = async () => {
     try {
-      const playerName = getPlayerName();
-      sessionStorage.setItem('bull-em-player-name', playerName);
-      const roomCode = await createRoom(playerName);
-      await addBot();
+      const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
       setError('Failed to quick start');
@@ -241,15 +245,13 @@ export function HomePage() {
   };
 
   const handleHost = () => {
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
     if (!roomCode.trim()) return setError('Enter a room code');
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
@@ -267,8 +269,7 @@ export function HomePage() {
   };
 
   const handleJoinFromBrowse = (code: string) => {
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate(`/room/${code}`);
   };
 

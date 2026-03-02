@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
-  MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
+  MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -20,7 +20,7 @@ let botCounter = 0;
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
   private roomTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private difficulty: BotDifficulty = BotDifficulty.EASY;
+  private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
 
   clearTurnTimer(roomCode: string): void {
     const existing = this.roomTurnTimers.get(roomCode);
