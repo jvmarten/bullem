@@ -144,8 +144,8 @@ export function LocalGamePage() {
               {handToString(gameState.currentHand)}
             </span>
             {gameState.lastCallerId && (
-              <span className="text-[10px] text-[var(--gold-dim)] ml-2">
-                by {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+              <span className="text-[8px] text-[var(--gold-dim)] opacity-50 ml-1.5">
+                {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
               </span>
             )}
           </div>
