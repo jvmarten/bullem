@@ -75,7 +75,9 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
   ],
   uiHover: [
-    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 },
+    // Soft card flick — gentle high-freq brush with quick fade
+    { frequency: 3200, duration: 0.015, type: 'sine', gain: 0.012, ramp: 0.012 },
+    { frequency: 1200, duration: 0.02, type: 'triangle', gain: 0.008, delay: 0.005 },
   ],
   uiClick: [
     { frequency: 900, duration: 0.06, type: 'sine', gain: 0.12, ramp: 0.05 },

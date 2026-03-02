@@ -1,6 +1,7 @@
 import { HandType, RoundPhase, BotDifficulty, TurnAction } from '../types.js';
 import { RANK_VALUES, ALL_RANKS, ALL_SUITS, SUIT_ORDER } from '../constants.js';
 import { isHigherHand } from '../hands.js';
+import { HandChecker } from './HandChecker.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState } from '../types.js';
 
 export type BotAction =
@@ -13,13 +14,18 @@ export type BotAction =
 export class BotPlayer {
   /**
    * Decide what action a bot should take given the current game state, its cards, and difficulty.
+   * For IMPOSSIBLE difficulty, allCards must contain every player's cards combined.
    */
   static decideAction(
     state: ClientGameState,
     botId: string,
     botCards: Card[],
     difficulty: BotDifficulty = BotDifficulty.EASY,
+    allCards?: Card[],
   ): BotAction {
+    if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
+      return this.decideImpossible(state, botId, botCards, allCards);
+    }
     if (difficulty === BotDifficulty.HARD) {
       return this.decideHard(state, botId, botCards);
     }
@@ -82,6 +88,261 @@ export class BotPlayer {
     // Fallback
     if (currentHand) return { action: 'bull' };
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+  }
+
+  // ─── IMPOSSIBLE MODE (Perfect Information) ─────────────────────────
+
+  /**
+   * Impossible: bot sees ALL cards and makes optimal decisions.
+   * Knows with certainty whether any hand exists across all players' cards.
+   */
+  private static decideImpossible(
+    state: ClientGameState,
+    botId: string,
+    botCards: Card[],
+    allCards: Card[],
+  ): BotAction {
+    const { roundPhase, currentHand, lastCallerId } = state;
+
+    // LAST_CHANCE phase — raise if we can find any hand that exists
+    if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
+      if (currentHand) {
+        const raise = this.findHighestExistingHand(allCards, currentHand);
+        if (raise) return { action: 'lastChanceRaise', hand: raise };
+      }
+      return { action: 'lastChancePass' };
+    }
+
+    // Opening call — call a hand that exists but don't reveal everything
+    if (roundPhase === RoundPhase.CALLING && !currentHand) {
+      return this.impossibleOpening(botCards, allCards);
+    }
+
+    // Calling phase — we know if the hand exists
+    if (roundPhase === RoundPhase.CALLING && currentHand) {
+      return this.impossibleCallingPhase(state, botId, botCards, allCards, currentHand);
+    }
+
+    // Bull phase — perfect knowledge
+    if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
+      return this.impossibleBullPhase(botCards, allCards, currentHand);
+    }
+
+    // Fallback
+    if (currentHand) return { action: 'bull' };
+    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: '2' } };
+  }
+
+  /**
+   * Impossible opening: call a real hand — pick strategically.
+   * Start with a low-to-mid truthful hand to leave room for raises.
+   */
+  private static impossibleOpening(botCards: Card[], allCards: Card[]): BotAction {
+    // Find all hands that actually exist, sorted by strength
+    const existingHands: HandCall[] = [];
+
+    // Check high cards (all exist by definition if any card has that rank)
+    for (const c of botCards) {
+      existingHands.push({ type: HandType.HIGH_CARD, rank: c.rank });
+    }
+
+    // Check pairs
+    const rankCounts = this.getRankCounts(allCards);
+    for (const [rank, count] of rankCounts) {
+      if (count >= 2) existingHands.push({ type: HandType.PAIR, rank });
+    }
+
+    // Check two pairs
+    const pairRanks = [...rankCounts.entries()].filter(([, c]) => c >= 2).map(([r]) => r);
+    if (pairRanks.length >= 2) {
+      pairRanks.sort((a, b) => RANK_VALUES[a] - RANK_VALUES[b]);
+      // Just add a few two-pair combos (low ones for opening)
+      for (let i = 0; i < Math.min(pairRanks.length, 3); i++) {
+        for (let j = i + 1; j < Math.min(pairRanks.length, 4); j++) {
+          const [hi, lo] = RANK_VALUES[pairRanks[j]] > RANK_VALUES[pairRanks[i]]
+            ? [pairRanks[j], pairRanks[i]]
+            : [pairRanks[i], pairRanks[j]];
+          existingHands.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
+        }
+      }
+    }
+
+    existingHands.sort((a, b) => {
+      if (a.type !== b.type) return a.type - b.type;
+      return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
+    });
+
+    if (existingHands.length === 0) {
+      return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: botCards[0]?.rank ?? '2' } };
+    }
+
+    // Pick from the lower third of existing hands — strategic, leaves room to raise
+    const maxIdx = Math.max(1, Math.floor(existingHands.length * 0.4));
+    const idx = Math.floor(Math.random() * maxIdx);
+    return { action: 'call', hand: existingHands[idx] };
+  }
+
+  /**
+   * Impossible calling phase: knows whether the current hand exists.
+   * If it exists and we can raise with a real hand, do so.
+   * If it doesn't exist, call bull (guaranteed correct).
+   * Sometimes bluff-raises with a real hand to be deceptive.
+   */
+  private static impossibleCallingPhase(
+    state: ClientGameState,
+    botId: string,
+    botCards: Card[],
+    allCards: Card[],
+    currentHand: HandCall,
+  ): BotAction {
+    const handExists = HandChecker.exists(allCards, currentHand);
+
+    if (!handExists) {
+      // Hand doesn't exist — bull is guaranteed correct
+      // But occasionally raise with a real hand to be unpredictable (10%)
+      if (Math.random() < 0.10) {
+        const raise = this.findLowestExistingHand(allCards, currentHand);
+        if (raise) return { action: 'call', hand: raise };
+      }
+      return { action: 'bull' };
+    }
+
+    // Hand exists — raising is safer than bull
+    const raise = this.findLowestExistingHand(allCards, currentHand);
+    if (raise) {
+      return { action: 'call', hand: raise };
+    }
+
+    // No higher hand exists — call bull anyway (risky but only option)
+    // This happens when the current hand is near the top of what's possible
+    return { action: 'bull' };
+  }
+
+  /**
+   * Impossible bull phase: perfect knowledge of whether the hand exists.
+   * Sometimes raises with a known-real hand to disrupt opponents.
+   */
+  private static impossibleBullPhase(
+    botCards: Card[],
+    allCards: Card[],
+    currentHand: HandCall,
+  ): BotAction {
+    const handExists = HandChecker.exists(allCards, currentHand);
+
+    // Consider raising even in bull phase
+    if (Math.random() < 0.25) {
+      const raise = this.findLowestExistingHand(allCards, currentHand);
+      if (raise) return { action: 'call', hand: raise };
+    }
+
+    return handExists ? { action: 'true' } : { action: 'bull' };
+  }
+
+  /**
+   * Find the lowest hand higher than currentHand that actually exists in allCards.
+   */
+  private static findLowestExistingHand(allCards: Card[], currentHand: HandCall): HandCall | null {
+    const candidates = this.generateAllCandidateHands(allCards);
+    const valid = candidates.filter(h => isHigherHand(h, currentHand) && HandChecker.exists(allCards, h));
+    if (valid.length === 0) return null;
+
+    valid.sort((a, b) => {
+      if (a.type !== b.type) return a.type - b.type;
+      return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
+    });
+
+    // Pick from the lower few options to be strategic (not always the absolute minimum)
+    const pick = Math.min(Math.floor(Math.random() * 3), valid.length - 1);
+    return valid[pick];
+  }
+
+  /**
+   * Find the highest hand higher than currentHand that actually exists.
+   */
+  private static findHighestExistingHand(allCards: Card[], currentHand: HandCall): HandCall | null {
+    const candidates = this.generateAllCandidateHands(allCards);
+    const valid = candidates.filter(h => isHigherHand(h, currentHand) && HandChecker.exists(allCards, h));
+    if (valid.length === 0) return null;
+
+    valid.sort((a, b) => {
+      if (a.type !== b.type) return b.type - a.type;
+      return this.getHandPrimaryRank(b) - this.getHandPrimaryRank(a);
+    });
+
+    return valid[0];
+  }
+
+  /**
+   * Generate candidate hands across all types for perfect-information search.
+   */
+  private static generateAllCandidateHands(allCards: Card[]): HandCall[] {
+    const candidates: HandCall[] = [];
+    const rankCounts = this.getRankCounts(allCards);
+    const suitCounts = this.getSuitCounts(allCards);
+
+    // High cards
+    for (const rank of ALL_RANKS) {
+      candidates.push({ type: HandType.HIGH_CARD, rank });
+    }
+
+    // Pairs
+    for (const rank of ALL_RANKS) {
+      candidates.push({ type: HandType.PAIR, rank });
+    }
+
+    // Two pairs
+    for (let i = 0; i < ALL_RANKS.length; i++) {
+      for (let j = i + 1; j < ALL_RANKS.length; j++) {
+        const [hi, lo] = RANK_VALUES[ALL_RANKS[j]] > RANK_VALUES[ALL_RANKS[i]]
+          ? [ALL_RANKS[j], ALL_RANKS[i]]
+          : [ALL_RANKS[i], ALL_RANKS[j]];
+        candidates.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
+      }
+    }
+
+    // Flushes
+    for (const suit of ALL_SUITS) {
+      candidates.push({ type: HandType.FLUSH, suit });
+    }
+
+    // Three of a kind
+    for (const rank of ALL_RANKS) {
+      candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
+    }
+
+    // Straights
+    const straightHighs: Rank[] = ['5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    for (const highRank of straightHighs) {
+      candidates.push({ type: HandType.STRAIGHT, highRank });
+    }
+
+    // Full houses
+    for (const threeRank of ALL_RANKS) {
+      for (const twoRank of ALL_RANKS) {
+        if (threeRank !== twoRank) {
+          candidates.push({ type: HandType.FULL_HOUSE, threeRank, twoRank });
+        }
+      }
+    }
+
+    // Four of a kind
+    for (const rank of ALL_RANKS) {
+      candidates.push({ type: HandType.FOUR_OF_A_KIND, rank });
+    }
+
+    // Straight flushes
+    for (const suit of ALL_SUITS) {
+      for (const highRank of straightHighs) {
+        candidates.push({ type: HandType.STRAIGHT_FLUSH, suit, highRank });
+      }
+    }
+
+    // Royal flushes
+    for (const suit of ALL_SUITS) {
+      candidates.push({ type: HandType.ROYAL_FLUSH, suit });
+    }
+
+    return candidates;
   }
 
   // ─── HARD MODE (Probability-Driven + GTO Bluffing) ──────────────────
