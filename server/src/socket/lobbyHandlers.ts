@@ -57,6 +57,7 @@ export function registerLobbyHandlers(
   socket.on('room:leave', () => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
+    botManager.clearTurnTimer(room.roomCode);
     room.removePlayer(socket.id);
     roomManager.removeSocketMapping(socket.id);
     socket.leave(room.roomCode);
@@ -72,6 +73,7 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Only the host can close the room');
       return;
     }
+    botManager.clearTurnTimer(room.roomCode);
     // Notify all clients in the room
     io.to(room.roomCode).emit('room:deleted');
     // Remove all socket mappings for this room

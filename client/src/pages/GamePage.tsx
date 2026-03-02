@@ -13,21 +13,40 @@ import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const {
-    gameState, roundResult, roundTransition, winnerId, playerId,
+    gameState, roomState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult, leaveRoom,
+    clearRoundResult, leaveRoom, joinRoom,
   } = useGameContext();
   useGameSounds(gameState, roundResult, winnerId, playerId);
+
+  const rejoinAttemptedRef = useRef(false);
 
   useEffect(() => {
     if (winnerId) navigate(`/results/${roomCode}`);
   }, [winnerId, roomCode, navigate]);
+
+  useEffect(() => {
+    if (gameState || !roomCode || rejoinAttemptedRef.current) return;
+    const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
+    if (!storedName) return;
+    rejoinAttemptedRef.current = true;
+    joinRoom(roomCode, storedName).catch(() => {
+      // If rejoin fails, send user home instead of trapping in loading state.
+      navigate('/');
+    });
+  }, [gameState, roomCode, joinRoom, navigate]);
+
+  useEffect(() => {
+    if (!gameState && roomState?.gamePhase === 'lobby' && roomCode) {
+      navigate(`/room/${roomCode}`);
+    }
+  }, [gameState, roomState?.gamePhase, roomCode, navigate]);
 
   const handleLeave = () => {
     if (window.confirm('Leave this game? You will lose your spot.')) {

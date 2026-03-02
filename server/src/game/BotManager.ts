@@ -1,18 +1,17 @@
 import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
-  MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
+  MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
-import { broadcastGameState, broadcastNewRound } from '../socket/broadcast.js';
+import { broadcastGameState } from '../socket/broadcast.js';
+import { beginRoundResultPhase } from '../socket/roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
-/** Grace period added to timer after round results so players have time to see the new round */
-const POST_RESOLVE_GRACE_MS = 5000;
 /** Timeout for disconnected players when no turn timer is configured */
 const DISCONNECT_AUTO_ACTION_MS = 10_000;
 
@@ -20,7 +19,16 @@ let botCounter = 0;
 
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
-  private difficulty: BotDifficulty = BotDifficulty.EASY;
+  private roomTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
+
+  clearTurnTimer(roomCode: string): void {
+    const existing = this.roomTurnTimers.get(roomCode);
+    if (!existing) return;
+    clearTimeout(existing);
+    this.pendingTimers.delete(existing);
+    this.roomTurnTimers.delete(roomCode);
+  }
 
   setDifficulty(difficulty: BotDifficulty): void {
     this.difficulty = difficulty;
@@ -50,6 +58,7 @@ export class BotManager {
    */
   scheduleBotTurn(room: Room, io: TypedServer, graceMs = 0): void {
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
+    this.clearTurnTimer(room.roomCode);
 
     const currentId = room.game.currentPlayerId;
     const player = room.players.get(currentId);
@@ -65,9 +74,11 @@ export class BotManager {
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
+        this.roomTurnTimers.delete(room.roomCode);
         this.executeBotTurn(room, io, currentId);
       }, delay + graceMs);
       this.pendingTimers.add(timer);
+      this.roomTurnTimers.set(room.roomCode, timer);
     } else {
       this.scheduleHumanTurnTimer(room, io, currentId, graceMs);
     }
@@ -96,12 +107,15 @@ export class BotManager {
 
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
+      this.roomTurnTimers.delete(room.roomCode);
       this.executeAutoAction(room, io, playerId);
     }, totalMs);
     this.pendingTimers.add(timer);
+    this.roomTurnTimers.set(room.roomCode, timer);
   }
 
   private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
     if (room.game.currentPlayerId !== playerId) return;
 
@@ -126,6 +140,7 @@ export class BotManager {
   clearTimers(): void {
     for (const t of this.pendingTimers) clearTimeout(t);
     this.pendingTimers.clear();
+    this.roomTurnTimers.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {
@@ -200,26 +215,7 @@ export class BotManager {
         break;
 
       case 'resolve': {
-        if (room.game) room.game.setTurnDeadline(null);
-        room.gamePhase = GamePhase.ROUND_RESULT;
-        io.to(room.roomCode).emit('game:roundResult', result.result);
-        // Start next round after a delay
-        const resolveTimer = setTimeout(() => {
-          this.pendingTimers.delete(resolveTimer);
-          const nextResult = room.game!.startNextRound();
-          if (nextResult.type === 'game_over') {
-            room.gamePhase = GamePhase.GAME_OVER;
-            io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
-          } else {
-            room.gamePhase = GamePhase.PLAYING;
-            // Broadcast new round first WITHOUT timer, then schedule timer with grace
-            broadcastNewRound(io, room);
-            this.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
-            // Re-broadcast after deadline is set so clients get the timer
-            broadcastGameState(io, room);
-          }
-        }, 3000);
-        this.pendingTimers.add(resolveTimer);
+        beginRoundResultPhase(io, room, this, result.result);
         break;
       }
 

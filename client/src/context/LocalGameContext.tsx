@@ -334,7 +334,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       setError(`Too many players for ${settings.maxCards}-card game (${playersRef.current.length} x ${settings.maxCards} = ${totalNeeded} > ${DECK_SIZE})`);
       return;
     }
-    const engine = new GameEngine([...playersRef.current], settings);
+    const shuffled = [...playersRef.current];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
     engine.startRound();
 

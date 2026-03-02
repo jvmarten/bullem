@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BotManager } from './BotManager.js';
 import { Room } from '../rooms/Room.js';
-import { GamePhase, MAX_PLAYERS, BOT_NAMES, STARTING_CARDS } from '@bull-em/shared';
+import { GamePhase, MAX_PLAYERS, BOT_NAMES, STARTING_CARDS, DEFAULT_BOT_DIFFICULTY } from '@bull-em/shared';
 
 describe('BotManager', () => {
   let botManager: BotManager;
@@ -85,6 +85,14 @@ describe('BotManager', () => {
     it('considers room not empty when human player present', () => {
       botManager.addBot(room);
       expect(room.isEmpty).toBe(false);
+    });
+  });
+
+
+
+  describe('difficulty defaults', () => {
+    it('uses shared default difficulty', () => {
+      expect((botManager as unknown as { difficulty: string }).difficulty).toBe(DEFAULT_BOT_DIFFICULTY);
     });
   });
 

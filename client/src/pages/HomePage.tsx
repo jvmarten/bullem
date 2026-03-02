@@ -192,7 +192,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms, roomState } = useGameContext();
+  const { onlinePlayerCount, listRooms, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -221,22 +221,37 @@ export function HomePage() {
     return current;
   };
 
+
+  const getOnlinePlayerName = (): string => {
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-player-name', playerName);
+    return playerName;
+  };
+
   const handlePlayLocal = () => {
     const playerName = getPlayerName();
     sessionStorage.setItem('bull-em-local-name', playerName);
     navigate('/local');
   };
 
+
+  const handleQuickStart = async () => {
+    try {
+      const roomCode = await createRoom(getOnlinePlayerName());
+      navigate(`/room/${roomCode}`);
+    } catch {
+      setError('Failed to quick start');
+    }
+  };
+
   const handleHost = () => {
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
     if (!roomCode.trim()) return setError('Enter a room code');
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
@@ -254,8 +269,7 @@ export function HomePage() {
   };
 
   const handleJoinFromBrowse = (code: string) => {
-    const playerName = getPlayerName();
-    sessionStorage.setItem('bull-em-player-name', playerName);
+    getOnlinePlayerName();
     navigate(`/room/${code}`);
   };
 
@@ -464,12 +478,14 @@ export function HomePage() {
                 >
                   {handToString(handCall)}
                 </span>
-                <span
-                  className="text-[10px] text-[var(--gold-dim)] opacity-60 animate-fade-in block"
-                  style={{ animationDelay: '0.8s', animationFillMode: 'both' }}
-                >
-                  {getHandProbability(handCall.type)}
-                </span>
+                {handCall.type >= HandType.PAIR && (
+                  <span
+                    className="text-[10px] text-[var(--gold-dim)] opacity-60 animate-fade-in block"
+                    style={{ animationDelay: '0.8s', animationFillMode: 'both' }}
+                  >
+                    {getHandProbability(handCall.type)}
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -515,10 +531,10 @@ export function HomePage() {
 
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <button onClick={() => setMode('online')} className="w-full btn-gold py-4 text-lg">
+            <button onClick={() => { play('uiSoft'); setMode('online'); }} className="w-full btn-gold py-4 text-lg">
               Play Online
             </button>
-            <button onClick={handlePlayLocal} className="w-full btn-gold py-4 text-lg">
+            <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
               Play Offline
             </button>
             <Link
@@ -540,28 +556,31 @@ export function HomePage() {
                 >
                   Return to Room ({roomState.roomCode})
                 </button>
-                <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
                   Join with Code
                 </button>
-                <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-                  Browse Games
+                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
                 </button>
               </>
             ) : (
               <>
-                <button onClick={handleHost} className="w-full btn-gold py-4 text-lg">
+                <button onClick={() => { play('uiSoft'); handleQuickStart(); }} className="w-full btn-gold py-4 text-lg">
+                  Quick Start
+                </button>
+                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-gold py-4 text-lg">
                   Host Game
                 </button>
-                <button onClick={() => setMode('join')} className="w-full btn-ghost py-4 text-lg">
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
                   Join with Code
                 </button>
-                <button onClick={handleBrowse} className="w-full btn-ghost py-4 text-lg">
-                  Browse Games
+                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
                 </button>
               </>
             )}
             <button
-              onClick={() => { setMode('menu'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('menu'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -587,7 +606,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -629,13 +648,13 @@ export function HomePage() {
               </div>
             )}
             <button
-              onClick={handleBrowse}
+              onClick={() => { play('uiSoft'); handleBrowse(); }}
               className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Refresh
             </button>
             <button
-              onClick={() => { setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
