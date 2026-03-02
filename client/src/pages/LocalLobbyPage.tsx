@@ -23,7 +23,7 @@ export function LocalLobbyPage() {
   useEffect(() => {
     if (initializedRef.current || roomState) return;
     initializedRef.current = true;
-    const name = sessionStorage.getItem('bull-em-local-name') || 'Player';
+    const name = sessionStorage.getItem('bull-em-local-name') || localStorage.getItem('bull-em-player-name') || 'Player';
     createRoom(name).then(() => {
       // Auto-add 5 bots for a quick start
       return Promise.all([addBot(), addBot(), addBot(), addBot(), addBot()]);
@@ -158,16 +158,18 @@ export function LocalLobbyPage() {
                 Hard
               </button>
             </div>
-            <button
-              onClick={() => setBotDifficulty(BotDifficulty.IMPOSSIBLE)}
-              className={`mt-2 px-2 py-1 text-[10px] rounded transition-colors ${
-                botDifficulty === BotDifficulty.IMPOSSIBLE
-                  ? 'bg-[var(--danger)] text-white font-semibold'
-                  : 'text-[var(--danger)] opacity-50 hover:opacity-80 border border-[var(--danger)] border-opacity-30'
-              }`}
-            >
-              Impossible
-            </button>
+            <div className="flex justify-center mt-2">
+              <button
+                onClick={() => setBotDifficulty(BotDifficulty.IMPOSSIBLE)}
+                className={`px-2 py-1 text-[10px] rounded transition-colors ${
+                  botDifficulty === BotDifficulty.IMPOSSIBLE
+                    ? 'bg-[var(--danger)] text-white font-semibold'
+                    : 'text-[var(--danger)] opacity-50 hover:opacity-80 border border-[var(--danger)] border-opacity-30'
+                }`}
+              >
+                Impossible
+              </button>
+            </div>
           </div>
         )}
 

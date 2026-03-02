@@ -25,11 +25,11 @@ export default function App() {
     <ErrorBoundary>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<HomePage />} />
         <Route path="/how-to-play" element={<HowToPlayPage />} />
 
-        {/* Online multiplayer routes */}
+        {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
         <Route element={<OnlineLayout />}>
+          <Route path="/" element={<HomePage />} />
           <Route path="/host" element={<HostPage />} />
           <Route path="/room/:roomCode" element={<LobbyPage />} />
           <Route path="/game/:roomCode" element={<GamePage />} />

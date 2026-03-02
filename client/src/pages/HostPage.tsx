@@ -11,7 +11,7 @@ export function HostPage() {
 
   useEffect(() => {
     if (attemptedRef.current) return;
-    const playerName = sessionStorage.getItem('bull-em-player-name');
+    const playerName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (!playerName) {
       navigate('/');
       return;
