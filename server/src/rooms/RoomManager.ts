@@ -2,7 +2,7 @@ import {
   ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS,
   GamePhase, MAX_PLAYERS, maxPlayersForMaxCards,
 } from '@bull-em/shared';
-import type { RoomListing } from '@bull-em/shared';
+import type { RoomListing, LiveGameListing } from '@bull-em/shared';
 import { Room } from './Room.js';
 
 export class RoomManager {
@@ -74,6 +74,24 @@ export class RoomManager {
         maxPlayers: effectiveMax,
         hostName: host?.name ?? '???',
         settings: { ...room.settings },
+      });
+    }
+    return listings;
+  }
+
+  getLiveGames(): LiveGameListing[] {
+    const listings: LiveGameListing[] = [];
+    for (const room of this.rooms.values()) {
+      if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT) continue;
+      if (!room.settings.allowSpectators) continue;
+      const host = [...room.players.values()].find(p => p.isHost);
+      const state = room.getSpectatorGameState();
+      listings.push({
+        roomCode: room.roomCode,
+        playerCount: room.playerCount,
+        hostName: host?.name ?? '???',
+        roundNumber: state?.roundNumber ?? 0,
+        spectatorsCanSeeCards: room.settings.spectatorsCanSeeCards ?? false,
       });
     }
     return listings;

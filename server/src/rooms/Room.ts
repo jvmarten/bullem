@@ -20,6 +20,8 @@ export class Room {
 
   private roundContinueReady = new Set<PlayerId>();
   private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Socket IDs of spectators watching this game */
+  spectatorSockets = new Set<string>();
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -208,6 +210,22 @@ export class Room {
   getClientGameState(playerId: PlayerId): ClientGameState | null {
     if (!this.game) return null;
     return this.game.getClientState(playerId);
+  }
+
+  /** Build a spectator view: game state with no hand info unless spectatorsCanSeeCards is true */
+  getSpectatorGameState(): ClientGameState | null {
+    if (!this.game) return null;
+    // Use an empty player ID to get a base state (no myCards)
+    const state = this.game.getClientState('__spectator__');
+    if (this.settings.spectatorsCanSeeCards) {
+      state.spectatorCards = this.game.getActivePlayers().map(p => ({
+        playerId: p.id,
+        playerName: p.name,
+        cards: [...p.cards],
+      }));
+    }
+    state.myCards = [];
+    return state;
   }
 
   get playerCount(): number {

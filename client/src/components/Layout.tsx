@@ -24,13 +24,17 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
 
   useEffect(() => {
     if (!showPopup) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | TouchEvent) => {
       if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, [showPopup]);
 
   return (
@@ -38,7 +42,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
       <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
         <button
           onClick={handleTitleClick}
-          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors`}
+          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors min-h-[44px] relative z-10`}
         >
           Bull &rsquo;Em
         </button>

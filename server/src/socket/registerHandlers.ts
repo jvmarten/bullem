@@ -83,6 +83,16 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         broadcastRoomState(io, room);
       };
 
+      // Clean up spectator if applicable
+      const spectatorRoom = roomManager.getRoomForSocket(socket.id);
+      if (spectatorRoom && spectatorRoom.spectatorSockets.has(socket.id)) {
+        spectatorRoom.spectatorSockets.delete(socket.id);
+        roomManager.removeSocketMapping(socket.id);
+        // Don't continue with the normal disconnect logic for spectators
+        broadcastPlayerNames(io, roomManager);
+        return;
+      }
+
       const result = roomManager.handleDisconnect(socket.id, onDisconnectTimeout);
       if (result) {
         // Do NOT clear the turn timer here. If a turn timer is running for the

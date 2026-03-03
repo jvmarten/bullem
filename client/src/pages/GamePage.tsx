@@ -27,9 +27,10 @@ export function GamePage() {
 
   const rejoinAttemptedRef = useRef(false);
 
+  // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
-    if (winnerId) navigate(`/results/${roomCode}`);
-  }, [winnerId, roomCode, navigate]);
+    if (winnerId && !roundResult) navigate(`/results/${roomCode}`);
+  }, [winnerId, roundResult, roomCode, navigate]);
 
   useEffect(() => {
     if (gameState || !roomCode || rejoinAttemptedRef.current) return;
@@ -124,7 +125,7 @@ export function GamePage() {
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
             <button
               onClick={handleLeave}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Leave game"
             >
               Leave
@@ -156,6 +157,8 @@ export function GamePage() {
           myPlayerId={playerId}
           maxCards={gameState.maxCards}
           roundNumber={gameState.roundNumber}
+          turnHistory={gameState.turnHistory}
+          collapsible
         />
 
         {/* Current call display */}

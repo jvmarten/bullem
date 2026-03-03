@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
@@ -7,8 +8,15 @@ export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom } = useGameContext();
 
+  // If state is gone (page refresh), redirect to lobby
+  useEffect(() => {
+    if (!winnerId && !gameState) navigate('/local');
+  }, [winnerId, gameState, navigate]);
+
   const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
   const isWinner = winnerId === playerId;
+
+  if (!winnerId && !gameState) return null;
 
   return (
     <Layout>

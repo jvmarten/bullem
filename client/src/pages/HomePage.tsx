@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { HandType, handToString } from '@bull-em/shared';
-import type { Suit, Rank, HandCall, RoomListing } from '@bull-em/shared';
+import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
 const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
@@ -185,6 +185,7 @@ export function HomePage() {
   const [showHighlight, setShowHighlight] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState(INITIAL_ORDER);
   const [rooms, setRooms] = useState<RoomListing[]>([]);
+  const [liveGames, setLiveGames] = useState<LiveGameListing[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,7 +193,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms, roomState, createRoom } = useGameContext();
+  const { onlinePlayerCount, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -258,8 +259,9 @@ export function HomePage() {
   const handleBrowse = async () => {
     setLoadingRooms(true);
     try {
-      const result = await listRooms();
-      setRooms(result);
+      const [roomResult, liveResult] = await Promise.all([listRooms(), listLiveGames()]);
+      setRooms(roomResult);
+      setLiveGames(liveResult);
     } catch {
       setError('Failed to load rooms');
     } finally {
@@ -271,6 +273,15 @@ export function HomePage() {
   const handleJoinFromBrowse = (code: string) => {
     getOnlinePlayerName();
     navigate(`/room/${code}`);
+  };
+
+  const handleSpectate = async (code: string) => {
+    try {
+      await spectateGame(code);
+      navigate(`/game/${code}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to spectate');
+    }
   };
 
   const handleDeckHover = useCallback(() => {
@@ -556,11 +567,11 @@ export function HomePage() {
                 >
                   Return to Room ({roomState.roomCode})
                 </button>
-                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-                  Join with Code
-                </button>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
+                </button>
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+                  Join with Code
                 </button>
               </>
             ) : (
@@ -571,11 +582,11 @@ export function HomePage() {
                 <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-gold py-4 text-lg">
                   Host Game
                 </button>
-                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-                  Join with Code
-                </button>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
+                </button>
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+                  Join with Code
                 </button>
               </>
             )}
@@ -620,32 +631,71 @@ export function HomePage() {
               <div className="text-center py-4">
                 <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
               </div>
-            ) : rooms.length === 0 ? (
-              <div className="glass px-4 py-6 text-center">
-                <p className="text-[var(--gold-dim)] text-sm">No open games found</p>
-                <p className="text-[var(--gold-dim)] text-xs mt-1">Host a new game or check back later</p>
-              </div>
             ) : (
-              <div className="space-y-2">
-                {rooms.map(room => (
-                  <button
-                    key={room.roomCode}
-                    onClick={() => handleJoinFromBrowse(room.roomCode)}
-                    className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
-                  >
-                    <div className="text-left">
-                      <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{room.roomCode}</span>
-                      <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {room.hostName}</span>
-                    </div>
-                    <div className="text-right text-xs text-[var(--gold-dim)]">
-                      <span>{room.playerCount}/{room.maxPlayers}</span>
-                      {room.settings.turnTimer > 0 && (
-                        <span className="ml-2">{room.settings.turnTimer}s</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Open Rooms */}
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1">
+                  Open Rooms
+                </p>
+                {rooms.length === 0 ? (
+                  <div className="glass px-4 py-4 text-center">
+                    <p className="text-[var(--gold-dim)] text-xs">No open rooms</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {rooms.map(room => (
+                      <button
+                        key={room.roomCode}
+                        onClick={() => handleJoinFromBrowse(room.roomCode)}
+                        className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
+                      >
+                        <div className="text-left">
+                          <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{room.roomCode}</span>
+                          <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {room.hostName}</span>
+                        </div>
+                        <div className="text-right text-xs text-[var(--gold-dim)]">
+                          <span>{room.playerCount}/{room.maxPlayers}</span>
+                          {room.settings.turnTimer > 0 && (
+                            <span className="ml-2">{room.settings.turnTimer}s</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Live Games */}
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1 mt-2">
+                  Live Games
+                </p>
+                {liveGames.length === 0 ? (
+                  <div className="glass px-4 py-4 text-center">
+                    <p className="text-[var(--gold-dim)] text-xs">No live games to spectate</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {liveGames.map(game => (
+                      <button
+                        key={game.roomCode}
+                        onClick={() => handleSpectate(game.roomCode)}
+                        className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
+                      >
+                        <div className="text-left">
+                          <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{game.roomCode}</span>
+                          <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {game.hostName}</span>
+                        </div>
+                        <div className="text-right text-xs text-[var(--gold-dim)]">
+                          <span>{game.playerCount} players</span>
+                          <span className="ml-2">Rd {game.roundNumber}</span>
+                          {game.spectatorsCanSeeCards && (
+                            <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
             <button
               onClick={() => { play('uiSoft'); handleBrowse(); }}
