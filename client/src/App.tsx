@@ -11,6 +11,7 @@ import { LocalResultsPage } from './pages/LocalResultsPage.js';
 import { HowToPlayPage } from './pages/HowToPlayPage.js';
 import { HostPage } from './pages/HostPage.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { ScrollToTop } from './components/ScrollToTop.js';
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/how-to-play" element={<HowToPlayPage />} />
 

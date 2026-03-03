@@ -508,6 +508,13 @@ body {
 .wheel-picker-scroll::-webkit-scrollbar {
   display: none;
 }
+/* Fade the actual content at top/bottom edges via CSS mask */
+.wheel-picker-mask {
+  position: relative;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+}
 
 /* === Hand Selector === */
 
