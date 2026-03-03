@@ -24,17 +24,17 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
   const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[var(--card-border)]';
   const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[16px] h-[22px] rounded-[3px] border ${cardColor} flex-shrink-0`} style={style} />
+    <div key={key} className={`w-[24px] h-[32px] rounded-[4px] border ${cardColor} flex-shrink-0`} style={style} />
   );
   const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[16px] h-[22px] rounded-[3px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
-      <span className="text-[8px] leading-none text-red-600">♥</span>
+    <div key={key} className={`w-[24px] h-[32px] rounded-[4px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
+      <span className="text-[11px] leading-none text-red-600">♥</span>
     </div>
   );
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-7px' } : {});
+  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-10px' } : {});
   const stair = (i: number): React.CSSProperties => ({
-    marginLeft: i > 0 ? '-5px' : undefined,
-    marginBottom: `${i * 3}px`,
+    marginLeft: i > 0 ? '-7px' : undefined,
+    marginBottom: `${i * 4}px`,
   });
 
   switch (type) {
@@ -245,7 +245,8 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
   const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]), []);
 
   const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
-  const hasSecondary = needsRank2 || (needsStraightRank && needsSuit);
+  const hasSuitBelow = needsStraightRank && needsSuit;
+  const hasSecondary = hasSuitBelow;
 
   /* ── Render callbacks ───────────────────────────────── */
 
@@ -324,61 +325,88 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={42}
+            itemHeight={52}
             visibleCount={5}
           />
         </div>
 
         {/* Right column — Rank / suit wheel(s) */}
         <div className="flex-1">
-          {/* Primary wheel */}
-          {isSuitOnly ? (
-            <WheelPicker
-              items={[...ALL_SUITS]}
-              selectedIndex={suitIndex >= 0 ? suitIndex : 0}
-              onSelect={handleSuitWheel}
-              renderItem={renderSuit}
-              itemHeight={hasSecondary ? 28 : 42}
-              visibleCount={hasSecondary ? 3 : 5}
-            />
+          {needsRank2 ? (
+            /* Side-by-side rank pickers for Two Pair / Full House */
+            <div className="flex gap-1">
+              <div className="flex-1">
+                <WheelPicker
+                  items={[...rankList]}
+                  selectedIndex={rankList.indexOf(rank)}
+                  onSelect={handlePrimaryWheel}
+                  renderItem={renderRank}
+                  itemHeight={42}
+                  visibleCount={5}
+                />
+              </div>
+              <div
+                className="flex-1"
+                style={{
+                  overflow: 'hidden',
+                  maxWidth: needsRank2 ? '50%' : '0',
+                  opacity: needsRank2 ? 1 : 0,
+                  transition: 'max-width 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease 0.1s',
+                }}
+              >
+                <WheelPicker
+                  items={[...rank2List]}
+                  selectedIndex={rank2Index >= 0 ? rank2Index : 0}
+                  onSelect={handleRank2Wheel}
+                  renderItem={renderRank}
+                  itemHeight={42}
+                  visibleCount={5}
+                />
+              </div>
+            </div>
           ) : (
-            <WheelPicker
-              items={[...rankList]}
-              selectedIndex={rankList.indexOf(rank)}
-              onSelect={handlePrimaryWheel}
-              renderItem={renderRank}
-              itemHeight={hasSecondary ? 28 : 42}
-              visibleCount={hasSecondary ? 3 : 5}
-            />
+            <>
+              {/* Single primary wheel */}
+              {isSuitOnly ? (
+                <WheelPicker
+                  items={[...ALL_SUITS]}
+                  selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                  onSelect={handleSuitWheel}
+                  renderItem={renderSuit}
+                  itemHeight={hasSecondary ? 28 : 42}
+                  visibleCount={hasSecondary ? 3 : 5}
+                />
+              ) : (
+                <WheelPicker
+                  items={[...rankList]}
+                  selectedIndex={rankList.indexOf(rank)}
+                  onSelect={handlePrimaryWheel}
+                  renderItem={renderRank}
+                  itemHeight={hasSecondary ? 28 : 42}
+                  visibleCount={hasSecondary ? 3 : 5}
+                />
+              )}
+              {/* Secondary suit wheel for straight flush — expand/collapse */}
+              <div style={{
+                maxHeight: hasSecondary ? '200px' : '0',
+                overflow: 'hidden',
+                transition: 'max-height 0.3s ease, opacity 0.3s ease',
+                opacity: hasSecondary ? 1 : 0,
+              }}>
+                <div className="h-px bg-[var(--felt-border)] my-0.5" />
+                {needsSuit && (
+                  <WheelPicker
+                    items={[...ALL_SUITS]}
+                    selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                    onSelect={handleSuitWheel}
+                    renderItem={renderSuit}
+                    itemHeight={28}
+                    visibleCount={3}
+                  />
+                )}
+              </div>
+            </>
           )}
-          {/* Secondary wheel — smooth expand/collapse */}
-          <div style={{
-            maxHeight: hasSecondary ? '200px' : '0',
-            overflow: 'hidden',
-            transition: 'max-height 0.3s ease, opacity 0.3s ease',
-            opacity: hasSecondary ? 1 : 0,
-          }}>
-            <div className="h-px bg-[var(--felt-border)] my-0.5" />
-            {needsRank2 ? (
-              <WheelPicker
-                items={[...rank2List]}
-                selectedIndex={rank2Index >= 0 ? rank2Index : 0}
-                onSelect={handleRank2Wheel}
-                renderItem={renderRank}
-                itemHeight={28}
-                visibleCount={3}
-              />
-            ) : needsSuit ? (
-              <WheelPicker
-                items={[...ALL_SUITS]}
-                selectedIndex={suitIndex >= 0 ? suitIndex : 0}
-                onSelect={handleSuitWheel}
-                renderItem={renderSuit}
-                itemHeight={28}
-                visibleCount={3}
-              />
-            ) : null}
-          </div>
         </div>
       </div>
 

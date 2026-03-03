@@ -390,6 +390,11 @@ body {
   50% { box-shadow: 0 0 20px 6px var(--gold-glow); }
 }
 
+@keyframes pulse-glow-blue {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 144, 217, 0); }
+  50% { box-shadow: 0 0 20px 6px rgba(74, 144, 217, 0.35); }
+}
+
 @keyframes card-deal {
   from {
     opacity: 0;
@@ -447,6 +452,7 @@ body {
 .animate-slide-up { animation: slide-up 0.3s ease-out; }
 .animate-slide-down { animation: slide-down 0.3s ease-out; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-pulse-glow-blue { animation: pulse-glow-blue 2s ease-in-out infinite; }
 .animate-card-deal { animation: card-deal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .animate-stagger-reveal { animation: stagger-reveal 0.5s ease-out both; }
 .animate-float { animation: float 3s ease-in-out infinite; }
@@ -494,6 +500,10 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  will-change: scroll-position;
 }
 .wheel-picker-scroll::-webkit-scrollbar {
   display: none;

@@ -148,10 +148,14 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
     const currentIndex = players.findIndex(p => p.id === currentPlayerId);
-    const myPlayer = players.find(p => p.id === myPlayerId);
-    const myIndex = players.findIndex(p => p.id === myPlayerId);
     const activeCount = players.filter(p => !p.isEliminated).length;
-    const isMyTurn = currentPlayerId === myPlayerId;
+
+    // Find the next active (non-eliminated) player after the current player in turn order
+    const activePlayers = players.filter(p => !p.isEliminated);
+    const currentActiveIdx = activePlayers.findIndex(p => p.id === currentPlayerId);
+    const nextActiveIdx = currentActiveIdx >= 0 ? (currentActiveIdx + 1) % activePlayers.length : -1;
+    const nextPlayer = nextActiveIdx >= 0 ? activePlayers[nextActiveIdx] : undefined;
+    const nextPlayerGlobalIndex = nextPlayer ? players.findIndex(p => p.id === nextPlayer.id) : -1;
 
     return (
       <div>
@@ -171,18 +175,18 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               p={currentPlayer}
               i={currentIndex >= 0 ? currentIndex : 0}
               isCurrent
-              isMe={isMyTurn}
+              isMe={currentPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
               turnHistory={turnHistory}
             />
           )}
-          {!isMyTurn && myPlayer && !myPlayer.isEliminated && (
+          {nextPlayer && nextPlayer.id !== currentPlayerId && (
             <PlayerCard
-              p={myPlayer}
-              i={myIndex >= 0 ? myIndex : 0}
+              p={nextPlayer}
+              i={nextPlayerGlobalIndex >= 0 ? nextPlayerGlobalIndex : 0}
               isCurrent={false}
-              isMe
+              isMe={nextPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
               turnHistory={turnHistory}
