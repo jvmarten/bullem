@@ -168,6 +168,22 @@ export function LocalGamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
+        {/* Hand selector — opens above the action row */}
+        {canRaise && handSelectorOpen && (
+          <HandSelector
+            currentHand={gameState.currentHand}
+            onSubmit={(hand) => {
+              if (isLastChanceCaller) {
+                lastChanceRaise(hand);
+              } else {
+                callHand(hand);
+              }
+              setHandSelectorOpen(false);
+            }}
+            submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
+          />
+        )}
+
         {/* Action row — BULL/TRUE on left, Raise/Call on right */}
         {!isEliminated && (
           <div className="flex justify-between items-start">
@@ -192,22 +208,6 @@ export function LocalGamePage() {
               </div>
             )}
           </div>
-        )}
-
-        {/* Hand selector — opened via Raise/Call gateway */}
-        {canRaise && handSelectorOpen && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={(hand) => {
-              if (isLastChanceCaller) {
-                lastChanceRaise(hand);
-              } else {
-                callHand(hand);
-              }
-              setHandSelectorOpen(false);
-            }}
-            submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
-          />
         )}
 
         {/* Round transition overlay */}
