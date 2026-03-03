@@ -182,10 +182,10 @@ export function LocalGamePage() {
               onExpand={() => setHandSelectorOpen(false)}
             />
             {canRaise && !handSelectorOpen && (
-              <div className="flex justify-end animate-slide-up">
+              <div className="flex justify-end animate-slide-up ml-auto">
                 <button
                   onClick={() => setHandSelectorOpen(true)}
-                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[7rem]"
+                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}
                 </button>

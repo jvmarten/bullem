@@ -28,14 +28,13 @@ function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string 
 export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline, hasCurrentHand = false }: Props) {
   const isMyTurn = currentPlayerId === myPlayerId;
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
-  const isBotTurn = currentPlayer?.isBot && !isMyTurn;
   const { play } = useSound();
 
   const turnLabel = isMyTurn
     ? 'Your Turn'
     : `${currentPlayer?.name ?? '\u2026'}\u2019s Turn`;
 
-  const phaseLabel = isBotTurn ? 'Thinking\u2026' : getPhaseLabel(roundPhase, hasCurrentHand);
+  const phaseLabel = getPhaseLabel(roundPhase, hasCurrentHand);
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [fraction, setFraction] = useState(1);

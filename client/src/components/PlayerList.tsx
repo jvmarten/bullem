@@ -72,7 +72,7 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
         p.isEliminated
           ? 'glass opacity-40'
           : isCurrent
-            ? 'glass-raised ring-1 ring-[var(--gold)] animate-pulse-glow'
+            ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
             : 'glass'
       }`}
     >
@@ -80,40 +80,31 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
         <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
           {p.isBot ? '\u2699' : playerInitial(p.name)}
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">
             {p.name}
             {isMe && <span className="text-[var(--gold)] ml-1 text-[10px]">(you)</span>}
             {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">[BOT]</span>}
+            {p.isHost && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">host</span>}
           </span>
           <div className="flex items-center gap-1">
             <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
-            {p.isHost && (
-              <span className="text-[9px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">
-                host
-              </span>
-            )}
-            {p.isBot && isCurrent && !p.isEliminated && (
-              <span className="text-[9px] italic text-[var(--gold-dim)] animate-pulse">
-                thinking&hellip;
-              </span>
-            )}
+            {(() => {
+              const lastAction = getLastAction(p.id, turnHistory);
+              if (!lastAction || p.isEliminated) return null;
+              const isBull = lastAction === 'BULL!';
+              const isTrue = lastAction === 'TRUE';
+              return (
+                <span className={`text-[9px] truncate max-w-[100px] ${
+                  isBull ? 'text-[var(--danger)] font-bold' :
+                  isTrue ? 'text-[var(--info)] font-bold' :
+                  'text-[var(--gold-dim)]'
+                }`}>
+                  {lastAction}
+                </span>
+              );
+            })()}
           </div>
-          {(() => {
-            const lastAction = getLastAction(p.id, turnHistory);
-            if (!lastAction || p.isEliminated) return null;
-            const isBull = lastAction === 'BULL!';
-            const isTrue = lastAction === 'TRUE';
-            return (
-              <span className={`text-[9px] truncate max-w-[100px] ${
-                isBull ? 'text-[var(--danger)] font-bold' :
-                isTrue ? 'text-[var(--info)] font-bold' :
-                'text-[var(--gold-dim)]'
-              }`}>
-                {lastAction}
-              </span>
-            );
-          })()}
         </div>
       </div>
       <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
