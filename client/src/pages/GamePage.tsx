@@ -208,11 +208,11 @@ export function GamePage() {
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
             />
-            {canRaise && (
+            {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up">
                 <button
-                  onClick={() => setHandSelectorOpen(v => !v)}
-                  className={`btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold ${handSelectorOpen ? '' : 'animate-pulse-glow'}`}
+                  onClick={() => setHandSelectorOpen(true)}
+                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[7rem]"
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}
                 </button>
@@ -233,6 +233,8 @@ export function GamePage() {
               }
               setHandSelectorOpen(false);
             }}
+            onClose={() => setHandSelectorOpen(false)}
+            submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
           />
         )}
 
