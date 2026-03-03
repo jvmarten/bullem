@@ -9,7 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
-import { VolumeControl } from '../components/VolumeControl.js';
+
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
@@ -147,7 +147,6 @@ export function GamePage() {
             })()}
           </div>
           <div className="flex items-center gap-3">
-            <VolumeControl />
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
             <button
               onClick={handleLeave}

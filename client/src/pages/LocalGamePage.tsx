@@ -9,7 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
-import { VolumeControl } from '../components/VolumeControl.js';
+
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
 import { useEffect, useState, useCallback } from 'react';
@@ -119,7 +119,6 @@ export function LocalGamePage() {
                 )}
               </button>
             )}
-            <VolumeControl />
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
