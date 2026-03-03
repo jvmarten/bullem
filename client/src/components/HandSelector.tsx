@@ -22,16 +22,16 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
   const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[var(--card-border)]';
   const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[14px] h-[20px] rounded-[2px] border ${cardColor} flex-shrink-0`} style={style} />
+    <div key={key} className={`w-[16px] h-[22px] rounded-[3px] border ${cardColor} flex-shrink-0`} style={style} />
   );
   const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[14px] h-[20px] rounded-[2px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
-      <span className="text-[7px] leading-none text-red-600">♥</span>
+    <div key={key} className={`w-[16px] h-[22px] rounded-[3px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
+      <span className="text-[8px] leading-none text-red-600">♥</span>
     </div>
   );
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-5px' } : {});
+  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-8px' } : {});
   const stair = (i: number): React.CSSProperties => ({
-    marginLeft: i > 0 ? '-3px' : undefined,
+    marginLeft: i > 0 ? '-6px' : undefined,
     marginBottom: `${i * 3}px`,
   });
 
@@ -245,9 +245,9 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
     const isDimmed = currentHand !== null && ht < currentHand.type;
     return (
-      <div className={`flex items-center justify-center transition-all duration-200 ${
+      <div className={`flex items-center justify-center transition-all duration-150 ${
         isDimmed ? 'opacity-20' : ''
-      } ${isSelected ? 'scale-110' : 'opacity-40'}`}>
+      } ${isSelected ? 'scale-125' : 'opacity-40'}`}>
         <HandIllustration type={ht} isSelected={isSelected} />
       </div>
     );
@@ -255,17 +255,17 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
 
   const renderRank = useCallback((r: string, isSelected: boolean) => (
     <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: 36, height: 48 }}
+      style={{ margin: 0, width: 38, height: 50 }}
     >
-      <span className={`text-sm font-bold ${isSelected ? 'text-[#1a1a1a]' : 'text-[#555]'}`}>{r}</span>
+      <span className={`text-sm font-bold ${isSelected ? 'text-[#1a1a1a]' : 'text-[#666]'}`}>{r}</span>
     </div>
   ), []);
 
   const renderSuit = useCallback((s: string, isSelected: boolean) => (
     <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: 36, height: 48 }}
+      style={{ margin: 0, width: 38, height: 50 }}
     >
-      <span className={`text-lg ${(s === 'hearts' || s === 'diamonds') ? 'suit-red' : ''} ${isSelected ? '' : 'opacity-50'}`}>
+      <span className={`text-xl ${(s === 'hearts' || s === 'diamonds') ? 'suit-red' : ''} ${isSelected ? '' : 'opacity-40'}`}>
         {SUIT_SYMBOLS[s as Suit]}
       </span>
     </div>
@@ -313,7 +313,7 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={40}
+            itemHeight={42}
             visibleCount={5}
           />
         </div>
@@ -326,7 +326,7 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
               selectedIndex={suitIndex >= 0 ? suitIndex : 0}
               onSelect={handleSuitWheel}
               renderItem={renderSuit}
-              itemHeight={50}
+              itemHeight={42}
               visibleCount={5}
             />
           ) : needsRank2 ? (
@@ -336,16 +336,16 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
                 selectedIndex={rankList.indexOf(rank)}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
-                itemHeight={50}
-                visibleCount={3}
+                itemHeight={42}
+                visibleCount={5}
               />
               <WheelPicker
                 items={[...rank2List]}
                 selectedIndex={rank2Index >= 0 ? rank2Index : 0}
                 onSelect={handleRank2Wheel}
                 renderItem={renderRank}
-                itemHeight={50}
-                visibleCount={3}
+                itemHeight={42}
+                visibleCount={5}
               />
             </div>
           ) : needsStraightRank && needsSuit ? (
@@ -355,16 +355,16 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
                 selectedIndex={rankList.indexOf(rank)}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
-                itemHeight={50}
-                visibleCount={3}
+                itemHeight={42}
+                visibleCount={5}
               />
               <WheelPicker
                 items={[...ALL_SUITS]}
                 selectedIndex={suitIndex >= 0 ? suitIndex : 0}
                 onSelect={handleSuitWheel}
                 renderItem={renderSuit}
-                itemHeight={50}
-                visibleCount={3}
+                itemHeight={42}
+                visibleCount={5}
               />
             </div>
           ) : (
@@ -373,7 +373,7 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
               selectedIndex={rankList.indexOf(rank)}
               onSelect={handlePrimaryWheel}
               renderItem={renderRank}
-              itemHeight={50}
+              itemHeight={42}
               visibleCount={5}
             />
           )}

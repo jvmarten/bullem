@@ -45,7 +45,7 @@ export function WheelPicker<T>({
     setVisualIndex(clamped);
   }, [itemHeight, items.length]);
 
-  // Commit selection when scrolling stops (debounce)
+  // Commit selection when scrolling stops (debounce — shorter for less friction)
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -58,13 +58,13 @@ export function WheelPicker<T>({
         onSelect(clamped);
       }
     };
-    const onScroll = () => {
+    const onScrollEnd = () => {
       clearTimeout(timer);
-      timer = window.setTimeout(commitSelection, 100);
+      timer = window.setTimeout(commitSelection, 60);
     };
-    el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('scroll', onScrollEnd, { passive: true });
     return () => {
-      el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('scroll', onScrollEnd);
       clearTimeout(timer);
     };
   }, [itemHeight, items.length, onSelect]);
@@ -116,11 +116,6 @@ export function WheelPicker<T>({
         ))}
         <div style={{ height: padCount * itemHeight }} />
       </div>
-      {/* Subtle fade edges */}
-      <div className="absolute inset-x-0 top-0 pointer-events-none"
-        style={{ height: itemHeight, background: 'linear-gradient(to bottom, var(--felt-dark), transparent)' }} />
-      <div className="absolute inset-x-0 bottom-0 pointer-events-none"
-        style={{ height: itemHeight, background: 'linear-gradient(to top, var(--felt-dark), transparent)' }} />
     </div>
   );
 }

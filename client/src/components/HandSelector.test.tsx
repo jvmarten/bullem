@@ -21,7 +21,6 @@ describe('HandSelector', () => {
   /** Click on a hand type by its index in ALL_HAND_TYPES (first wheel) */
   function clickHandType(container: HTMLElement, handType: HandType) {
     const idx = ALL_HAND_TYPES.indexOf(handType);
-    // Get all wheel containers (relative overflow-hidden divs), the first is hand types
     const wheels = container.querySelectorAll('.wheel-picker-scroll');
     const handWheel = wheels[0];
     if (!handWheel) throw new Error('Hand type wheel not found');
@@ -54,9 +53,11 @@ describe('HandSelector', () => {
   describe('hand type picker', () => {
     it('renders all hand type items as wheel entries', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      // Should have at least as many wheel items as hand types
-      const items = container.querySelectorAll('[data-wheel-item]');
-      expect(items.length).toBeGreaterThanOrEqual(ALL_HAND_TYPES.length);
+      const wheels = container.querySelectorAll('.wheel-picker-scroll');
+      expect(wheels.length).toBeGreaterThanOrEqual(2);
+      const handWheel = wheels[0];
+      const items = handWheel.querySelectorAll('[data-wheel-item]');
+      expect(items.length).toBe(ALL_HAND_TYPES.length);
     });
 
     it('shows rank cards for HIGH_CARD by default', () => {
@@ -67,7 +68,6 @@ describe('HandSelector', () => {
     it('shows rank cards when FLUSH is selected (suit cards)', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FLUSH);
-      // Suits now use .hs-rank-card styling
       expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
@@ -92,7 +92,6 @@ describe('HandSelector', () => {
     it('shows both suit and rank pickers for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
-      // Both rank and suit cards use .hs-rank-card
       expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
@@ -233,7 +232,6 @@ describe('HandSelector', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       clickHandType(container, HandType.FULL_HOUSE);
-      // Default rank = 2, default rank2 = 3
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({
