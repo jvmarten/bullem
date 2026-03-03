@@ -6,7 +6,7 @@ import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames } from './broadcast.js';
-import { markContinueReady, beginRoundResultPhase } from './roundTransition.js';
+import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -32,17 +32,28 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
 
         switch (elimResult.type) {
           case 'game_over':
-            room.gamePhase = GamePhase.GAME_OVER;
-            room.cancelRoundContinueWindow();
-            io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
+            if (room.gamePhase !== GamePhase.GAME_OVER) {
+              room.gamePhase = GamePhase.GAME_OVER;
+              room.cancelRoundContinueWindow();
+              io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
+            }
             break;
           case 'resolve':
             beginRoundResultPhase(io, room, botManager, elimResult.result);
             break;
           case 'last_chance':
           case 'continue':
-            botManager.scheduleBotTurn(room, io);
-            broadcastGameState(io, room);
+            if (room.gamePhase === GamePhase.ROUND_RESULT) {
+              // Player eliminated during round result — check if remaining
+              // active players have all continued; start next round if so.
+              checkRoundContinueComplete(io, room, botManager);
+              if (room.gamePhase === GamePhase.ROUND_RESULT) {
+                broadcastGameState(io, room);
+              }
+            } else {
+              botManager.scheduleBotTurn(room, io);
+              broadcastGameState(io, room);
+            }
             break;
         }
         broadcastRoomState(io, room);
@@ -58,9 +69,12 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         io.to(result.room.roomCode).emit('player:disconnected', result.playerId);
         broadcastRoomState(io, result.room);
         if (result.room.game) {
-          if (result.room.gamePhase === GamePhase.ROUND_RESULT) {
-            markContinueReady(io, result.room, botManager, result.playerId);
-          }
+          // Do NOT call markContinueReady here. A disconnect (app switch, page
+          // refresh, brief network drop) is NOT the same as pressing "Continue."
+          // Treating it as such can trigger startNextRound while the player is
+          // mid-reconnect, causing them to miss the new round and get stuck on
+          // a stale overlay. The 30s round-continue timeout handles the case
+          // where they never come back.
           broadcastGameState(io, result.room);
           // If the disconnected player is the current player and no turn timer
           // is configured, schedule a disconnect auto-action so the game

@@ -62,3 +62,16 @@ export function markContinueReady(
     startNextRound(io, room, botManager);
   }
 }
+
+/** Re-check whether all remaining active players have continued (e.g. after
+ *  a player is eliminated mid-ROUND_RESULT). Starts the next round if so. */
+export function checkRoundContinueComplete(
+  io: TypedServer,
+  room: Room,
+  botManager: BotManager,
+): void {
+  if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
+  if (room.isRoundContinueComplete) {
+    startNextRound(io, room, botManager);
+  }
+}
