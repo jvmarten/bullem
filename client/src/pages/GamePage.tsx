@@ -214,60 +214,52 @@ export function GamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Spacer so scrollable content doesn't hide behind fixed bottom controls */}
-        {!isEliminated && <div className="h-[52px]" />}
-
-        {/* Fixed bottom controls — buttons never move when hand picker opens */}
+        {/* Action row — BULL/TRUE on left, Raise/Call on right */}
+        {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
         {!isEliminated && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
-            <div className="max-w-6xl mx-auto px-4 pointer-events-auto relative">
-              {/* Hand selector absolutely positioned above buttons — never pushes them */}
-              {canRaise && handSelectorOpen && (
-                <div className="absolute bottom-full left-0 right-0 pb-2">
-                  <HandSelector
-                    currentHand={gameState.currentHand}
-                    onSubmit={handleHandSubmit}
-                    onHandChange={handleHandChange}
-                    showSubmit={false}
-                  />
-                </div>
-              )}
-              {/* Action row — BULL/TRUE on left, Raise/Call on right */}
-              <div className="flex justify-between items-start pb-4">
-                <ActionButtons
-                  roundPhase={gameState.roundPhase}
-                  isMyTurn={isMyTurn}
-                  hasCurrentHand={gameState.currentHand !== null}
-                  isLastChanceCaller={isLastChanceCaller}
-                  onBull={callBull}
-                  onTrue={callTrue}
-                  onLastChancePass={lastChancePass}
-                  onExpand={() => setHandSelectorOpen(false)}
-                />
-                {canRaise && !handSelectorOpen && (
-                  <div className="flex justify-end animate-slide-up ml-auto">
-                    <button
-                      onClick={() => setHandSelectorOpen(true)}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
-                    >
-                      {gameState.currentHand ? 'Raise' : 'Call'}
-                    </button>
-                  </div>
-                )}
-                {canRaise && handSelectorOpen && (
-                  <div className="flex justify-end ml-auto">
-                    <button
-                      onClick={handleHandSubmit}
-                      disabled={!pendingValid}
-                      className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
-                    >
-                      {gameState.currentHand ? 'Raise' : 'Call'}
-                    </button>
-                  </div>
-                )}
+          <div className="flex justify-between items-start">
+            <ActionButtons
+              roundPhase={gameState.roundPhase}
+              isMyTurn={isMyTurn}
+              hasCurrentHand={gameState.currentHand !== null}
+              isLastChanceCaller={isLastChanceCaller}
+              onBull={callBull}
+              onTrue={callTrue}
+              onLastChancePass={lastChancePass}
+              onExpand={() => setHandSelectorOpen(false)}
+            />
+            {canRaise && !handSelectorOpen && (
+              <div className="flex justify-end animate-slide-up ml-auto">
+                <button
+                  onClick={() => setHandSelectorOpen(true)}
+                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
               </div>
-            </div>
+            )}
+            {canRaise && handSelectorOpen && (
+              <div className="flex justify-end ml-auto">
+                <button
+                  onClick={handleHandSubmit}
+                  disabled={!pendingValid}
+                  className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Hand selector — appears below the action buttons so buttons stay put */}
+        {canRaise && handSelectorOpen && (
+          <HandSelector
+            currentHand={gameState.currentHand}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            showSubmit={false}
+          />
         )}
 
         {/* Round transition overlay */}
