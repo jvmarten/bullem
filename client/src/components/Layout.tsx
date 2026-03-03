@@ -1,6 +1,7 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { GameContext } from '../context/GameContext.js';
+import { VolumeControl } from './VolumeControl.js';
 
 export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
   const ctx = useContext(GameContext);
@@ -79,20 +80,23 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
             )}
           </div>
         )}
-        {largeTitle && (
-          <button
-            onClick={() => setShowVersionDate(v => !v)}
-            className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-          >
-            {showVersionDate ? 'v0.1.6 · 03.03.26' : 'v0.1.6'}
-          </button>
-        )}
-        {!isConnected && (
-          <div className="absolute top-1/2 right-4 -translate-y-1/2 flex items-center gap-1.5 text-xs text-[var(--gold)]">
-            <span className="dot-disconnected" />
-            Reconnecting&hellip;
-          </div>
-        )}
+        <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-2">
+          {!isConnected && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--gold)]">
+              <span className="dot-disconnected" />
+              Reconnecting&hellip;
+            </div>
+          )}
+          <VolumeControl />
+          {largeTitle && (
+            <button
+              onClick={() => setShowVersionDate(v => !v)}
+              className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              {showVersionDate ? 'v0.1.7 · 03.03.26' : 'v0.1.7'}
+            </button>
+          )}
+        </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
     </div>
