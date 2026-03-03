@@ -60,7 +60,7 @@ export function WheelPicker<T>({
     };
     const onScrollEnd = () => {
       clearTimeout(timer);
-      timer = window.setTimeout(commitSelection, 60);
+      timer = window.setTimeout(commitSelection, 40);
     };
     el.addEventListener('scroll', onScrollEnd, { passive: true });
     return () => {
