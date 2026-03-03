@@ -124,6 +124,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('connect', () => setIsConnected(true));
     socket.on('disconnect', () => setIsConnected(false));
 
+    // Auto-rejoin the room after Socket.io reconnects. A brief disconnect
+    // (app switch, network blip, page hidden on mobile) gives the socket a
+    // new ID, so the server no longer knows which room it belongs to. Without
+    // this, the client keeps stale state and receives no further game events.
+    const handleReconnect = () => {
+      const storedRoomCode = sessionStorage.getItem(ROOM_CODE_KEY);
+      const storedName = sessionStorage.getItem(PLAYER_NAME_KEY);
+      const storedId = sessionStorage.getItem(PLAYER_ID_KEY);
+
+      if (storedRoomCode && storedName) {
+        // Clear stale overlay state — server will send fresh state on rejoin
+        setRoundResult(null);
+        roundResultRef.current = null;
+        pendingGameStateRef.current = null;
+        setRoundTransition(false);
+        if (roundResultTimerRef.current) {
+          clearTimeout(roundResultTimerRef.current);
+          roundResultTimerRef.current = null;
+        }
+
+        socket.emit('room:join', {
+          roomCode: storedRoomCode,
+          playerName: storedName,
+          playerId: storedId ?? undefined,
+        }, (response) => {
+          if ('error' in response) {
+            // Room no longer exists — clean up
+            sessionStorage.removeItem(PLAYER_ID_KEY);
+            sessionStorage.removeItem(PLAYER_NAME_KEY);
+            sessionStorage.removeItem(ROOM_CODE_KEY);
+            setRoomState(null);
+            setGameState(null);
+          }
+        });
+      }
+    };
+    socket.io.on('reconnect', handleReconnect);
+
     socket.on('room:state', (state) => {
       setRoomState(state);
       if (!sessionStorage.getItem(PLAYER_ID_KEY) && state.players.length === 1) {
@@ -153,6 +191,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('room:deleted');
       socket.off('server:playerCount');
       socket.off('server:playerNames');
+      socket.io.off('reconnect', handleReconnect);
       socket.disconnect();
     };
   }, []);
