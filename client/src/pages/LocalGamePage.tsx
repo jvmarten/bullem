@@ -12,7 +12,7 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export function LocalGamePage() {
   const navigate = useNavigate();
@@ -53,6 +53,14 @@ export function LocalGamePage() {
     gameState.roundPhase === RoundPhase.CALLING
     || gameState.roundPhase === RoundPhase.BULL_PHASE
   );
+
+  const canRaise = canCallHand || isLastChanceCaller;
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+
+  // Close hand selector when turn changes
+  useEffect(() => {
+    setHandSelectorOpen(false);
+  }, [isMyTurn, gameState.roundPhase]);
 
   return (
     <Layout>
@@ -160,32 +168,43 @@ export function LocalGamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Action buttons */}
+        {/* Action row — BULL/TRUE on left, Raise/Call on right */}
         {!isEliminated && (
-          <ActionButtons
-            roundPhase={gameState.roundPhase}
-            isMyTurn={isMyTurn}
-            hasCurrentHand={gameState.currentHand !== null}
-            isLastChanceCaller={isLastChanceCaller}
-            onBull={callBull}
-            onTrue={callTrue}
-            onLastChancePass={lastChancePass}
-          />
+          <div className="flex justify-between items-start">
+            <ActionButtons
+              roundPhase={gameState.roundPhase}
+              isMyTurn={isMyTurn}
+              hasCurrentHand={gameState.currentHand !== null}
+              isLastChanceCaller={isLastChanceCaller}
+              onBull={callBull}
+              onTrue={callTrue}
+              onLastChancePass={lastChancePass}
+            />
+            {canRaise && (
+              <div className="flex justify-end animate-slide-up">
+                <button
+                  onClick={() => setHandSelectorOpen(v => !v)}
+                  className={`btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold ${handSelectorOpen ? '' : 'animate-pulse-glow'}`}
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Hand selector for calling */}
-        {canCallHand && (
+        {/* Hand selector — opened via Raise/Call gateway */}
+        {canRaise && handSelectorOpen && (
           <HandSelector
             currentHand={gameState.currentHand}
-            onSubmit={callHand}
-          />
-        )}
-
-        {/* Hand selector for last chance raise */}
-        {isLastChanceCaller && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={lastChanceRaise}
+            onSubmit={(hand) => {
+              if (isLastChanceCaller) {
+                lastChanceRaise(hand);
+              } else {
+                callHand(hand);
+              }
+              setHandSelectorOpen(false);
+            }}
           />
         )}
 

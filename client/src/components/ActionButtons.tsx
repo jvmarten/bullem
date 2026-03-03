@@ -75,7 +75,7 @@ export function ActionButtons({
       <div className="flex justify-start animate-slide-up" data-action-buttons>
         <button
           onClick={() => { play('uiClick'); setExpanded(true); }}
-          className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold"
+          className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow"
         >
           {showTrue ? 'BULL / TRUE' : 'BULL!'}
         </button>

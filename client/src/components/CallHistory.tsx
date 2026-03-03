@@ -11,7 +11,7 @@ export function CallHistory({ history }: { history: TurnEntry[] }) {
     <div>
       <button
         onClick={() => setVisible(v => !v)}
-        className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1"
+        className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1 mx-auto"
       >
         <span>{visible ? 'Hide' : 'Show'} Call History ({history.length})</span>
         <svg
