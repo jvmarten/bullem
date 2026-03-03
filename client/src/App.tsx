@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { LocalGameProvider } from './context/LocalGameContext.js';
 import { HomePage } from './pages/HomePage.js';
@@ -42,6 +42,9 @@ export default function App() {
           <Route path="/local/game" element={<LocalGamePage />} />
           <Route path="/local/results" element={<LocalResultsPage />} />
         </Route>
+
+        {/* Catch-all: redirect unknown URLs to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
     </ErrorBoundary>

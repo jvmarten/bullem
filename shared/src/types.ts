@@ -127,6 +127,9 @@ export interface GameSettings {
   maxCards: number;
   turnTimer: number;
   maxPlayers?: number;
+  allowSpectators?: boolean;
+  /** Whether spectators can see player cards. If false, spectators see the game but not cards. */
+  spectatorsCanSeeCards?: boolean;
 }
 
 export interface PlayerGameStats {
@@ -158,4 +161,12 @@ export interface RoomListing {
   maxPlayers: number;
   hostName: string;
   settings: GameSettings;
+}
+
+export interface LiveGameListing {
+  roomCode: string;
+  playerCount: number;
+  hostName: string;
+  roundNumber: number;
+  spectatorsCanSeeCards: boolean;
 }

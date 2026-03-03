@@ -104,6 +104,12 @@ function handleResult(
       break;
 
     case 'game_over':
+      if (result.finalRoundResult) {
+        // Show the final round result before ending the game
+        if (room.game) room.game.setTurnDeadline(null);
+        broadcastGameState(io, room);
+        io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
+      }
       room.gamePhase = GamePhase.GAME_OVER;
       io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
       break;

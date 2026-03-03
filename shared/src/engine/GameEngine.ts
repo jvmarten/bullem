@@ -14,7 +14,7 @@ export type TurnResult =
   | { type: 'continue' }
   | { type: 'last_chance'; playerId: PlayerId }
   | { type: 'resolve'; result: RoundResult }
-  | { type: 'game_over'; winnerId: PlayerId }
+  | { type: 'game_over'; winnerId: PlayerId; finalRoundResult?: RoundResult }
   | { type: 'error'; message: string };
 
 export class GameEngine {
@@ -379,7 +379,32 @@ export class GameEngine {
     const penalizedPlayerIds: PlayerId[] = [];
     const eliminatedPlayerIds: PlayerId[] = [];
 
-    for (const p of this.getActivePlayers()) {
+    const activePlayers = this.getActivePlayers();
+
+    // Pre-check: if every active player would be penalized AND all would exceed
+    // maxCards, skip penalties entirely so the game continues instead of ending
+    // in a mass elimination (draw). This can happen when the last-chance raise
+    // results in everyone being wrong simultaneously.
+    const wouldBePenalized: PlayerId[] = [];
+    for (const p of activePlayers) {
+      const lastAction = this.getPlayerLastAction(p.id);
+      let incorrect = false;
+      if (p.id === this.lastCallerId) {
+        incorrect = !handExists;
+      } else if (lastAction === TurnAction.BULL) {
+        incorrect = handExists;
+      } else if (lastAction === TurnAction.TRUE) {
+        incorrect = !handExists;
+      } else {
+        incorrect = true;
+      }
+      if (incorrect) wouldBePenalized.push(p.id);
+    }
+    const allWouldEliminate =
+      wouldBePenalized.length === activePlayers.length &&
+      activePlayers.every(p => (p.cardCount || STARTING_CARDS) + 1 > this.settings.maxCards);
+
+    for (const p of activePlayers) {
       const lastAction = this.getPlayerLastAction(p.id);
       let incorrect = false;
       const stats = this.gameStats.playerStats[p.id];
@@ -404,7 +429,7 @@ export class GameEngine {
         incorrect = true;
       }
 
-      if (incorrect) {
+      if (incorrect && !allWouldEliminate) {
         penalizedPlayerIds.push(p.id);
         p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
         if (p.cardCount > this.settings.maxCards) {
@@ -436,7 +461,7 @@ export class GameEngine {
     // Check for game over
     const remaining = this.getActivePlayers();
     if (remaining.length <= 1) {
-      return { type: 'game_over', winnerId: remaining[0]?.id ?? '' };
+      return { type: 'game_over', winnerId: remaining[0]?.id ?? '', finalRoundResult: result };
     }
 
     return { type: 'resolve', result };

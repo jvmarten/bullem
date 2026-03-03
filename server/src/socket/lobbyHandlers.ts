@@ -150,6 +150,29 @@ export function registerLobbyHandlers(
     callback({ rooms: roomManager.getAvailableRooms() });
   });
 
+  socket.on('room:listLive', (callback) => {
+    callback({ games: roomManager.getLiveGames() });
+  });
+
+  socket.on('room:spectate', (data, callback) => {
+    const room = roomManager.getRoom(data.roomCode);
+    if (!room) return callback({ error: 'Room not found' });
+    if (!room.settings.allowSpectators) return callback({ error: 'Spectating not allowed' });
+    if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT && room.gamePhase !== GamePhase.GAME_OVER) {
+      return callback({ error: 'No game in progress' });
+    }
+
+    room.spectatorSockets.add(socket.id);
+    roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    socket.join(room.roomCode);
+
+    // Send initial spectator state
+    const state = room.getSpectatorGameState();
+    if (state) socket.emit('game:state', state);
+
+    callback({ ok: true });
+  });
+
   socket.on('room:updateSettings', (data) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;

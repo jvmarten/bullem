@@ -171,12 +171,12 @@ export function LobbyPage() {
       return;
     }
     setLocalError('');
-    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting });
+    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
   };
 
   const handleTimerChange = (seconds: number) => {
     if (settingsLocked) return;
-    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting });
+    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
   };
 
   const handleMaxPlayersChange = (cap: number) => {
@@ -186,7 +186,7 @@ export function LobbyPage() {
       return;
     }
     setLocalError('');
-    updateSettings({ maxCards, turnTimer, maxPlayers: cap });
+    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
   };
 
   // Filter max player options to only show values <= card-based max
@@ -317,6 +317,51 @@ export function LobbyPage() {
                     {seconds}s
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Spectator settings */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Spectators
+              </p>
+              <div className="space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-[var(--gold-dim)]">Allow spectators</span>
+                  <button
+                    onClick={() => updateSettings({
+                      maxCards, turnTimer, maxPlayers: maxPlayersSetting,
+                      allowSpectators: !settings.allowSpectators,
+                      spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+                    })}
+                    className={`w-10 h-5 rounded-full transition-colors relative ${
+                      settings.allowSpectators ? 'bg-[var(--gold)]' : 'bg-[var(--surface)]'
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
+                      settings.allowSpectators ? 'translate-x-5' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                </label>
+                {settings.allowSpectators && (
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-sm text-[var(--gold-dim)]">Spectators see cards</span>
+                    <button
+                      onClick={() => updateSettings({
+                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
+                        allowSpectators: settings.allowSpectators,
+                        spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
+                      })}
+                      className={`w-10 h-5 rounded-full transition-colors relative ${
+                        settings.spectatorsCanSeeCards ? 'bg-[var(--gold)]' : 'bg-[var(--surface)]'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
+                        settings.spectatorsCanSeeCards ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                  </label>
+                )}
               </div>
             </div>
           </>
