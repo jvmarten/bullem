@@ -335,7 +335,7 @@ export function LobbyPage() {
                       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
                     })}
                     className={`w-10 h-5 rounded-full transition-colors relative ${
-                      settings.allowSpectators ? 'bg-[var(--gold)]' : 'bg-[var(--surface)]'
+                      settings.allowSpectators ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'
                     }`}
                   >
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
@@ -353,7 +353,7 @@ export function LobbyPage() {
                         spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
                       })}
                       className={`w-10 h-5 rounded-full transition-colors relative ${
-                        settings.spectatorsCanSeeCards ? 'bg-[var(--gold)]' : 'bg-[var(--surface)]'
+                        settings.spectatorsCanSeeCards ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'
                       }`}
                     >
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
