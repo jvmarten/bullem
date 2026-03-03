@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
   isHigherHand, handToString, getMinimumRaise,
@@ -10,7 +10,9 @@ import { WheelPicker } from './WheelPicker.js';
 interface Props {
   currentHand: HandCall | null;
   onSubmit: (hand: HandCall) => void;
+  onHandChange?: (hand: HandCall | null, isValid: boolean) => void;
   submitLabel?: string;
+  showSubmit?: boolean;
 }
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
@@ -29,9 +31,9 @@ function HandIllustration({ type, isSelected }: { type: HandType; isSelected: bo
       <span className="text-[8px] leading-none text-red-600">♥</span>
     </div>
   );
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-8px' } : {});
+  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-7px' } : {});
   const stair = (i: number): React.CSSProperties => ({
-    marginLeft: i > 0 ? '-6px' : undefined,
+    marginLeft: i > 0 ? '-5px' : undefined,
     marginBottom: `${i * 3}px`,
   });
 
@@ -143,7 +145,7 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
 
 /* ── Main Component ────────────────────────────────────── */
 
-export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
+export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true }: Props) {
   const label = submitLabel ?? (currentHand ? 'Raise' : 'Call');
   const initial = getInitialState(currentHand);
   const [handType, setHandType] = useState<HandType>(initial.handType);
@@ -199,6 +201,10 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
   const hand = buildHand();
   const isValid = hand !== null && (!currentHand || isHigherHand(hand, currentHand));
 
+  useEffect(() => {
+    onHandChange?.(hand, isValid);
+  }, [hand, isValid, onHandChange]);
+
   const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
   const needsRank2 = [HandType.TWO_PAIR, HandType.FULL_HOUSE].includes(handType);
@@ -239,11 +245,12 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
   const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]), []);
 
   const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
+  const hasSecondary = needsRank2 || (needsStraightRank && needsSuit);
 
   /* ── Render callbacks ───────────────────────────────── */
 
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
-    const isDimmed = currentHand !== null && ht < currentHand.type;
+    const isDimmed = currentHand !== null && ht < currentHand.type && !isSelected;
     return (
       <div className={`flex items-center justify-center transition-all duration-150 ${
         isDimmed ? 'opacity-20' : ''
@@ -261,15 +268,19 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
     </div>
   ), []);
 
-  const renderSuit = useCallback((s: string, isSelected: boolean) => (
-    <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: 38, height: 50 }}
-    >
-      <span className={`text-xl ${(s === 'hearts' || s === 'diamonds') ? 'suit-red' : ''} ${isSelected ? '' : 'opacity-40'}`}>
-        {SUIT_SYMBOLS[s as Suit]}
-      </span>
-    </div>
-  ), []);
+  const renderSuit = useCallback((s: string, isSelected: boolean) => {
+    const isRed = s === 'hearts' || s === 'diamonds';
+    return (
+      <div className={`hs-rank-card hs-suit-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
+        data-suit-card
+        style={{ margin: 0, width: 38, height: 50 }}
+      >
+        <span className={`text-xl leading-none ${isRed ? 'text-red-600' : 'text-gray-800'}`}>
+          {SUIT_SYMBOLS[s as Suit]}
+        </span>
+      </div>
+    );
+  }, []);
 
   const handleSubmit = useCallback(() => {
     if (hand && isValid) onSubmit(hand);
@@ -278,7 +289,7 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
   return (
     <div className="animate-slide-up" data-testid="hand-selector">
       {/* Top: Hand name */}
-      <div className="text-center py-1">
+      <div className="text-center py-0.5">
         {hand ? (
           <span className="font-display text-sm font-bold text-[var(--gold)]">
             {handToString(hand)}
@@ -292,7 +303,7 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
       </div>
 
       {/* Middle: Card preview */}
-      <div className="flex justify-center flex-wrap gap-0.5 py-1 min-h-[56px] items-center">
+      <div className="flex justify-center flex-wrap gap-0.5 py-1 mb-3 min-h-[56px] items-center">
         {hand && previewCards.map((card, i) => {
           const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
           return (
@@ -320,76 +331,69 @@ export function HandSelector({ currentHand, onSubmit, submitLabel }: Props) {
 
         {/* Right column — Rank / suit wheel(s) */}
         <div className="flex-1">
+          {/* Primary wheel */}
           {isSuitOnly ? (
             <WheelPicker
               items={[...ALL_SUITS]}
               selectedIndex={suitIndex >= 0 ? suitIndex : 0}
               onSelect={handleSuitWheel}
               renderItem={renderSuit}
-              itemHeight={42}
-              visibleCount={5}
+              itemHeight={hasSecondary ? 28 : 42}
+              visibleCount={hasSecondary ? 3 : 5}
             />
-          ) : needsRank2 ? (
-            <div className="flex gap-1">
-              <WheelPicker
-                items={[...rankList]}
-                selectedIndex={rankList.indexOf(rank)}
-                onSelect={handlePrimaryWheel}
-                renderItem={renderRank}
-                itemHeight={42}
-                visibleCount={5}
-              />
-              <WheelPicker
-                items={[...rank2List]}
-                selectedIndex={rank2Index >= 0 ? rank2Index : 0}
-                onSelect={handleRank2Wheel}
-                renderItem={renderRank}
-                itemHeight={42}
-                visibleCount={5}
-              />
-            </div>
-          ) : needsStraightRank && needsSuit ? (
-            <div className="flex gap-1">
-              <WheelPicker
-                items={[...rankList]}
-                selectedIndex={rankList.indexOf(rank)}
-                onSelect={handlePrimaryWheel}
-                renderItem={renderRank}
-                itemHeight={42}
-                visibleCount={5}
-              />
-              <WheelPicker
-                items={[...ALL_SUITS]}
-                selectedIndex={suitIndex >= 0 ? suitIndex : 0}
-                onSelect={handleSuitWheel}
-                renderItem={renderSuit}
-                itemHeight={42}
-                visibleCount={5}
-              />
-            </div>
           ) : (
             <WheelPicker
               items={[...rankList]}
               selectedIndex={rankList.indexOf(rank)}
               onSelect={handlePrimaryWheel}
               renderItem={renderRank}
-              itemHeight={42}
-              visibleCount={5}
+              itemHeight={hasSecondary ? 28 : 42}
+              visibleCount={hasSecondary ? 3 : 5}
             />
           )}
+          {/* Secondary wheel — smooth expand/collapse */}
+          <div style={{
+            maxHeight: hasSecondary ? '200px' : '0',
+            overflow: 'hidden',
+            transition: 'max-height 0.3s ease, opacity 0.3s ease',
+            opacity: hasSecondary ? 1 : 0,
+          }}>
+            <div className="h-px bg-[var(--felt-border)] my-0.5" />
+            {needsRank2 ? (
+              <WheelPicker
+                items={[...rank2List]}
+                selectedIndex={rank2Index >= 0 ? rank2Index : 0}
+                onSelect={handleRank2Wheel}
+                renderItem={renderRank}
+                itemHeight={28}
+                visibleCount={3}
+              />
+            ) : needsSuit ? (
+              <WheelPicker
+                items={[...ALL_SUITS]}
+                selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                onSelect={handleSuitWheel}
+                renderItem={renderSuit}
+                itemHeight={28}
+                visibleCount={3}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Submit button — right-aligned */}
-      <div className="flex justify-end mt-2">
-        <button
-          onClick={handleSubmit}
-          disabled={!hand || !isValid}
-          className={`btn-gold px-6 py-2 text-base font-bold ${hand && isValid ? 'hs-call-pulse' : ''}`}
-        >
-          {label}
-        </button>
-      </div>
+      {/* Submit row — hidden when parent handles submit externally */}
+      {showSubmit && (
+        <div className="flex justify-end items-center mt-2">
+          <button
+            onClick={handleSubmit}
+            disabled={!hand || !isValid}
+            className={`btn-gold px-6 py-2 text-base font-bold ${hand && isValid ? 'hs-call-pulse' : ''}`}
+          >
+            {label}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -71,10 +71,12 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
       className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-200 ${
         p.isEliminated
           ? 'glass opacity-40'
-          : isCurrent
-            ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
-            : isMe
-              ? 'glass-me'
+          : isMe
+            ? isCurrent
+              ? 'glass-me border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
+              : 'glass-me'
+            : isCurrent
+              ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
               : 'glass'
       }`}
     >
@@ -146,7 +148,10 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
     const currentIndex = players.findIndex(p => p.id === currentPlayerId);
+    const myPlayer = players.find(p => p.id === myPlayerId);
+    const myIndex = players.findIndex(p => p.id === myPlayerId);
     const activeCount = players.filter(p => !p.isEliminated).length;
+    const isMyTurn = currentPlayerId === myPlayerId;
 
     return (
       <div>
@@ -160,17 +165,30 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-        {currentPlayer && (
-          <PlayerCard
-            p={currentPlayer}
-            i={currentIndex >= 0 ? currentIndex : 0}
-            isCurrent={currentPlayerId === myPlayerId}
-            isMe={currentPlayer.id === myPlayerId}
-            maxCards={maxCards}
-            roundNumber={roundNumber}
-            turnHistory={turnHistory}
-          />
-        )}
+        <div className="grid grid-cols-2 gap-1">
+          {currentPlayer && (
+            <PlayerCard
+              p={currentPlayer}
+              i={currentIndex >= 0 ? currentIndex : 0}
+              isCurrent
+              isMe={isMyTurn}
+              maxCards={maxCards}
+              roundNumber={roundNumber}
+              turnHistory={turnHistory}
+            />
+          )}
+          {!isMyTurn && myPlayer && !myPlayer.isEliminated && (
+            <PlayerCard
+              p={myPlayer}
+              i={myIndex >= 0 ? myIndex : 0}
+              isCurrent={false}
+              isMe
+              maxCards={maxCards}
+              roundNumber={roundNumber}
+              turnHistory={turnHistory}
+            />
+          )}
+        </div>
       </div>
     );
   }

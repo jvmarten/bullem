@@ -68,7 +68,7 @@ describe('HandSelector', () => {
     it('shows rank cards when FLUSH is selected (suit cards)', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FLUSH);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('[data-suit-card]').length).toBeGreaterThan(0);
     });
 
     it('shows rank cards when STRAIGHT is selected', () => {
@@ -92,6 +92,7 @@ describe('HandSelector', () => {
     it('shows both suit and rank pickers for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
+      expect(container.querySelectorAll('[data-suit-card]').length).toBeGreaterThan(0);
       expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 

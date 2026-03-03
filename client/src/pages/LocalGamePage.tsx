@@ -12,7 +12,8 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import type { HandCall } from '@bull-em/shared';
 
 export function LocalGamePage() {
   const navigate = useNavigate();
@@ -56,6 +57,23 @@ export function LocalGamePage() {
 
   const canRaise = canCallHand || isLastChanceCaller;
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
+
+  const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
+    setPendingHand(hand);
+    setPendingValid(valid);
+  }, []);
+
+  const handleHandSubmit = useCallback(() => {
+    if (!pendingHand || !pendingValid) return;
+    if (isLastChanceCaller) {
+      lastChanceRaise(pendingHand);
+    } else {
+      callHand(pendingHand);
+    }
+    setHandSelectorOpen(false);
+  }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
 
   // Close hand selector when turn changes
   useEffect(() => {
@@ -168,19 +186,13 @@ export function LocalGamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Hand selector — opens above the action row */}
+        {/* Hand selector — above action row so buttons stay at bottom */}
         {canRaise && handSelectorOpen && (
           <HandSelector
             currentHand={gameState.currentHand}
-            onSubmit={(hand) => {
-              if (isLastChanceCaller) {
-                lastChanceRaise(hand);
-              } else {
-                callHand(hand);
-              }
-              setHandSelectorOpen(false);
-            }}
-            submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            showSubmit={false}
           />
         )}
 
@@ -202,6 +214,17 @@ export function LocalGamePage() {
                 <button
                   onClick={() => setHandSelectorOpen(true)}
                   className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+              </div>
+            )}
+            {canRaise && handSelectorOpen && (
+              <div className="flex justify-end ml-auto">
+                <button
+                  onClick={handleHandSubmit}
+                  disabled={!pendingValid}
+                  className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}
                 </button>
