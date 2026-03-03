@@ -15,11 +15,11 @@ interface Props {
 function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string {
   switch (roundPhase) {
     case RoundPhase.CALLING:
-      return hasCurrentHand ? 'Call or Raise' : 'Call a Hand';
+      return hasCurrentHand ? 'Bull or Raise' : 'Call a Hand';
     case RoundPhase.BULL_PHASE:
       return 'Bull, True, or Raise';
     case RoundPhase.LAST_CHANCE:
-      return 'Last Chance to Raise';
+      return 'Raise or Pass';
     case RoundPhase.RESOLVING:
       return 'Revealing\u2026';
   }

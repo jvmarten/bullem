@@ -150,6 +150,26 @@ body {
 }
 .btn-info:active { transform: scale(0.97); }
 
+/* ── Safe (Green) Button ────────────────────────────── */
+.btn-safe {
+  background: linear-gradient(180deg, #34c759 0%, var(--safe) 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+  border: 1px solid #1e8f3f;
+  cursor: pointer;
+}
+.btn-safe:hover {
+  background: linear-gradient(180deg, #48d96d 0%, #34c759 100%);
+  box-shadow: 0 4px 16px rgba(40, 167, 69, 0.4);
+  transform: translateY(-1px);
+}
+.btn-safe:active { transform: scale(0.97); }
+
 /* ── Input Fields ────────────────────────────────────── */
 .input-felt {
   background: rgba(0, 0, 0, 0.25);
