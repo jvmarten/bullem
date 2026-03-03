@@ -326,8 +326,8 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={68}
-            visibleCount={5}
+            itemHeight={70}
+            visibleCount={3}
           />
         </div>
 

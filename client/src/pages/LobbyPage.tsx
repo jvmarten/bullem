@@ -334,12 +334,14 @@ export function LobbyPage() {
                       allowSpectators: !settings.allowSpectators,
                       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
                     })}
-                    className={`w-10 h-5 rounded-full transition-colors relative ${
-                      settings.allowSpectators ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'
+                    className={`w-11 h-6 rounded-full transition-colors relative border ${
+                      settings.allowSpectators
+                        ? 'bg-[var(--gold)] border-[var(--gold)]'
+                        : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                     }`}
                   >
-                    <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
-                      settings.allowSpectators ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                    <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                      settings.allowSpectators ? 'translate-x-[23px]' : 'translate-x-[2px]'
                     }`} />
                   </button>
                 </label>
@@ -352,12 +354,14 @@ export function LobbyPage() {
                         allowSpectators: settings.allowSpectators,
                         spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
                       })}
-                      className={`w-10 h-5 rounded-full transition-colors relative ${
-                        settings.spectatorsCanSeeCards ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'
+                      className={`w-11 h-6 rounded-full transition-colors relative border ${
+                        settings.spectatorsCanSeeCards
+                          ? 'bg-[var(--gold)] border-[var(--gold)]'
+                          : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                       }`}
                     >
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
-                        settings.spectatorsCanSeeCards ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                      <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                        settings.spectatorsCanSeeCards ? 'translate-x-[23px]' : 'translate-x-[2px]'
                       }`} />
                     </button>
                   </label>
