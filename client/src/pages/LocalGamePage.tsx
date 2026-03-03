@@ -186,17 +186,8 @@ export function LocalGamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Hand selector — above action row so buttons stay at bottom */}
-        {canRaise && handSelectorOpen && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={handleHandSubmit}
-            onHandChange={handleHandChange}
-            showSubmit={false}
-          />
-        )}
-
         {/* Action row — BULL/TRUE on left, Raise/Call on right */}
+        {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
         {!isEliminated && (
           <div className="flex justify-between items-start">
             <ActionButtons
@@ -231,6 +222,16 @@ export function LocalGamePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Hand selector — appears below the action buttons so buttons stay put */}
+        {canRaise && handSelectorOpen && (
+          <HandSelector
+            currentHand={gameState.currentHand}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            showSubmit={false}
+          />
         )}
 
         {/* Round transition overlay */}
