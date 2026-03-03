@@ -1,9 +1,5 @@
 import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 
-const FRICTION = 0.92;
-const MIN_VELOCITY = 0.3;
-const SNAP_STIFFNESS = 0.18;
-
 interface WheelPickerProps<T> {
   items: T[];
   selectedIndex: number;
@@ -18,179 +14,124 @@ export function WheelPicker<T>({
   selectedIndex,
   onSelect,
   renderItem,
-  itemHeight = 34,
+  itemHeight = 48,
   visibleCount = 5,
 }: WheelPickerProps<T>) {
-  const offsetRef = useRef(-selectedIndex * itemHeight);
-  const velocityRef = useRef(0);
-  const animFrameRef = useRef(0);
-  const isDraggingRef = useRef(false);
-  const touchStartRef = useRef({ y: 0, time: 0, offset: 0 });
-  const lastTouchRef = useRef({ y: 0, time: 0 });
-  const [, forceRender] = useState(0);
-  const rerender = useCallback(() => forceRender(n => n + 1), []);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastReportedRef = useRef(selectedIndex);
+  const [visualIndex, setVisualIndex] = useState(selectedIndex);
 
-  useEffect(() => {
-    if (!isDraggingRef.current) {
-      offsetRef.current = -selectedIndex * itemHeight;
-      rerender();
-    }
-  }, [selectedIndex, itemHeight, rerender]);
-
-  const clampIndex = useCallback(
-    (idx: number) => Math.max(0, Math.min(items.length - 1, idx)),
-    [items.length],
-  );
-
-  const getIndexFromOffset = useCallback(
-    (offset: number) => clampIndex(Math.round(-offset / itemHeight)),
-    [clampIndex, itemHeight],
-  );
-
-  const snapToIndex = useCallback(
-    (idx: number) => {
-      const target = -idx * itemHeight;
-      const animate = () => {
-        const diff = target - offsetRef.current;
-        if (Math.abs(diff) < 0.5) {
-          offsetRef.current = target;
-          rerender();
-          return;
-        }
-        offsetRef.current += diff * SNAP_STIFFNESS;
-        rerender();
-        animFrameRef.current = requestAnimationFrame(animate);
-      };
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = requestAnimationFrame(animate);
-    },
-    [itemHeight, rerender],
-  );
-
-  const startMomentum = useCallback(() => {
-    const animate = () => {
-      velocityRef.current *= FRICTION;
-      if (Math.abs(velocityRef.current) < MIN_VELOCITY) {
-        const idx = getIndexFromOffset(offsetRef.current);
-        onSelect(idx);
-        snapToIndex(idx);
-        return;
-      }
-      offsetRef.current += velocityRef.current;
-      const minOffset = -(items.length - 1) * itemHeight;
-      if (offsetRef.current > 0) {
-        offsetRef.current = 0;
-        velocityRef.current = 0;
-        onSelect(0);
-        snapToIndex(0);
-        return;
-      }
-      if (offsetRef.current < minOffset) {
-        offsetRef.current = minOffset;
-        velocityRef.current = 0;
-        onSelect(items.length - 1);
-        snapToIndex(items.length - 1);
-        return;
-      }
-      rerender();
-      animFrameRef.current = requestAnimationFrame(animate);
-    };
-    cancelAnimationFrame(animFrameRef.current);
-    animFrameRef.current = requestAnimationFrame(animate);
-  }, [items.length, itemHeight, getIndexFromOffset, onSelect, snapToIndex, rerender]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    cancelAnimationFrame(animFrameRef.current);
-    velocityRef.current = 0;
-    isDraggingRef.current = true;
-    const y = e.touches[0].clientY;
-    touchStartRef.current = { y, time: Date.now(), offset: offsetRef.current };
-    lastTouchRef.current = { y, time: Date.now() };
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDraggingRef.current) return;
-    e.preventDefault();
-    const y = e.touches[0].clientY;
-    offsetRef.current = touchStartRef.current.offset + (y - touchStartRef.current.y);
-    const now = Date.now();
-    const dt = now - lastTouchRef.current.time;
-    if (dt > 0) velocityRef.current = ((y - lastTouchRef.current.y) / dt) * 16;
-    lastTouchRef.current = { y, time: now };
-    rerender();
-  }, [rerender]);
-
-  const handleTouchEnd = useCallback(() => {
-    isDraggingRef.current = false;
-    startMomentum();
-  }, [startMomentum]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    cancelAnimationFrame(animFrameRef.current);
-    velocityRef.current = 0;
-    isDraggingRef.current = true;
-    const y = e.clientY;
-    touchStartRef.current = { y, time: Date.now(), offset: offsetRef.current };
-    lastTouchRef.current = { y, time: Date.now() };
-
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      ev.preventDefault();
-      const my = ev.clientY;
-      offsetRef.current = touchStartRef.current.offset + (my - touchStartRef.current.y);
-      const now = Date.now();
-      const dt = now - lastTouchRef.current.time;
-      if (dt > 0) velocityRef.current = ((my - lastTouchRef.current.y) / dt) * 16;
-      lastTouchRef.current = { y: my, time: now };
-      rerender();
-    };
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      startMomentum();
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [startMomentum, rerender]);
-
-  const handleItemClick = useCallback(
-    (index: number) => {
-      if (isDraggingRef.current) return;
-      onSelect(index);
-      snapToIndex(index);
-    },
-    [onSelect, snapToIndex],
-  );
-
-  useEffect(() => () => cancelAnimationFrame(animFrameRef.current), []);
-
+  const padCount = Math.floor(visibleCount / 2);
   const viewportHeight = visibleCount * itemHeight;
-  const centerOffset = Math.floor(visibleCount / 2) * itemHeight;
-  const currentSelected = getIndexFromOffset(offsetRef.current);
+
+  // Sync scroll position when selectedIndex changes (including mount)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const targetTop = selectedIndex * itemHeight;
+    if (Math.abs(el.scrollTop - targetTop) > 1) {
+      el.scrollTop = targetTop;
+    }
+    lastReportedRef.current = selectedIndex;
+    setVisualIndex(selectedIndex);
+  }, [selectedIndex, itemHeight]);
+
+  // Track which item is visually centered during scroll
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollTop / itemHeight);
+    const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    setVisualIndex(clamped);
+  }, [itemHeight, items.length]);
+
+  // Commit selection when scrolling stops (debounce)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let timer: number;
+    const commitSelection = () => {
+      const idx = Math.round(el.scrollTop / itemHeight);
+      const clamped = Math.max(0, Math.min(items.length - 1, idx));
+      if (clamped !== lastReportedRef.current) {
+        lastReportedRef.current = clamped;
+        onSelect(clamped);
+      }
+    };
+    const onScroll = () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(commitSelection, 100);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      clearTimeout(timer);
+    };
+  }, [itemHeight, items.length, onSelect]);
+
+  const handleItemClick = useCallback((index: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTo) {
+      el.scrollTo({ top: index * itemHeight, behavior: 'smooth' });
+    } else {
+      el.scrollTop = index * itemHeight;
+    }
+    // Select immediately on tap — don't wait for scroll-end debounce
+    lastReportedRef.current = index;
+    setVisualIndex(index);
+    onSelect(index);
+  }, [itemHeight, onSelect]);
 
   return (
-    <div
-      className="relative overflow-hidden select-none"
-      style={{ height: viewportHeight, touchAction: 'none' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      onMouseDown={handleMouseDown}
-    >
-      <div style={{ transform: `translateY(${offsetRef.current + centerOffset}px)` }}>
+    <div className="relative overflow-hidden" style={{ height: viewportHeight }}>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="wheel-picker-scroll select-none"
+        style={{
+          height: viewportHeight,
+          overflowY: 'auto',
+          scrollSnapType: 'y mandatory',
+          overscrollBehavior: 'contain',
+        }}
+      >
+        <div style={{ height: padCount * itemHeight }} />
         {items.map((item, i) => (
           <div
             key={i}
             onClick={() => handleItemClick(i)}
-            className="flex items-center justify-center"
-            style={{ height: itemHeight, zIndex: i === currentSelected ? 10 : 0 }}
+            data-wheel-item={i}
+            style={{
+              height: itemHeight,
+              scrollSnapAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
           >
-            {renderItem(item, i === currentSelected)}
+            {renderItem(item, i === visualIndex)}
           </div>
         ))}
+        <div style={{ height: padCount * itemHeight }} />
       </div>
+      {/* Center highlight */}
+      <div
+        className="absolute left-0 right-0 pointer-events-none"
+        style={{
+          top: padCount * itemHeight,
+          height: itemHeight,
+          borderTop: '1px solid var(--gold-dim)',
+          borderBottom: '1px solid var(--gold-dim)',
+          background: 'rgba(212, 168, 67, 0.06)',
+        }}
+      />
+      {/* Fade edges */}
+      <div className="absolute inset-x-0 top-0 pointer-events-none"
+        style={{ height: itemHeight * 1.5, background: 'linear-gradient(to bottom, var(--felt-dark), transparent)' }} />
+      <div className="absolute inset-x-0 bottom-0 pointer-events-none"
+        style={{ height: itemHeight * 1.5, background: 'linear-gradient(to top, var(--felt-dark), transparent)' }} />
     </div>
   );
 }

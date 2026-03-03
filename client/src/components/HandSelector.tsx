@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
   isHigherHand, getHandTypeName, handToString, getMinimumRaise,
@@ -9,7 +9,9 @@ import { WheelPicker } from './WheelPicker.js';
 
 interface Props {
   currentHand: HandCall | null;
-  onHandChange?: (hand: HandCall | null, isValid: boolean) => void;
+  onSubmit: (hand: HandCall) => void;
+  onClose?: () => void;
+  submitLabel?: string;
 }
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
@@ -142,7 +144,8 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
 
 /* ── Main Component ────────────────────────────────────── */
 
-export function HandSelector({ currentHand, onHandChange }: Props) {
+export function HandSelector({ currentHand, onSubmit, onClose, submitLabel }: Props) {
+  const label = submitLabel ?? (currentHand ? 'Raise' : 'Call');
   const initial = getInitialState(currentHand);
   const [handType, setHandType] = useState<HandType>(initial.handType);
   const [rank, setRank] = useState<Rank>(initial.rank);
@@ -197,11 +200,6 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
   const hand = buildHand();
   const isValid = hand !== null && (!currentHand || isHigherHand(hand, currentHand));
 
-  // Report hand changes to parent
-  useEffect(() => {
-    onHandChange?.(hand, isValid);
-  }, [hand, isValid, onHandChange]);
-
   const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
   const needsRank2 = [HandType.TWO_PAIR, HandType.FULL_HOUSE].includes(handType);
@@ -241,21 +239,27 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
   const suitIndex = ALL_SUITS.indexOf(suit);
   const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]), []);
 
-  // Render items — card-fan style
+  const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
+
+  /* ── Render callbacks ───────────────────────────────── */
+
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
     const isDimmed = currentHand !== null && ht < currentHand.type;
     return (
-      <div className={`flex items-center justify-center w-full transition-transform duration-200 ${
+      <div className={`flex items-center gap-1.5 w-full px-1 transition-all duration-200 ${
         isDimmed ? 'opacity-25' : ''
-      } ${isSelected ? 'scale-110' : 'scale-90 opacity-60'}`}>
+      } ${isSelected ? '' : 'opacity-50'}`}>
         <HandIllustration type={ht} isSelected={isSelected} />
+        <span className={`text-[10px] font-semibold whitespace-nowrap leading-tight ${
+          isSelected ? 'text-[var(--gold)]' : 'text-[#e8e0d4]'
+        }`}>{getHandTypeName(ht)}</span>
       </div>
     );
   }, [currentHand]);
 
   const renderRank = useCallback((r: string, isSelected: boolean) => (
     <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0 }}
+      style={{ margin: 0, width: 32, height: 44 }}
     >
       <span className="text-sm font-bold text-[#1a1a1a]">{r}</span>
     </div>
@@ -263,7 +267,7 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
 
   const renderSuit = useCallback((s: string, isSelected: boolean) => (
     <div className={`hs-suit-btn ${isSelected ? 'hs-suit-btn-selected' : ''}`}
-      style={{ width: 32, height: 32, fontSize: '1rem' }}
+      style={{ width: 34, height: 34, fontSize: '1.1rem' }}
     >
       <span className={(s === 'hearts' || s === 'diamonds') ? 'suit-red' : ''}>
         {SUIT_SYMBOLS[s as Suit]}
@@ -271,58 +275,62 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
     </div>
   ), []);
 
-  const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
+  const handleSubmit = useCallback(() => {
+    if (hand && isValid) onSubmit(hand);
+  }, [hand, isValid, onSubmit]);
 
   return (
     <div className="animate-slide-up" data-testid="hand-selector">
-      {/* Three-column layout: type | preview | value */}
-      <div className="flex items-stretch gap-1">
-        {/* Left — Hand type wheel (card images only) */}
-        <div style={{ width: 52 }}>
+      {/* Top: Hand name */}
+      <div className="text-center py-1">
+        {hand ? (
+          <span className="font-display text-sm font-bold text-[var(--gold)]">
+            {handToString(hand)}
+          </span>
+        ) : (
+          <span className="text-sm text-[var(--gold-dim)]">Select a hand</span>
+        )}
+        {validationMsg && (
+          <p className="text-[10px] text-[var(--danger)] mt-0.5">{validationMsg}</p>
+        )}
+      </div>
+
+      {/* Middle: Card preview */}
+      <div className="flex justify-center flex-wrap gap-0.5 py-1 min-h-[56px] items-center">
+        {hand && previewCards.map((card, i) => {
+          const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
+          return (
+            <div key={i} className="playing-card no-hover inline-flex flex-col items-center justify-center w-9 h-[52px] select-none">
+              <span className={`text-xs font-bold leading-tight ${sc}`}>{card.rank}</span>
+              <span className={`text-sm leading-tight ${sc}`}>{SUIT_SYMBOLS[card.suit]}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bottom: Two wheel columns side by side */}
+      <div className="flex gap-2">
+        {/* Left column — Hand type wheel */}
+        <div className="flex-1">
           <WheelPicker
             items={ALL_HAND_TYPES}
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={28}
-            visibleCount={7}
+            itemHeight={36}
+            visibleCount={5}
           />
         </div>
 
-        {/* Center — Preview + hand name */}
-        <div className="flex-1 flex flex-col items-center justify-center min-w-0">
-          {hand && (
-            <>
-              <div className="flex justify-center flex-wrap gap-0.5">
-                {previewCards.map((card, i) => {
-                  const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
-                  return (
-                    <div key={i} className="playing-card no-hover inline-flex flex-col items-center justify-center w-9 h-[52px] select-none">
-                      <span className={`text-xs font-bold leading-tight ${sc}`}>{card.rank}</span>
-                      <span className={`text-sm leading-tight ${sc}`}>{SUIT_SYMBOLS[card.suit]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="text-center text-xs text-[var(--gold)] font-semibold mt-1">
-                {handToString(hand)}
-              </div>
-            </>
-          )}
-          {validationMsg && (
-            <p className="text-[10px] text-[var(--danger)] text-center mt-0.5">{validationMsg}</p>
-          )}
-        </div>
-
-        {/* Right — Value wheel(s) */}
-        <div style={{ width: 42 }}>
+        {/* Right column — Rank / suit wheel(s) */}
+        <div className="flex-1">
           {isSuitOnly ? (
             <WheelPicker
               items={[...ALL_SUITS]}
               selectedIndex={suitIndex >= 0 ? suitIndex : 0}
               onSelect={handleSuitWheel}
               renderItem={renderSuit}
-              itemHeight={38}
+              itemHeight={36}
               visibleCount={5}
             />
           ) : needsRank2 ? (
@@ -332,8 +340,8 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
                 selectedIndex={rankList.indexOf(rank)}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
-                itemHeight={28}
-                visibleCount={4}
+                itemHeight={30}
+                visibleCount={3}
               />
               <div className="h-px bg-[var(--felt-border)] my-0.5" />
               <WheelPicker
@@ -341,7 +349,7 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
                 selectedIndex={rank2Index >= 0 ? rank2Index : 0}
                 onSelect={handleRank2Wheel}
                 renderItem={renderRank}
-                itemHeight={28}
+                itemHeight={30}
                 visibleCount={3}
               />
             </div>
@@ -352,8 +360,8 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
                 selectedIndex={rankList.indexOf(rank)}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
-                itemHeight={28}
-                visibleCount={4}
+                itemHeight={30}
+                visibleCount={3}
               />
               <div className="h-px bg-[var(--felt-border)] my-0.5" />
               <WheelPicker
@@ -361,7 +369,7 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
                 selectedIndex={suitIndex >= 0 ? suitIndex : 0}
                 onSelect={handleSuitWheel}
                 renderItem={renderSuit}
-                itemHeight={36}
+                itemHeight={30}
                 visibleCount={3}
               />
             </div>
@@ -371,11 +379,30 @@ export function HandSelector({ currentHand, onHandChange }: Props) {
               selectedIndex={rankList.indexOf(rank)}
               onSelect={handlePrimaryWheel}
               renderItem={renderRank}
-              itemHeight={28}
-              visibleCount={7}
+              itemHeight={36}
+              visibleCount={5}
             />
           )}
         </div>
+      </div>
+
+      {/* Submit / cancel row */}
+      <div className="flex justify-between items-center mt-2">
+        {onClose ? (
+          <button
+            onClick={onClose}
+            className="btn-ghost text-sm px-4 py-1.5"
+          >
+            Cancel
+          </button>
+        ) : <div />}
+        <button
+          onClick={handleSubmit}
+          disabled={!hand || !isValid}
+          className={`btn-gold px-6 py-2 text-base font-bold ${hand && isValid ? 'hs-call-pulse' : ''}`}
+        >
+          {label}
+        </button>
       </div>
     </div>
   );

@@ -483,6 +483,16 @@ body {
   filter: saturate(0.5) brightness(0.85);
 }
 
+/* ── Wheel Picker (native scroll) ───────────────────── */
+.wheel-picker-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.wheel-picker-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* === Hand Selector === */
 
 /* ── Hand type strip ─────────────────────────────────── */
