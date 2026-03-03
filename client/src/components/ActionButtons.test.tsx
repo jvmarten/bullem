@@ -159,7 +159,7 @@ describe('ActionButtons', () => {
       expect(getButtonByText(container, 'TRUE')).toBeNull();
     });
 
-    it('fires onLastChancePass when Pass button is clicked', () => {
+    it('fires onLastChancePass after expanding gateway and clicking Pass', () => {
       const onLastChancePass = vi.fn();
       const { container } = render(
         <ActionButtons
@@ -169,6 +169,11 @@ describe('ActionButtons', () => {
           onLastChancePass={onLastChancePass}
         />
       );
+      // Click gateway to expand
+      const gateway = getButtonByText(container, 'Pass');
+      expect(gateway).not.toBeNull();
+      fireEvent.click(gateway!);
+      // Now the real Pass button appears
       const passBtn = getButtonByText(container, 'Pass');
       expect(passBtn).not.toBeNull();
       fireEvent.click(passBtn!);

@@ -56,9 +56,21 @@ export function ActionButtons({
   };
 
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
+    if (!expanded) {
+      return (
+        <div className="flex justify-start animate-slide-up" data-action-buttons>
+          <button
+            onClick={() => { play('uiClick'); setExpanded(true); }}
+            className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow"
+          >
+            Pass
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
-        <button onClick={() => handleClick(onLastChancePass)} className="btn-ghost px-8 py-2 text-base">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-8 py-2 text-base">
           Pass
         </button>
       </div>
