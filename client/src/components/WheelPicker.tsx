@@ -84,7 +84,7 @@ export function WheelPicker<T>({
   }, [itemHeight, onSelect]);
 
   return (
-    <div className="relative overflow-hidden" style={{ height: viewportHeight }}>
+    <div className="relative overflow-hidden" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
