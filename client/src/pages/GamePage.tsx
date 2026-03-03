@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { RoundPhase } from '@bull-em/shared';
+import type { HandCall } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { HandDisplay } from '../components/HandDisplay.js';
@@ -103,10 +104,12 @@ export function GamePage() {
 
   const canRaise = canCallHand || isLastChanceCaller;
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [selectedHand, setSelectedHand] = useState<{ hand: HandCall | null; isValid: boolean }>({ hand: null, isValid: false });
 
   // Close hand selector when turn changes
   useEffect(() => {
     setHandSelectorOpen(false);
+    setSelectedHand({ hand: null, isValid: false });
   }, [isMyTurn, gameState.roundPhase]);
 
   return (
@@ -208,14 +211,30 @@ export function GamePage() {
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
             />
-            {canRaise && !handSelectorOpen && (
+            {canRaise && (
               <div className="flex justify-end animate-slide-up">
-                <button
-                  onClick={() => setHandSelectorOpen(true)}
-                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[7rem]"
-                >
-                  {gameState.currentHand ? 'Raise' : 'Call'}
-                </button>
+                {handSelectorOpen ? (
+                  <button
+                    onClick={() => {
+                      if (selectedHand.hand && selectedHand.isValid) {
+                        if (isLastChanceCaller) lastChanceRaise(selectedHand.hand);
+                        else callHand(selectedHand.hand);
+                        setHandSelectorOpen(false);
+                      }
+                    }}
+                    disabled={!selectedHand.isValid}
+                    className={`btn-gold px-6 py-2 text-base font-bold min-w-[7rem]${selectedHand.isValid ? ' hs-call-pulse' : ''}`}
+                  >
+                    {gameState.currentHand ? 'Raise' : 'Call'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setHandSelectorOpen(true)}
+                    className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[7rem]"
+                  >
+                    {gameState.currentHand ? 'Raise' : 'Call'}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -225,16 +244,7 @@ export function GamePage() {
         {canRaise && handSelectorOpen && (
           <HandSelector
             currentHand={gameState.currentHand}
-            onSubmit={(hand) => {
-              if (isLastChanceCaller) {
-                lastChanceRaise(hand);
-              } else {
-                callHand(hand);
-              }
-              setHandSelectorOpen(false);
-            }}
-            onClose={() => setHandSelectorOpen(false)}
-            submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
+            onHandChange={(hand, isValid) => setSelectedHand({ hand, isValid })}
           />
         )}
 
