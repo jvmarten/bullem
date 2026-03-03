@@ -73,7 +73,9 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
           ? 'glass opacity-40'
           : isCurrent
             ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
-            : 'glass'
+            : isMe
+              ? 'glass-me'
+              : 'glass'
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
@@ -162,7 +164,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
           <PlayerCard
             p={currentPlayer}
             i={currentIndex >= 0 ? currentIndex : 0}
-            isCurrent
+            isCurrent={currentPlayerId === myPlayerId}
             isMe={currentPlayer.id === myPlayerId}
             maxCards={maxCards}
             roundNumber={roundNumber}
