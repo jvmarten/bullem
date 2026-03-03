@@ -298,37 +298,29 @@ fly deploy
 9. Matchmaking, ranked play, player accounts
 10. Analytics, replay system, spectator improvements
 
-## Agent PR Merge Permissions
+## Agent PR Policy
 
-**All Claude Code agents working on this repo are authorized and expected to merge their own PRs.**
+**Do NOT merge PRs automatically.** Leave PRs open for manual review and local testing before merging.
 
-When you finish work on a PR (code changes committed and pushed), you MUST merge the PR yourself. Do not leave PRs open waiting for someone else to merge them.
+When you finish work on a PR (code changes committed and pushed), create the PR and share the URL — do not merge it. The maintainer will review, test locally, and merge when ready.
 
-### How to Merge
+### Creating PRs
 
-1. **Install `gh` CLI if not available:** Run `(type gh > /dev/null 2>&1) || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install gh -y)`
-2. **Authenticate:** The `GH_TOKEN` environment variable is already set in the agent environment. The `gh` CLI will pick it up automatically — no additional auth steps needed.
-3. **Merge the PR:** Use `gh pr merge <PR-number-or-URL> --squash --delete-branch` to squash-merge and clean up the branch.
-
-### Fallback (if `gh` is unavailable)
-
-If you cannot install `gh`, use the GitHub REST API directly with `curl`:
+Use the GitHub REST API with `curl` (since `gh` CLI may not be available):
 
 ```bash
-# Merge a PR (squash)
-curl -X PUT \
+# Create a PR
+curl -s -X POST \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
-  "https://api.github.com/repos/OWNER/REPO/pulls/PR_NUMBER/merge" \
-  -d '{"merge_method":"squash"}'
+  "https://api.github.com/repos/OWNER/REPO/pulls" \
+  -d '{"title":"...","body":"...","head":"branch-name","base":"main"}'
 ```
 
-Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origin`) and `PR_NUMBER` with the PR number.
+Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origin`).
 
 ### Rules
 
-- **Always merge your own PRs** — do not leave them open for manual review unless explicitly told to.
-- **Squash merge** is the default merge strategy.
-- **Delete the branch** after merging to keep the repo clean.
-- If merge fails due to conflicts, rebase onto the target branch, resolve conflicts, force-push, then merge.
-- If merge fails due to required status checks, wait for checks to pass and retry.
+- **Never merge PRs** — leave them open for the maintainer to review and test locally.
+- **Squash merge** is the preferred merge strategy (when the maintainer merges).
+- Always include a clear summary and test plan in the PR description.
