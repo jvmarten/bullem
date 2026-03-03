@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 export interface GameContextValue {
@@ -19,6 +19,8 @@ export interface GameContextValue {
   leaveRoom: () => void;
   deleteRoom: () => void;
   listRooms: () => Promise<RoomListing[]>;
+  listLiveGames: () => Promise<LiveGameListing[]>;
+  spectateGame: (roomCode: string) => Promise<void>;
   updateSettings: (settings: GameSettings) => void;
   startGame: () => void;
   callHand: (hand: HandCall) => void;
@@ -264,6 +266,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const listLiveGames = useCallback((): Promise<LiveGameListing[]> => {
+    return withTimeout(new Promise((resolve) => {
+      socket.emit('room:listLive', (response) => resolve(response.games));
+    }));
+  }, []);
+
+  const spectateGame = useCallback((roomCode: string): Promise<void> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('room:spectate', { roomCode }, (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
+        resolve();
+      });
+    }));
+  }, []);
+
   const updateSettings = useCallback((settings: GameSettings) => {
     socket.emit('room:updateSettings', { settings });
   }, []);
@@ -319,6 +337,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     leaveRoom,
     deleteRoom,
     listRooms,
+    listLiveGames,
+    spectateGame,
     updateSettings,
     startGame: () => socket.emit('game:start'),
     callHand: (hand) => socket.emit('game:call', { hand }),

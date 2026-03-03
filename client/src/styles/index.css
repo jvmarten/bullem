@@ -150,6 +150,26 @@ body {
 }
 .btn-info:active { transform: scale(0.97); }
 
+/* ── Safe (Green) Button ────────────────────────────── */
+.btn-safe {
+  background: linear-gradient(180deg, #34c759 0%, var(--safe) 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+  border: 1px solid #1e8f3f;
+  cursor: pointer;
+}
+.btn-safe:hover {
+  background: linear-gradient(180deg, #48d96d 0%, #34c759 100%);
+  box-shadow: 0 4px 16px rgba(40, 167, 69, 0.4);
+  transform: translateY(-1px);
+}
+.btn-safe:active { transform: scale(0.97); }
+
 /* ── Input Fields ────────────────────────────────────── */
 .input-felt {
   background: rgba(0, 0, 0, 0.25);
@@ -199,6 +219,12 @@ body {
   border: 1px solid rgba(26, 92, 53, 0.6);
   border-radius: 0.75rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.glass-me {
+  background: rgba(30, 58, 95, 0.55);
+  border: 1px solid rgba(60, 100, 150, 0.5);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(4px);
 }
 
 /* ── Playing Card ────────────────────────────────────── */
@@ -364,6 +390,11 @@ body {
   50% { box-shadow: 0 0 20px 6px var(--gold-glow); }
 }
 
+@keyframes pulse-glow-blue {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 144, 217, 0); }
+  50% { box-shadow: 0 0 20px 6px rgba(74, 144, 217, 0.35); }
+}
+
 @keyframes card-deal {
   from {
     opacity: 0;
@@ -421,6 +452,7 @@ body {
 .animate-slide-up { animation: slide-up 0.3s ease-out; }
 .animate-slide-down { animation: slide-down 0.3s ease-out; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-pulse-glow-blue { animation: pulse-glow-blue 2s ease-in-out infinite; }
 .animate-card-deal { animation: card-deal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .animate-stagger-reveal { animation: stagger-reveal 0.5s ease-out both; }
 .animate-float { animation: float 3s ease-in-out infinite; }
@@ -461,6 +493,27 @@ body {
 
 .spectating {
   filter: saturate(0.5) brightness(0.85);
+}
+
+/* ── Wheel Picker (native scroll) ───────────────────── */
+.wheel-picker-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  will-change: scroll-position;
+}
+.wheel-picker-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* Fade the actual content at top/bottom edges via CSS mask */
+.wheel-picker-mask {
+  position: relative;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
 }
 
 /* === Hand Selector === */
@@ -575,7 +628,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin-left: -8px;
+  margin-left: -14px;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   will-change: transform;
   position: relative;

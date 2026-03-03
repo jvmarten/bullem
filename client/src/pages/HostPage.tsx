@@ -10,6 +10,8 @@ export function HostPage() {
   const [maxCards, setMaxCards] = useState(5);
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [turnTimer, setTurnTimer] = useState(30);
+  const [allowSpectators, setAllowSpectators] = useState(false);
+  const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,7 +22,7 @@ export function HostPage() {
     setError('');
     try {
       const roomCode = await createRoom(playerName);
-      updateSettings({ maxCards, maxPlayers, turnTimer });
+      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create room');
@@ -54,6 +56,32 @@ export function HostPage() {
           <div className="flex gap-1.5">{ONLINE_TURN_TIMER_OPTIONS.map(n => (
             <button key={n} onClick={() => setTurnTimer(n)} className={`flex-1 px-2 py-2 text-sm rounded ${turnTimer===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}s</button>
           ))}</div>
+        </div>
+
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Spectators</p>
+          <div className="space-y-2">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm text-[var(--gold-dim)]">Allow spectators</span>
+              <button
+                onClick={() => setAllowSpectators(v => !v)}
+                className={`w-11 h-6 rounded-full transition-colors relative border ${allowSpectators ? 'bg-[var(--gold)] border-[var(--gold)]' : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'}`}
+              >
+                <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${allowSpectators ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
+              </button>
+            </label>
+            {allowSpectators && (
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm text-[var(--gold-dim)]">Spectators see cards</span>
+                <button
+                  onClick={() => setSpectatorsCanSeeCards(v => !v)}
+                  className={`w-11 h-6 rounded-full transition-colors relative border ${spectatorsCanSeeCards ? 'bg-[var(--gold)] border-[var(--gold)]' : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'}`}
+                >
+                  <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${spectatorsCanSeeCards ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
+                </button>
+              </label>
+            )}
+          </div>
         </div>
 
         <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>

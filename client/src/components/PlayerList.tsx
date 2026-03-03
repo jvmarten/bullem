@@ -1,4 +1,6 @@
-import type { Player, PlayerId } from '@bull-em/shared';
+import { useState } from 'react';
+import { TurnAction, handToString } from '@bull-em/shared';
+import type { Player, PlayerId, TurnEntry } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 
 interface Props {
@@ -9,6 +11,9 @@ interface Props {
   showRemoveBot?: boolean;
   onRemoveBot?: (botId: string) => void;
   roundNumber?: number;
+  turnHistory?: TurnEntry[];
+  /** Enable collapse/expand toggle. Default shown (expanded). */
+  collapsible?: boolean;
 }
 
 /* Mini card-back fan: shows card backs matching the player's card count */
@@ -35,78 +40,194 @@ function CardBackFan({ count, roundNumber, playerIndex }: { count: number; round
   return <div className="flex items-center">{cards}</div>;
 }
 
-export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber }: Props) {
+function getLastAction(playerId: PlayerId, history?: TurnEntry[]): string | null {
+  if (!history) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const e = history[i];
+    if (e.playerId !== playerId) continue;
+    switch (e.action) {
+      case TurnAction.CALL:
+        return e.hand ? handToString(e.hand) : 'calls';
+      case TurnAction.BULL:
+        return 'BULL!';
+      case TurnAction.TRUE:
+        return 'TRUE';
+      case TurnAction.LAST_CHANCE_RAISE:
+        return e.hand ? handToString(e.hand) : 'raises';
+      case TurnAction.LAST_CHANCE_PASS:
+        return 'pass';
+    }
+  }
+  return null;
+}
+
+function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory, showRemoveBot, onRemoveBot }: {
+  p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
+  roundNumber?: number; turnHistory?: TurnEntry[];
+  showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-1">
-      {players.map((p, i) => {
-        const isMe = p.id === myPlayerId;
-        const isCurrent = p.id === currentPlayerId;
-        return (
-          <div
-            key={p.id}
-            className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-200 ${
-              p.isEliminated
-                ? 'glass opacity-40'
-                : isCurrent
-                  ? 'glass-raised ring-1 ring-[var(--gold)] animate-pulse-glow'
-                  : 'glass'
-            }`}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
-                {p.isBot ? '\u2699' : playerInitial(p.name)}
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium truncate text-xs">
-                  {p.name}
-                  {isMe && <span className="text-[var(--gold)] ml-1 text-[10px]">(you)</span>}
-                  {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">[BOT]</span>}
+    <div
+      className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-200 ${
+        p.isEliminated
+          ? 'glass opacity-40'
+          : isMe
+            ? isCurrent
+              ? 'glass-me border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
+              : 'glass-me'
+            : isCurrent
+              ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
+              : 'glass'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
+          {p.isBot ? '\u2699' : playerInitial(p.name)}
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="font-medium truncate text-xs">
+            {p.name}
+            {isMe && <span className="text-[var(--gold)] ml-1 text-[10px]">(you)</span>}
+            {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">[BOT]</span>}
+            {p.isHost && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">host</span>}
+          </span>
+          <div className="flex items-center gap-1">
+            <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
+            {(() => {
+              const lastAction = getLastAction(p.id, turnHistory);
+              if (!lastAction || p.isEliminated) return null;
+              const isBull = lastAction === 'BULL!';
+              const isTrue = lastAction === 'TRUE';
+              return (
+                <span className={`text-[9px] truncate max-w-[100px] ${
+                  isBull ? 'text-[var(--danger)] font-bold' :
+                  isTrue ? 'text-[var(--info)] font-bold' :
+                  'text-[var(--gold-dim)]'
+                }`}>
+                  {lastAction}
                 </span>
-                <div className="flex items-center gap-1">
-                  <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
-                  {p.isHost && (
-                    <span className="text-[9px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">
-                      host
-                    </span>
-                  )}
-                  {p.isBot && isCurrent && !p.isEliminated && (
-                    <span className="text-[9px] italic text-[var(--gold-dim)] animate-pulse">
-                      thinking&hellip;
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
-              {p.isEliminated ? (
-                <span className="text-[var(--danger)] font-bold tracking-wide text-[10px]">OUT</span>
-              ) : (
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className={`font-bold text-xs ${
-                    p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
-                  }`}>
-                    {p.cardCount}/{maxCards}
-                  </span>
-                  <CardBackFan
-                    count={p.cardCount}
-                    roundNumber={roundNumber}
-                    playerIndex={i}
-                  />
-                </div>
-              )}
-              {showRemoveBot && p.isBot && onRemoveBot && (
-                <button
-                  onClick={() => onRemoveBot(p.id)}
-                  className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
-                  title="Remove bot"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+              );
+            })()}
           </div>
-        );
-      })}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
+        {p.isEliminated ? (
+          <span className="text-[var(--danger)] font-bold tracking-wide text-[10px]">OUT</span>
+        ) : (
+          <div className="flex flex-col items-center gap-0.5">
+            <span className={`font-bold text-xs ${
+              p.cardCount >= maxCards ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'
+            }`}>
+              {p.cardCount}/{maxCards}
+            </span>
+            <CardBackFan
+              count={p.cardCount}
+              roundNumber={roundNumber}
+              playerIndex={i}
+            />
+          </div>
+        )}
+        {showRemoveBot && p.isBot && onRemoveBot && (
+          <button
+            onClick={() => onRemoveBot(p.id)}
+            className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
+            title="Remove bot"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber, turnHistory, collapsible }: Props) {
+  const [collapsed, setCollapsed] = useState(!!collapsible);
+
+  if (collapsible && collapsed) {
+    const currentPlayer = players.find(p => p.id === currentPlayerId);
+    const currentIndex = players.findIndex(p => p.id === currentPlayerId);
+    const activeCount = players.filter(p => !p.isEliminated).length;
+
+    // Find the next active (non-eliminated) player after the current player in turn order
+    const activePlayers = players.filter(p => !p.isEliminated);
+    const currentActiveIdx = activePlayers.findIndex(p => p.id === currentPlayerId);
+    const nextActiveIdx = currentActiveIdx >= 0 ? (currentActiveIdx + 1) % activePlayers.length : -1;
+    const nextPlayer = nextActiveIdx >= 0 ? activePlayers[nextActiveIdx] : undefined;
+    const nextPlayerGlobalIndex = nextPlayer ? players.findIndex(p => p.id === nextPlayer.id) : -1;
+
+    return (
+      <div>
+        <button
+          onClick={() => setCollapsed(false)}
+          className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 px-1"
+        >
+          <span>Players ({activeCount}/{players.length})</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div className="grid grid-cols-2 gap-1">
+          {currentPlayer && (
+            <PlayerCard
+              p={currentPlayer}
+              i={currentIndex >= 0 ? currentIndex : 0}
+              isCurrent
+              isMe={currentPlayer.id === myPlayerId}
+              maxCards={maxCards}
+              roundNumber={roundNumber}
+              turnHistory={turnHistory}
+            />
+          )}
+          {nextPlayer && nextPlayer.id !== currentPlayerId && (
+            <PlayerCard
+              p={nextPlayer}
+              i={nextPlayerGlobalIndex >= 0 ? nextPlayerGlobalIndex : 0}
+              isCurrent={false}
+              isMe={nextPlayer.id === myPlayerId}
+              maxCards={maxCards}
+              roundNumber={roundNumber}
+              turnHistory={turnHistory}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {collapsible && (
+        <button
+          onClick={() => setCollapsed(true)}
+          className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 px-1"
+        >
+          <span>Players</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="rotate-180">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
+      <div className="grid grid-cols-2 gap-1">
+        {players.map((p, i) => (
+          <PlayerCard
+            key={p.id}
+            p={p}
+            i={i}
+            isCurrent={p.id === currentPlayerId}
+            isMe={p.id === myPlayerId}
+            maxCards={maxCards}
+            roundNumber={roundNumber}
+            turnHistory={turnHistory}
+            showRemoveBot={showRemoveBot}
+            onRemoveBot={onRemoveBot}
+          />
+        ))}
+      </div>
     </div>
   );
 }

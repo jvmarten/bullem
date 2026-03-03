@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { LocalGameProvider } from './context/LocalGameContext.js';
 import { HomePage } from './pages/HomePage.js';
@@ -11,6 +11,7 @@ import { LocalResultsPage } from './pages/LocalResultsPage.js';
 import { HowToPlayPage } from './pages/HowToPlayPage.js';
 import { HostPage } from './pages/HostPage.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { ScrollToTop } from './components/ScrollToTop.js';
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/how-to-play" element={<HowToPlayPage />} />
 
@@ -42,6 +44,9 @@ export default function App() {
           <Route path="/local/game" element={<LocalGamePage />} />
           <Route path="/local/results" element={<LocalResultsPage />} />
         </Route>
+
+        {/* Catch-all: redirect unknown URLs to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
     </ErrorBoundary>

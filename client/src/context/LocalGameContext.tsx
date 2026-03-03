@@ -43,6 +43,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
   const gameSettingsRef = useRef<GameSettings>(gameSettings);
   const isPausedRef = useRef(false);
+  const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -200,8 +201,15 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'game_over':
         engine.setTurnDeadline(null);
-        setWinnerId(result.winnerId);
-        if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+        if (result.finalRoundResult) {
+          // Show the final round result overlay before navigating to results
+          setGameState(engine.getClientState(HUMAN_ID));
+          setRoundResult(result.finalRoundResult);
+          pendingWinnerRef.current = { winnerId: result.winnerId };
+        } else {
+          setWinnerId(result.winnerId);
+          if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+        }
         break;
     }
   }, [broadcastState, scheduleBotTurn, clearHumanTimer]);
@@ -386,6 +394,15 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       roundResultTimerRef.current = null;
     }
 
+    // If a game_over was deferred until the round result was dismissed, apply it now
+    const pending = pendingWinnerRef.current;
+    if (pending) {
+      pendingWinnerRef.current = null;
+      setWinnerId(pending.winnerId);
+      if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+      return;
+    }
+
     // Start next round immediately after dismissing
     const engine = engineRef.current;
     if (!engine) return;
@@ -492,6 +509,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     onlinePlayerCount: 0,
     onlinePlayerNames: [],
     listRooms: async () => [],
+    listLiveGames: async () => [],
+    spectateGame: async () => {},
     updateSettings: () => {},
     deleteRoom: () => {},
   };

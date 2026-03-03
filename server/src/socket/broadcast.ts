@@ -18,6 +18,15 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
       io.to(socketId).emit('game:state', state);
     }
   }
+  // Send spectator views
+  if (room.spectatorSockets.size > 0) {
+    const spectatorState = room.getSpectatorGameState();
+    if (spectatorState) {
+      for (const sid of room.spectatorSockets) {
+        io.to(sid).emit('game:state', spectatorState);
+      }
+    }
+  }
 }
 
 export function broadcastNewRound(io: TypedServer, room: Room): void {
@@ -27,6 +36,15 @@ export function broadcastNewRound(io: TypedServer, room: Room): void {
     const state = room.getClientGameState(playerId);
     if (state) {
       io.to(socketId).emit('game:newRound', state);
+    }
+  }
+  // Send spectator views
+  if (room.spectatorSockets.size > 0) {
+    const spectatorState = room.getSpectatorGameState();
+    if (spectatorState) {
+      for (const sid of room.spectatorSockets) {
+        io.to(sid).emit('game:newRound', spectatorState);
+      }
     }
   }
 }

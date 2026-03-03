@@ -15,11 +15,11 @@ interface Props {
 function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string {
   switch (roundPhase) {
     case RoundPhase.CALLING:
-      return hasCurrentHand ? 'Call or Raise' : 'Call a Hand';
+      return hasCurrentHand ? 'Bull or Raise' : 'Call a Hand';
     case RoundPhase.BULL_PHASE:
       return 'Bull, True, or Raise';
     case RoundPhase.LAST_CHANCE:
-      return 'Last Chance to Raise';
+      return 'Raise or Pass';
     case RoundPhase.RESOLVING:
       return 'Revealing\u2026';
   }
@@ -28,14 +28,13 @@ function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string 
 export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline, hasCurrentHand = false }: Props) {
   const isMyTurn = currentPlayerId === myPlayerId;
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
-  const isBotTurn = currentPlayer?.isBot && !isMyTurn;
   const { play } = useSound();
 
   const turnLabel = isMyTurn
     ? 'Your Turn'
     : `${currentPlayer?.name ?? '\u2026'}\u2019s Turn`;
 
-  const phaseLabel = isBotTurn ? 'Thinking\u2026' : getPhaseLabel(roundPhase, hasCurrentHand);
+  const phaseLabel = getPhaseLabel(roundPhase, hasCurrentHand);
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [fraction, setFraction] = useState(1);
@@ -84,23 +83,23 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const isTimedOut = secondsLeft === 0;
   const showTimer = secondsLeft !== null && secondsLeft > 0;
 
-  const meterColor = isWarning ? 'var(--danger)' : 'var(--gold)';
+  const meterColor = isWarning ? 'var(--danger)' : 'var(--info)';
 
   return (
     <div className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
       isMyTurn
         ? isWarning
           ? `glass-raised border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
-          : 'glass-raised animate-pulse-glow border-[var(--gold)]'
+          : 'glass-me animate-pulse-glow-blue border-[var(--info)]'
         : 'glass'
     }`}>
-      <p className={`font-display text-base font-bold ${isMyTurn ? isWarning ? 'text-[var(--danger)]' : 'text-[var(--gold)]' : ''}`}>
+      <p className={`font-display text-base font-bold ${isMyTurn ? isWarning ? 'text-[var(--danger)]' : 'text-[var(--info)]' : ''}`}>
         {isTimedOut ? "Time\u2019s up!" : turnLabel}
-        <span className={`text-xs font-normal ml-2 ${isWarning ? 'text-[var(--danger)]' : 'text-[var(--gold-dim)]'}`}>
+        <span className={`text-xs font-normal ml-2 ${isWarning ? 'text-[var(--danger)]' : isMyTurn ? 'text-[rgba(74,144,217,0.7)]' : 'text-[var(--gold-dim)]'}`}>
           {phaseLabel}
         </span>
         {showTimer && (
-          <span className={`ml-2 text-sm font-mono ${isWarning ? 'text-[var(--danger)] font-bold' : 'text-[var(--gold-dim)]'}`}>
+          <span className={`ml-2 text-sm font-mono ${isWarning ? 'text-[var(--danger)] font-bold' : 'text-[rgba(74,144,217,0.7)]'}`}>
             {secondsLeft}s
           </span>
         )}

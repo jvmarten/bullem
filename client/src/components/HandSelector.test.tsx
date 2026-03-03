@@ -8,94 +8,92 @@ afterEach(() => {
   cleanup();
 });
 
+/** ALL_HAND_TYPES order matching HandSelector's internal list */
+const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
+  .filter((v): v is HandType => typeof v === 'number' && v !== HandType.ROYAL_FLUSH);
+
 describe('HandSelector', () => {
   const defaultProps = {
     currentHand: null as HandCall | null,
     onSubmit: vi.fn(),
   };
 
-  function getHandTypePicker(container: HTMLElement) {
-    return container.querySelector('[data-testid="hand-type-picker"]')!;
-  }
-
+  /** Click on a hand type by its index in ALL_HAND_TYPES (first wheel) */
   function clickHandType(container: HTMLElement, handType: HandType) {
-    const picker = getHandTypePicker(container);
-    const options = picker.querySelectorAll('[role="radio"]');
-    fireEvent.click(options[handType]);
+    const idx = ALL_HAND_TYPES.indexOf(handType);
+    const wheels = container.querySelectorAll('.wheel-picker-scroll');
+    const handWheel = wheels[0];
+    if (!handWheel) throw new Error('Hand type wheel not found');
+    const item = handWheel.querySelector(`[data-wheel-item="${idx}"]`) as HTMLElement | null;
+    if (!item) throw new Error(`Hand type index ${idx} not found`);
+    fireEvent.click(item);
   }
 
-  function clickRank(container: HTMLElement, rank: string, testId = 'rank-picker') {
-    const picker = container.querySelector(`[data-testid="${testId}"]`)!;
-    const cards = picker.querySelectorAll('[role="radio"]');
+  /** Click on a rank card in a rank wheel */
+  function clickRank(container: HTMLElement, rank: string) {
+    const cards = container.querySelectorAll('.hs-rank-card');
     for (const card of cards) {
       if (card.textContent?.trim() === rank) {
-        fireEvent.click(card);
-        return;
+        const item = card.closest('[data-wheel-item]') as HTMLElement;
+        if (item) { fireEvent.click(item); return; }
       }
     }
-    throw new Error(`Rank card "${rank}" not found in ${testId}`);
+    throw new Error(`Rank "${rank}" not found`);
   }
 
   function getSubmitButton(container: HTMLElement): HTMLButtonElement {
     const buttons = container.querySelectorAll('button');
     for (const btn of buttons) {
-      const text = btn.textContent?.trim();
-      if (text === 'Call' || text === 'Raise') return btn as HTMLButtonElement;
+      const text = btn.textContent?.trim() ?? '';
+      if (text.startsWith('Call') || text.startsWith('Raise')) return btn as HTMLButtonElement;
     }
     throw new Error('Submit button not found');
   }
 
   describe('hand type picker', () => {
-    it('renders all hand type options', () => {
+    it('renders all hand type items as wheel entries', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const picker = getHandTypePicker(container);
-      const options = picker.querySelectorAll('[role="radio"]');
-      expect(options.length).toBe(9); // Royal Flush is not selectable (auto-promoted from Straight Flush A-high)
+      const wheels = container.querySelectorAll('.wheel-picker-scroll');
+      expect(wheels.length).toBeGreaterThanOrEqual(2);
+      const handWheel = wheels[0];
+      const items = handWheel.querySelectorAll('[data-wheel-item]');
+      expect(items.length).toBe(ALL_HAND_TYPES.length);
     });
 
-    it('defaults to HIGH_CARD when no current hand', () => {
+    it('shows rank cards for HIGH_CARD by default', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      const picker = getHandTypePicker(container);
-      const options = picker.querySelectorAll('[role="radio"]');
-      expect(options[HandType.HIGH_CARD].getAttribute('aria-checked')).toBe('true');
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
-    it('shows rank selector for HIGH_CARD', () => {
-      const { container } = render(<HandSelector {...defaultProps} />);
-      expect(container.textContent).toContain('Rank');
-    });
-
-    it('shows suit selector when FLUSH is selected', () => {
+    it('shows rank cards when FLUSH is selected (suit cards)', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FLUSH);
-      expect(container.textContent).toContain('Suit');
+      expect(container.querySelectorAll('[data-suit-card]').length).toBeGreaterThan(0);
     });
 
-    it('shows high card selector when STRAIGHT is selected', () => {
+    it('shows rank cards when STRAIGHT is selected', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT);
-      expect(container.textContent).toContain('High Card');
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
-    it('shows two rank selectors for TWO_PAIR', () => {
+    it('shows rank cards for TWO_PAIR', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.TWO_PAIR);
-      expect(container.textContent).toContain('First Pair');
-      expect(container.textContent).toContain('Second Pair');
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
-    it('shows three-of and pair-of labels for FULL_HOUSE', () => {
+    it('shows rank cards for FULL_HOUSE', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FULL_HOUSE);
-      expect(container.textContent).toContain('Three of');
-      expect(container.textContent).toContain('Pair of');
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
-    it('shows both suit and high card selectors for STRAIGHT_FLUSH', () => {
+    it('shows both suit and rank pickers for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
-      expect(container.textContent).toContain('Suit');
-      expect(container.textContent).toContain('High Card');
+      expect(container.querySelectorAll('[data-suit-card]').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
     it('auto-promotes Straight Flush with Ace high to Royal Flush', () => {
@@ -112,7 +110,7 @@ describe('HandSelector', () => {
     it('shows "Call" when no current hand exists', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       const button = getSubmitButton(container);
-      expect(button.textContent?.trim()).toBe('Call');
+      expect(button.textContent).toContain('Call');
     });
 
     it('shows "Raise" when a current hand exists', () => {
@@ -121,21 +119,19 @@ describe('HandSelector', () => {
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
       const button = getSubmitButton(container);
-      expect(button.textContent?.trim()).toBe('Raise');
+      expect(button.textContent).toContain('Raise');
     });
   });
 
   describe('hand preview', () => {
-    it('shows hand preview text when hand is valid', () => {
+    it('shows hand name when hand is valid', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      // Default is HIGH_CARD with rank 2 — should show "2 High"
       expect(container.textContent).toContain('2 High');
     });
 
-    it('shows straight range in preview', () => {
+    it('shows straight text when straight is selected', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT);
-      // Default rank for straight should be A, showing "Straight, 10 to Ace"
       expect(container.textContent).toContain('Straight');
     });
   });
@@ -152,20 +148,19 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
-      // Manually select a lower hand type to test disabled state
       clickHandType(container, HandType.HIGH_CARD);
       const callButton = getSubmitButton(container);
       expect(callButton.disabled).toBe(true);
     });
 
-    it('shows validation message when hand is not higher', () => {
+    it('"Must be higher" is shown by parent, not HandSelector', () => {
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
-      // Manually select a lower hand type to trigger validation
       clickHandType(container, HandType.HIGH_CARD);
-      expect(container.textContent).toContain('Must be higher than current call');
+      // Validation message moved to parent pages (GamePage / LocalGamePage)
+      expect(container.textContent).not.toContain('Must be higher');
     });
 
     it('enables submit when new hand is higher than current hand', () => {
@@ -173,7 +168,6 @@ describe('HandSelector', () => {
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
-      // Default rank is '2' which ties with current — select a higher rank
       clickRank(container, 'A');
       const callButton = getSubmitButton(container);
       expect(callButton.disabled).toBe(false);
@@ -221,7 +215,6 @@ describe('HandSelector', () => {
       const onSubmit = vi.fn();
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(<HandSelector currentHand={currentHand} onSubmit={onSubmit} />);
-      // Manually select a lower hand type so the button becomes disabled
       clickHandType(container, HandType.HIGH_CARD);
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).not.toHaveBeenCalled();
@@ -232,7 +225,6 @@ describe('HandSelector', () => {
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       clickHandType(container, HandType.STRAIGHT);
       clickRank(container, '9');
-
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.STRAIGHT, highRank: '9' });
@@ -242,8 +234,6 @@ describe('HandSelector', () => {
       const onSubmit = vi.fn();
       const { container } = render(<HandSelector currentHand={null} onSubmit={onSubmit} />);
       clickHandType(container, HandType.FULL_HOUSE);
-
-      // Default rank = 2, default rank2 = 3
       fireEvent.click(getSubmitButton(container));
       expect(onSubmit).toHaveBeenCalledOnce();
       expect(onSubmit).toHaveBeenCalledWith({

@@ -40,14 +40,14 @@ describe('ActionButtons', () => {
   });
 
   describe('CALLING phase', () => {
-    it('shows BULL button when there is a current hand', () => {
+    it('shows BULL gateway button when there is a current hand', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.CALLING} hasCurrentHand={true} />
       );
       expect(getButtonByText(container, 'BULL!')).not.toBeNull();
     });
 
-    it('does not show TRUE button', () => {
+    it('does not show TRUE button in gateway state', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.CALLING} hasCurrentHand={true} />
       );
@@ -61,11 +61,16 @@ describe('ActionButtons', () => {
       expect(container.innerHTML).toBe('');
     });
 
-    it('fires onBull when BULL button is clicked', () => {
+    it('fires onBull after expanding gateway and clicking BULL button', () => {
       const onBull = vi.fn();
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.CALLING} onBull={onBull} />
       );
+      // Click gateway button to expand
+      const gateway = getButtonByText(container, 'BULL!');
+      expect(gateway).not.toBeNull();
+      fireEvent.click(gateway!);
+      // Now the actual BULL! action button appears
       const bullBtn = getButtonByText(container, 'BULL!');
       expect(bullBtn).not.toBeNull();
       fireEvent.click(bullBtn!);
@@ -74,38 +79,55 @@ describe('ActionButtons', () => {
   });
 
   describe('BULL_PHASE', () => {
-    it('shows both BULL and TRUE buttons when there is a current hand', () => {
+    it('shows gateway button when there is a current hand', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={true} />
       );
+      expect(getButtonByText(container, 'BULL / TRUE')).not.toBeNull();
+    });
+
+    it('shows both BULL and TRUE buttons after expanding gateway', () => {
+      const { container } = render(
+        <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={true} />
+      );
+      const gateway = getButtonByText(container, 'BULL / TRUE');
+      fireEvent.click(gateway!);
       expect(getButtonByText(container, 'BULL!')).not.toBeNull();
       expect(getButtonByText(container, 'TRUE')).not.toBeNull();
     });
 
-    it('shows only TRUE button when no current hand', () => {
+    it('shows only TRUE button after expanding when no current hand', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={false} />
       );
+      // Gateway text is "BULL / TRUE" because showTrue is true
+      const gateway = getButtonByText(container, 'BULL / TRUE');
+      expect(gateway).not.toBeNull();
+      fireEvent.click(gateway!);
       expect(getButtonByText(container, 'BULL!')).toBeNull();
       expect(getButtonByText(container, 'TRUE')).not.toBeNull();
     });
 
-    it('fires onBull when BULL button is clicked', () => {
+    it('fires onBull after expanding and clicking BULL button', () => {
       const onBull = vi.fn();
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} onBull={onBull} />
       );
+      const gateway = getButtonByText(container, 'BULL / TRUE');
+      fireEvent.click(gateway!);
       const bullBtn = getButtonByText(container, 'BULL!');
       expect(bullBtn).not.toBeNull();
       fireEvent.click(bullBtn!);
       expect(onBull).toHaveBeenCalledOnce();
     });
 
-    it('fires onTrue when TRUE button is clicked', () => {
+    it('fires onTrue after expanding and clicking TRUE button', () => {
       const onTrue = vi.fn();
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} onTrue={onTrue} />
       );
+      const gateway = getButtonByText(container, 'BULL / TRUE');
+      fireEvent.click(gateway!);
       const trueBtn = getButtonByText(container, 'TRUE');
       expect(trueBtn).not.toBeNull();
       fireEvent.click(trueBtn!);
@@ -137,7 +159,7 @@ describe('ActionButtons', () => {
       expect(getButtonByText(container, 'TRUE')).toBeNull();
     });
 
-    it('fires onLastChancePass when Pass button is clicked', () => {
+    it('fires onLastChancePass after expanding gateway and clicking Pass', () => {
       const onLastChancePass = vi.fn();
       const { container } = render(
         <ActionButtons
@@ -147,6 +169,11 @@ describe('ActionButtons', () => {
           onLastChancePass={onLastChancePass}
         />
       );
+      // Click gateway to expand
+      const gateway = getButtonByText(container, 'Pass');
+      expect(gateway).not.toBeNull();
+      fireEvent.click(gateway!);
+      // Now the real Pass button appears
       const passBtn = getButtonByText(container, 'Pass');
       expect(passBtn).not.toBeNull();
       fireEvent.click(passBtn!);

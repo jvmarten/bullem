@@ -8,6 +8,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
   const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
   const [showPopup, setShowPopup] = useState(false);
+  const [showVersionDate, setShowVersionDate] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -24,13 +25,17 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
 
   useEffect(() => {
     if (!showPopup) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | TouchEvent) => {
       if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, [showPopup]);
 
   return (
@@ -38,7 +43,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
       <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
         <button
           onClick={handleTitleClick}
-          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors`}
+          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors min-h-[44px] relative z-10`}
         >
           Bull &rsquo;Em
         </button>
@@ -73,6 +78,14 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               </div>
             )}
           </div>
+        )}
+        {largeTitle && (
+          <button
+            onClick={() => setShowVersionDate(v => !v)}
+            className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            {showVersionDate ? 'v0.1.5 · 03.03.26' : 'v0.1.5'}
+          </button>
         )}
         {!isConnected && (
           <div className="absolute top-1/2 right-4 -translate-y-1/2 flex items-center gap-1.5 text-xs text-[var(--gold)]">

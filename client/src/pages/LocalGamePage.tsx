@@ -12,7 +12,8 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import type { HandCall } from '@bull-em/shared';
 
 export function LocalGamePage() {
   const navigate = useNavigate();
@@ -23,9 +24,10 @@ export function LocalGamePage() {
   } = useGameContext();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 
+  // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
-    if (winnerId) navigate('/local/results');
-  }, [winnerId, navigate]);
+    if (winnerId && !roundResult) navigate('/local/results');
+  }, [winnerId, roundResult, navigate]);
 
   const handleLeave = () => {
     if (window.confirm('Leave this game?')) {
@@ -34,18 +36,13 @@ export function LocalGamePage() {
     }
   };
 
-  if (!gameState) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center pt-16">
-          <div className="text-center space-y-3">
-            <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-[var(--gold-dim)]">Loading game&hellip;</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  // Local games are in-memory only — if gameState is null (e.g. page refresh),
+  // redirect back to the lobby instead of showing a loading spinner forever.
+  useEffect(() => {
+    if (!gameState) navigate('/local');
+  }, [gameState, navigate]);
+
+  if (!gameState) return null;
 
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
@@ -57,6 +54,31 @@ export function LocalGamePage() {
     gameState.roundPhase === RoundPhase.CALLING
     || gameState.roundPhase === RoundPhase.BULL_PHASE
   );
+
+  const canRaise = canCallHand || isLastChanceCaller;
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
+
+  const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
+    setPendingHand(hand);
+    setPendingValid(valid);
+  }, []);
+
+  const handleHandSubmit = useCallback(() => {
+    if (!pendingHand || !pendingValid) return;
+    if (isLastChanceCaller) {
+      lastChanceRaise(pendingHand);
+    } else {
+      callHand(pendingHand);
+    }
+    setHandSelectorOpen(false);
+  }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
+
+  // Close hand selector when turn changes
+  useEffect(() => {
+    setHandSelectorOpen(false);
+  }, [isMyTurn, gameState.roundPhase]);
 
   return (
     <Layout>
@@ -101,7 +123,7 @@ export function LocalGamePage() {
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Leave game"
             >
               Leave
@@ -133,6 +155,8 @@ export function LocalGamePage() {
           myPlayerId={playerId}
           maxCards={gameState.maxCards}
           roundNumber={gameState.roundNumber}
+          turnHistory={gameState.turnHistory}
+          collapsible
         />
 
         {/* Current call display */}
@@ -162,32 +186,52 @@ export function LocalGamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Action buttons */}
+        {/* Action row — BULL/TRUE on left, Raise/Call on right */}
+        {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
         {!isEliminated && (
-          <ActionButtons
-            roundPhase={gameState.roundPhase}
-            isMyTurn={isMyTurn}
-            hasCurrentHand={gameState.currentHand !== null}
-            isLastChanceCaller={isLastChanceCaller}
-            onBull={callBull}
-            onTrue={callTrue}
-            onLastChancePass={lastChancePass}
-          />
+          <div className="flex justify-between items-start">
+            <ActionButtons
+              roundPhase={gameState.roundPhase}
+              isMyTurn={isMyTurn}
+              hasCurrentHand={gameState.currentHand !== null}
+              isLastChanceCaller={isLastChanceCaller}
+              onBull={callBull}
+              onTrue={callTrue}
+              onLastChancePass={lastChancePass}
+              onExpand={() => setHandSelectorOpen(false)}
+            />
+            {canRaise && !handSelectorOpen && (
+              <div className="flex justify-end animate-slide-up ml-auto">
+                <button
+                  onClick={() => setHandSelectorOpen(true)}
+                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+              </div>
+            )}
+            {canRaise && handSelectorOpen && (
+              <div className="flex flex-col items-center ml-auto">
+                <button
+                  onClick={handleHandSubmit}
+                  disabled={!pendingValid}
+                  className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+                <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Hand selector for calling */}
-        {canCallHand && (
+        {/* Hand selector — appears below the action buttons so buttons stay put */}
+        {canRaise && handSelectorOpen && (
           <HandSelector
             currentHand={gameState.currentHand}
-            onSubmit={callHand}
-          />
-        )}
-
-        {/* Hand selector for last chance raise */}
-        {isLastChanceCaller && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={lastChanceRaise}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            showSubmit={false}
           />
         )}
 

@@ -13,7 +13,8 @@ import { VolumeControl } from '../components/VolumeControl.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import type { HandCall } from '@bull-em/shared';
 
 export function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -27,9 +28,10 @@ export function GamePage() {
 
   const rejoinAttemptedRef = useRef(false);
 
+  // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
-    if (winnerId) navigate(`/results/${roomCode}`);
-  }, [winnerId, roomCode, navigate]);
+    if (winnerId && !roundResult) navigate(`/results/${roomCode}`);
+  }, [winnerId, roundResult, roomCode, navigate]);
 
   useEffect(() => {
     if (gameState || !roomCode || rejoinAttemptedRef.current) return;
@@ -100,6 +102,31 @@ export function GamePage() {
     || gameState.roundPhase === RoundPhase.BULL_PHASE
   );
 
+  const canRaise = canCallHand || isLastChanceCaller;
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
+
+  const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
+    setPendingHand(hand);
+    setPendingValid(valid);
+  }, []);
+
+  const handleHandSubmit = useCallback(() => {
+    if (!pendingHand || !pendingValid) return;
+    if (isLastChanceCaller) {
+      lastChanceRaise(pendingHand);
+    } else {
+      callHand(pendingHand);
+    }
+    setHandSelectorOpen(false);
+  }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
+
+  // Close hand selector when turn changes
+  useEffect(() => {
+    setHandSelectorOpen(false);
+  }, [isMyTurn, gameState.roundPhase]);
+
   return (
     <Layout>
       <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
@@ -124,7 +151,7 @@ export function GamePage() {
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
             <button
               onClick={handleLeave}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Leave game"
             >
               Leave
@@ -156,6 +183,8 @@ export function GamePage() {
           myPlayerId={playerId}
           maxCards={gameState.maxCards}
           roundNumber={gameState.roundNumber}
+          turnHistory={gameState.turnHistory}
+          collapsible
         />
 
         {/* Current call display */}
@@ -185,32 +214,52 @@ export function GamePage() {
 
         <CallHistory history={gameState.turnHistory} />
 
-        {/* Action buttons */}
+        {/* Action row — BULL/TRUE on left, Raise/Call on right */}
+        {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
         {!isEliminated && (
-          <ActionButtons
-            roundPhase={gameState.roundPhase}
-            isMyTurn={isMyTurn}
-            hasCurrentHand={gameState.currentHand !== null}
-            isLastChanceCaller={isLastChanceCaller}
-            onBull={callBull}
-            onTrue={callTrue}
-            onLastChancePass={lastChancePass}
-          />
+          <div className="flex justify-between items-start">
+            <ActionButtons
+              roundPhase={gameState.roundPhase}
+              isMyTurn={isMyTurn}
+              hasCurrentHand={gameState.currentHand !== null}
+              isLastChanceCaller={isLastChanceCaller}
+              onBull={callBull}
+              onTrue={callTrue}
+              onLastChancePass={lastChancePass}
+              onExpand={() => setHandSelectorOpen(false)}
+            />
+            {canRaise && !handSelectorOpen && (
+              <div className="flex justify-end animate-slide-up ml-auto">
+                <button
+                  onClick={() => setHandSelectorOpen(true)}
+                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+              </div>
+            )}
+            {canRaise && handSelectorOpen && (
+              <div className="flex flex-col items-center ml-auto">
+                <button
+                  onClick={handleHandSubmit}
+                  disabled={!pendingValid}
+                  className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                >
+                  {gameState.currentHand ? 'Raise' : 'Call'}
+                </button>
+                <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Hand selector for calling */}
-        {canCallHand && (
+        {/* Hand selector — appears below the action buttons so buttons stay put */}
+        {canRaise && handSelectorOpen && (
           <HandSelector
             currentHand={gameState.currentHand}
-            onSubmit={callHand}
-          />
-        )}
-
-        {/* Hand selector for last chance raise */}
-        {isLastChanceCaller && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={lastChanceRaise}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            showSubmit={false}
           />
         )}
 
