@@ -153,13 +153,14 @@ describe('HandSelector', () => {
       expect(callButton.disabled).toBe(true);
     });
 
-    it('shows validation message when hand is not higher', () => {
+    it('"Must be higher" is shown by parent, not HandSelector', () => {
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
       clickHandType(container, HandType.HIGH_CARD);
-      expect(container.textContent).toContain('Must be higher');
+      // Validation message moved to parent pages (GamePage / LocalGamePage)
+      expect(container.textContent).not.toContain('Must be higher');
     });
 
     it('enables submit when new hand is higher than current hand', () => {
