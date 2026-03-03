@@ -300,16 +300,35 @@ fly deploy
 
 ## Agent PR Policy
 
-**Do NOT merge PRs automatically.** Leave PRs open for manual review and local testing before merging.
+### Branching Strategy
 
-When you finish work on a PR (code changes committed and pushed), create the PR and share the URL — do not merge it. The maintainer will review, test locally, and merge when ready.
+- **`develop`** — integration branch. Feature branches are **automatically merged** into `develop` after CI passes (via `.github/workflows/auto-merge-develop.yml`).
+- **`main`** — production branch. Merges to `main` are **always manual** — the maintainer reviews, tests locally, and merges when ready.
+
+### Auto-merge to `develop`
+
+When you push code to a feature branch (e.g., `claude/*`), the `auto-merge-develop.yml` workflow will:
+1. Run full CI (build + tests + Docker build)
+2. If CI passes, automatically merge the branch into `develop` with a merge commit
+3. No manual intervention required
+
+This ensures `develop` always has the latest passing code integrated.
+
+### Merges to `main`
+
+**Do NOT merge PRs to `main` automatically.** Leave PRs targeting `main` open for manual review and local testing before merging.
+
+When you finish work on a PR targeting `main` (code changes committed and pushed), create the PR and share the URL — do not merge it. The maintainer will review, test locally, and merge when ready.
 
 ### Creating PRs
 
 Use the GitHub REST API with `curl` (since `gh` CLI may not be available):
 
 ```bash
-# Create a PR
+# Create a PR targeting develop (auto-merged by CI)
+# Not usually needed — feature branches auto-merge to develop after CI passes
+
+# Create a PR targeting main (manual merge only)
 curl -s -X POST \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
@@ -321,6 +340,7 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 
 ### Rules
 
-- **Never merge PRs** — leave them open for the maintainer to review and test locally.
-- **Squash merge** is the preferred merge strategy (when the maintainer merges).
-- Always include a clear summary and test plan in the PR description.
+- **Auto-merge to `develop`** — feature branches merge automatically after CI passes.
+- **Never auto-merge to `main`** — leave PRs open for the maintainer to review and test locally.
+- **Squash merge** is the preferred merge strategy for `main` (when the maintainer merges).
+- Always include a clear summary and test plan in PR descriptions targeting `main`.
