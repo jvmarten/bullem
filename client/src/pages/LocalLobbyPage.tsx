@@ -105,6 +105,22 @@ export function LocalLobbyPage() {
           + Add Bot
         </button>
 
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={startGame}
+            disabled={!canStart}
+            className="w-full btn-gold py-3 text-lg"
+          >
+            {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
+          </button>
+          <button
+            onClick={() => { leaveRoom(); navigate('/'); }}
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+          >
+            Back to Home
+          </button>
+        </div>
+
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -195,22 +211,6 @@ export function LocalLobbyPage() {
             </div>
           </div>
         )}
-
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={startGame}
-            disabled={!canStart}
-            className="w-full btn-gold py-3 text-lg"
-          >
-            {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
-          </button>
-          <button
-            onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-          >
-            Back to Home
-          </button>
-        </div>
       </div>
     </Layout>
   );

@@ -211,7 +211,7 @@ export function LocalGamePage() {
               </div>
             )}
             {canRaise && handSelectorOpen && (
-              <div className="flex justify-end ml-auto">
+              <div className="flex flex-col items-end ml-auto">
                 <button
                   onClick={handleHandSubmit}
                   disabled={!pendingValid}
@@ -219,6 +219,9 @@ export function LocalGamePage() {
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}
                 </button>
+                {pendingHand && !pendingValid && (
+                  <p className="text-[10px] text-[var(--danger)] mt-1">Must be higher</p>
+                )}
               </div>
             )}
           </div>

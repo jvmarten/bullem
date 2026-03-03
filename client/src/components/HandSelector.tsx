@@ -22,19 +22,20 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 /* ── Mini card illustrations for hand type picker ──────── */
 
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
-  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[var(--card-border)]';
+  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[#b8ae9e]';
+  const borderW = isSelected ? 'border-2' : 'border-[1.5px]';
   const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[32px] h-[42px] rounded-[4px] border ${cardColor} flex-shrink-0`} style={style} />
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }} />
   );
   const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[32px] h-[42px] rounded-[4px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
-      <span className="text-[14px] leading-none text-red-600">♥</span>
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }}>
+      <span className="text-[15px] leading-none text-red-600">♥</span>
     </div>
   );
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-14px' } : {});
+  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-16px' } : {});
   const stair = (i: number): React.CSSProperties => ({
-    marginLeft: i > 0 ? '-10px' : undefined,
-    marginBottom: `${i * 5}px`,
+    marginLeft: i > 0 ? '-12px' : undefined,
+    marginBottom: `${i * 6}px`,
   });
 
   switch (type) {
@@ -216,9 +217,9 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
       if (needsStraightRank && RANK_VALUES[rank] < 5) return 'High card 5+';
       return '';
     }
-    if (currentHand && !isHigherHand(hand, currentHand)) return 'Must be higher';
+    // "Must be higher" is shown by the parent under the raise button to avoid layout jerk
     return '';
-  }, [hand, currentHand, rank, rank2, handType, needsRank2, needsStraightRank]);
+  }, [hand, rank, rank2, needsRank2, needsStraightRank]);
 
   const previewCards = useMemo(() => getPreviewCards(hand), [hand]);
 
@@ -325,7 +326,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={62}
+            itemHeight={68}
             visibleCount={5}
           />
         </div>

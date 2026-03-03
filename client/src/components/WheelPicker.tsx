@@ -116,6 +116,9 @@ export function WheelPicker<T>({
         ))}
         <div style={{ height: padCount * itemHeight }} />
       </div>
+      {/* Fade edges */}
+      <div className="wheel-picker-fade-top" style={{ height: itemHeight * 1.2 }} />
+      <div className="wheel-picker-fade-bottom" style={{ height: itemHeight * 1.2 }} />
     </div>
   );
 }

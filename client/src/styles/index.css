@@ -508,6 +508,22 @@ body {
 .wheel-picker-scroll::-webkit-scrollbar {
   display: none;
 }
+.wheel-picker-fade-top,
+.wheel-picker-fade-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.wheel-picker-fade-top {
+  top: 0;
+  background: linear-gradient(to bottom, var(--felt), transparent);
+}
+.wheel-picker-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, var(--felt), transparent);
+}
 
 /* === Hand Selector === */
 
