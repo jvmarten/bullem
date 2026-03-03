@@ -340,7 +340,7 @@ export function LobbyPage() {
                         : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                     }`}
                   >
-                    <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                    <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
                       settings.allowSpectators ? 'translate-x-[23px]' : 'translate-x-[2px]'
                     }`} />
                   </button>
@@ -360,7 +360,7 @@ export function LobbyPage() {
                           : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                       }`}
                     >
-                      <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                      <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
                         settings.spectatorsCanSeeCards ? 'translate-x-[23px]' : 'translate-x-[2px]'
                       }`} />
                     </button>
