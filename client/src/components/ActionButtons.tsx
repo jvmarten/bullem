@@ -72,7 +72,7 @@ export function ActionButtons({
     }
     return (
       <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
-        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-8 py-2 text-base">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-6 py-2 text-base font-bold min-w-[9rem]">
           Pass
         </button>
       </div>
@@ -100,12 +100,12 @@ export function ActionButtons({
   return (
     <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
       {showBull && (
-        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger px-6 py-2 text-base">
+        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger px-6 py-2 text-base font-bold min-w-[9rem]">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button onClick={() => handleClick(onTrue)} className="btn-info px-6 py-2 text-base">
+        <button onClick={() => handleClick(onTrue)} className="btn-info px-6 py-2 text-base font-bold min-w-[9rem]">
           TRUE
         </button>
       )}

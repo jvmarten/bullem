@@ -24,17 +24,17 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
   const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[var(--card-border)]';
   const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[24px] h-[32px] rounded-[4px] border ${cardColor} flex-shrink-0`} style={style} />
+    <div key={key} className={`w-[32px] h-[42px] rounded-[4px] border ${cardColor} flex-shrink-0`} style={style} />
   );
   const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[24px] h-[32px] rounded-[4px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
-      <span className="text-[11px] leading-none text-red-600">♥</span>
+    <div key={key} className={`w-[32px] h-[42px] rounded-[4px] border ${cardColor} flex-shrink-0 flex items-center justify-center`} style={style}>
+      <span className="text-[14px] leading-none text-red-600">♥</span>
     </div>
   );
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-10px' } : {});
+  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-14px' } : {});
   const stair = (i: number): React.CSSProperties => ({
-    marginLeft: i > 0 ? '-7px' : undefined,
-    marginBottom: `${i * 4}px`,
+    marginLeft: i > 0 ? '-10px' : undefined,
+    marginBottom: `${i * 5}px`,
   });
 
   switch (type) {
@@ -263,9 +263,9 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
 
   const renderRank = useCallback((r: string, isSelected: boolean) => (
     <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: 38, height: 50 }}
+      style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
     >
-      <span className={`text-sm font-bold ${isSelected ? 'text-[#1a1a1a]' : 'text-[#666]'}`}>{r}</span>
+      <span className={`font-bold ${isSelected ? 'text-base text-[#1a1a1a]' : 'text-sm text-[#666]'}`}>{r}</span>
     </div>
   ), []);
 
@@ -274,9 +274,9 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
     return (
       <div className={`hs-rank-card hs-suit-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
         data-suit-card
-        style={{ margin: 0, width: 38, height: 50 }}
+        style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
       >
-        <span className={`text-xl leading-none ${isRed ? 'text-red-600' : 'text-gray-800'}`}>
+        <span className={`leading-none ${isSelected ? 'text-2xl' : 'text-xl'} ${isRed ? 'text-red-600' : 'text-gray-800'}`}>
           {SUIT_SYMBOLS[s as Suit]}
         </span>
       </div>
@@ -292,7 +292,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
       {/* Top: Hand name */}
       <div className="text-center py-0.5">
         {hand ? (
-          <span className="font-display text-sm font-bold text-[var(--gold)]">
+          <span className="font-display text-base font-bold text-[var(--gold)]">
             {handToString(hand)}
           </span>
         ) : (
@@ -325,7 +325,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
-            itemHeight={52}
+            itemHeight={62}
             visibleCount={5}
           />
         </div>
@@ -364,48 +364,51 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
                 />
               </div>
             </div>
-          ) : (
-            <>
-              {/* Single primary wheel */}
-              {isSuitOnly ? (
-                <WheelPicker
-                  items={[...ALL_SUITS]}
-                  selectedIndex={suitIndex >= 0 ? suitIndex : 0}
-                  onSelect={handleSuitWheel}
-                  renderItem={renderSuit}
-                  itemHeight={hasSecondary ? 28 : 42}
-                  visibleCount={hasSecondary ? 3 : 5}
-                />
-              ) : (
+          ) : hasSuitBelow ? (
+            /* Side-by-side rank + suit for Straight Flush */
+            <div className="flex gap-1">
+              <div className="flex-1">
                 <WheelPicker
                   items={[...rankList]}
                   selectedIndex={rankList.indexOf(rank)}
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
-                  itemHeight={hasSecondary ? 28 : 42}
-                  visibleCount={hasSecondary ? 3 : 5}
+                  itemHeight={42}
+                  visibleCount={5}
                 />
-              )}
-              {/* Secondary suit wheel for straight flush — expand/collapse */}
-              <div style={{
-                maxHeight: hasSecondary ? '200px' : '0',
-                overflow: 'hidden',
-                transition: 'max-height 0.3s ease, opacity 0.3s ease',
-                opacity: hasSecondary ? 1 : 0,
-              }}>
-                <div className="h-px bg-[var(--felt-border)] my-0.5" />
-                {needsSuit && (
-                  <WheelPicker
-                    items={[...ALL_SUITS]}
-                    selectedIndex={suitIndex >= 0 ? suitIndex : 0}
-                    onSelect={handleSuitWheel}
-                    renderItem={renderSuit}
-                    itemHeight={28}
-                    visibleCount={3}
-                  />
-                )}
               </div>
-            </>
+              <div className="flex-1">
+                <WheelPicker
+                  items={[...ALL_SUITS]}
+                  selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                  onSelect={handleSuitWheel}
+                  renderItem={renderSuit}
+                  itemHeight={42}
+                  visibleCount={5}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Single wheel — rank or suit only */
+            isSuitOnly ? (
+              <WheelPicker
+                items={[...ALL_SUITS]}
+                selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                onSelect={handleSuitWheel}
+                renderItem={renderSuit}
+                itemHeight={42}
+                visibleCount={5}
+              />
+            ) : (
+              <WheelPicker
+                items={[...rankList]}
+                selectedIndex={rankList.indexOf(rank)}
+                onSelect={handlePrimaryWheel}
+                renderItem={renderRank}
+                itemHeight={42}
+                visibleCount={5}
+              />
+            )
           )}
         </div>
       </div>

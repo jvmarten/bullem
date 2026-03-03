@@ -60,7 +60,7 @@ export function WheelPicker<T>({
     };
     const onScrollEnd = () => {
       clearTimeout(timer);
-      timer = window.setTimeout(commitSelection, 40);
+      timer = window.setTimeout(commitSelection, 100);
     };
     el.addEventListener('scroll', onScrollEnd, { passive: true });
     return () => {
@@ -92,7 +92,7 @@ export function WheelPicker<T>({
         style={{
           height: viewportHeight,
           overflowY: 'auto',
-          scrollSnapType: 'y mandatory',
+          scrollSnapType: 'y proximity',
           overscrollBehavior: 'contain',
         }}
       >

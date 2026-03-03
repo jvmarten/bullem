@@ -143,7 +143,7 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
 }
 
 export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber, turnHistory, collapsible }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(!!collapsible);
 
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
