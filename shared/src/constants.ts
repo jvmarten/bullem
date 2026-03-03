@@ -32,6 +32,8 @@ export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { 
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS };
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
+export const PLAYER_NAME_MAX_LENGTH = 20;
+export const PLAYER_NAME_PATTERN = /^[a-zA-Z0-9 _\-'.!?]+$/;
 
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;

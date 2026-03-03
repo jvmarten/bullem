@@ -92,6 +92,10 @@ export class RoomManager {
     return undefined;
   }
 
+  get roomCount(): number {
+    return this.rooms.size;
+  }
+
   getOnlinePlayerNames(): string[] {
     const names: string[] = [];
     for (const room of this.rooms.values()) {

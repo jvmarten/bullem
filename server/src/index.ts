@@ -19,8 +19,17 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   },
 });
 
-// Health check must be registered before the SPA catch-all
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+const roomManager = new RoomManager();
+const botManager = new BotManager();
+registerHandlers(io, roomManager, botManager);
+roomManager.startCleanup();
+
+// Health check — registered before the SPA catch-all
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  rooms: roomManager.roomCount,
+  players: io.engine.clientsCount,
+}));
 
 // In production, serve built client
 if (process.env.NODE_ENV === 'production') {
@@ -28,11 +37,6 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
-
-const roomManager = new RoomManager();
-const botManager = new BotManager();
-registerHandlers(io, roomManager, botManager);
-roomManager.startCleanup();
 
 // Broadcast online player count and names on connect/disconnect
 function broadcastPlayerCount(): void {
@@ -45,6 +49,19 @@ io.engine.on('close', () => {
   // engine 'close' fires after socket disconnect — delay to let count update
   setTimeout(broadcastPlayerCount, 50);
 });
+
+// Graceful shutdown — clean up timers and close connections
+function shutdown(): void {
+  console.log('Shutting down...');
+  botManager.clearTimers();
+  roomManager.stopCleanup();
+  io.close();
+  httpServer.close(() => process.exit(0));
+  // Force exit after 5s if connections don't close cleanly
+  setTimeout(() => process.exit(1), 5000);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {
