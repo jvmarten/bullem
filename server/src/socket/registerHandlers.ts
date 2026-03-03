@@ -10,9 +10,33 @@ import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransi
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
+/** Per-socket rate limiter: max events per window. */
+const RATE_LIMIT_WINDOW_MS = 1000;
+const RATE_LIMIT_MAX_EVENTS = 15;
+
+function attachRateLimiter(socket: { use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void }): void {
+  let eventCount = 0;
+  let windowStart = Date.now();
+
+  socket.use((_event, next) => {
+    const now = Date.now();
+    if (now - windowStart > RATE_LIMIT_WINDOW_MS) {
+      eventCount = 0;
+      windowStart = now;
+    }
+    eventCount++;
+    if (eventCount > RATE_LIMIT_MAX_EVENTS) {
+      next(new Error('Rate limit exceeded'));
+    } else {
+      next();
+    }
+  });
+}
+
 export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager): void {
   io.on('connection', (socket) => {
     console.log(`Connected: ${socket.id}`);
+    attachRateLimiter(socket);
 
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager);

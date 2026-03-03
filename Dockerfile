@@ -23,6 +23,9 @@ RUN npm run build
 # ---- Production stage ----
 FROM node:20.11-alpine
 
+# Run as non-root for security
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
 WORKDIR /app
 
 # Copy root package files
@@ -32,12 +35,14 @@ COPY server/package.json server/
 COPY client/package.json client/
 
 # Install production dependencies only
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && chown -R nodejs:nodejs /app
 
 # Copy built artifacts from build stage
-COPY --from=build /app/shared/dist shared/dist
-COPY --from=build /app/server/dist server/dist
-COPY --from=build /app/client/dist client/dist
+COPY --from=build --chown=nodejs:nodejs /app/shared/dist shared/dist
+COPY --from=build --chown=nodejs:nodejs /app/server/dist server/dist
+COPY --from=build --chown=nodejs:nodejs /app/client/dist client/dist
+
+USER nodejs
 
 ENV NODE_ENV=production
 ENV PORT=3001

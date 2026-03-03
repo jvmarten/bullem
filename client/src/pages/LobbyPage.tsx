@@ -67,13 +67,23 @@ export function LobbyPage() {
 
   const copyInviteLink = async () => {
     if (!roomState) return;
+    const url = `${window.location.origin}/room/${roomState.roomCode}`;
     try {
-      const url = `${window.location.origin}/room/${roomState.roomCode}`;
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard API may not be available
+      // Fallback for older browsers / non-HTTPS contexts
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 

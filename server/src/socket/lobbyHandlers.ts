@@ -1,11 +1,20 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
 import { beginRoundResultPhase } from './roundTransition.js';
+
+/** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
+function sanitizeName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > PLAYER_NAME_MAX_LENGTH) return null;
+  if (!PLAYER_NAME_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -17,9 +26,12 @@ export function registerLobbyHandlers(
   botManager: BotManager,
 ): void {
   socket.on('room:create', (data, callback) => {
+    const name = sanitizeName(data.playerName);
+    if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
+
     const room = roomManager.createRoom();
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, data.playerName);
+    room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
@@ -28,6 +40,9 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:join', (data, callback) => {
+    const name = sanitizeName(data.playerName);
+    if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
+
     const room = roomManager.getRoom(data.roomCode);
     if (!room) return callback({ error: 'Room not found' });
 
@@ -44,10 +59,10 @@ export function registerLobbyHandlers(
 
     const effectiveMax = roomManager.effectiveMaxPlayers(room);
     if (room.playerCount >= effectiveMax) return callback({ error: 'Room is full' });
-    if (room.gamePhase !== 'lobby') return callback({ error: 'Game already in progress' });
+    if (room.gamePhase !== GamePhase.LOBBY) return callback({ error: 'Game already in progress' });
 
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, data.playerName);
+    room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
@@ -150,11 +165,20 @@ export function registerLobbyHandlers(
     }
     // Validate settings
     const { maxCards, turnTimer } = data.settings;
-    if (maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS) return;
-    if (!([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) return;
+    if (typeof maxCards !== 'number' || maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS || !Number.isInteger(maxCards)) {
+      socket.emit('room:error', 'Invalid max cards setting');
+      return;
+    }
+    if (typeof turnTimer !== 'number' || !([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) {
+      socket.emit('room:error', 'Invalid turn timer setting');
+      return;
+    }
     const maxPlayers = data.settings.maxPlayers;
     if (maxPlayers !== undefined) {
-      if (maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS) return;
+      if (typeof maxPlayers !== 'number' || maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS || !Number.isInteger(maxPlayers)) {
+        socket.emit('room:error', 'Invalid max players setting');
+        return;
+      }
     }
 
     room.updateSettings(data.settings);
@@ -173,6 +197,12 @@ export function registerLobbyHandlers(
     const effectiveMax = roomManager.effectiveMaxPlayers(room);
     if (room.playerCount >= effectiveMax) {
       return callback({ error: 'Room is full' });
+    }
+
+    // Validate bot name if provided
+    if (data.botName !== undefined) {
+      const botNameClean = sanitizeName(data.botName);
+      if (!botNameClean) return callback({ error: 'Invalid bot name' });
     }
 
     try {

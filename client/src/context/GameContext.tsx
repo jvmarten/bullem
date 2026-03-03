@@ -43,6 +43,17 @@ export const GameContext = createContext<GameContextValue | null>(null);
 const PLAYER_ID_KEY = 'bull-em-player-id';
 const PLAYER_NAME_KEY = 'bull-em-player-name';
 const ROOM_CODE_KEY = 'bull-em-room-code';
+const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
+
+/** Wrap a socket.emit callback promise with a timeout so it can't hang forever. */
+function withTimeout<T>(promise: Promise<T>, ms = SOCKET_CALLBACK_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), ms),
+    ),
+  ]);
+}
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
@@ -197,18 +208,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createRoom = useCallback((playerName: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
+    return withTimeout(new Promise((resolve, reject) => {
       socket.emit('room:create', { playerName }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
         resolve(response.roomCode);
       });
-    });
+    }));
   }, []);
 
   const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    return withTimeout(new Promise((resolve, reject) => {
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? undefined;
       socket.emit('room:join', { roomCode, playerName, playerId: storedId }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
@@ -218,7 +229,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
         resolve();
       });
-    });
+    }));
   }, []);
 
   const leaveRoom = useCallback(() => {
@@ -248,9 +259,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const listRooms = useCallback((): Promise<RoomListing[]> => {
-    return new Promise((resolve) => {
+    return withTimeout(new Promise((resolve) => {
       socket.emit('room:list', (response) => resolve(response.rooms));
-    });
+    }));
   }, []);
 
   const updateSettings = useCallback((settings: GameSettings) => {
@@ -279,12 +290,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addBot = useCallback((botName?: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
+    return withTimeout(new Promise((resolve, reject) => {
       socket.emit('room:addBot', { botName }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         resolve(response.botId);
       });
-    });
+    }));
   }, []);
 
   const removeBot = useCallback((botId: string) => {
