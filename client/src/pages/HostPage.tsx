@@ -67,7 +67,7 @@ export function HostPage() {
                 onClick={() => setAllowSpectators(v => !v)}
                 className={`w-11 h-6 rounded-full transition-colors relative border ${allowSpectators ? 'bg-[var(--gold)] border-[var(--gold)]' : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'}`}
               >
-                <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${allowSpectators ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
+                <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${allowSpectators ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
               </button>
             </label>
             {allowSpectators && (
@@ -77,7 +77,7 @@ export function HostPage() {
                   onClick={() => setSpectatorsCanSeeCards(v => !v)}
                   className={`w-11 h-6 rounded-full transition-colors relative border ${spectatorsCanSeeCards ? 'bg-[var(--gold)] border-[var(--gold)]' : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'}`}
                 >
-                  <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${spectatorsCanSeeCards ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
+                  <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${spectatorsCanSeeCards ? 'translate-x-[23px]' : 'translate-x-[2px]'}`} />
                 </button>
               </label>
             )}
