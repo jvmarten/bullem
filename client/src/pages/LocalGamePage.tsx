@@ -206,7 +206,6 @@ export function LocalGamePage() {
               }
               setHandSelectorOpen(false);
             }}
-            onClose={() => setHandSelectorOpen(false)}
             submitLabel={gameState.currentHand ? 'Raise' : 'Call'}
           />
         )}

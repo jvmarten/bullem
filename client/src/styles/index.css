@@ -220,6 +220,12 @@ body {
   border-radius: 0.75rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
+.glass-me {
+  background: rgba(30, 58, 95, 0.55);
+  border: 1px solid rgba(60, 100, 150, 0.5);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(4px);
+}
 
 /* ── Playing Card ────────────────────────────────────── */
 .playing-card {

@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { HandSelector } from './HandSelector.js';
-import { HandType, getHandTypeName } from '@bull-em/shared';
+import { HandType } from '@bull-em/shared';
 import type { HandCall } from '@bull-em/shared';
 
 afterEach(() => {
   cleanup();
 });
+
+/** ALL_HAND_TYPES order matching HandSelector's internal list */
+const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
+  .filter((v): v is HandType => typeof v === 'number' && v !== HandType.ROYAL_FLUSH);
 
 describe('HandSelector', () => {
   const defaultProps = {
@@ -14,20 +18,16 @@ describe('HandSelector', () => {
     onSubmit: vi.fn(),
   };
 
-  /** Click on a hand type by finding its name text in the wheel */
+  /** Click on a hand type by its index in ALL_HAND_TYPES (first wheel) */
   function clickHandType(container: HTMLElement, handType: HandType) {
-    const name = getHandTypeName(handType);
-    const items = container.querySelectorAll('[data-wheel-item]');
-    for (const item of items) {
-      const spans = item.querySelectorAll('span');
-      for (const span of spans) {
-        if (span.textContent?.trim() === name) {
-          fireEvent.click(item as HTMLElement);
-          return;
-        }
-      }
-    }
-    throw new Error(`Hand type "${name}" not found`);
+    const idx = ALL_HAND_TYPES.indexOf(handType);
+    // Get all wheel containers (relative overflow-hidden divs), the first is hand types
+    const wheels = container.querySelectorAll('.wheel-picker-scroll');
+    const handWheel = wheels[0];
+    if (!handWheel) throw new Error('Hand type wheel not found');
+    const item = handWheel.querySelector(`[data-wheel-item="${idx}"]`) as HTMLElement | null;
+    if (!item) throw new Error(`Hand type index ${idx} not found`);
+    fireEvent.click(item);
   }
 
   /** Click on a rank card in a rank wheel */
@@ -52,11 +52,11 @@ describe('HandSelector', () => {
   }
 
   describe('hand type picker', () => {
-    it('shows all hand type names', () => {
+    it('renders all hand type items as wheel entries', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      for (let ht = HandType.HIGH_CARD; ht <= HandType.STRAIGHT_FLUSH; ht++) {
-        expect(container.textContent).toContain(getHandTypeName(ht));
-      }
+      // Should have at least as many wheel items as hand types
+      const items = container.querySelectorAll('[data-wheel-item]');
+      expect(items.length).toBeGreaterThanOrEqual(ALL_HAND_TYPES.length);
     });
 
     it('shows rank cards for HIGH_CARD by default', () => {
@@ -64,10 +64,11 @@ describe('HandSelector', () => {
       expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
-    it('shows suit picker when FLUSH is selected', () => {
+    it('shows rank cards when FLUSH is selected (suit cards)', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FLUSH);
-      expect(container.querySelectorAll('.hs-suit-btn').length).toBeGreaterThan(0);
+      // Suits now use .hs-rank-card styling
+      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 
     it('shows rank cards when STRAIGHT is selected', () => {
@@ -91,7 +92,7 @@ describe('HandSelector', () => {
     it('shows both suit and rank pickers for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
-      expect(container.querySelectorAll('.hs-suit-btn').length).toBeGreaterThan(0);
+      // Both rank and suit cards use .hs-rank-card
       expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
     });
 

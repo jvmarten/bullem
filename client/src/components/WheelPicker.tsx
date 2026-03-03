@@ -116,22 +116,11 @@ export function WheelPicker<T>({
         ))}
         <div style={{ height: padCount * itemHeight }} />
       </div>
-      {/* Center highlight */}
-      <div
-        className="absolute left-0 right-0 pointer-events-none"
-        style={{
-          top: padCount * itemHeight,
-          height: itemHeight,
-          borderTop: '1px solid var(--gold-dim)',
-          borderBottom: '1px solid var(--gold-dim)',
-          background: 'rgba(212, 168, 67, 0.06)',
-        }}
-      />
-      {/* Fade edges */}
+      {/* Subtle fade edges */}
       <div className="absolute inset-x-0 top-0 pointer-events-none"
-        style={{ height: itemHeight * 1.5, background: 'linear-gradient(to bottom, var(--felt-dark), transparent)' }} />
+        style={{ height: itemHeight, background: 'linear-gradient(to bottom, var(--felt-dark), transparent)' }} />
       <div className="absolute inset-x-0 bottom-0 pointer-events-none"
-        style={{ height: itemHeight * 1.5, background: 'linear-gradient(to top, var(--felt-dark), transparent)' }} />
+        style={{ height: itemHeight, background: 'linear-gradient(to top, var(--felt-dark), transparent)' }} />
     </div>
   );
 }
