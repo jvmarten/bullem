@@ -1,7 +1,5 @@
 import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 
-const ITEM_HEIGHT = 48;
-const VISIBLE_COUNT = 5;
 const FRICTION = 0.92;
 const MIN_VELOCITY = 0.3;
 const SNAP_STIFFNESS = 0.18;
@@ -12,6 +10,7 @@ interface WheelPickerProps<T> {
   onSelect: (index: number) => void;
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   itemHeight?: number;
+  visibleCount?: number;
 }
 
 export function WheelPicker<T>({
@@ -19,9 +18,9 @@ export function WheelPicker<T>({
   selectedIndex,
   onSelect,
   renderItem,
-  itemHeight = ITEM_HEIGHT,
+  itemHeight = 34,
+  visibleCount = 5,
 }: WheelPickerProps<T>) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(-selectedIndex * itemHeight);
   const velocityRef = useRef(0);
   const animFrameRef = useRef(0);
@@ -31,7 +30,6 @@ export function WheelPicker<T>({
   const [, forceRender] = useState(0);
   const rerender = useCallback(() => forceRender(n => n + 1), []);
 
-  // Sync offset when selectedIndex changes externally
   useEffect(() => {
     if (!isDraggingRef.current) {
       offsetRef.current = -selectedIndex * itemHeight;
@@ -79,7 +77,6 @@ export function WheelPicker<T>({
         return;
       }
       offsetRef.current += velocityRef.current;
-      // Clamp to bounds with rubber-band feel
       const minOffset = -(items.length - 1) * itemHeight;
       if (offsetRef.current > 0) {
         offsetRef.current = 0;
@@ -102,7 +99,6 @@ export function WheelPicker<T>({
     animFrameRef.current = requestAnimationFrame(animate);
   }, [items.length, itemHeight, getIndexFromOffset, onSelect, snapToIndex, rerender]);
 
-  // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     cancelAnimationFrame(animFrameRef.current);
     velocityRef.current = 0;
@@ -116,14 +112,10 @@ export function WheelPicker<T>({
     if (!isDraggingRef.current) return;
     e.preventDefault();
     const y = e.touches[0].clientY;
-    const dy = y - touchStartRef.current.y;
-    offsetRef.current = touchStartRef.current.offset + dy;
-
+    offsetRef.current = touchStartRef.current.offset + (y - touchStartRef.current.y);
     const now = Date.now();
     const dt = now - lastTouchRef.current.time;
-    if (dt > 0) {
-      velocityRef.current = ((y - lastTouchRef.current.y) / dt) * 16;
-    }
+    if (dt > 0) velocityRef.current = ((y - lastTouchRef.current.y) / dt) * 16;
     lastTouchRef.current = { y, time: now };
     rerender();
   }, [rerender]);
@@ -133,7 +125,6 @@ export function WheelPicker<T>({
     startMomentum();
   }, [startMomentum]);
 
-  // Mouse drag handlers (for desktop)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     cancelAnimationFrame(animFrameRef.current);
     velocityRef.current = 0;
@@ -146,29 +137,23 @@ export function WheelPicker<T>({
       if (!isDraggingRef.current) return;
       ev.preventDefault();
       const my = ev.clientY;
-      const dy = my - touchStartRef.current.y;
-      offsetRef.current = touchStartRef.current.offset + dy;
+      offsetRef.current = touchStartRef.current.offset + (my - touchStartRef.current.y);
       const now = Date.now();
       const dt = now - lastTouchRef.current.time;
-      if (dt > 0) {
-        velocityRef.current = ((my - lastTouchRef.current.y) / dt) * 16;
-      }
+      if (dt > 0) velocityRef.current = ((my - lastTouchRef.current.y) / dt) * 16;
       lastTouchRef.current = { y: my, time: now };
       rerender();
     };
-
     const handleMouseUp = () => {
       isDraggingRef.current = false;
       startMomentum();
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [startMomentum, rerender]);
 
-  // Click to select item
   const handleItemClick = useCallback(
     (index: number) => {
       if (isDraggingRef.current) return;
@@ -178,18 +163,15 @@ export function WheelPicker<T>({
     [onSelect, snapToIndex],
   );
 
-  // Cleanup
-  useEffect(() => {
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, []);
+  useEffect(() => () => cancelAnimationFrame(animFrameRef.current), []);
 
-  const viewportHeight = VISIBLE_COUNT * itemHeight;
-  const centerOffset = Math.floor(VISIBLE_COUNT / 2) * itemHeight;
+  const viewportHeight = visibleCount * itemHeight;
+  const centerOffset = Math.floor(visibleCount / 2) * itemHeight;
+  const currentSelected = getIndexFromOffset(offsetRef.current);
 
   return (
     <div
-      ref={containerRef}
-      className="relative overflow-hidden select-none cursor-grab active:cursor-grabbing"
+      className="relative overflow-hidden select-none"
       style={{ height: viewportHeight, touchAction: 'none' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -197,51 +179,18 @@ export function WheelPicker<T>({
       onTouchCancel={handleTouchEnd}
       onMouseDown={handleMouseDown}
     >
-      <div
-        style={{
-          transform: `translateY(${offsetRef.current + centerOffset}px)`,
-        }}
-      >
-        {items.map((item, i) => {
-          const distancePx = offsetRef.current + i * itemHeight;
-          const distance = Math.abs(distancePx) / itemHeight;
-          const opacity = Math.max(0.15, 1 - distance * 0.3);
-          const scale = Math.max(0.75, 1 - distance * 0.08);
-          const isSelected = i === getIndexFromOffset(offsetRef.current);
-
-          return (
-            <div
-              key={i}
-              onClick={() => handleItemClick(i)}
-              style={{
-                height: itemHeight,
-                opacity,
-                transform: `scale(${scale})`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: isDraggingRef.current ? 'none' : 'opacity 0.1s ease',
-              }}
-            >
-              {renderItem(item, isSelected)}
-            </div>
-          );
-        })}
+      <div style={{ transform: `translateY(${offsetRef.current + centerOffset}px)` }}>
+        {items.map((item, i) => (
+          <div
+            key={i}
+            onClick={() => handleItemClick(i)}
+            className="flex items-center justify-center"
+            style={{ height: itemHeight, zIndex: i === currentSelected ? 10 : 0 }}
+          >
+            {renderItem(item, i === currentSelected)}
+          </div>
+        ))}
       </div>
-      {/* Center highlight */}
-      <div
-        className="absolute left-0 right-0 pointer-events-none"
-        style={{
-          top: centerOffset,
-          height: itemHeight,
-          borderTop: '1px solid var(--gold-dim)',
-          borderBottom: '1px solid var(--gold-dim)',
-          background: 'rgba(212, 168, 67, 0.06)',
-        }}
-      />
-      {/* Fade edges */}
-      <div className="absolute inset-x-0 top-0 h-12 pointer-events-none" style={{ background: 'linear-gradient(to bottom, var(--felt-dark), transparent)' }} />
-      <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none" style={{ background: 'linear-gradient(to top, var(--felt-dark), transparent)' }} />
     </div>
   );
 }
