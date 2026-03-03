@@ -339,7 +339,7 @@ export function LobbyPage() {
                     }`}
                   >
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
-                      settings.allowSpectators ? 'translate-x-5' : 'translate-x-0.5'
+                      settings.allowSpectators ? 'translate-x-[22px]' : 'translate-x-[2px]'
                     }`} />
                   </button>
                 </label>
@@ -357,7 +357,7 @@ export function LobbyPage() {
                       }`}
                     >
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${
-                        settings.spectatorsCanSeeCards ? 'translate-x-5' : 'translate-x-0.5'
+                        settings.spectatorsCanSeeCards ? 'translate-x-[22px]' : 'translate-x-[2px]'
                       }`} />
                     </button>
                   </label>

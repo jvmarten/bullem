@@ -67,7 +67,7 @@ export function HostPage() {
                 onClick={() => setAllowSpectators(v => !v)}
                 className={`w-10 h-5 rounded-full transition-colors relative ${allowSpectators ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'}`}
               >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${allowSpectators ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${allowSpectators ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
               </button>
             </label>
             {allowSpectators && (
@@ -77,7 +77,7 @@ export function HostPage() {
                   onClick={() => setSpectatorsCanSeeCards(v => !v)}
                   className={`w-10 h-5 rounded-full transition-colors relative ${spectatorsCanSeeCards ? 'bg-[var(--gold)]' : 'bg-[rgba(255,255,255,0.15)]'}`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${spectatorsCanSeeCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-transform bg-white ${spectatorsCanSeeCards ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
                 </button>
               </label>
             )}

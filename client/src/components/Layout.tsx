@@ -8,6 +8,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
   const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
   const [showPopup, setShowPopup] = useState(false);
+  const [showVersionDate, setShowVersionDate] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -77,6 +78,14 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               </div>
             )}
           </div>
+        )}
+        {largeTitle && (
+          <button
+            onClick={() => setShowVersionDate(v => !v)}
+            className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            {showVersionDate ? 'v0.1.0 · 03.03.26' : 'v0.1.0'}
+          </button>
         )}
         {!isConnected && (
           <div className="absolute top-1/2 right-4 -translate-y-1/2 flex items-center gap-1.5 text-xs text-[var(--gold)]">

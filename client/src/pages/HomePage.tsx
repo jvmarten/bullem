@@ -186,7 +186,6 @@ export function HomePage() {
   const [shuffleOrder, setShuffleOrder] = useState(INITIAL_ORDER);
   const [rooms, setRooms] = useState<RoomListing[]>([]);
   const [liveGames, setLiveGames] = useState<LiveGameListing[]>([]);
-  const [showVersionDate, setShowVersionDate] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -355,14 +354,6 @@ export function HomePage() {
 
   return (
     <Layout largeTitle>
-      <div className="flex justify-end mb-[-2rem]">
-        <button
-          onClick={() => setShowVersionDate(v => !v)}
-          className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-        >
-          {showVersionDate ? 'v0.1.0 · 03.03.26' : 'v0.1.0'}
-        </button>
-      </div>
       <div className="flex flex-col items-center gap-8 pt-8">
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
   isHigherHand, getHandTypeName, handToString, getMinimumRaise,
@@ -6,70 +6,18 @@ import {
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 import { useSound } from '../hooks/useSound.js';
+import { WheelPicker } from './WheelPicker.js';
 
 interface Props {
   currentHand: HandCall | null;
   onSubmit: (hand: HandCall) => void;
+  onClose?: () => void;
+  submitLabel?: string;
 }
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
 const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
   .filter((v): v is HandType => typeof v === 'number' && v !== HandType.ROYAL_FLUSH);
-
-/* ── Mini card illustrations for hand type picker ──────── */
-
-function HandIllustration({ type }: { type: HandType }) {
-  const mini = (key: number, style?: React.CSSProperties, content?: React.ReactNode) => (
-    <div key={key} className="hs-illus-card" style={style}>{content}</div>
-  );
-  const heart = <span className="text-[6px] leading-none suit-red">♥</span>;
-  const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-4px' } : {});
-  const fan = (i: number, total: number): React.CSSProperties => ({
-    ...(i > 0 ? { marginLeft: '-4px' } : {}),
-    transform: `rotate(${(i - (total - 1) / 2) * 8}deg)`,
-  });
-
-  switch (type) {
-    case HandType.HIGH_CARD:
-      return <div className="hs-illus">{mini(0)}</div>;
-    case HandType.PAIR:
-      return <div className="hs-illus">{[0, 1].map(i => mini(i, overlap(i)))}</div>;
-    case HandType.TWO_PAIR:
-      return (
-        <div className="hs-illus gap-1">
-          <div className="flex">{[0, 1].map(i => mini(i, overlap(i)))}</div>
-          <div className="flex">{[0, 1].map(i => mini(i + 2, overlap(i)))}</div>
-        </div>
-      );
-    case HandType.THREE_OF_A_KIND:
-      return <div className="hs-illus">{[0, 1, 2].map(i => mini(i, fan(i, 3)))}</div>;
-    case HandType.FLUSH:
-      return <div className="hs-illus">{[0, 1, 2].map(i => mini(i, overlap(i), heart))}</div>;
-    case HandType.STRAIGHT:
-      return (
-        <div className="hs-illus items-end">
-          {[0, 1, 2].map(i => mini(i, { marginLeft: i > 0 ? '-3px' : undefined, marginBottom: `${i * 3}px` }))}
-        </div>
-      );
-    case HandType.FULL_HOUSE:
-      return (
-        <div className="hs-illus gap-0.5">
-          <div className="flex">{[0, 1, 2].map(i => mini(i, fan(i, 3)))}</div>
-          <div className="flex">{[0, 1].map(i => mini(i + 3, overlap(i)))}</div>
-        </div>
-      );
-    case HandType.FOUR_OF_A_KIND:
-      return <div className="hs-illus">{[0, 1, 2, 3].map(i => mini(i, fan(i, 4)))}</div>;
-    case HandType.STRAIGHT_FLUSH:
-      return (
-        <div className="hs-illus items-end">
-          {[0, 1, 2].map(i => mini(i, { marginLeft: i > 0 ? '-3px' : undefined, marginBottom: `${i * 3}px` }, heart))}
-        </div>
-      );
-    default:
-      return null;
-  }
-}
 
 /* ── Preview card generation ───────────────────────────── */
 
@@ -118,100 +66,7 @@ function getPreviewCards(hand: HandCall | null): Card[] {
   }
 }
 
-/* ── Rank Fan Sub-component ────────────────────────────── */
-
-function RankFan({ ranks, selected, onSelect, label, testId, onHover, onSlide }: {
-  ranks: readonly Rank[];
-  selected: Rank;
-  onSelect: (r: Rank) => void;
-  label: string;
-  testId: string;
-  onHover?: () => void;
-  onSlide?: () => void;
-}) {
-  const selectedIndex = ranks.indexOf(selected);
-  const touchActiveRef = useRef(false);
-  const touchIdRef = useRef<number | null>(null);
-
-  const handleKeyDown = (e: React.KeyboardEvent, i: number) => {
-    let next = i;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      next = (i + 1) % ranks.length;
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      next = (i - 1 + ranks.length) % ranks.length;
-    }
-    if (next !== i) onSelect(ranks[next]);
-  };
-
-  const selectFromTouchPoint = (touch: { clientX: number; clientY: number }) => {
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (!el) return;
-    const btn = el.closest('[role="radio"]') as HTMLElement | null;
-    if (!btn) return;
-    const rankLabel = btn.getAttribute('aria-label');
-    if (!rankLabel) return;
-    const r = rankLabel.replace('Rank ', '') as Rank;
-    if (ranks.includes(r) && r !== selected) {
-      onSelect(r);
-      onSlide?.();
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchActiveRef.current) return;
-    let touch = e.touches[0];
-    if (touchIdRef.current !== null) {
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches.item(i);
-        if (t && t.identifier === touchIdRef.current) {
-          touch = t;
-          break;
-        }
-      }
-    }
-    if (!touch) return;
-    e.preventDefault();
-    selectFromTouchPoint(touch);
-  };
-
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-        {label}
-      </div>
-      <div
-        className="hs-rank-fan"
-        role="radiogroup"
-        aria-label={label}
-        data-testid={testId}
-        onTouchStart={(e) => { touchActiveRef.current = true; touchIdRef.current = e.touches[0]?.identifier ?? null; if (e.touches[0]) selectFromTouchPoint(e.touches[0]); }}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={() => { touchActiveRef.current = false; touchIdRef.current = null; }}
-        onTouchCancel={() => { touchActiveRef.current = false; touchIdRef.current = null; }}
-      >
-        {ranks.map((r, i) => (
-          <button
-            key={r}
-            role="radio"
-            aria-checked={selected === r}
-            aria-label={`Rank ${r}`}
-            tabIndex={i === selectedIndex ? 0 : -1}
-            onClick={() => onSelect(r)}
-            onPointerEnter={onHover}
-            onKeyDown={(e) => handleKeyDown(e, i)}
-            className={`hs-rank-card${selected === r ? ' hs-rank-card-selected' : ''}`}
-          >
-            <span className="text-sm font-bold text-[#1a1a1a]">{r}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Main Component ────────────────────────────────────── */
+/* ── Initial state from current hand ───────────────────── */
 
 function getInitialState(currentHand: HandCall | null): { handType: HandType; rank: Rank; rank2: Rank; suit: Suit } {
   if (!currentHand) return { handType: HandType.HIGH_CARD, rank: '2', rank2: '3', suit: 'spades' };
@@ -236,7 +91,9 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
   return { handType: ht, rank, rank2, suit };
 }
 
-export function HandSelector({ currentHand, onSubmit }: Props) {
+/* ── Main Component ────────────────────────────────────── */
+
+export function HandSelector({ currentHand, onSubmit, onClose, submitLabel }: Props) {
   const { play } = useSound();
   const initial = getInitialState(currentHand);
   const [handType, setHandType] = useState<HandType>(initial.handType);
@@ -244,7 +101,6 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
 
-  const playHover = useCallback(() => play('uiHover'), [play]);
   const playClick = useCallback(() => play('uiClick'), [play]);
 
   const handleTypeChange = useCallback((ht: HandType) => {
@@ -285,7 +141,6 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
       case HandType.FOUR_OF_A_KIND: return { type: HandType.FOUR_OF_A_KIND, rank };
       case HandType.STRAIGHT_FLUSH: {
         if (RANK_VALUES[rank] < 5) return null;
-        // Straight Flush with Ace high = Royal Flush
         if (rank === 'A') return { type: HandType.ROYAL_FLUSH, suit };
         return { type: HandType.STRAIGHT_FLUSH, suit, highRank: rank };
       }
@@ -297,11 +152,7 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
   const hand = buildHand();
   const isValid = hand !== null && (!currentHand || isHigherHand(hand, currentHand));
 
-  const needsRank = [
-    HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND,
-    HandType.FOUR_OF_A_KIND,
-  ].includes(handType);
-
+  const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
   const needsRank2 = [HandType.TWO_PAIR, HandType.FULL_HOUSE].includes(handType);
   const needsSuit = [HandType.FLUSH, HandType.STRAIGHT_FLUSH].includes(handType);
@@ -315,175 +166,241 @@ export function HandSelector({ currentHand, onSubmit }: Props) {
 
   const validationMsg = useMemo(() => {
     if (!hand) {
-      if (needsRank2 && rank === rank2) return 'Ranks must be different';
-      if (needsStraightRank && RANK_VALUES[rank] < 5) return 'Straight needs high card 5 or above';
+      if (needsRank2 && rank === rank2) return 'Ranks must differ';
+      if (needsStraightRank && RANK_VALUES[rank] < 5) return 'High card 5+';
       return '';
     }
-    if (currentHand && !isHigherHand(hand, currentHand)) return 'Must be higher than current call';
+    if (currentHand && !isHigherHand(hand, currentHand)) return 'Must be higher';
     return '';
   }, [hand, currentHand, rank, rank2, handType, needsRank2, needsStraightRank]);
 
   const previewCards = useMemo(() => getPreviewCards(hand), [hand]);
 
-  const handleTypeKeyDown = (e: React.KeyboardEvent, i: number) => {
-    let next = i;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      next = (i + 1) % ALL_HAND_TYPES.length;
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      next = (i - 1 + ALL_HAND_TYPES.length) % ALL_HAND_TYPES.length;
-    }
-    if (next !== i) handleTypeChange(ALL_HAND_TYPES[next]);
-  };
-
+  // Rank list depends on hand type
   const rankList = needsStraightRank ? STRAIGHT_RANKS : ALL_RANKS;
-  const rank2List = ALL_RANKS.filter(r => r !== rank);
+  const rank2List = useMemo(() => ALL_RANKS.filter(r => r !== rank), [rank]);
+
+  // Hand type wheel index
+  const handTypeIndex = ALL_HAND_TYPES.indexOf(handType);
+  const handleTypeWheel = useCallback((idx: number) => {
+    handleTypeChange(ALL_HAND_TYPES[idx]);
+  }, [handleTypeChange]);
+
+  // Primary value wheel — rank or suit depending on hand type
+  const primaryItems = (needsRank || needsStraightRank || needsRank2)
+    ? rankList as readonly string[]
+    : needsSuit && !needsRank && !needsStraightRank && !needsRank2
+      ? ALL_SUITS as readonly string[]
+      : rankList as readonly string[];
+
+  const primaryIndex = (() => {
+    if (needsSuit && !needsRank && !needsStraightRank && !needsRank2) {
+      return ALL_SUITS.indexOf(suit);
+    }
+    return rankList.indexOf(rank);
+  })();
+
+  const handlePrimaryWheel = useCallback((idx: number) => {
+    if (needsSuit && !needsRank && !needsStraightRank && !needsRank2) {
+      setSuit(ALL_SUITS[idx]);
+    } else if (needsRank2) {
+      handleRank1Change(rankList[idx]);
+    } else {
+      setRank(rankList[idx]);
+    }
+  }, [needsSuit, needsRank, needsStraightRank, needsRank2, rankList, handleRank1Change]);
+
+  // Secondary value wheel (for two-value types)
+  const rank2Index = rank2List.indexOf(rank2);
+  const handleRank2Wheel = useCallback((idx: number) => {
+    setRank2(rank2List[idx]);
+  }, [rank2List]);
+
+  // Suit wheel for Straight Flush (needs both rank and suit)
+  const suitIndex = ALL_SUITS.indexOf(suit);
+  const handleSuitWheel = useCallback((idx: number) => {
+    setSuit(ALL_SUITS[idx]);
+  }, []);
+
+  const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
+    const isDimmed = currentHand !== null && ht < currentHand.type;
+    return (
+      <div className={`text-center px-1 ${isDimmed ? 'opacity-30' : ''}`}>
+        <span className={`text-xs font-semibold ${isSelected ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}>
+          {getHandTypeName(ht)}
+        </span>
+      </div>
+    );
+  }, [currentHand]);
+
+  const renderRank = useCallback((r: string, isSelected: boolean) => (
+    <div className={`w-9 h-10 rounded-md flex items-center justify-center ${
+      isSelected
+        ? 'bg-[var(--card-face)] border-2 border-[var(--gold)] shadow-md'
+        : 'bg-[var(--card-face)] border border-[var(--card-border)] opacity-70'
+    }`}>
+      <span className="text-base font-bold text-[#1a1a1a]">{r}</span>
+    </div>
+  ), []);
+
+  const renderSuit = useCallback((s: string, isSelected: boolean) => {
+    const suitColor = (s === 'hearts' || s === 'diamonds') ? '#c0392b' : '#1a1a1a';
+    return (
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+        isSelected
+          ? 'bg-[var(--surface)] border-2 border-[var(--gold)] shadow-md'
+          : 'bg-[var(--surface)] border border-[rgba(26,92,53,0.5)] opacity-70'
+      }`}>
+        <span className="text-xl" style={{ color: suitColor }}>
+          {SUIT_SYMBOLS[s as Suit]}
+        </span>
+      </div>
+    );
+  }, []);
+
+  // Only suit in right column (Flush type)
+  const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
 
   return (
-    <div className="glass-raised p-3 space-y-3 animate-slide-up">
-      {/* ── Hand Type Picker ──────────────────────────── */}
-      <div>
-        <div className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-          Hand Type
-        </div>
-        <div
-          className="hs-type-strip"
-          role="radiogroup"
-          aria-label="Hand type"
-          data-testid="hand-type-picker"
+    <div className="glass-raised p-3 animate-slide-up" data-testid="hand-selector">
+      {/* Submit row — gold button + close */}
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={handleSubmit}
+          disabled={!isValid}
+          className={`flex-1 btn-gold py-2.5 text-base${isValid ? ' hs-call-pulse' : ''}`}
         >
-          {ALL_HAND_TYPES.map((ht, i) => {
-            const isSelected = handType === ht;
-            const isDimmed = currentHand !== null && ht < currentHand.type;
-            return (
-              <button
-                key={ht}
-                role="radio"
-                aria-checked={isSelected}
-                aria-label={getHandTypeName(ht)}
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => handleTypeChange(ht)}
-                onKeyDown={(e) => handleTypeKeyDown(e, i)}
-                className={`hs-type-card${isSelected ? ' hs-type-card-selected' : ''}${isDimmed ? ' hs-type-card-dimmed' : ''}`}
-              >
-                <span className="hs-type-name">{getHandTypeName(ht)}</span>
-                <HandIllustration type={ht} />
-              </button>
-            );
-          })}
-        </div>
+          {submitLabel ?? (currentHand ? 'Raise' : 'Call')}
+          {hand ? ` — ${handToString(hand)}` : ''}
+        </button>
+        {onClose && (
+          <button onClick={onClose} className="btn-ghost px-3 py-2.5 text-sm">
+            ✕
+          </button>
+        )}
       </div>
 
-      {/* ── Rank Picker (single rank) ─────────────────── */}
-      {(needsRank || needsStraightRank) && (
-        <RankFan
-          ranks={rankList}
-          selected={rank}
-          onSelect={setRank}
-          label={needsStraightRank ? 'High Card' : 'Rank'}
-          testId="rank-picker"
-          onHover={playHover}
-          onSlide={playHover}
-        />
-      )}
-
-      {/* ── Two-Rank Pickers (Two Pair / Full House) ──── */}
-      {needsRank2 && (
-        <>
-          <RankFan
-            ranks={ALL_RANKS}
-            selected={rank}
-            onSelect={handleRank1Change}
-            label={handType === HandType.FULL_HOUSE ? 'Three of' : 'First Pair'}
-            testId="rank-picker"
-            onHover={playHover}
-            onSlide={playHover}
-          />
-          <RankFan
-            ranks={rank2List}
-            selected={rank2}
-            onSelect={setRank2}
-            label={handType === HandType.FULL_HOUSE ? 'Pair of' : 'Second Pair'}
-            testId="rank2-picker"
-            onHover={playHover}
-            onSlide={playHover}
-          />
-        </>
-      )}
-
-      {/* ── Suit Picker ───────────────────────────────── */}
-      {needsSuit && (
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">
-            Suit
-          </div>
-          <div
-            className="flex justify-center gap-3"
-            role="radiogroup"
-            aria-label="Suit"
-            data-testid="suit-picker"
-          >
-            {ALL_SUITS.map((s, i) => {
-              const isSelected = suit === s;
-              const suitColor = (s === 'hearts' || s === 'diamonds') ? 'suit-red' : 'text-white';
-              return (
-                <button
-                  key={s}
-                  role="radio"
-                  aria-checked={isSelected}
-                  aria-label={s}
-                  tabIndex={isSelected ? 0 : -1}
-                  onClick={() => { setSuit(s); playHover(); }}
-                  onKeyDown={(e) => {
-                    let next = i;
-                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next = (i + 1) % ALL_SUITS.length; }
-                    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); next = (i - 1 + ALL_SUITS.length) % ALL_SUITS.length; }
-                    if (next !== i) setSuit(ALL_SUITS[next]);
-                  }}
-                  className={`hs-suit-btn${isSelected ? ' hs-suit-btn-selected' : ''}`}
-                >
-                  <span className={suitColor}>{SUIT_SYMBOLS[s]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Live Preview ──────────────────────────────── */}
-      {hand && (
-        <div className="hs-preview-area">
-          <div className="hs-preview-cards inline-flex justify-center gap-0.5 flex-wrap cursor-default">
-            {previewCards.slice(0, 5).map((card, i) => {
-              const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
-              return (
-                <div key={i} className="hs-preview-card playing-card no-hover inline-flex flex-col items-center justify-center w-10 h-14 mx-0 select-none">
-                  <span className={`text-xs font-bold leading-tight ${sc}`}>{card.rank}</span>
-                  <span className={`text-sm leading-tight ${sc}`}>{SUIT_SYMBOLS[card.suit]}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="text-center text-sm text-[var(--gold)] font-semibold mt-1.5">
-            {handToString(hand)}
-          </div>
-        </div>
-      )}
-
-      {/* ── Validation ────────────────────────────────── */}
+      {/* Validation */}
       {validationMsg && (
-        <p className="text-xs text-[var(--danger)]">{validationMsg}</p>
+        <p className="text-xs text-[var(--danger)] text-center mb-2">{validationMsg}</p>
       )}
 
-      {/* ── Submit Button ─────────────────────────────── */}
-      <button
-        onClick={handleSubmit}
-        disabled={!isValid}
-        className={`w-full btn-gold py-3 text-lg${isValid ? ' hs-call-pulse' : ''}`}
-      >
-        {currentHand ? 'Raise' : 'Call'}
-      </button>
+      {/* Two-column wheel layout */}
+      <div className="flex gap-2">
+        {/* Left column — Hand Type wheel */}
+        <div className="flex-1">
+          <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+            Hand Type
+          </div>
+          <WheelPicker
+            items={ALL_HAND_TYPES}
+            selectedIndex={handTypeIndex >= 0 ? handTypeIndex : 0}
+            onSelect={handleTypeWheel}
+            renderItem={renderHandType}
+          />
+        </div>
+
+        {/* Center — Preview */}
+        <div className="flex flex-col items-center justify-center" style={{ minWidth: '60px' }}>
+          {hand && (
+            <div className="flex flex-col items-center gap-0.5">
+              {previewCards.slice(0, 3).map((card, i) => {
+                const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
+                return (
+                  <div key={i} className="playing-card no-hover inline-flex flex-col items-center justify-center w-8 h-11 select-none">
+                    <span className={`text-[10px] font-bold leading-tight ${sc}`}>{card.rank}</span>
+                    <span className={`text-xs leading-tight ${sc}`}>{SUIT_SYMBOLS[card.suit]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Right column — Value wheel(s) */}
+        <div className="flex-1">
+          {isSuitOnly ? (
+            <>
+              <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                Suit
+              </div>
+              <WheelPicker
+                items={[...ALL_SUITS]}
+                selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                onSelect={handleSuitWheel}
+                renderItem={renderSuit}
+              />
+            </>
+          ) : needsRank2 ? (
+            <div className="flex flex-col gap-1">
+              <div>
+                <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                  {handType === HandType.FULL_HOUSE ? '3 of' : 'Pair 1'}
+                </div>
+                <WheelPicker
+                  items={[...rankList]}
+                  selectedIndex={rankList.indexOf(rank)}
+                  onSelect={handlePrimaryWheel}
+                  renderItem={renderRank}
+                  itemHeight={36}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                  {handType === HandType.FULL_HOUSE ? '2 of' : 'Pair 2'}
+                </div>
+                <WheelPicker
+                  items={[...rank2List]}
+                  selectedIndex={rank2Index >= 0 ? rank2Index : 0}
+                  onSelect={handleRank2Wheel}
+                  renderItem={renderRank}
+                  itemHeight={36}
+                />
+              </div>
+            </div>
+          ) : needsStraightRank && needsSuit ? (
+            // Straight Flush: rank wheel + suit wheel stacked
+            <div className="flex flex-col gap-1">
+              <div>
+                <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                  High Card
+                </div>
+                <WheelPicker
+                  items={[...rankList]}
+                  selectedIndex={rankList.indexOf(rank)}
+                  onSelect={handlePrimaryWheel}
+                  renderItem={renderRank}
+                  itemHeight={36}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                  Suit
+                </div>
+                <WheelPicker
+                  items={[...ALL_SUITS]}
+                  selectedIndex={suitIndex >= 0 ? suitIndex : 0}
+                  onSelect={handleSuitWheel}
+                  renderItem={renderSuit}
+                  itemHeight={36}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 text-center">
+                {needsStraightRank ? 'High Card' : 'Rank'}
+              </div>
+              <WheelPicker
+                items={[...rankList]}
+                selectedIndex={rankList.indexOf(rank)}
+                onSelect={handlePrimaryWheel}
+                renderItem={renderRank}
+              />
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
