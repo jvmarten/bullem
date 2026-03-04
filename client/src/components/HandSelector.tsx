@@ -24,7 +24,7 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
   const borderW = isSelected ? 'border-2' : 'border-[1.5px]';
   const shadowStyle = isSelected
-    ? '0 1px 3px rgba(0,0,0,0.15), 0 0 8px rgba(212,168,67,0.3)'
+    ? '0 1px 3px rgba(0,0,0,0.15), 0 0 4px rgba(212,168,67,0.15)'
     : '0 1px 2px rgba(0,0,0,0.12)';
 
   // Card back — red-backed mini card matching the game's deck-card-back style
