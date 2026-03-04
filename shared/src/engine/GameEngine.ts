@@ -10,6 +10,7 @@ import type {
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
 
+/** Result of processing a player action. Tells the caller what to do next. */
 export type TurnResult =
   | { type: 'continue' }
   | { type: 'last_chance'; playerId: PlayerId }
@@ -17,6 +18,11 @@ export type TurnResult =
   | { type: 'game_over'; winnerId: PlayerId; finalRoundResult?: RoundResult }
   | { type: 'error'; message: string };
 
+/**
+ * Core game state machine. Manages rounds, turns, and scoring.
+ * Pure logic — no I/O, no timers, no network. The server wraps this
+ * in socket handlers; the client wraps it in LocalGameContext for offline play.
+ */
 export class GameEngine {
   private deck = new Deck();
   private players: ServerPlayer[];
@@ -60,6 +66,7 @@ export class GameEngine {
     this._turnDeadline = deadline;
   }
 
+  /** Deal cards and begin a new round. Call once at game start. Use startNextRound() for subsequent rounds. */
   startRound(): void {
     this.roundNumber++;
     this.deck.reset();
@@ -93,6 +100,7 @@ export class GameEngine {
     return active.length === 1 ? active[0].id : null;
   }
 
+  /** Advance to the next round: rotate starting player, re-deal cards, reset turn state. */
   startNextRound(): { type: 'new_round' } | { type: 'game_over'; winnerId: PlayerId } {
     const active = this.getActivePlayers();
     if (active.length <= 1) {
@@ -137,6 +145,7 @@ export class GameEngine {
     return this.getActivePlayers()[this.currentPlayerIndex]?.id ?? '';
   }
 
+  /** Process a player calling (or raising to) a hand. Resets the bull phase. */
   handleCall(playerId: PlayerId, hand: HandCall): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -158,6 +167,7 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a player calling bull. May trigger last-chance or resolution if all non-callers responded. */
   handleBull(playerId: PlayerId): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -195,6 +205,7 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a player calling true (affirming the hand exists). Only valid during BULL_PHASE. */
   handleTrue(playerId: PlayerId): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -247,6 +258,7 @@ export class GameEngine {
     return this.resolveRound();
   }
 
+  /** Build a client-safe game state for a specific player (only their cards included). */
   getClientState(playerId: PlayerId): ClientGameState {
     const player = this.players.find(p => p.id === playerId);
     const isEliminated = player?.isEliminated ?? false;
