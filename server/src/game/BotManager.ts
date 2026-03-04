@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
+  maxPlayersForMaxCards,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -20,14 +21,25 @@ let botCounter = 0;
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
   private roomTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Separate timers for disconnected-player auto-actions, keyed by roomCode.
+   *  Tracked separately so clearTurnTimer cancels them alongside the main turn timer. */
+  private roomDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
 
   clearTurnTimer(roomCode: string): void {
     const existing = this.roomTurnTimers.get(roomCode);
-    if (!existing) return;
-    clearTimeout(existing);
-    this.pendingTimers.delete(existing);
-    this.roomTurnTimers.delete(roomCode);
+    if (existing) {
+      clearTimeout(existing);
+      this.pendingTimers.delete(existing);
+      this.roomTurnTimers.delete(roomCode);
+    }
+    // Also cancel any pending disconnect auto-action for this room
+    const disconnectTimer = this.roomDisconnectTimers.get(roomCode);
+    if (disconnectTimer) {
+      clearTimeout(disconnectTimer);
+      this.pendingTimers.delete(disconnectTimer);
+      this.roomDisconnectTimers.delete(roomCode);
+    }
   }
 
   setDifficulty(difficulty: BotDifficulty): void {
@@ -35,7 +47,10 @@ export class BotManager {
   }
 
   addBot(room: Room, botName?: string): string {
-    if (room.playerCount >= MAX_PLAYERS) {
+    const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
+    const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
+    const effectiveMax = Math.min(MAX_PLAYERS, cardBased, userCap);
+    if (room.playerCount >= effectiveMax) {
       throw new Error('Room is full');
     }
     if (room.gamePhase !== GamePhase.LOBBY) {
@@ -65,9 +80,11 @@ export class BotManager {
     if (!player) return;
 
     if (player.isBot) {
-      const state = room.game.getClientState(currentId);
-      const inBullPhase = state.roundPhase === RoundPhase.BULL_PHASE
-        || state.roundPhase === RoundPhase.LAST_CHANCE;
+      // Use lightweight currentRoundPhase instead of building full client state
+      // just to check the phase — avoids O(players) map + history copy.
+      const phase = room.game.currentRoundPhase;
+      const inBullPhase = phase === RoundPhase.BULL_PHASE
+        || phase === RoundPhase.LAST_CHANCE;
       const delay = inBullPhase
         ? this.computeBullDelay()
         : this.computeBotDelay(room);
@@ -90,13 +107,22 @@ export class BotManager {
     }
   }
 
-  /** Schedule an auto-action for a disconnected player who has no turn timer */
+  /** Schedule an auto-action for a disconnected player who has no turn timer.
+   *  Tracked per-room so clearTurnTimer cancels it if the turn advances. */
   scheduleDisconnectAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    // Cancel any existing disconnect timer for this room first
+    const existing = this.roomDisconnectTimers.get(room.roomCode);
+    if (existing) {
+      clearTimeout(existing);
+      this.pendingTimers.delete(existing);
+    }
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
+      this.roomDisconnectTimers.delete(room.roomCode);
       this.executeAutoAction(room, io, playerId);
     }, DISCONNECT_AUTO_ACTION_MS);
     this.pendingTimers.add(timer);
+    this.roomDisconnectTimers.set(room.roomCode, timer);
   }
 
   private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId, graceMs = 0): void {
@@ -123,6 +149,13 @@ export class BotManager {
   private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
     this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
+
+    // If the player reconnected since this auto-action was scheduled (e.g. a
+    // disconnect auto-action timer that wasn't cancelled), don't force a move
+    // on a connected player who is actively playing.
+    const player = room.players.get(playerId);
+    if (player?.isConnected && !player.isBot) return;
+
     if (room.game.currentPlayerId !== playerId) {
       // The player was already eliminated (e.g., by the disconnect timer) and
       // the turn moved on. Re-schedule for the new current player so the game
@@ -154,6 +187,7 @@ export class BotManager {
     for (const t of this.pendingTimers) clearTimeout(t);
     this.pendingTimers.clear();
     this.roomTurnTimers.clear();
+    this.roomDisconnectTimers.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {
@@ -172,7 +206,7 @@ export class BotManager {
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards, room.roomCode);
 
     let result: TurnResult;
     switch (decision.action) {
@@ -233,7 +267,14 @@ export class BotManager {
       }
 
       case 'game_over':
+        if (result.finalRoundResult) {
+          // Show the final round result before ending the game
+          if (room.game) room.game.setTurnDeadline(null);
+          broadcastGameState(io, room);
+          io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
+        }
         room.gamePhase = GamePhase.GAME_OVER;
+        room.cancelRoundContinueWindow();
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
     }
@@ -246,10 +287,8 @@ export class BotManager {
   private computeBotDelay(room: Room): number {
     if (!room.game) return BOT_THINK_DELAY_MIN;
 
-    const state = room.game.getClientState('__delay_calc__');
-    const activePlayers = state.players.filter(p => !p.isEliminated);
-    const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
-    const turnCount = state.turnHistory.length;
+    // Use lightweight summary instead of building a full ClientGameState
+    const { activePlayerCount, totalCards, turnCount } = room.game.getRoundSummary();
 
     // Base: 2-3.5s random
     const base = 2000 + Math.floor(Math.random() * 1500);
@@ -258,7 +297,7 @@ export class BotManager {
     const cardsFactor = Math.min(totalCards / 20, 1) * 2000;
 
     // Later in the round = more pressure, think longer (+0-1.5s)
-    const roundDepth = Math.min(turnCount / (activePlayers.length * 2), 1) * 1500;
+    const roundDepth = Math.min(turnCount / (activePlayerCount * 2), 1) * 1500;
 
     // Some randomness so bots don't feel robotic (±500ms)
     const jitter = (Math.random() - 0.5) * 1000;

@@ -9,10 +9,10 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
-import { VolumeControl } from '../components/VolumeControl.js';
+
 import { useGameContext } from '../context/GameContext.js';
-import { useGameSounds } from '../hooks/useSound.js';
-import { useEffect, useState, useCallback } from 'react';
+import { useSound, useGameSounds } from '../hooks/useSound.js';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 
 export function LocalGamePage() {
@@ -22,6 +22,7 @@ export function LocalGamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, isPaused, togglePause,
   } = useGameContext();
+  const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 
   // Defer navigation to results if a round result overlay is still showing
@@ -36,8 +37,9 @@ export function LocalGamePage() {
     }
   };
 
-  // Local games are in-memory only — if gameState is null (e.g. page refresh),
-  // redirect back to the lobby instead of showing a loading spinner forever.
+  // If gameState is null, there's no active local game — redirect to the lobby.
+  // Game state is restored synchronously in LocalGameProvider, so after a
+  // browser refresh gameState is already set on the first render.
   useEffect(() => {
     if (!gameState) navigate('/local');
   }, [gameState, navigate]);
@@ -47,6 +49,11 @@ export function LocalGamePage() {
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
+
+  const cardStats = useMemo(() => {
+    const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
+    return { total, pct: Math.round((total / 52) * 100) };
+  }, [gameState.players]);
   const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
     && gameState.lastCallerId === playerId;
 
@@ -75,6 +82,10 @@ export function LocalGamePage() {
     setHandSelectorOpen(false);
   }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
 
+  // Stable callback reference so ActionButtons' React.memo isn't broken by
+  // an inline arrow function creating a new reference on every render.
+  const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
+
   // Close hand selector when turn changes
   useEffect(() => {
     setHandSelectorOpen(false);
@@ -89,15 +100,9 @@ export function LocalGamePage() {
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
             </span>
-            {(() => {
-              const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
-              const pct = Math.round((total / 52) * 100);
-              return (
-                <span className="text-[var(--gold-dim)] font-mono" title={`${total} of 52 cards in play`}>
-                  {total}/52 cards ({pct}%)
-                </span>
-              );
-            })()}
+            <span className="text-[var(--gold-dim)] font-mono" title={`${cardStats.total} of 52 cards in play`}>
+              {cardStats.total}/52 cards ({cardStats.pct}%)
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {togglePause && (
@@ -119,7 +124,6 @@ export function LocalGamePage() {
                 )}
               </button>
             )}
-            <VolumeControl />
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
@@ -161,18 +165,24 @@ export function LocalGamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="text-center glass-raised px-3 py-1.5 animate-slide-up">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mr-2">
-              Current Call
-            </span>
-            <span className="font-display text-base font-bold text-[var(--gold)]">
-              {handToString(gameState.currentHand)}
-            </span>
-            {gameState.lastCallerId && (
-              <span className="text-[8px] text-[var(--gold-dim)] opacity-50 ml-1.5">
-                {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+            <div className="w-1/4 min-w-0 shrink-0">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Current Call
               </span>
-            )}
+            </div>
+            <div className="flex-1 min-w-0 text-center">
+              <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                {handToString(gameState.currentHand)}
+              </span>
+            </div>
+            <div className="w-1/4 min-w-0 shrink-0 text-right">
+              {gameState.lastCallerId && (
+                <span className="text-[9px] text-[var(--gold-dim)] opacity-70 truncate block">
+                  {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -198,12 +208,12 @@ export function LocalGamePage() {
               onBull={callBull}
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
-              onExpand={() => setHandSelectorOpen(false)}
+              onExpand={closeHandSelector}
             />
             {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up ml-auto">
                 <button
-                  onClick={() => setHandSelectorOpen(true)}
+                  onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                   className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}
@@ -227,12 +237,14 @@ export function LocalGamePage() {
 
         {/* Hand selector — appears below the action buttons so buttons stay put */}
         {canRaise && handSelectorOpen && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={handleHandSubmit}
-            onHandChange={handleHandChange}
-            showSubmit={false}
-          />
+          <div className="-mt-2">
+            <HandSelector
+              currentHand={gameState.currentHand}
+              onSubmit={handleHandSubmit}
+              onHandChange={handleHandChange}
+              showSubmit={false}
+            />
+          </div>
         )}
 
         {/* Round transition overlay */}

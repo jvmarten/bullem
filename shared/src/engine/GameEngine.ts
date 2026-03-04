@@ -5,11 +5,12 @@ import {
 } from '../types.js';
 import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
-  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards,
+  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards, GameEngineSnapshot,
 } from '../types.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
 
+/** Result of processing a player action. Tells the caller what to do next. */
 export type TurnResult =
   | { type: 'continue' }
   | { type: 'last_chance'; playerId: PlayerId }
@@ -17,6 +18,11 @@ export type TurnResult =
   | { type: 'game_over'; winnerId: PlayerId; finalRoundResult?: RoundResult }
   | { type: 'error'; message: string };
 
+/**
+ * Core game state machine. Manages rounds, turns, and scoring.
+ * Pure logic — no I/O, no timers, no network. The server wraps this
+ * in socket handlers; the client wraps it in LocalGameContext for offline play.
+ */
 export class GameEngine {
   private deck = new Deck();
   private players: ServerPlayer[];
@@ -33,6 +39,12 @@ export class GameEngine {
   private lastChanceUsed = false;
   private gameStats: GameStats;
   private _turnDeadline: number | null = null;
+  /** Cached active players list — invalidated when the eliminated count changes.
+   *  Avoids creating a new filtered array on every call to getActivePlayers(),
+   *  which is invoked 5-10 times per turn action across validateTurn, advanceTurn,
+   *  allNonCallersResponded, currentPlayerId, resolveRound, etc. */
+  private _activePlayers: ServerPlayer[] | null = null;
+  private _activePlayersEliminatedCount = -1;
 
   constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
@@ -56,10 +68,17 @@ export class GameEngine {
     return this.settings.turnTimer ?? 0;
   }
 
+  /** Current round phase — lightweight accessor to avoid building full client state
+   *  when callers only need to check the phase (e.g. for bot delay selection). */
+  get currentRoundPhase(): RoundPhase {
+    return this.roundPhase;
+  }
+
   setTurnDeadline(deadline: number | null): void {
     this._turnDeadline = deadline;
   }
 
+  /** Deal cards and begin a new round. Call once at game start. Use startNextRound() for subsequent rounds. */
   startRound(): void {
     this.roundNumber++;
     this.deck.reset();
@@ -93,6 +112,7 @@ export class GameEngine {
     return active.length === 1 ? active[0].id : null;
   }
 
+  /** Advance to the next round: rotate starting player, re-deal cards, reset turn state. */
   startNextRound(): { type: 'new_round' } | { type: 'game_over'; winnerId: PlayerId } {
     const active = this.getActivePlayers();
     if (active.length <= 1) {
@@ -122,7 +142,8 @@ export class GameEngine {
 
     // Re-deal cards based on each player's current card count (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      const available = Math.min(p.cardCount, this.deck.remaining);
+      const needed = p.cardCount || STARTING_CARDS;
+      const available = Math.min(needed, this.deck.remaining);
       p.cards = this.deck.deal(available);
     }
 
@@ -136,6 +157,7 @@ export class GameEngine {
     return this.getActivePlayers()[this.currentPlayerIndex]?.id ?? '';
   }
 
+  /** Process a player calling (or raising to) a hand. Resets the bull phase. */
   handleCall(playerId: PlayerId, hand: HandCall): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -157,6 +179,7 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a player calling bull. May trigger last-chance or resolution if all non-callers responded. */
   handleBull(playerId: PlayerId): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -194,6 +217,7 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a player calling true (affirming the hand exists). Only valid during BULL_PHASE. */
   handleTrue(playerId: PlayerId): TurnResult {
     const error = this.validateTurn(playerId);
     if (error) return { type: 'error', message: error };
@@ -226,7 +250,8 @@ export class GameEngine {
 
     this.currentHand = hand;
     this.lastChanceUsed = true;
-    this.addTurnEntry(playerId, TurnAction.CALL, hand);
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
+    this.gameStats.playerStats[playerId].callsMade++;
     this.roundPhase = RoundPhase.BULL_PHASE;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
@@ -241,24 +266,32 @@ export class GameEngine {
     if (playerId !== this.lastCallerId) {
       return { type: 'error', message: 'Only the last caller can pass' };
     }
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_PASS);
     return this.resolveRound();
   }
 
+  /** Build a client-safe game state for a specific player (only their cards included). */
   getClientState(playerId: PlayerId): ClientGameState {
     const player = this.players.find(p => p.id === playerId);
     const isEliminated = player?.isEliminated ?? false;
+
+    // Compute shared state once per broadcast cycle (cached until turn history
+    // or players change). The server calls getClientState once per player per
+    // broadcast — sharing the public-players array and turn-history snapshot
+    // avoids O(players^2) allocations (e.g. 12 players = 12 map() + 12 spread).
+    const shared = this.getSharedClientState();
 
     const state: ClientGameState = {
       gamePhase: GamePhase.PLAYING,
       roundPhase: this.roundPhase,
       roundNumber: this.roundNumber,
       maxCards: this.settings.maxCards,
-      players: this.players.map(toPublicPlayer),
+      players: shared.publicPlayers,
       myCards: player?.cards ?? [],
       currentPlayerId: this.currentPlayerId,
       currentHand: this.currentHand,
       lastCallerId: this.lastCallerId,
-      turnHistory: [...this.turnHistory],
+      turnHistory: shared.turnHistorySnapshot,
       startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
@@ -276,12 +309,59 @@ export class GameEngine {
     return state;
   }
 
+  /** Cached shared state for getClientState — avoids re-computing public
+   *  players and turn history snapshots once per player per broadcast. */
+  private _sharedClientState: {
+    publicPlayers: Player[];
+    turnHistorySnapshot: TurnEntry[];
+    turnHistoryLength: number;
+    playerCount: number;
+  } | null = null;
+
+  private getSharedClientState(): { publicPlayers: Player[]; turnHistorySnapshot: TurnEntry[] } {
+    const cached = this._sharedClientState;
+    if (cached && cached.turnHistoryLength === this.turnHistory.length && cached.playerCount === this.players.length) {
+      return cached;
+    }
+    const shared = {
+      publicPlayers: this.players.map(toPublicPlayer),
+      turnHistorySnapshot: [...this.turnHistory],
+      turnHistoryLength: this.turnHistory.length,
+      playerCount: this.players.length,
+    };
+    this._sharedClientState = shared;
+    return shared;
+  }
+
   getGameStats(): GameStats {
     return this.gameStats;
   }
 
   getActivePlayers(): ServerPlayer[] {
-    return this.players.filter(p => !p.isEliminated);
+    // Count eliminated players to detect changes (including external mutations
+    // in tests). Only rebuilds the filtered array when the count changes.
+    let eliminated = 0;
+    for (const p of this.players) {
+      if (p.isEliminated) eliminated++;
+    }
+    if (this._activePlayers === null || eliminated !== this._activePlayersEliminatedCount) {
+      this._activePlayersEliminatedCount = eliminated;
+      this._activePlayers = this.players.filter(p => !p.isEliminated);
+    }
+    return this._activePlayers;
+  }
+
+  /** Lightweight summary for bot delay calculations — avoids building a full ClientGameState. */
+  getRoundSummary(): { activePlayerCount: number; totalCards: number; turnCount: number } {
+    let activePlayerCount = 0;
+    let totalCards = 0;
+    for (const p of this.players) {
+      if (!p.isEliminated) {
+        activePlayerCount++;
+        totalCards += p.cardCount;
+      }
+    }
+    return { activePlayerCount, totalCards, turnCount: this.turnHistory.length };
   }
 
   /** Eliminate a player mid-game (intentional leave). Returns the resulting game action. */
@@ -297,6 +377,7 @@ export class GameEngine {
 
     player.isEliminated = true;
     player.cards = [];
+    this._activePlayers = null;
 
     const active = this.getActivePlayers();
     if (active.length <= 1) {
@@ -434,6 +515,7 @@ export class GameEngine {
         p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
         if (p.cardCount > this.settings.maxCards) {
           p.isEliminated = true;
+          this._activePlayers = null;
           eliminatedPlayerIds.push(p.id);
         }
       }
@@ -478,9 +560,13 @@ export class GameEngine {
 
   private advanceTurn(): void {
     const active = this.getActivePlayers();
+    if (active.length === 0) return;
     let next = (this.currentPlayerIndex + 1) % active.length;
-    // Skip the last caller (they don't respond to their own call)
-    while (active[next]?.id === this.lastCallerId) {
+    // Skip the last caller (they don't respond to their own call).
+    // Safety bound: iterate at most active.length times to prevent infinite loop
+    // if game state is somehow inconsistent.
+    let guard = active.length;
+    while (active[next]?.id === this.lastCallerId && guard-- > 0) {
       next = (next + 1) % active.length;
     }
     this.currentPlayerIndex = next;
@@ -492,10 +578,33 @@ export class GameEngine {
   }
 
   private isAfterLastCall(entry: TurnEntry): boolean {
-    const lastCallIndex = [...this.turnHistory].reverse().findIndex(t => t.action === TurnAction.CALL);
-    if (lastCallIndex === -1) return false;
-    const actualIndex = this.turnHistory.length - 1 - lastCallIndex;
-    return this.turnHistory.indexOf(entry) > actualIndex;
+    const lastCallIdx = this.getLastCallIndex();
+    if (lastCallIdx === -1) return false;
+    return this.turnHistory.indexOf(entry) > lastCallIdx;
+  }
+
+  /** Cached index of the last CALL/LAST_CHANCE_RAISE in turnHistory.
+   *  Avoids the O(history) reverse search on every isAfterLastCall() call,
+   *  which was previously O(history²) when called inside .some() loops. */
+  private _lastCallIndex = -1;
+  private _lastCallIndexLength = -1;
+
+  private getLastCallIndex(): number {
+    if (this._lastCallIndexLength === this.turnHistory.length) {
+      return this._lastCallIndex;
+    }
+    // Scan backwards once to find the last call/raise
+    let idx = -1;
+    for (let i = this.turnHistory.length - 1; i >= 0; i--) {
+      const action = this.turnHistory[i].action;
+      if (action === TurnAction.CALL || action === TurnAction.LAST_CHANCE_RAISE) {
+        idx = i;
+        break;
+      }
+    }
+    this._lastCallIndex = idx;
+    this._lastCallIndexLength = this.turnHistory.length;
+    return idx;
   }
 
   private getPlayerLastAction(playerId: PlayerId): TurnAction | null {
@@ -534,6 +643,88 @@ export class GameEngine {
       hand,
       timestamp: Date.now(),
     });
+  }
+
+  /** Serialize the engine to a JSON-safe snapshot for persistence. */
+  serialize(): GameEngineSnapshot {
+    return {
+      players: this.players.map(p => ({ ...p, cards: [...p.cards] })),
+      settings: { ...this.settings },
+      roundNumber: this.roundNumber,
+      roundPhase: this.roundPhase,
+      currentPlayerIndex: this.currentPlayerIndex,
+      currentHand: this.currentHand ? { ...this.currentHand } : null,
+      lastCallerId: this.lastCallerId,
+      turnHistory: this.turnHistory.map(t => ({ ...t })),
+      startingPlayerIndex: this.startingPlayerIndex,
+      respondedPlayers: [...this.respondedPlayers],
+      lastChanceUsed: this.lastChanceUsed,
+      gameStats: JSON.parse(JSON.stringify(this.gameStats)),
+    };
+  }
+
+  /** Restore a GameEngine from a serialized snapshot.
+   *  Validates state integrity to prevent corrupted game state from crashing
+   *  the server (e.g. out-of-bounds indices, missing players). */
+  static restore(snapshot: GameEngineSnapshot): GameEngine {
+    // Validate players array
+    if (!Array.isArray(snapshot.players) || snapshot.players.length === 0) {
+      throw new Error('Invalid snapshot: players array is empty or missing');
+    }
+
+    const activePlayers = snapshot.players.filter(p => !p.isEliminated);
+
+    // Validate indices are in bounds
+    if (activePlayers.length > 0) {
+      if (snapshot.currentPlayerIndex < 0 || snapshot.currentPlayerIndex >= activePlayers.length) {
+        throw new Error(
+          `Invalid snapshot: currentPlayerIndex ${snapshot.currentPlayerIndex} out of bounds (${activePlayers.length} active players)`
+        );
+      }
+      if (snapshot.startingPlayerIndex < 0 || snapshot.startingPlayerIndex >= activePlayers.length) {
+        throw new Error(
+          `Invalid snapshot: startingPlayerIndex ${snapshot.startingPlayerIndex} out of bounds (${activePlayers.length} active players)`
+        );
+      }
+    }
+
+    // Validate lastCallerId refers to a real player (if set)
+    if (snapshot.lastCallerId !== null) {
+      const callerExists = snapshot.players.some(p => p.id === snapshot.lastCallerId);
+      if (!callerExists) {
+        throw new Error(`Invalid snapshot: lastCallerId "${snapshot.lastCallerId}" not found in players`);
+      }
+    }
+
+    // Validate respondedPlayers are all real player IDs
+    const playerIds = new Set(snapshot.players.map(p => p.id));
+    for (const id of snapshot.respondedPlayers) {
+      if (!playerIds.has(id)) {
+        throw new Error(`Invalid snapshot: respondedPlayer "${id}" not found in players`);
+      }
+    }
+
+    // Validate roundPhase is a known value
+    const validPhases = Object.values(RoundPhase);
+    if (!validPhases.includes(snapshot.roundPhase)) {
+      throw new Error(`Invalid snapshot: unknown roundPhase "${snapshot.roundPhase}"`);
+    }
+
+    const engine = new GameEngine(
+      snapshot.players.map(p => ({ ...p, cards: [...p.cards] })),
+      snapshot.settings,
+    );
+    engine.roundNumber = snapshot.roundNumber;
+    engine.roundPhase = snapshot.roundPhase;
+    engine.currentPlayerIndex = snapshot.currentPlayerIndex;
+    engine.currentHand = snapshot.currentHand;
+    engine.lastCallerId = snapshot.lastCallerId;
+    engine.turnHistory = snapshot.turnHistory.map(t => ({ ...t }));
+    engine.startingPlayerIndex = snapshot.startingPlayerIndex;
+    engine.respondedPlayers = new Set(snapshot.respondedPlayers);
+    engine.lastChanceUsed = snapshot.lastChanceUsed;
+    engine.gameStats = JSON.parse(JSON.stringify(snapshot.gameStats));
+    return engine;
   }
 }
 

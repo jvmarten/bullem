@@ -1,11 +1,11 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
-import { beginRoundResultPhase } from './roundTransition.js';
+import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -14,6 +14,17 @@ function sanitizeName(raw: unknown): string | null {
   if (trimmed.length === 0 || trimmed.length > PLAYER_NAME_MAX_LENGTH) return null;
   if (!PLAYER_NAME_PATTERN.test(trimmed)) return null;
   return trimmed;
+}
+
+const ROOM_CODE_PATTERN = /^[A-Z]{4}$/;
+
+/** Validate a room code. Returns the uppercased code or null if invalid. */
+function sanitizeRoomCode(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const upper = raw.trim().toUpperCase();
+  if (upper.length !== ROOM_CODE_LENGTH) return null;
+  if (!ROOM_CODE_PATTERN.test(upper)) return null;
+  return upper;
 }
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -31,48 +42,70 @@ export function registerLobbyHandlers(
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, name);
+    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
-    callback({ roomCode: room.roomCode });
+    callback({ roomCode: room.roomCode, reconnectToken });
   });
 
   socket.on('room:join', (data, callback) => {
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
 
-    const room = roomManager.getRoom(data.roomCode);
+    const roomCode = sanitizeRoomCode(data.roomCode);
+    if (!roomCode) return callback({ error: 'Invalid room code' });
+
+    const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
 
-    // Check for reconnection
-    if (data.playerId && room.handleReconnect(socket.id, data.playerId)) {
-      roomManager.assignSocketToRoom(socket.id, room.roomCode);
-      socket.join(room.roomCode);
-      broadcastRoomState(io, room);
-      if (room.game) broadcastGameState(io, room);
-      io.to(room.roomCode).emit('player:reconnected', data.playerId);
-      broadcastPlayerNames(io, roomManager);
-      return callback({ playerId: data.playerId });
+    // Check for reconnection — requires the secret reconnect token
+    if (data.playerId) {
+      const newToken = room.handleReconnect(socket.id, data.playerId, data.reconnectToken);
+      if (newToken) {
+        roomManager.assignSocketToRoom(socket.id, room.roomCode);
+        socket.join(room.roomCode);
+        broadcastRoomState(io, room);
+        if (room.game) broadcastGameState(io, room);
+        io.to(room.roomCode).emit('player:reconnected', data.playerId);
+        broadcastPlayerNames(io, roomManager);
+        // Return the rotated reconnect token so the client stores it for future reconnects
+        return callback({ playerId: data.playerId, reconnectToken: newToken });
+      }
     }
 
     const effectiveMax = roomManager.effectiveMaxPlayers(room);
     if (room.playerCount >= effectiveMax) return callback({ error: 'Room is full' });
     if (room.gamePhase !== GamePhase.LOBBY) return callback({ error: 'Game already in progress' });
 
+    // Prevent duplicate names within the same room — confusing for all players
+    const nameLower = name.toLowerCase();
+    const nameExists = [...room.players.values()].some(p => p.name.toLowerCase() === nameLower);
+    if (nameExists) return callback({ error: 'Name already taken in this room' });
+
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, name);
+    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
-    callback({ playerId });
+    callback({ playerId, reconnectToken });
   });
 
   socket.on('room:leave', () => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
+
+    // If this socket is a spectator, clean up and exit early
+    if (room.spectatorSockets.has(socket.id)) {
+      room.spectatorSockets.delete(socket.id);
+      roomManager.removeSocketMapping(socket.id);
+      socket.leave(room.roomCode);
+      return;
+    }
 
     const playerId = room.getPlayerId(socket.id);
     botManager.clearTurnTimer(room.roomCode);
@@ -84,6 +117,7 @@ export function registerLobbyHandlers(
       // Remove from room after engine elimination (engine keeps its own player list)
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
 
       switch (result.type) {
@@ -106,6 +140,7 @@ export function registerLobbyHandlers(
       const result = room.game.eliminatePlayer(playerId);
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
 
       if (result.type === 'game_over') {
@@ -113,20 +148,24 @@ export function registerLobbyHandlers(
         room.cancelRoundContinueWindow();
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
       } else {
+        // The leaving player may have been the last one who hadn't pressed Continue.
+        // Re-check so the remaining players aren't stuck waiting.
+        checkRoundContinueComplete(io, room, botManager);
         broadcastGameState(io, room);
       }
     } else {
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      if (playerId) roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
     }
 
     // Clean up empty rooms
     if (room.isEmpty) {
       roomManager.deleteRoom(room.roomCode);
+    } else {
+      broadcastRoomState(io, room);
     }
-
-    broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
   });
 
@@ -155,7 +194,10 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:spectate', (data, callback) => {
-    const room = roomManager.getRoom(data.roomCode);
+    const roomCode = sanitizeRoomCode(data.roomCode);
+    if (!roomCode) return callback({ error: 'Invalid room code' });
+
+    const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
     if (!room.settings.allowSpectators) return callback({ error: 'Spectating not allowed' });
     if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT && room.gamePhase !== GamePhase.GAME_OVER) {
@@ -192,7 +234,7 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Invalid max cards setting');
       return;
     }
-    if (typeof turnTimer !== 'number' || !([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) {
+    if (typeof turnTimer !== 'number' || !(ONLINE_TURN_TIMER_OPTIONS as readonly number[]).includes(turnTimer)) {
       socket.emit('room:error', 'Invalid turn timer setting');
       return;
     }
@@ -204,7 +246,16 @@ export function registerLobbyHandlers(
       }
     }
 
-    room.updateSettings(data.settings);
+    // Sanitize boolean settings — coerce to boolean or strip non-boolean values
+    const validated: GameSettings = {
+      maxCards,
+      turnTimer,
+      maxPlayers,
+      allowSpectators: data.settings.allowSpectators === true,
+      spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
+    };
+
+    room.updateSettings(validated);
     broadcastRoomState(io, room);
   });
 
@@ -230,6 +281,7 @@ export function registerLobbyHandlers(
 
     try {
       const botId = botManager.addBot(room, data.botName);
+      roomManager.assignPlayerToRoom(botId, room.roomCode);
       broadcastRoomState(io, room);
       callback({ botId });
     } catch (e) {
@@ -248,6 +300,7 @@ export function registerLobbyHandlers(
     }
 
     botManager.removeBot(room, data.botId);
+    roomManager.removePlayerMapping(data.botId);
     broadcastRoomState(io, room);
   });
 
@@ -264,6 +317,8 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
+    // Clear cross-round bot memory for this room's scope
+    BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);

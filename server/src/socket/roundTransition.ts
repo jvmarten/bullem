@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase } from '@bull-em/shared';
+import { GamePhase, BotPlayer } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { BotManager } from '../game/BotManager.js';
@@ -22,9 +22,11 @@ function startNextRound(io: TypedServer, room: Room, botManager: BotManager): vo
   }
 
   room.gamePhase = GamePhase.PLAYING;
-  broadcastNewRound(io, room);
+  // broadcastNewRound already sends per-player game state — no need to also
+  // call broadcastGameState which would duplicate the same data to every socket.
+  // Schedule the bot turn first so the human turn deadline is set before broadcast.
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
-  broadcastGameState(io, room);
+  broadcastNewRound(io, room);
 }
 
 export function beginRoundResultPhase(
@@ -40,6 +42,9 @@ export function beginRoundResultPhase(
 
   room.gamePhase = GamePhase.ROUND_RESULT;
   io.to(room.roomCode).emit('game:roundResult', result);
+
+  // Update cross-round bot memory with round outcome, scoped to this room
+  BotPlayer.updateMemory(result, room.roomCode);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
     startNextRound(io, room, botManager);
@@ -57,7 +62,8 @@ export function markContinueReady(
   playerId: PlayerId,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
-  room.markRoundContinueReady(playerId);
+  // Idempotent: skip if already marked (prevents wasted isRoundContinueComplete checks)
+  if (!room.markRoundContinueReady(playerId)) return;
   if (room.isRoundContinueComplete) {
     startNextRound(io, room, botManager);
   }

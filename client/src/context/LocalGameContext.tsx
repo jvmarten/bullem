@@ -1,14 +1,69 @@
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats } from '@bull-em/shared';
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
+  BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
+import { socket } from '../socket.js';
 
 const HUMAN_ID = 'human-1';
+const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
+
+interface LocalGameSave {
+  engineSnapshot: GameEngineSnapshot;
+  players: ServerPlayer[];
+  botDifficulty: BotDifficulty;
+  gameSettings: GameSettings;
+  roundResult: RoundResult | null;
+  botCounter: number;
+}
+
+function saveLocalGame(save: LocalGameSave): void {
+  try {
+    localStorage.setItem(LOCAL_GAME_STORAGE_KEY, JSON.stringify(save));
+  } catch {
+    // Storage full or unavailable — silently ignore
+  }
+}
+
+function loadLocalGame(): LocalGameSave | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_GAME_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as LocalGameSave;
+  } catch {
+    localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
+    return null;
+  }
+}
+
+function clearLocalGameSave(): void {
+  localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
+}
+
+/**
+ * Attempt to restore a saved game synchronously.
+ * This runs during the first render (via useState lazy initializer) so that
+ * child components see restored state immediately — before any effects fire.
+ * Without this, LocalGamePage's redirect effect navigates away before the
+ * restore effect in LocalGameProvider has a chance to run (React runs child
+ * effects before parent effects).
+ */
+function tryRestoreGame(): { engine: GameEngine; save: LocalGameSave } | null {
+  const save = loadLocalGame();
+  if (!save) return null;
+  try {
+    const engine = GameEngine.restore(save.engineSnapshot);
+    return { engine, save };
+  } catch {
+    clearLocalGameSave();
+    return null;
+  }
+}
 
 function toPublicPlayer(p: ServerPlayer): Player {
   return {
@@ -23,27 +78,55 @@ function toPublicPlayer(p: ServerPlayer): Player {
 }
 
 export function LocalGameProvider({ children }: { children: ReactNode }) {
-  const [roomState, setRoomState] = useState<RoomState | null>(null);
-  const [gameState, setGameState] = useState<ClientGameState | null>(null);
-  const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
+  // Synchronously restore saved game on first render so child components
+  // see the restored state immediately (before any effects run).
+  const [initialRestore] = useState(tryRestoreGame);
+
+  const [roomState, setRoomState] = useState<RoomState | null>(
+    initialRestore ? {
+      roomCode: 'LOCAL',
+      players: initialRestore.save.players.map(toPublicPlayer),
+      hostId: HUMAN_ID,
+      gamePhase: GamePhase.PLAYING,
+      settings: initialRestore.save.gameSettings,
+    } : null,
+  );
+  const [gameState, setGameState] = useState<ClientGameState | null>(
+    initialRestore ? initialRestore.engine.getClientState(HUMAN_ID) : null,
+  );
+  const [roundResult, setRoundResult] = useState<RoundResult | null>(
+    initialRestore?.save.roundResult ?? null,
+  );
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
-  const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(
+    initialRestore?.save.botDifficulty ?? (DEFAULT_BOT_DIFFICULTY as BotDifficulty),
+  );
+  const [gameSettings, setGameSettings] = useState<GameSettings>(
+    initialRestore?.save.gameSettings ?? { ...DEFAULT_GAME_SETTINGS },
+  );
 
   const [isPaused, setIsPaused] = useState(false);
+  const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
+  const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
 
-  const engineRef = useRef<GameEngine | null>(null);
-  const playersRef = useRef<ServerPlayer[]>([]);
+  const engineRef = useRef<GameEngine | null>(initialRestore?.engine ?? null);
+  const playersRef = useRef<ServerPlayer[]>(initialRestore?.save.players ?? []);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
-  const gameSettingsRef = useRef<GameSettings>(gameSettings);
+  const botDifficultyRef = useRef<BotDifficulty>(
+    initialRestore?.save.botDifficulty ?? (DEFAULT_BOT_DIFFICULTY as BotDifficulty),
+  );
+  const gameSettingsRef = useRef<GameSettings>(
+    initialRestore?.save.gameSettings ?? { ...DEFAULT_GAME_SETTINGS },
+  );
   const isPausedRef = useRef(false);
   const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
+  // Schedule bot/human turns after restore if we're mid-round (no round result overlay)
+  const restoredRef = useRef(initialRestore !== null && !initialRestore.save.roundResult);
 
   // Keep refs in sync
   useEffect(() => {
@@ -57,6 +140,18 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  // Listen for online player count (socket is connected at module level)
+  useEffect(() => {
+    const handleCount = (count: number) => setOnlinePlayerCount(count);
+    const handleNames = (names: string[]) => setOnlinePlayerNames(names);
+    socket.on('server:playerCount', handleCount);
+    socket.on('server:playerNames', handleNames);
+    return () => {
+      socket.off('server:playerCount', handleCount);
+      socket.off('server:playerNames', handleNames);
+    };
+  }, []);
 
   // Auto-clear errors
   useEffect(() => {
@@ -74,11 +169,26 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Game restoration now happens synchronously in useState initializers above,
+  // so child components see restored state on their first render.
+
   const clearHumanTimer = useCallback(() => {
     if (turnTimerRef.current) {
       clearTimeout(turnTimerRef.current);
       turnTimerRef.current = null;
     }
+  }, []);
+
+  const persistGame = useCallback((rr: RoundResult | null = null) => {
+    if (!engineRef.current) return;
+    saveLocalGame({
+      engineSnapshot: engineRef.current.serialize(),
+      players: playersRef.current.map(p => ({ ...p, cards: [...p.cards] })),
+      botDifficulty: botDifficultyRef.current,
+      gameSettings: gameSettingsRef.current,
+      roundResult: rr,
+      botCounter: botCounter.current,
+    });
   }, []);
 
   const broadcastState = useCallback(() => {
@@ -91,23 +201,22 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-  }, []);
+    persistGame(null);
+  }, [persistGame]);
 
   const computeBotDelay = useCallback((): number => {
     const engine = engineRef.current;
     if (!engine) return BOT_THINK_DELAY_MIN;
 
-    const state = engine.getClientState('__delay_calc__');
-    const activePlayers = state.players.filter(p => !p.isEliminated);
-    const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
-    const turnCount = state.turnHistory.length;
+    // Use lightweight summary instead of building a full ClientGameState
+    const { activePlayerCount, totalCards, turnCount } = engine.getRoundSummary();
 
     // Base: 2-3.5s random
     const base = 2000 + Math.floor(Math.random() * 1500);
     // More total cards = more to think about (+0-2s)
     const cardsFactor = Math.min(totalCards / 20, 1) * 2000;
     // Later in the round = more pressure, think longer (+0-1.5s)
-    const roundDepth = Math.min(turnCount / (activePlayers.length * 2), 1) * 1500;
+    const roundDepth = Math.min(turnCount / (activePlayerCount * 2), 1) * 1500;
     // Some randomness (±500ms)
     const jitter = (Math.random() - 0.5) * 1000;
 
@@ -123,7 +232,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const player = playersRef.current.find(p => p.id === currentId);
     if (!player?.isBot) return;
 
-    const delay = computeBotDelay();
+    // Use faster delay for bull/last chance phases (matches server BotManager).
+    // Use lightweight currentRoundPhase instead of building full client state.
+    const phase = engine.currentRoundPhase;
+    const inBullPhase = phase === RoundPhase.BULL_PHASE
+      || phase === RoundPhase.LAST_CHANCE;
+    const delay = inBullPhase
+      ? BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))
+      : computeBotDelay();
 
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
@@ -197,10 +313,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         // Update game state so UI sees null deadline (without clearing roundResult)
         setGameState(engine.getClientState(HUMAN_ID));
         setRoundResult(result.result);
+        persistGame(result.result);
         break;
 
       case 'game_over':
         engine.setTurnDeadline(null);
+        clearLocalGameSave();
         if (result.finalRoundResult) {
           // Show the final round result overlay before navigating to results
           setGameState(engine.getClientState(HUMAN_ID));
@@ -212,7 +330,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         }
         break;
     }
-  }, [broadcastState, scheduleBotTurn, clearHumanTimer]);
+  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame]);
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -229,7 +347,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards, 'local');
 
     let result: TurnResult;
     switch (decision.action) {
@@ -285,6 +403,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, [scheduleBotTurn, scheduleHumanTimer]);
 
+  // After restoring a saved game, schedule bot/human turns once callbacks are ready
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    restoredRef.current = false;
+    scheduleBotTurn();
+    scheduleHumanTimer();
+  }, [scheduleBotTurn, scheduleHumanTimer]);
+
   // --- Context API methods ---
 
   const createRoom = useCallback(async (playerName: string): Promise<string> => {
@@ -319,6 +445,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
     clearHumanTimer();
+    clearLocalGameSave();
     engineRef.current = null;
     playersRef.current = [];
     setRoomState(null);
@@ -350,6 +477,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
     engine.startRound();
+    // Clear cross-round bot memory for the local game scope
+    BotPlayer.resetMemory('local');
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
     scheduleBotTurn();
@@ -429,7 +558,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, [roundResult, clearRoundResult]);
 
-  let botCounter = useRef(0);
+  const botCounter = useRef(initialRestore?.save.botCounter ?? 0);
 
   const addBot = useCallback(async (botName?: string): Promise<string> => {
     const settings = gameSettingsRef.current;
@@ -477,16 +606,25 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = {
+  const clearErrorAction = useCallback(() => setError(null), []);
+  const noopListRooms = useCallback(async () => [] as never[], []);
+  const noopListLiveGames = useCallback(async () => [] as never[], []);
+  const noopSpectate = useCallback(async () => {}, []);
+  const noopUpdateSettings = useCallback(() => {}, []);
+  const noopDeleteRoom = useCallback(() => {}, []);
+
+  const value = useMemo(() => ({
     roomState,
     gameState,
     roundResult,
     roundTransition,
+    roundTransitionDeadline: null as null,
     winnerId,
     gameStats,
     playerId: HUMAN_ID,
     error,
-    isConnected: true,
+    isConnected: true as const,
+    hasConnected: true as const,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -496,7 +634,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     callTrue,
     lastChanceRaise,
     lastChancePass,
-    clearError: () => setError(null),
+    clearError: clearErrorAction,
     clearRoundResult,
     addBot,
     removeBot,
@@ -506,14 +644,21 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setGameSettings,
     isPaused,
     togglePause,
-    onlinePlayerCount: 0,
-    onlinePlayerNames: [],
-    listRooms: async () => [],
-    listLiveGames: async () => [],
-    spectateGame: async () => {},
-    updateSettings: () => {},
-    deleteRoom: () => {},
-  };
+    onlinePlayerCount,
+    onlinePlayerNames,
+    listRooms: noopListRooms,
+    listLiveGames: noopListLiveGames,
+    spectateGame: noopSpectate,
+    updateSettings: noopUpdateSettings,
+    deleteRoom: noopDeleteRoom,
+  }), [
+    roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
+    error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
+    callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
+    addBot, removeBot, botDifficulty, setBotDifficulty, gameSettings,
+    setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
+    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom,
+  ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

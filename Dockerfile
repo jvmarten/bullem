@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:20.11-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY tsconfig.base.json ./
 RUN npm run build
 
 # ---- Production stage ----
-FROM node:20.11-alpine
+FROM node:22-alpine
 
 # Run as non-root for security
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
