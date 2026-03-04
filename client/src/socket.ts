@@ -11,3 +11,9 @@ export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
 });
+
+// Connect once at module load — the socket stays connected for the lifetime of
+// the app. Individual providers register/unregister listeners but never
+// disconnect, preventing the player-count inflation that occurred when
+// GameProvider rapidly disconnected/reconnected on route changes.
+socket.connect();

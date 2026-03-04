@@ -96,9 +96,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  // Connect socket for online player count indicator
+  // Listen for online player count (socket is connected at module level)
   useEffect(() => {
-    socket.connect();
     const handleCount = (count: number) => setOnlinePlayerCount(count);
     const handleNames = (names: string[]) => setOnlinePlayerNames(names);
     socket.on('server:playerCount', handleCount);
@@ -106,7 +105,6 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     return () => {
       socket.off('server:playerCount', handleCount);
       socket.off('server:playerNames', handleNames);
-      socket.disconnect();
     };
   }, []);
 
