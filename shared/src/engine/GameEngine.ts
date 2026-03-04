@@ -563,8 +563,53 @@ export class GameEngine {
     };
   }
 
-  /** Restore a GameEngine from a serialized snapshot. */
+  /** Restore a GameEngine from a serialized snapshot.
+   *  Validates state integrity to prevent corrupted game state from crashing
+   *  the server (e.g. out-of-bounds indices, missing players). */
   static restore(snapshot: GameEngineSnapshot): GameEngine {
+    // Validate players array
+    if (!Array.isArray(snapshot.players) || snapshot.players.length === 0) {
+      throw new Error('Invalid snapshot: players array is empty or missing');
+    }
+
+    const activePlayers = snapshot.players.filter(p => !p.isEliminated);
+
+    // Validate indices are in bounds
+    if (activePlayers.length > 0) {
+      if (snapshot.currentPlayerIndex < 0 || snapshot.currentPlayerIndex >= activePlayers.length) {
+        throw new Error(
+          `Invalid snapshot: currentPlayerIndex ${snapshot.currentPlayerIndex} out of bounds (${activePlayers.length} active players)`
+        );
+      }
+      if (snapshot.startingPlayerIndex < 0 || snapshot.startingPlayerIndex >= activePlayers.length) {
+        throw new Error(
+          `Invalid snapshot: startingPlayerIndex ${snapshot.startingPlayerIndex} out of bounds (${activePlayers.length} active players)`
+        );
+      }
+    }
+
+    // Validate lastCallerId refers to a real player (if set)
+    if (snapshot.lastCallerId !== null) {
+      const callerExists = snapshot.players.some(p => p.id === snapshot.lastCallerId);
+      if (!callerExists) {
+        throw new Error(`Invalid snapshot: lastCallerId "${snapshot.lastCallerId}" not found in players`);
+      }
+    }
+
+    // Validate respondedPlayers are all real player IDs
+    const playerIds = new Set(snapshot.players.map(p => p.id));
+    for (const id of snapshot.respondedPlayers) {
+      if (!playerIds.has(id)) {
+        throw new Error(`Invalid snapshot: respondedPlayer "${id}" not found in players`);
+      }
+    }
+
+    // Validate roundPhase is a known value
+    const validPhases = Object.values(RoundPhase);
+    if (!validPhases.includes(snapshot.roundPhase)) {
+      throw new Error(`Invalid snapshot: unknown roundPhase "${snapshot.roundPhase}"`);
+    }
+
     const engine = new GameEngine(
       snapshot.players.map(p => ({ ...p, cards: [...p.cards] })),
       snapshot.settings,
@@ -574,11 +619,11 @@ export class GameEngine {
     engine.currentPlayerIndex = snapshot.currentPlayerIndex;
     engine.currentHand = snapshot.currentHand;
     engine.lastCallerId = snapshot.lastCallerId;
-    engine.turnHistory = snapshot.turnHistory;
+    engine.turnHistory = snapshot.turnHistory.map(t => ({ ...t }));
     engine.startingPlayerIndex = snapshot.startingPlayerIndex;
     engine.respondedPlayers = new Set(snapshot.respondedPlayers);
     engine.lastChanceUsed = snapshot.lastChanceUsed;
-    engine.gameStats = snapshot.gameStats;
+    engine.gameStats = JSON.parse(JSON.stringify(snapshot.gameStats));
     return engine;
   }
 }

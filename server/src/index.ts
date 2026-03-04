@@ -22,7 +22,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 const roomManager = new RoomManager();
 const botManager = new BotManager();
 registerHandlers(io, roomManager, botManager);
-roomManager.startCleanup();
+roomManager.startCleanup(io);
 
 // Health check — registered before the SPA catch-all
 app.get('/health', (_req, res) => res.json({
