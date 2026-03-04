@@ -222,19 +222,19 @@ export function GamePage() {
         {/* Current call display */}
         {gameState.currentHand && (
           <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
-            <div className="flex-1 basis-0 min-w-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+            <div className="w-1/4 min-w-0 shrink-0">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
                 Current Call
               </span>
             </div>
-            <div className="flex-1 basis-0 min-w-0 text-center">
+            <div className="flex-1 min-w-0 text-center">
               <span className="font-display text-base font-bold text-[var(--gold)] break-words">
                 {handToString(gameState.currentHand)}
               </span>
             </div>
-            <div className="flex-1 basis-0 min-w-0 text-right">
+            <div className="w-1/4 min-w-0 shrink-0 text-right">
               {gameState.lastCallerId && (
-                <span className="text-[10px] text-[var(--gold-dim)] opacity-70">
+                <span className="text-[9px] text-[var(--gold-dim)] opacity-70 truncate block">
                   {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
                 </span>
               )}
