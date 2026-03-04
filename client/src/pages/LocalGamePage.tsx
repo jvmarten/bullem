@@ -161,15 +161,15 @@ export function LocalGamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold shrink-0">
+          <div className="glass-raised px-3 py-1.5 animate-slide-up relative flex items-baseline justify-center">
+            <span className="absolute left-3 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
               Current Call
             </span>
-            <span className="font-display text-base font-bold text-[var(--gold)] flex-1 text-center truncate px-1.5">
+            <span className="font-display text-base font-bold text-[var(--gold)] text-center truncate px-16">
               {handToString(gameState.currentHand)}
             </span>
             {gameState.lastCallerId && (
-              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 shrink-0">
+              <span className="absolute right-3 text-[10px] text-[var(--gold-dim)] opacity-70">
                 {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
               </span>
             )}

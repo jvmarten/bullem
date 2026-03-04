@@ -97,12 +97,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.1.11
+              v0.1.12
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.1.11 &middot; 04.03.26
+                  v0.1.12 &middot; 04.03.26
                 </p>
               </div>
             )}
