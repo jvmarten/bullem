@@ -121,8 +121,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [roundResult]);
 
   useEffect(() => {
-    socket.connect();
-
     const handleNewGameState = (state: ClientGameState) => {
       if (roundResultRef.current !== null) {
         pendingGameStateRef.current = state;
@@ -220,7 +218,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('server:playerCount');
       socket.off('server:playerNames');
       socket.io.off('reconnect', handleReconnect);
-      socket.disconnect();
     };
   }, []);
 
