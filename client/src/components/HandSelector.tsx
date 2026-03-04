@@ -22,14 +22,17 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 /* ── Mini card illustrations for hand type picker ──────── */
 
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
-  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[#b8ae9e]';
+  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[#ddd5c8] border-[#b8ae9e]';
   const borderW = isSelected ? 'border-2' : 'border-[1.5px]';
+  const shadowStyle = isSelected
+    ? '0 1px 3px rgba(0,0,0,0.15), 0 0 8px rgba(212,168,67,0.3)'
+    : '0 1px 2px rgba(0,0,0,0.12)';
   const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }} />
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0`} style={{ boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }} />
   );
   const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }}>
-      <span className="text-[15px] leading-none text-red-600">♥</span>
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }}>
+      <span className={`text-[15px] leading-none ${isSelected ? 'text-red-600' : 'text-red-400'}`}>♥</span>
     </div>
   );
   const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-16px' } : {});
@@ -260,30 +263,23 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
     const isDimmed = currentHand !== null && ht < currentHand.type && !isSelected;
     return (
-      <div className={`flex items-center justify-center transition-all duration-150 ${
-        isDimmed ? 'opacity-20' : ''
-      } ${isSelected ? 'scale-125' : 'opacity-40'}`}>
+      <div className={`hs-type-wheel-item ${isSelected ? 'hs-type-wheel-item-selected' : ''} ${isDimmed ? 'hs-type-wheel-item-dimmed' : ''}`}>
         <HandIllustration type={ht} isSelected={isSelected} />
       </div>
     );
   }, [currentHand]);
 
   const renderRank = useCallback((r: string, isSelected: boolean) => (
-    <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
-    >
-      <span className={`font-bold ${isSelected ? 'text-base text-[#1a1a1a]' : 'text-sm text-[#666]'}`}>{r}</span>
+    <div className={`hs-rank-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`}>
+      <span className={`hs-rank-wheel-label ${isSelected ? 'hs-rank-wheel-label-selected' : ''}`}>{r}</span>
     </div>
   ), []);
 
   const renderSuit = useCallback((s: string, isSelected: boolean) => {
     const isRed = s === 'hearts' || s === 'diamonds';
     return (
-      <div className={`hs-rank-card hs-suit-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-        data-suit-card
-        style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
-      >
-        <span className={`leading-none ${isSelected ? 'text-2xl' : 'text-xl'} ${isRed ? 'text-red-600' : 'text-gray-800'}`}>
+      <div className={`hs-rank-wheel-card hs-suit-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`} data-suit-card>
+        <span className={`hs-suit-wheel-symbol ${isSelected ? 'hs-suit-wheel-symbol-selected' : ''} ${isRed ? 'hs-suit-red' : 'hs-suit-black'}`}>
           {SUIT_SYMBOLS[s as Suit]}
         </span>
       </div>
@@ -299,7 +295,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   }, [hand, isValid, onSubmit]);
 
   return (
-    <div className="animate-slide-up" data-testid="hand-selector">
+    <div className="animate-slide-up hs-backdrop" data-testid="hand-selector">
       {/* Top: Hand name */}
       <div className="text-center py-0.5">
         {hand ? (

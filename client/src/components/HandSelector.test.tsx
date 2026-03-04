@@ -31,7 +31,7 @@ describe('HandSelector', () => {
 
   /** Click on a rank card in a rank wheel */
   function clickRank(container: HTMLElement, rank: string) {
-    const cards = container.querySelectorAll('.hs-rank-card');
+    const cards = container.querySelectorAll('.hs-rank-wheel-card');
     for (const card of cards) {
       if (card.textContent?.trim() === rank) {
         const item = card.closest('[data-wheel-item]') as HTMLElement;
@@ -62,7 +62,7 @@ describe('HandSelector', () => {
 
     it('shows rank cards for HIGH_CARD by default', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-wheel-card').length).toBeGreaterThan(0);
     });
 
     it('shows rank cards when FLUSH is selected (suit cards)', () => {
@@ -74,26 +74,26 @@ describe('HandSelector', () => {
     it('shows rank cards when STRAIGHT is selected', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-wheel-card').length).toBeGreaterThan(0);
     });
 
     it('shows rank cards for TWO_PAIR', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.TWO_PAIR);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-wheel-card').length).toBeGreaterThan(0);
     });
 
     it('shows rank cards for FULL_HOUSE', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.FULL_HOUSE);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-wheel-card').length).toBeGreaterThan(0);
     });
 
     it('shows both suit and rank pickers for STRAIGHT_FLUSH', () => {
       const { container } = render(<HandSelector {...defaultProps} />);
       clickHandType(container, HandType.STRAIGHT_FLUSH);
       expect(container.querySelectorAll('[data-suit-card]').length).toBeGreaterThan(0);
-      expect(container.querySelectorAll('.hs-rank-card').length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.hs-rank-wheel-card').length).toBeGreaterThan(0);
     });
 
     it('auto-promotes Straight Flush with Ace high to Royal Flush', () => {

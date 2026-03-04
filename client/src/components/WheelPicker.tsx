@@ -22,9 +22,11 @@ function WheelPickerInner<T>({
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReportedRef = useRef(selectedIndex);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
+  const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
 
   const padCount = Math.floor(visibleCount / 2);
   const viewportHeight = visibleCount * itemHeight;
+  const centerOffset = padCount * itemHeight;
 
   // Sync scroll position when selectedIndex changes (including mount)
   useEffect(() => {
@@ -36,6 +38,7 @@ function WheelPickerInner<T>({
     }
     lastReportedRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
+    setScrollTop(targetTop);
   }, [selectedIndex, itemHeight]);
 
   // Track which item is visually centered during scroll
@@ -45,6 +48,7 @@ function WheelPickerInner<T>({
     const idx = Math.round(el.scrollTop / itemHeight);
     const clamped = Math.max(0, Math.min(items.length - 1, idx));
     setVisualIndex(clamped);
+    setScrollTop(el.scrollTop);
   }, [itemHeight, items.length]);
 
   // Commit selection when scrolling stops (debounce — shorter for less friction)
@@ -87,6 +91,8 @@ function WheelPickerInner<T>({
 
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>
+      {/* Center slot highlight indicator */}
+      <div className="wheel-picker-center-highlight" style={{ top: centerOffset, height: itemHeight }} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -96,26 +102,47 @@ function WheelPickerInner<T>({
           overflowY: 'auto',
           scrollSnapType: 'y proximity',
           overscrollBehavior: 'contain',
+          perspective: '600px',
         }}
       >
         <div style={{ height: padCount * itemHeight }} />
-        {items.map((item, i) => (
-          <div
-            key={i}
-            onClick={() => handleItemClick(i)}
-            data-wheel-item={i}
-            style={{
-              height: itemHeight,
-              scrollSnapAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            {renderItem(item, i === visualIndex)}
-          </div>
-        ))}
+        {items.map((item, i) => {
+          // Fractional distance from center: 0 = centered, 1 = edge
+          const itemCenter = (i * itemHeight) + (itemHeight / 2);
+          const viewCenter = scrollTop + centerOffset + (itemHeight / 2);
+          const pixelDist = itemCenter - viewCenter;
+          const maxDist = padCount * itemHeight;
+          const distance = Math.min(Math.abs(pixelDist) / maxDist, 1);
+          const direction = pixelDist < 0 ? -1 : 1; // -1 = above center, 1 = below
+
+          const scale = 1 - distance * 0.2;
+          const opacity = 1 - distance * 0.55;
+          const rotateX = direction * distance * 12;
+          const isSnapped = distance < 0.05;
+
+          return (
+            <div
+              key={i}
+              onClick={() => handleItemClick(i)}
+              data-wheel-item={i}
+              className={isSnapped ? 'wheel-item-snapped' : ''}
+              style={{
+                height: itemHeight,
+                scrollSnapAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transform: `perspective(600px) rotateX(${rotateX}deg) scale(${scale})`,
+                opacity,
+                transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
+                willChange: 'transform, opacity',
+              }}
+            >
+              {renderItem(item, i === visualIndex)}
+            </div>
+          );
+        })}
         <div style={{ height: padCount * itemHeight }} />
       </div>
     </div>
