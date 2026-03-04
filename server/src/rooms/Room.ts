@@ -168,6 +168,15 @@ export class Room {
     this.roundContinueReady.clear();
   }
 
+  /** Clear all timers (disconnect, round continue). Call when the room is being destroyed. */
+  cleanup(): void {
+    for (const timer of this.disconnectTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.disconnectTimers.clear();
+    this.cancelRoundContinueWindow();
+  }
+
   getSocketId(playerId: PlayerId): string | undefined {
     return this.playerToSocket.get(playerId);
   }

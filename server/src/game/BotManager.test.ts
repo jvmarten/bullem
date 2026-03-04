@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BotManager } from './BotManager.js';
 import { Room } from '../rooms/Room.js';
-import { GamePhase, MAX_PLAYERS, BOT_NAMES, STARTING_CARDS, DEFAULT_BOT_DIFFICULTY } from '@bull-em/shared';
+import { GamePhase, MAX_PLAYERS, BOT_NAMES, STARTING_CARDS, DEFAULT_BOT_DIFFICULTY, maxPlayersForMaxCards } from '@bull-em/shared';
 
 describe('BotManager', () => {
   let botManager: BotManager;
@@ -45,11 +45,12 @@ describe('BotManager', () => {
     });
 
     it('throws when room is full', () => {
-      // Fill the room to MAX_PLAYERS
-      for (let i = 1; i < MAX_PLAYERS; i++) {
+      // Default maxCards=5 → effective max = floor(52/5) = 10
+      const effectiveMax = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(room.settings.maxCards));
+      for (let i = 1; i < effectiveMax; i++) {
         botManager.addBot(room);
       }
-      expect(room.playerCount).toBe(MAX_PLAYERS);
+      expect(room.playerCount).toBe(effectiveMax);
       expect(() => botManager.addBot(room)).toThrow('Room is full');
     });
 

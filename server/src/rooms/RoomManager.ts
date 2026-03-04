@@ -54,6 +54,8 @@ export class RoomManager {
   }
 
   deleteRoom(roomCode: string): void {
+    const room = this.rooms.get(roomCode);
+    if (room) room.cleanup();
     this.rooms.delete(roomCode);
     // Clean up socket mappings pointing to this room
     for (const [socketId, code] of this.socketToRoom) {
@@ -140,6 +142,7 @@ export class RoomManager {
     const now = Date.now();
     for (const [code, room] of this.rooms) {
       if (room.isEmpty || now - room.lastActivity > ROOM_MAX_INACTIVE_MS) {
+        room.cleanup();
         this.rooms.delete(code);
       }
     }
