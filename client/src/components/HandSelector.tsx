@@ -173,6 +173,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
 
   const { play } = useSound();
   const handleTickSound = useCallback(() => play('wheelTick'), [play]);
+  const handleTickSoundLow = useCallback(() => play('wheelTickLow'), [play]);
   const handleSelectSound = useCallback(() => play('wheelSelect'), [play]);
 
   const handleTypeChange = useCallback((ht: HandType) => {
@@ -350,7 +351,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             renderItem={renderHandType}
             itemHeight={70}
             visibleCount={3}
-            onTickSound={handleTickSound}
+            onTickSound={handleTickSoundLow}
             onSelectSound={handleSelectSound}
           />
         </div>

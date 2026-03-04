@@ -29,6 +29,7 @@ function WheelPickerInner<T>({
   const lastReportedRef = useRef(selectedIndex);
   const lastTickIndexRef = useRef(selectedIndex);
   const lastTickTimeRef = useRef(0);
+  const isProgrammaticRef = useRef(false);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
   const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
 
@@ -36,17 +37,22 @@ function WheelPickerInner<T>({
   const viewportHeight = visibleCount * itemHeight;
   const centerOffset = padCount * itemHeight;
 
-  // Sync scroll position when selectedIndex changes (including mount)
+  // Sync scroll position when selectedIndex changes (including mount).
+  // Flag as programmatic so scroll-triggered sounds are suppressed.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const targetTop = selectedIndex * itemHeight;
+    isProgrammaticRef.current = true;
     if (Math.abs(el.scrollTop - targetTop) > 1) {
       el.scrollTop = targetTop;
     }
     lastReportedRef.current = selectedIndex;
+    lastTickIndexRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
     setScrollTop(targetTop);
+    // Clear flag after a tick so any resulting scroll events are suppressed
+    requestAnimationFrame(() => { isProgrammaticRef.current = false; });
   }, [selectedIndex, itemHeight]);
 
   // Track which item is visually centered during scroll
@@ -55,8 +61,9 @@ function WheelPickerInner<T>({
     if (!el) return;
     const idx = Math.round(el.scrollTop / itemHeight);
     const clamped = Math.max(0, Math.min(items.length - 1, idx));
-    // Play tick when a new item crosses the center, throttled to ~60ms
-    if (clamped !== lastTickIndexRef.current && onTickSound) {
+    // Play tick when a new item crosses the center, throttled to ~60ms.
+    // Skip if scroll was triggered programmatically (e.g. selectedIndex prop change).
+    if (clamped !== lastTickIndexRef.current && onTickSound && !isProgrammaticRef.current) {
       const now = performance.now();
       if (now - lastTickTimeRef.current >= 60) {
         lastTickTimeRef.current = now;
@@ -74,6 +81,7 @@ function WheelPickerInner<T>({
     if (!el) return;
     let timer: number;
     const commitSelection = () => {
+      if (isProgrammaticRef.current) return;
       const idx = Math.round(el.scrollTop / itemHeight);
       const clamped = Math.max(0, Math.min(items.length - 1, idx));
       if (clamped !== lastReportedRef.current) {
