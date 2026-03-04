@@ -80,9 +80,11 @@ export class BotManager {
     if (!player) return;
 
     if (player.isBot) {
-      const state = room.game.getClientState(currentId);
-      const inBullPhase = state.roundPhase === RoundPhase.BULL_PHASE
-        || state.roundPhase === RoundPhase.LAST_CHANCE;
+      // Use lightweight currentRoundPhase instead of building full client state
+      // just to check the phase — avoids O(players) map + history copy.
+      const phase = room.game.currentRoundPhase;
+      const inBullPhase = phase === RoundPhase.BULL_PHASE
+        || phase === RoundPhase.LAST_CHANCE;
       const delay = inBullPhase
         ? this.computeBullDelay()
         : this.computeBotDelay(room);

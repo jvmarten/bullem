@@ -39,6 +39,12 @@ export class GameEngine {
   private lastChanceUsed = false;
   private gameStats: GameStats;
   private _turnDeadline: number | null = null;
+  /** Cached active players list — invalidated when the eliminated count changes.
+   *  Avoids creating a new filtered array on every call to getActivePlayers(),
+   *  which is invoked 5-10 times per turn action across validateTurn, advanceTurn,
+   *  allNonCallersResponded, currentPlayerId, resolveRound, etc. */
+  private _activePlayers: ServerPlayer[] | null = null;
+  private _activePlayersEliminatedCount = -1;
 
   constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
@@ -60,6 +66,12 @@ export class GameEngine {
 
   get turnTimer(): number {
     return this.settings.turnTimer ?? 0;
+  }
+
+  /** Current round phase — lightweight accessor to avoid building full client state
+   *  when callers only need to check the phase (e.g. for bot delay selection). */
+  get currentRoundPhase(): RoundPhase {
+    return this.roundPhase;
   }
 
   setTurnDeadline(deadline: number | null): void {
@@ -263,17 +275,23 @@ export class GameEngine {
     const player = this.players.find(p => p.id === playerId);
     const isEliminated = player?.isEliminated ?? false;
 
+    // Compute shared state once per broadcast cycle (cached until turn history
+    // or players change). The server calls getClientState once per player per
+    // broadcast — sharing the public-players array and turn-history snapshot
+    // avoids O(players^2) allocations (e.g. 12 players = 12 map() + 12 spread).
+    const shared = this.getSharedClientState();
+
     const state: ClientGameState = {
       gamePhase: GamePhase.PLAYING,
       roundPhase: this.roundPhase,
       roundNumber: this.roundNumber,
       maxCards: this.settings.maxCards,
-      players: this.players.map(toPublicPlayer),
+      players: shared.publicPlayers,
       myCards: player?.cards ?? [],
       currentPlayerId: this.currentPlayerId,
       currentHand: this.currentHand,
       lastCallerId: this.lastCallerId,
-      turnHistory: [...this.turnHistory],
+      turnHistory: shared.turnHistorySnapshot,
       startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
@@ -291,12 +309,46 @@ export class GameEngine {
     return state;
   }
 
+  /** Cached shared state for getClientState — avoids re-computing public
+   *  players and turn history snapshots once per player per broadcast. */
+  private _sharedClientState: {
+    publicPlayers: Player[];
+    turnHistorySnapshot: TurnEntry[];
+    turnHistoryLength: number;
+    playerCount: number;
+  } | null = null;
+
+  private getSharedClientState(): { publicPlayers: Player[]; turnHistorySnapshot: TurnEntry[] } {
+    const cached = this._sharedClientState;
+    if (cached && cached.turnHistoryLength === this.turnHistory.length && cached.playerCount === this.players.length) {
+      return cached;
+    }
+    const shared = {
+      publicPlayers: this.players.map(toPublicPlayer),
+      turnHistorySnapshot: [...this.turnHistory],
+      turnHistoryLength: this.turnHistory.length,
+      playerCount: this.players.length,
+    };
+    this._sharedClientState = shared;
+    return shared;
+  }
+
   getGameStats(): GameStats {
     return this.gameStats;
   }
 
   getActivePlayers(): ServerPlayer[] {
-    return this.players.filter(p => !p.isEliminated);
+    // Count eliminated players to detect changes (including external mutations
+    // in tests). Only rebuilds the filtered array when the count changes.
+    let eliminated = 0;
+    for (const p of this.players) {
+      if (p.isEliminated) eliminated++;
+    }
+    if (this._activePlayers === null || eliminated !== this._activePlayersEliminatedCount) {
+      this._activePlayersEliminatedCount = eliminated;
+      this._activePlayers = this.players.filter(p => !p.isEliminated);
+    }
+    return this._activePlayers;
   }
 
   /** Lightweight summary for bot delay calculations — avoids building a full ClientGameState. */
@@ -325,6 +377,7 @@ export class GameEngine {
 
     player.isEliminated = true;
     player.cards = [];
+    this._activePlayers = null;
 
     const active = this.getActivePlayers();
     if (active.length <= 1) {
@@ -462,6 +515,7 @@ export class GameEngine {
         p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
         if (p.cardCount > this.settings.maxCards) {
           p.isEliminated = true;
+          this._activePlayers = null;
           eliminatedPlayerIds.push(p.id);
         }
       }
