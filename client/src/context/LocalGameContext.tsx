@@ -609,6 +609,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     playerId: HUMAN_ID,
     error,
     isConnected: true,
+    hasConnected: true,
     createRoom,
     joinRoom,
     leaveRoom,

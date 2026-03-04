@@ -8,6 +8,7 @@ import { VolumeControl } from './VolumeControl.js';
 export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
+  const hasConnected = ctx?.hasConnected ?? true;
   const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
   const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
   const [showPopup, setShowPopup] = useState(false);
@@ -52,14 +53,14 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
     <div className="felt-bg text-[#e8e0d4]">
       <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
         <TitleLogo size={largeTitle ? 'large' : 'small'} onClick={handleTitleClick} />
-        {onlinePlayerCount > 0 && (
+        {isConnected && (
           <div ref={popupRef} className="absolute top-1/2 left-3 -translate-y-1/2">
             <button
               onClick={() => setShowPopup(prev => !prev)}
               className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              {onlinePlayerCount}
+              {onlinePlayerCount || 1}
             </button>
             {showPopup && (
               <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
@@ -88,7 +89,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
           {!isConnected && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--gold)]">
               <span className="dot-disconnected" />
-              Reconnecting&hellip;
+              {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
             </div>
           )}
           <VolumeControl />
@@ -97,12 +98,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.1.14
+              v0.1.15
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.1.14 &middot; 04.03.26
+                  v0.1.15 &middot; 04.03.26
                 </p>
               </div>
             )}

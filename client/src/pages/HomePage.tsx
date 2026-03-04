@@ -196,7 +196,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
+  const { isConnected, onlinePlayerCount, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -240,33 +240,37 @@ export function HomePage() {
 
 
   const handleQuickStart = async () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
-      setError('Failed to quick start');
+      setError('Failed to quick start — check your connection');
     }
   };
 
   const handleHost = () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
     if (!roomCode.trim()) return setError('Enter a room code');
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
   const handleBrowse = async () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     setLoadingRooms(true);
     try {
       const [roomResult, liveResult] = await Promise.all([listRooms(), listLiveGames()]);
       setRooms(roomResult);
       setLiveGames(liveResult);
     } catch {
-      setError('Failed to load rooms');
+      setError('Failed to load rooms — check your connection');
     } finally {
       setLoadingRooms(false);
     }

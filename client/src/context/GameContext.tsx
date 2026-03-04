@@ -13,6 +13,8 @@ export interface GameContextValue {
   playerId: string | null;
   error: string | null;
   isConnected: boolean;
+  /** True once the socket has connected at least once this session */
+  hasConnected: boolean;
   onlinePlayerCount: number;
   onlinePlayerNames: string[];
   createRoom: (playerName: string) => Promise<string>;
@@ -70,7 +72,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.getItem(PLAYER_ID_KEY),
   );
   const [error, setError] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(socket.connected);
+  const [hasConnected, setHasConnected] = useState(socket.connected);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,7 +144,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(ROOM_CODE_KEY);
     };
 
-    socket.on('connect', () => setIsConnected(true));
+    socket.on('connect', () => { setIsConnected(true); setHasConnected(true); });
     socket.on('disconnect', () => setIsConnected(false));
 
     // Auto-rejoin the room after Socket.io reconnects. A brief disconnect
@@ -340,6 +343,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     playerId,
     error,
     isConnected,
+    hasConnected,
     onlinePlayerCount,
     onlinePlayerNames,
     createRoom,
