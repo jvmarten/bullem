@@ -9,8 +9,9 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
   const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
   const [showPopup, setShowPopup] = useState(false);
-  const [showVersionDate, setShowVersionDate] = useState(false);
+  const [showVersionPopup, setShowVersionPopup] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
+  const versionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,10 +26,13 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   };
 
   useEffect(() => {
-    if (!showPopup) return;
+    if (!showPopup && !showVersionPopup) return;
     const handler = (e: MouseEvent | TouchEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (showPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
+      }
+      if (showVersionPopup && versionRef.current && !versionRef.current.contains(e.target as Node)) {
+        setShowVersionPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -37,7 +41,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
     };
-  }, [showPopup]);
+  }, [showPopup, showVersionPopup]);
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
@@ -88,14 +92,21 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
             </div>
           )}
           <VolumeControl />
-          {largeTitle && (
+          <div ref={versionRef} className="relative">
             <button
-              onClick={() => setShowVersionDate(v => !v)}
+              onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              {showVersionDate ? 'v0.1.9 · 04.03.26' : 'v0.1.9'}
+              v0.1.10
             </button>
-          )}
+            {showVersionPopup && (
+              <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
+                <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
+                  v0.1.10 &middot; 04.03.26
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>

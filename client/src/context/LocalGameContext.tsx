@@ -8,6 +8,7 @@ import {
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
+import { socket } from '../socket.js';
 
 const HUMAN_ID = 'human-1';
 const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
@@ -68,6 +69,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
 
   const [isPaused, setIsPaused] = useState(false);
+  const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
+  const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
 
   const engineRef = useRef<GameEngine | null>(null);
   const playersRef = useRef<ServerPlayer[]>([]);
@@ -92,6 +95,20 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  // Connect socket for online player count indicator
+  useEffect(() => {
+    socket.connect();
+    const handleCount = (count: number) => setOnlinePlayerCount(count);
+    const handleNames = (names: string[]) => setOnlinePlayerNames(names);
+    socket.on('server:playerCount', handleCount);
+    socket.on('server:playerNames', handleNames);
+    return () => {
+      socket.off('server:playerCount', handleCount);
+      socket.off('server:playerNames', handleNames);
+      socket.disconnect();
+    };
+  }, []);
 
   // Auto-clear errors
   useEffect(() => {
@@ -586,6 +603,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     gameState,
     roundResult,
     roundTransition,
+    roundTransitionDeadline: null,
     winnerId,
     gameStats,
     playerId: HUMAN_ID,
@@ -610,8 +628,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setGameSettings,
     isPaused,
     togglePause,
-    onlinePlayerCount: 0,
-    onlinePlayerNames: [],
+    onlinePlayerCount,
+    onlinePlayerNames,
     listRooms: async () => [],
     listLiveGames: async () => [],
     spectateGame: async () => {},

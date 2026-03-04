@@ -8,7 +8,9 @@ export function ResultsPage() {
   const { winnerId, gameState, gameStats, playerId, leaveRoom } = useGameContext();
 
   const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
-  const isWinner = winnerId === playerId;
+  const isPlayerInGame = gameState?.players.some(p => p.id === playerId) ?? false;
+  const isWinner = isPlayerInGame && winnerId === playerId;
+  const isSpectator = !isPlayerInGame;
 
   return (
     <Layout>
@@ -24,7 +26,9 @@ export function ResultsPage() {
           <p className="text-[var(--gold-dim)] mt-1 text-sm">
             {isWinner
               ? 'You outsmarted everyone at the table.'
-              : 'Better luck next time.'}
+              : isSpectator
+                ? `${winnerName} won the game!`
+                : 'Better luck next time.'}
           </p>
         </div>
 
