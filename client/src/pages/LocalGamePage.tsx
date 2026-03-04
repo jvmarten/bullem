@@ -161,18 +161,24 @@ export function LocalGamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="glass-raised px-3 py-1.5 animate-slide-up flex flex-wrap items-baseline">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold shrink-0">
-              Current Call
-            </span>
-            <span className="font-display text-base font-bold text-[var(--gold)] flex-1 text-center px-1.5 min-w-0 break-words">
-              {handToString(gameState.currentHand)}
-            </span>
-            {gameState.lastCallerId && (
-              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 shrink-0">
-                {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+            <div className="flex-1 basis-0 min-w-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Current Call
               </span>
-            )}
+            </div>
+            <div className="flex-1 basis-0 min-w-0 text-center">
+              <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                {handToString(gameState.currentHand)}
+              </span>
+            </div>
+            <div className="flex-1 basis-0 min-w-0 text-right">
+              {gameState.lastCallerId && (
+                <span className="text-[10px] text-[var(--gold-dim)] opacity-70">
+                  {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
