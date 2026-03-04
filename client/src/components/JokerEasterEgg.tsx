@@ -111,19 +111,14 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
       style={{ perspective: '1200px' }}
-      onClick={handleDismiss}
     >
-      {/* Dark overlay */}
-      <div className={`absolute inset-0 bg-black transition-opacity duration-500 ${
-        phase === 'dismiss' ? 'opacity-0' : 'opacity-60'
-      }`} />
-
-      {/* 3D Card */}
+      {/* 3D Card — only the card itself is clickable */}
       <div
-        className={`joker-card-container ${cardAnimClass}`}
+        className={`joker-card-container ${cardAnimClass} pointer-events-auto cursor-pointer`}
         style={{ transformStyle: 'preserve-3d' }}
+        onClick={handleDismiss}
       >
         {/* Card Back */}
         <div className="joker-card-face joker-card-back">
