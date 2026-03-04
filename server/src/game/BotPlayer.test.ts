@@ -191,9 +191,9 @@ describe('BotPlayer', () => {
     });
   });
 
-  // ─── decideAction (EASY mode — default) ───────────────────────────
+  // ─── decideAction (NORMAL mode — default) ──────────────────────────
 
-  describe('decideAction (Easy mode)', () => {
+  describe('decideAction (Normal mode)', () => {
     it('makes an opening call when no current hand', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
@@ -201,7 +201,7 @@ describe('BotPlayer', () => {
       expect(action.action).toBe('call');
     });
 
-    it('defaults to easy mode when no difficulty specified', () => {
+    it('defaults to normal mode when no difficulty specified', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
       // Should not throw and should produce a valid action
@@ -216,22 +216,29 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
         lastCallerId: 'p1',
       });
-      // Easy bot never bluffs a raise — always calls bull when it can't legitimately raise
-      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-      expect(action.action).toBe('bull');
+      // Normal bot mostly calls bull when it can't legitimately raise (90%)
+      // but may occasionally bluff (10%), so run multiple times
+      let bullCount = 0;
+      const runs = 100;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'bull') bullCount++;
+      }
+      // Expect mostly bull (>80% to account for variance)
+      expect(bullCount).toBeGreaterThan(runs * 0.80);
     });
 
-    it('calls bull or true in bull phase (never raises)', () => {
+    it('mostly calls bull or true in bull phase (may occasionally raise)', () => {
       const cards: Card[] = [{ rank: '7', suit: 'spades' }];
       const state = makeState({
         roundPhase: RoundPhase.BULL_PHASE,
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'p1',
       });
-      // Easy bot never raises in bull phase — only bull or true
+      // Normal bot uses plausibility heuristic; may raise 10% with a legitimate higher hand
       for (let i = 0; i < 100; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(['bull', 'true']).toContain(action.action);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        expect(['bull', 'true', 'call']).toContain(action.action);
       }
     });
 
@@ -242,7 +249,7 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'bot1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
       expect(['lastChanceRaise', 'lastChancePass']).toContain(action.action);
     });
 
@@ -250,7 +257,7 @@ describe('BotPlayer', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
       for (let i = 0; i < 20; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
         if (action.action === 'call') {
           expect(action.hand).toBeDefined();
           expect(action.hand.type).toBeGreaterThanOrEqual(HandType.HIGH_CARD);
@@ -259,27 +266,34 @@ describe('BotPlayer', () => {
       }
     });
 
-    it('easy mode only generates simple hand types (HIGH_CARD, PAIR, THREE_OF_A_KIND)', () => {
+    it('normal mode only generates simple hand types (HIGH_CARD, PAIR, THREE_OF_A_KIND)', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
       for (let i = 0; i < 50; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
         if (action.action === 'call') {
-          // Easy mode opening calls should only be simple types
+          // Normal mode opening calls should only be simple types
           expect(action.hand.type).toBeLessThanOrEqual(HandType.STRAIGHT);
         }
       }
     });
 
-    it('easy mode passes in last chance when no higher hand', () => {
+    it('normal mode mostly passes in last chance when no higher hand (may bluff 20%)', () => {
       const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
       const state = makeState({
         roundPhase: RoundPhase.LAST_CHANCE,
         currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
         lastCallerId: 'bot1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-      expect(action.action).toBe('lastChancePass');
+      let passCount = 0;
+      const runs = 100;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'lastChancePass') passCount++;
+      }
+      // Normal bot passes ~80% when it can't raise legitimately, bluffs ~20%
+      // But bluff may fail isHigherHand check, so pass rate could be higher
+      expect(passCount).toBeGreaterThan(runs * 0.70);
     });
   });
 
@@ -568,10 +582,10 @@ describe('BotPlayer', () => {
   // ─── Difficulty parameter behavior ────────────────────────────────
 
   describe('difficulty parameter', () => {
-    it('accepts EASY difficulty', () => {
+    it('accepts NORMAL difficulty', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState();
-      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
       expect(action).toBeDefined();
       expect(action.action).toBeDefined();
     });
@@ -594,7 +608,7 @@ describe('BotPlayer', () => {
         { roundPhase: RoundPhase.LAST_CHANCE, currentHand: { type: HandType.HIGH_CARD, rank: '7' as const }, lastCallerId: 'bot1' },
       ];
 
-      for (const difficulty of [BotDifficulty.EASY, BotDifficulty.HARD]) {
+      for (const difficulty of [BotDifficulty.NORMAL, BotDifficulty.HARD]) {
         for (const phase of phases) {
           const state = makeState(phase);
           const action = BotPlayer.decideAction(state, 'bot1', cards, difficulty);
@@ -621,7 +635,7 @@ describe('BotPlayer', () => {
       }
     });
 
-    it('easy mode calls never produce an invalid raise', () => {
+    it('normal mode calls never produce an invalid raise', () => {
       const cards: Card[] = [{ rank: 'A', suit: 'spades' }];
       const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: '7' };
       const state = makeState({
@@ -631,7 +645,7 @@ describe('BotPlayer', () => {
       });
 
       for (let i = 0; i < 50; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
         if (action.action === 'call') {
           expect(isHigherHand(action.hand, currentHand)).toBe(true);
         }
@@ -832,10 +846,10 @@ describe('BotPlayer', () => {
     });
   });
 
-  // ─── Easy Bot Behavioral Tests ──────────────────────────────────────
+  // ─── Normal Bot Behavioral Tests ────────────────────────────────────
 
-  describe('Easy bot behavioral guarantees', () => {
-    it('never raises in bull phase (100 iterations)', () => {
+  describe('Normal bot behavioral guarantees', () => {
+    it('occasionally raises in bull phase with legitimate hand (~10%)', () => {
       const cards: Card[] = [
         { rank: 'A', suit: 'spades' },
         { rank: 'A', suit: 'hearts' },
@@ -845,13 +859,19 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'p1',
       });
-      for (let i = 0; i < 100; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(action.action).not.toBe('call');
+      let raiseCount = 0;
+      const runs = 500;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        expect(['bull', 'true', 'call']).toContain(action.action);
+        if (action.action === 'call') raiseCount++;
       }
+      // ~10% raise rate — expect between 2% and 20% to account for variance
+      expect(raiseCount).toBeGreaterThan(runs * 0.02);
+      expect(raiseCount).toBeLessThan(runs * 0.20);
     });
 
-    it('never bluffs a raise in calling phase', () => {
+    it('mostly calls bull when no legitimate raise in calling phase (~90%)', () => {
       // Bot has 3♣ — can't legitimately raise above pair of queens
       const cards: Card[] = [{ rank: '3', suit: 'clubs' }];
       const state = makeState({
@@ -859,20 +879,23 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.PAIR, rank: 'Q' },
         lastCallerId: 'p1',
       });
-      for (let i = 0; i < 100; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        // Should always call bull since it can't legitimately raise
-        expect(action.action).toBe('bull');
+      let bullCount = 0;
+      const runs = 200;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'bull') bullCount++;
       }
+      // 90% bull when no legitimate raise — expect >80% to account for variance
+      expect(bullCount).toBeGreaterThan(runs * 0.80);
     });
 
-    it('opens truthfully >90% of the time (200 iterations)', () => {
+    it('opens truthfully ~85% of the time (200 iterations)', () => {
       const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
       const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
       let truthful = 0;
       const runs = 200;
       for (let i = 0; i < runs; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
         if (action.action === 'call') {
           // Truthful = high card K (what the bot actually has)
           if (action.hand.type === HandType.HIGH_CARD && action.hand.rank === 'K') {
@@ -880,24 +903,28 @@ describe('BotPlayer', () => {
           }
         }
       }
-      // 95% truthful → expect at least 90% to account for variance
-      expect(truthful).toBeGreaterThan(runs * 0.90);
+      // 85% truthful → expect at least 75% to account for variance
+      expect(truthful).toBeGreaterThan(runs * 0.75);
     });
 
-    it('always passes in last chance when it cannot raise legitimately', () => {
+    it('mostly passes in last chance when no legitimate raise (~80%)', () => {
       const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
       const state = makeState({
         roundPhase: RoundPhase.LAST_CHANCE,
         currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
         lastCallerId: 'bot1',
       });
-      for (let i = 0; i < 100; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(action.action).toBe('lastChancePass');
+      let passCount = 0;
+      const runs = 200;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'lastChancePass') passCount++;
       }
+      // 80% pass + 20% bluff attempt (bluff may fail isHigherHand, raising pass rate)
+      expect(passCount).toBeGreaterThan(runs * 0.70);
     });
 
-    it('raises legitimately in calling phase when it has a higher hand', () => {
+    it('mostly raises in calling phase when it has a higher hand (~80%)', () => {
       // Bot has a pair of aces, current hand is high card 7
       const cards: Card[] = [
         { rank: 'A', suit: 'spades' },
@@ -908,43 +935,58 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'p1',
       });
-      // Should always raise with the legitimate hand
-      for (let i = 0; i < 50; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(action.action).toBe('call');
+      let raiseCount = 0;
+      const runs = 200;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'call') raiseCount++;
       }
+      // 80% raise when has legitimate hand — expect >70% to account for variance
+      expect(raiseCount).toBeGreaterThan(runs * 0.70);
     });
 
-    it('uses gut feeling: calls true when own hand type >= called type', () => {
+    it('uses plausibility: calls true for high-plausibility hands', () => {
       // Bot has pair of 7s, called hand is a pair of Kings
-      // Same type → should always call true
+      // estimatePlausibilitySimple for pair of K with one 7 in hand and 2 total cards
+      // → depends on totalCards, but with only 2 total cards, pair is unlikely
+      // Use a scenario where plausibility is clearly high: bot has the called rank
       const cards: Card[] = [
-        { rank: '7', suit: 'hearts' },
+        { rank: 'K', suit: 'hearts' },
         { rank: '7', suit: 'spades' },
       ];
       const state = makeState({
         roundPhase: RoundPhase.BULL_PHASE,
-        currentHand: { type: HandType.PAIR, rank: 'K' },
+        currentHand: { type: HandType.HIGH_CARD, rank: 'K' },
         lastCallerId: 'p1',
       });
-      for (let i = 0; i < 50; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(action.action).toBe('true');
+      // High card K with bot holding K → plausibility 0.95 > 0.6 → true
+      let trueCount = 0;
+      const runs = 100;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'true') trueCount++;
       }
+      // Should mostly call true (>80% accounting for 10% raise chance)
+      expect(trueCount).toBeGreaterThan(runs * 0.80);
     });
 
-    it('uses gut feeling: calls bull when called type is 2+ above own', () => {
-      // Bot has high card 7, called hand is three of a kind (2 levels above)
+    it('uses plausibility: calls bull for low-plausibility hands', () => {
+      // Bot has high card 7, called hand is three of a kind 9s
+      // estimatePlausibilitySimple for 3oaK with 0 matching cards, 2 total cards → 0.1 < 0.4 → bull
       const cards: Card[] = [{ rank: '7', suit: 'spades' }];
       const state = makeState({
         roundPhase: RoundPhase.BULL_PHASE,
         currentHand: { type: HandType.THREE_OF_A_KIND, rank: '9' },
         lastCallerId: 'p1',
       });
-      for (let i = 0; i < 50; i++) {
-        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-        expect(action.action).toBe('bull');
+      let bullCount = 0;
+      const runs = 100;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
+        if (action.action === 'bull') bullCount++;
       }
+      // Should mostly call bull (>85%)
+      expect(bullCount).toBeGreaterThan(runs * 0.85);
     });
   });
 
