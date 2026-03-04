@@ -409,18 +409,27 @@ export function LobbyPage() {
               Waiting for host to start&hellip;
             </p>
           )}
-          <button
-            onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-          >
-            Leave Room
-          </button>
-          {isHost && (
+          {isHost ? (
+            <>
+              <button
+                onClick={() => navigate('/')}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              >
+                Back to Menu
+              </button>
+              <button
+                onClick={handleCloseRoom}
+                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+              >
+                Close Room
+              </button>
+            </>
+          ) : (
             <button
-              onClick={handleCloseRoom}
-              className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+              onClick={() => { leaveRoom(); navigate('/'); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
-              Close Room
+              Leave Room
             </button>
           )}
         </div>

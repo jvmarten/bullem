@@ -11,7 +11,7 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 
 import { useGameContext } from '../context/GameContext.js';
-import { useGameSounds } from '../hooks/useSound.js';
+import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { HandCall } from '@bull-em/shared';
@@ -24,6 +24,7 @@ export function GamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom,
   } = useGameContext();
+  const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 
   const rejoinAttemptedRef = useRef(false);
@@ -93,7 +94,8 @@ export function GamePage() {
 
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
-  const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
+  const isSpectator = !myPlayer;
+  const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
   const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
     && gameState.lastCallerId === playerId;
 
@@ -129,7 +131,7 @@ export function GamePage() {
 
   return (
     <Layout>
-      <div className={`space-y-2 ${isEliminated ? 'spectating' : ''}`}>
+      <div className={`space-y-2 ${isEliminated || isSpectator ? 'spectating' : ''}`}>
         {/* Top bar */}
         <div className="flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
@@ -159,7 +161,7 @@ export function GamePage() {
         </div>
 
         {/* Spectator banner */}
-        {isEliminated && (
+        {(isEliminated || isSpectator) && (
           <div className="text-center glass p-2 animate-fade-in">
             <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
               Spectating
@@ -196,7 +198,7 @@ export function GamePage() {
               {handToString(gameState.currentHand)}
             </span>
             {gameState.lastCallerId && (
-              <span className="text-[8px] text-[var(--gold-dim)] opacity-50 ml-1.5">
+              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 ml-1.5">
                 {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
               </span>
             )}
@@ -204,10 +206,10 @@ export function GamePage() {
         )}
 
         {/* My cards */}
-        {!isEliminated && <HandDisplay cards={gameState.myCards} large />}
+        {!isEliminated && !isSpectator && <HandDisplay cards={gameState.myCards} large />}
 
-        {/* Spectator view — eliminated players see all cards */}
-        {isEliminated && gameState.spectatorCards && (
+        {/* Spectator view — eliminated players and external spectators see all cards */}
+        {(isEliminated || isSpectator) && gameState.spectatorCards && (
           <SpectatorView spectatorCards={gameState.spectatorCards} />
         )}
 
@@ -215,7 +217,7 @@ export function GamePage() {
 
         {/* Action row — BULL/TRUE on left, Raise/Call on right */}
         {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
-        {!isEliminated && (
+        {!isEliminated && !isSpectator && (
           <div className="flex justify-between items-start">
             <ActionButtons
               roundPhase={gameState.roundPhase}
@@ -230,7 +232,7 @@ export function GamePage() {
             {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up ml-auto">
                 <button
-                  onClick={() => setHandSelectorOpen(true)}
+                  onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                   className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
                 >
                   {gameState.currentHand ? 'Raise' : 'Call'}

@@ -147,6 +147,22 @@ export interface GameStats {
   playerStats: Record<PlayerId, PlayerGameStats>;
 }
 
+/** Serializable snapshot of a GameEngine for persistence (e.g., local game save/restore). */
+export interface GameEngineSnapshot {
+  players: ServerPlayer[];
+  settings: GameSettings;
+  roundNumber: number;
+  roundPhase: RoundPhase;
+  currentPlayerIndex: number;
+  currentHand: HandCall | null;
+  lastCallerId: PlayerId | null;
+  turnHistory: TurnEntry[];
+  startingPlayerIndex: number;
+  respondedPlayers: PlayerId[];
+  lastChanceUsed: boolean;
+  gameStats: GameStats;
+}
+
 export interface RoomState {
   roomCode: string;
   players: Player[];

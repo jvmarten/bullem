@@ -19,7 +19,7 @@ function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string 
     case RoundPhase.BULL_PHASE:
       return 'Bull, True, or Raise';
     case RoundPhase.LAST_CHANCE:
-      return 'Raise or Pass';
+      return 'Last Chance Raise or Pass';
     case RoundPhase.RESOLVING:
       return 'Revealing\u2026';
   }
