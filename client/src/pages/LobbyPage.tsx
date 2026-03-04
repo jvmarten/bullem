@@ -412,7 +412,7 @@ export function LobbyPage() {
           {isHost ? (
             <>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/', { state: { mode: 'online' } })}
                 className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
               >
                 Back to Menu

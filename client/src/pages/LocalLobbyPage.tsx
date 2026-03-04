@@ -161,7 +161,7 @@ export function LocalLobbyPage() {
                     : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                 }`}
               >
-                Easy
+                Normal
               </button>
               <button
                 onClick={() => setBotDifficulty(BotDifficulty.HARD)}

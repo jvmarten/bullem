@@ -256,12 +256,14 @@ export function GamePage() {
 
         {/* Hand selector — appears below the action buttons so buttons stay put */}
         {canRaise && handSelectorOpen && (
-          <HandSelector
-            currentHand={gameState.currentHand}
-            onSubmit={handleHandSubmit}
-            onHandChange={handleHandChange}
-            showSubmit={false}
-          />
+          <div className="-mt-1">
+            <HandSelector
+              currentHand={gameState.currentHand}
+              onSubmit={handleHandSubmit}
+              onHandChange={handleHandChange}
+              showSubmit={false}
+            />
+          </div>
         )}
 
         {/* Round transition overlay */}
