@@ -22,19 +22,27 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 /* ── Mini card illustrations for hand type picker ──────── */
 
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
-  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[#ddd5c8] border-[#b8ae9e]';
   const borderW = isSelected ? 'border-2' : 'border-[1.5px]';
   const shadowStyle = isSelected
     ? '0 1px 3px rgba(0,0,0,0.15), 0 0 8px rgba(212,168,67,0.3)'
     : '0 1px 2px rgba(0,0,0,0.12)';
-  const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0`} style={{ boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }} />
+
+  // Card back — red-backed mini card matching the game's deck-card-back style
+  const backBorder = isSelected ? 'border-[var(--gold)]' : 'border-[#d44]';
+  const back = (key: number, style?: React.CSSProperties) => (
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${backBorder} flex-shrink-0 relative`} style={{ background: 'linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%)', boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }}>
+      <div className="absolute rounded-[2px]" style={{ inset: '3px', border: '0.5px solid rgba(255,255,255,0.15)' }} />
+    </div>
   );
+
+  // Card face with suit symbol — used only for Flush and Straight Flush
+  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[#ddd5c8] border-[#b8ae9e]';
   const heart = (key: number, style?: React.CSSProperties) => (
     <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }}>
       <span className={`text-[15px] leading-none ${isSelected ? 'text-red-600' : 'text-red-400'}`}>♥</span>
     </div>
   );
+
   const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-16px' } : {});
   const stair = (i: number): React.CSSProperties => ({
     marginLeft: i > 0 ? '-12px' : undefined,
@@ -43,31 +51,31 @@ function HandIllustration({ type, isSelected }: { type: HandType; isSelected: bo
 
   switch (type) {
     case HandType.HIGH_CARD:
-      return <div className="flex justify-center">{mini(0)}</div>;
+      return <div className="flex justify-center">{back(0)}</div>;
     case HandType.PAIR:
-      return <div className="flex justify-center">{[0, 1].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1].map(i => back(i, overlap(i)))}</div>;
     case HandType.TWO_PAIR:
       return (
         <div className="flex justify-center gap-0.5">
-          <div className="flex">{[0, 1].map(i => mini(i, overlap(i)))}</div>
-          <div className="flex">{[2, 3].map(i => mini(i, overlap(i > 2 ? 1 : 0)))}</div>
+          <div className="flex">{[0, 1].map(i => back(i, overlap(i)))}</div>
+          <div className="flex">{[2, 3].map(i => back(i, overlap(i > 2 ? 1 : 0)))}</div>
         </div>
       );
     case HandType.THREE_OF_A_KIND:
-      return <div className="flex justify-center">{[0, 1, 2].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1, 2].map(i => back(i, overlap(i)))}</div>;
     case HandType.FLUSH:
       return <div className="flex justify-center">{[0, 1, 2].map(i => heart(i, overlap(i)))}</div>;
     case HandType.STRAIGHT:
-      return <div className="flex justify-center items-end">{[0, 1, 2].map(i => mini(i, stair(i)))}</div>;
+      return <div className="flex justify-center items-end">{[0, 1, 2].map(i => back(i, stair(i)))}</div>;
     case HandType.FULL_HOUSE:
       return (
         <div className="flex justify-center gap-0.5">
-          <div className="flex">{[0, 1, 2].map(i => mini(i, overlap(i)))}</div>
-          <div className="flex">{[3, 4].map(i => mini(i, overlap(i > 3 ? 1 : 0)))}</div>
+          <div className="flex">{[0, 1, 2].map(i => back(i, overlap(i)))}</div>
+          <div className="flex">{[3, 4].map(i => back(i, overlap(i > 3 ? 1 : 0)))}</div>
         </div>
       );
     case HandType.FOUR_OF_A_KIND:
-      return <div className="flex justify-center">{[0, 1, 2, 3].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1, 2, 3].map(i => back(i, overlap(i)))}</div>;
     case HandType.STRAIGHT_FLUSH:
       return <div className="flex justify-center items-end">{[0, 1, 2].map(i => heart(i, stair(i)))}</div>;
     default:

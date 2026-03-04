@@ -108,9 +108,9 @@ function WheelPickerInner<T>({
         <div style={{ height: padCount * itemHeight }} />
         {items.map((item, i) => {
           // Fractional distance from center: 0 = centered, 1 = edge
-          const itemCenter = (i * itemHeight) + (itemHeight / 2);
-          const viewCenter = scrollTop + centerOffset + (itemHeight / 2);
-          const pixelDist = itemCenter - viewCenter;
+          // Items start at padCount * itemHeight in scroll space; when
+          // scrollTop = i * itemHeight, item i is centered in the viewport.
+          const pixelDist = i * itemHeight - scrollTop;
           const maxDist = padCount * itemHeight;
           const distance = Math.min(Math.abs(pixelDist) / maxDist, 1);
           const direction = pixelDist < 0 ? -1 : 1; // -1 = above center, 1 = below
