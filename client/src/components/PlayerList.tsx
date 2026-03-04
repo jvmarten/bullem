@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { TurnAction, handToString } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -61,9 +61,12 @@ function getLastAction(playerId: PlayerId, history?: TurnEntry[]): string | null
   return null;
 }
 
-function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory, showRemoveBot, onRemoveBot }: {
+// Memoized to skip re-renders when only other players' state changed.
+// Receives `lastAction` as a primitive string instead of the full turnHistory
+// array, so memo comparison works effectively.
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
-  roundNumber?: number; turnHistory?: TurnEntry[];
+  roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
 }) {
   return (
@@ -94,7 +97,6 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
           <div className="flex items-center gap-1">
             <span className={p.isEliminated ? 'hidden' : p.isConnected ? 'dot-connected' : 'dot-disconnected'} />
             {(() => {
-              const lastAction = getLastAction(p.id, turnHistory);
               if (!lastAction || p.isEliminated) return null;
               const isBull = lastAction === 'BULL!';
               const isTrue = lastAction === 'TRUE';
@@ -140,7 +142,7 @@ function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, turnHistory,
       </div>
     </div>
   );
-}
+});
 
 export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber, turnHistory, collapsible }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
@@ -178,7 +180,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               isMe={currentPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
-              turnHistory={turnHistory}
+              lastAction={getLastAction(currentPlayer.id, turnHistory)}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -189,7 +191,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               isMe={nextPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
-              turnHistory={turnHistory}
+              lastAction={getLastAction(nextPlayer.id, turnHistory)}
             />
           )}
         </div>
@@ -222,7 +224,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
             isMe={p.id === myPlayerId}
             maxCards={maxCards}
             roundNumber={roundNumber}
-            turnHistory={turnHistory}
+            lastAction={getLastAction(p.id, turnHistory)}
             showRemoveBot={showRemoveBot}
             onRemoveBot={onRemoveBot}
           />

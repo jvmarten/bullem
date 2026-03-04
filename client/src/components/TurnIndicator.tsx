@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import type { Player, PlayerId } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
@@ -37,19 +37,28 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
   const phaseLabel = getPhaseLabel(roundPhase, hasCurrentHand);
 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [fraction, setFraction] = useState(1);
   const [tickPulse, setTickPulse] = useState(false);
   const totalDurationRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
+  // Direct DOM ref for the progress bar — updated at 10fps without triggering
+  // React re-renders (re-renders only when secondsLeft changes, ~1/sec).
+  const meterRef = useRef<HTMLDivElement>(null);
 
   const isResolving = roundPhase === RoundPhase.RESOLVING;
+
+  const updateMeter = useCallback((remainingMs: number) => {
+    const totalMs = totalDurationRef.current;
+    if (!meterRef.current || !totalMs) return;
+    const pct = totalMs > 0 ? (remainingMs / totalMs) * 100 : 0;
+    meterRef.current.style.width = `${pct}%`;
+  }, []);
 
   useEffect(() => {
     if (!turnDeadline || !isMyTurn || isResolving) {
       setSecondsLeft(null);
-      setFraction(1);
       totalDurationRef.current = null;
       lastTickRef.current = null;
+      if (meterRef.current) meterRef.current.style.width = '100%';
       return;
     }
 
@@ -57,13 +66,12 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
     if (totalDurationRef.current === null) {
       totalDurationRef.current = turnDeadline - now;
     }
-    const totalMs = totalDurationRef.current;
 
     const update = () => {
       const remainingMs = Math.max(0, turnDeadline - Date.now());
       const secs = Math.ceil(remainingMs / 1000);
       setSecondsLeft(secs);
-      setFraction(totalMs > 0 ? remainingMs / totalMs : 0);
+      updateMeter(remainingMs);
 
       // Play tick sound each second during last 5 seconds
       if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
@@ -77,7 +85,7 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline, isMyTurn, isResolving, play]);
+  }, [turnDeadline, isMyTurn, isResolving, play, updateMeter]);
 
   const isWarning = secondsLeft !== null && secondsLeft <= 5;
   const isTimedOut = secondsLeft === 0;
@@ -107,9 +115,10 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
       {showTimer && (
         <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
           <div
+            ref={meterRef}
             className="h-full rounded-full"
             style={{
-              width: `${fraction * 100}%`,
+              width: '100%',
               background: meterColor,
               transition: 'width 0.15s linear, background 0.3s ease',
             }}

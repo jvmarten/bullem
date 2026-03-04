@@ -169,7 +169,9 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
     }
   }, [rank2]);
 
-  const buildHand = useCallback((): HandCall | null => {
+  // Memoize the built hand so the effect below only fires when inputs change,
+  // not on every render (a new object reference would cause the effect to loop).
+  const hand = useMemo((): HandCall | null => {
     switch (handType) {
       case HandType.HIGH_CARD: return { type: HandType.HIGH_CARD, rank };
       case HandType.PAIR: return { type: HandType.PAIR, rank };
@@ -199,7 +201,6 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
     }
   }, [handType, rank, rank2, suit]);
 
-  const hand = buildHand();
   const isValid = hand !== null && (!currentHand || isHigherHand(hand, currentHand));
 
   useEffect(() => {
@@ -284,6 +285,10 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
     );
   }, []);
 
+  // Stable array references for WheelPicker items — avoids re-rendering
+  // the picker on every parent render due to new array identity.
+  const suitsArray = useMemo(() => [...ALL_SUITS], []);
+
   const handleSubmit = useCallback(() => {
     if (hand && isValid) onSubmit(hand);
   }, [hand, isValid, onSubmit]);
@@ -338,7 +343,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             <div className="flex gap-1">
               <div className="flex-1">
                 <WheelPicker
-                  items={[...rankList]}
+                  items={rankList}
                   selectedIndex={rankList.indexOf(rank)}
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
@@ -356,7 +361,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
                 }}
               >
                 <WheelPicker
-                  items={[...rank2List]}
+                  items={rank2List}
                   selectedIndex={rank2Index >= 0 ? rank2Index : 0}
                   onSelect={handleRank2Wheel}
                   renderItem={renderRank}
@@ -370,7 +375,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             <div className="flex gap-1">
               <div className="flex-1">
                 <WheelPicker
-                  items={[...rankList]}
+                  items={rankList}
                   selectedIndex={rankList.indexOf(rank)}
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
@@ -380,7 +385,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
               </div>
               <div className="flex-1">
                 <WheelPicker
-                  items={[...ALL_SUITS]}
+                  items={suitsArray}
                   selectedIndex={suitIndex >= 0 ? suitIndex : 0}
                   onSelect={handleSuitWheel}
                   renderItem={renderSuit}
@@ -393,7 +398,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
             /* Single wheel — rank or suit only */
             isSuitOnly ? (
               <WheelPicker
-                items={[...ALL_SUITS]}
+                items={suitsArray}
                 selectedIndex={suitIndex >= 0 ? suitIndex : 0}
                 onSelect={handleSuitWheel}
                 renderItem={renderSuit}
@@ -402,7 +407,7 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
               />
             ) : (
               <WheelPicker
-                items={[...rankList]}
+                items={rankList}
                 selectedIndex={rankList.indexOf(rank)}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
