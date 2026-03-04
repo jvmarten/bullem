@@ -30,6 +30,7 @@ function WheelPickerInner<T>({
   const lastTickIndexRef = useRef(selectedIndex);
   const lastTickTimeRef = useRef(0);
   const isProgrammaticRef = useRef(false);
+  const mountedRef = useRef(false);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
   const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
 
@@ -45,8 +46,14 @@ function WheelPickerInner<T>({
     const targetTop = selectedIndex * itemHeight;
     isProgrammaticRef.current = true;
     if (Math.abs(el.scrollTop - targetTop) > 1) {
-      el.scrollTop = targetTop;
+      // Smooth-scroll on programmatic repositions; instant on first mount
+      if (mountedRef.current && el.scrollTo) {
+        el.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else {
+        el.scrollTop = targetTop;
+      }
     }
+    mountedRef.current = true;
     lastReportedRef.current = selectedIndex;
     lastTickIndexRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
