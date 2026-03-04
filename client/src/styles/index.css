@@ -686,11 +686,10 @@ body {
 }
 
 /* Phase: levitate — Joker face up, organic zero-gravity float.
-   CRITICAL: animations use individual CSS transform properties (translate, rotate, scale)
-   which are applied INDEPENDENTLY of the `transform` property. This means
-   `transform: rotateY(180deg)` is NEVER overridden, keeping the Joker face visible. */
+   joker-rock animates the `transform` property directly, which includes rotateY(180deg)
+   at every keyframe to keep the Joker face visible throughout. joker-drift and joker-pulse
+   use individual CSS properties (translate, scale) that compose independently. */
 .joker-levitate {
-  transform: rotateY(180deg);
   animation:
     joker-drift 6s ease-in-out infinite,
     joker-rock 7s ease-in-out infinite,
@@ -721,13 +720,14 @@ body {
   }
 }
 
-/* Slow irregular tilt/rock on Z axis */
+/* Slow irregular tilt/rock — animates `transform` directly so rotateY(180deg)
+   is always present, keeping the Joker face visible throughout levitation */
 @keyframes joker-rock {
-  0%, 100% { rotate: 0deg; }
-  20% { rotate: 2.5deg; }
-  45% { rotate: -1.8deg; }
-  70% { rotate: 1.2deg; }
-  90% { rotate: -0.5deg; }
+  0%, 100% { transform: rotateY(180deg) rotateZ(0deg); }
+  20% { transform: rotateY(180deg) rotateZ(2.5deg); }
+  45% { transform: rotateY(180deg) rotateZ(-1.8deg); }
+  70% { transform: rotateY(180deg) rotateZ(1.2deg); }
+  90% { transform: rotateY(180deg) rotateZ(-0.5deg); }
 }
 
 /* Very subtle breathing scale pulse */
