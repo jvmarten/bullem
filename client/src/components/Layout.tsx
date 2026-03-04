@@ -17,7 +17,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick } = useJokerEasterEgg();
+  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef } = useJokerEasterEgg();
 
   const handleTitleClick = () => {
     jokerClick();
@@ -110,7 +110,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
-      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} />
+      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} />
     </div>
   );
 }
