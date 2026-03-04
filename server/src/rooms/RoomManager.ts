@@ -15,6 +15,9 @@ export class RoomManager {
   private playerToRoom = new Map<string, string>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Cached result of getOnlinePlayerNames. Invalidated when players change. */
+  private cachedPlayerNames: string[] | null = null;
+
   createRoom(): Room {
     let code: string;
     do {
@@ -42,11 +45,13 @@ export class RoomManager {
   /** Register a player → room mapping for O(1) lookups. */
   assignPlayerToRoom(playerId: string, roomCode: string): void {
     this.playerToRoom.set(playerId, roomCode);
+    this.cachedPlayerNames = null;
   }
 
   /** Remove a player → room mapping. */
   removePlayerMapping(playerId: string): void {
     this.playerToRoom.delete(playerId);
+    this.cachedPlayerNames = null;
   }
 
   handleDisconnect(socketId: string, onTimeout?: (playerId: string) => void): { room: Room; playerId: string } | null {
@@ -59,6 +64,7 @@ export class RoomManager {
     // If the player was fully removed (lobby phase), clean up the index
     if (playerId && !room.players.has(playerId)) {
       this.playerToRoom.delete(playerId);
+      this.cachedPlayerNames = null;
     }
 
     if (room.isEmpty) {
@@ -84,6 +90,7 @@ export class RoomManager {
       room.cleanup();
     }
     this.rooms.delete(roomCode);
+    this.cachedPlayerNames = null;
     // Clean up socket mappings pointing to this room
     for (const [socketId, code] of this.socketToRoom) {
       if (code === roomCode) this.socketToRoom.delete(socketId);
@@ -141,13 +148,21 @@ export class RoomManager {
     return this.rooms.size;
   }
 
+  /** Invalidate the cached player names list. Call whenever players are
+   *  added, removed, or rooms are created/deleted. */
+  invalidatePlayerNamesCache(): void {
+    this.cachedPlayerNames = null;
+  }
+
   getOnlinePlayerNames(): string[] {
+    if (this.cachedPlayerNames) return this.cachedPlayerNames;
     const names: string[] = [];
     for (const room of this.rooms.values()) {
       for (const player of room.players.values()) {
         if (!player.isBot) names.push(player.name);
       }
     }
+    this.cachedPlayerNames = names;
     return names;
   }
 
