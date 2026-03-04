@@ -1,6 +1,77 @@
 import { RANK_VALUES, SUIT_ORDER, ALL_RANKS, ALL_SUITS } from './constants.js';
 import { HandCall, HandType, type Rank, type Suit } from './types.js';
 
+const VALID_RANKS = new Set<string>(ALL_RANKS);
+const VALID_SUITS = new Set<string>(ALL_SUITS);
+
+function isRank(v: unknown): v is Rank {
+  return typeof v === 'string' && VALID_RANKS.has(v);
+}
+
+function isSuit(v: unknown): v is Suit {
+  return typeof v === 'string' && VALID_SUITS.has(v);
+}
+
+/**
+ * Validate that an untrusted value is a structurally valid HandCall.
+ * Returns null if valid, or an error message if invalid.
+ * Use this on all client-submitted hand data before passing to the game engine.
+ */
+export function validateHandCall(hand: unknown): string | null {
+  if (hand === null || hand === undefined || typeof hand !== 'object') {
+    return 'Hand must be an object';
+  }
+  const h = hand as Record<string, unknown>;
+  const type = h.type;
+  if (typeof type !== 'number' || !Number.isInteger(type) || type < 0 || type > 9) {
+    return 'Invalid hand type';
+  }
+
+  switch (type) {
+    case HandType.HIGH_CARD:
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      if (!isRank(h.rank)) return 'Invalid rank';
+      break;
+
+    case HandType.TWO_PAIR:
+      if (!isRank(h.highRank) || !isRank(h.lowRank)) return 'Invalid ranks';
+      if (h.highRank === h.lowRank) return 'Two pair ranks must differ';
+      if (RANK_VALUES[h.highRank as Rank] <= RANK_VALUES[h.lowRank as Rank]) return 'highRank must be higher than lowRank';
+      break;
+
+    case HandType.FLUSH:
+      if (!isSuit(h.suit)) return 'Invalid suit';
+      break;
+
+    case HandType.STRAIGHT:
+      if (!isRank(h.highRank)) return 'Invalid highRank';
+      if (RANK_VALUES[h.highRank as Rank] < 5) return 'Straight highRank must be 5 or above';
+      break;
+
+    case HandType.FULL_HOUSE:
+      if (!isRank(h.threeRank) || !isRank(h.twoRank)) return 'Invalid ranks';
+      if (h.threeRank === h.twoRank) return 'Full house ranks must differ';
+      break;
+
+    case HandType.STRAIGHT_FLUSH:
+      if (!isSuit(h.suit)) return 'Invalid suit';
+      if (!isRank(h.highRank)) return 'Invalid highRank';
+      if (RANK_VALUES[h.highRank as Rank] < 5) return 'Straight flush highRank must be 5 or above';
+      break;
+
+    case HandType.ROYAL_FLUSH:
+      if (!isSuit(h.suit)) return 'Invalid suit';
+      break;
+
+    default:
+      return 'Unknown hand type';
+  }
+
+  return null;
+}
+
 export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean {
   if (newHand.type !== currentHand.type) {
     return newHand.type > currentHand.type;

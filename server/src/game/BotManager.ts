@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
+  maxPlayersForMaxCards,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -35,7 +36,10 @@ export class BotManager {
   }
 
   addBot(room: Room, botName?: string): string {
-    if (room.playerCount >= MAX_PLAYERS) {
+    const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
+    const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
+    const effectiveMax = Math.min(MAX_PLAYERS, cardBased, userCap);
+    if (room.playerCount >= effectiveMax) {
       throw new Error('Room is full');
     }
     if (room.gamePhase !== GamePhase.LOBBY) {
@@ -233,7 +237,14 @@ export class BotManager {
       }
 
       case 'game_over':
+        if (result.finalRoundResult) {
+          // Show the final round result before ending the game
+          if (room.game) room.game.setTurnDeadline(null);
+          broadcastGameState(io, room);
+          io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
+        }
         room.gamePhase = GamePhase.GAME_OVER;
+        room.cancelRoundContinueWindow();
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
     }

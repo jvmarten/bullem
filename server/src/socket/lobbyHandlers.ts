@@ -1,11 +1,11 @@
 import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, BotPlayer } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
-import { beginRoundResultPhase } from './roundTransition.js';
+import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -113,6 +113,9 @@ export function registerLobbyHandlers(
         room.cancelRoundContinueWindow();
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
       } else {
+        // The leaving player may have been the last one who hadn't pressed Continue.
+        // Re-check so the remaining players aren't stuck waiting.
+        checkRoundContinueComplete(io, room, botManager);
         broadcastGameState(io, room);
       }
     } else {
@@ -204,7 +207,16 @@ export function registerLobbyHandlers(
       }
     }
 
-    room.updateSettings(data.settings);
+    // Sanitize boolean settings — coerce to boolean or strip non-boolean values
+    const validated: GameSettings = {
+      maxCards,
+      turnTimer,
+      maxPlayers,
+      allowSpectators: data.settings.allowSpectators === true,
+      spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
+    };
+
+    room.updateSettings(validated);
     broadcastRoomState(io, room);
   });
 
