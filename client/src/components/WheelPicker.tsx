@@ -8,6 +8,8 @@ interface WheelPickerProps<T> {
   itemHeight?: number;
   visibleCount?: number;
   highlightHeight?: number;
+  onTickSound?: () => void;
+  onSelectSound?: () => void;
 }
 
 // Memoized to prevent re-renders when parent state changes but picker
@@ -20,9 +22,13 @@ function WheelPickerInner<T>({
   itemHeight = 48,
   visibleCount = 5,
   highlightHeight,
+  onTickSound,
+  onSelectSound,
 }: WheelPickerProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReportedRef = useRef(selectedIndex);
+  const lastTickIndexRef = useRef(selectedIndex);
+  const lastTickTimeRef = useRef(0);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
   const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
 
@@ -49,9 +55,18 @@ function WheelPickerInner<T>({
     if (!el) return;
     const idx = Math.round(el.scrollTop / itemHeight);
     const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    // Play tick when a new item crosses the center, throttled to ~60ms
+    if (clamped !== lastTickIndexRef.current && onTickSound) {
+      const now = performance.now();
+      if (now - lastTickTimeRef.current >= 60) {
+        lastTickTimeRef.current = now;
+        onTickSound();
+      }
+    }
+    lastTickIndexRef.current = clamped;
     setVisualIndex(clamped);
     setScrollTop(el.scrollTop);
-  }, [itemHeight, items.length]);
+  }, [itemHeight, items.length, onTickSound]);
 
   // Commit selection when scrolling stops (debounce — shorter for less friction)
   useEffect(() => {
@@ -64,6 +79,7 @@ function WheelPickerInner<T>({
       if (clamped !== lastReportedRef.current) {
         lastReportedRef.current = clamped;
         onSelect(clamped);
+        onSelectSound?.();
       }
     };
     const onScrollEnd = () => {
@@ -75,7 +91,7 @@ function WheelPickerInner<T>({
       el.removeEventListener('scroll', onScrollEnd);
       clearTimeout(timer);
     };
-  }, [itemHeight, items.length, onSelect]);
+  }, [itemHeight, items.length, onSelect, onSelectSound]);
 
   const handleItemClick = useCallback((index: number) => {
     const el = scrollRef.current;
@@ -89,7 +105,8 @@ function WheelPickerInner<T>({
     lastReportedRef.current = index;
     setVisualIndex(index);
     onSelect(index);
-  }, [itemHeight, onSelect]);
+    onSelectSound?.();
+  }, [itemHeight, onSelect, onSelectSound]);
 
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>

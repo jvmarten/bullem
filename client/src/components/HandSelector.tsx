@@ -6,6 +6,7 @@ import {
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 import { WheelPicker } from './WheelPicker.js';
+import { useSound } from '../hooks/useSound.js';
 
 interface Props {
   currentHand: HandCall | null;
@@ -170,6 +171,10 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
 
+  const { play } = useSound();
+  const handleTickSound = useCallback(() => play('wheelTick'), [play]);
+  const handleSelectSound = useCallback(() => play('wheelSelect'), [play]);
+
   const handleTypeChange = useCallback((ht: HandType) => {
     setHandType(ht);
     if ((ht === HandType.STRAIGHT || ht === HandType.STRAIGHT_FLUSH) && RANK_VALUES[rank] < 5) {
@@ -299,8 +304,11 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const suitsArray = useMemo(() => [...ALL_SUITS], []);
 
   const handleSubmit = useCallback(() => {
-    if (hand && isValid) onSubmit(hand);
-  }, [hand, isValid, onSubmit]);
+    if (hand && isValid) {
+      play('callMade');
+      onSubmit(hand);
+    }
+  }, [hand, isValid, onSubmit, play]);
 
   return (
     <div className="animate-slide-up hs-backdrop" data-testid="hand-selector">
@@ -342,6 +350,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             renderItem={renderHandType}
             itemHeight={70}
             visibleCount={3}
+            onTickSound={handleTickSound}
+            onSelectSound={handleSelectSound}
           />
         </div>
 
@@ -359,6 +369,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   itemHeight={42}
                   visibleCount={5}
                   highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
               <div
@@ -378,6 +390,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   itemHeight={42}
                   visibleCount={5}
                   highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
             </div>
@@ -393,6 +407,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   itemHeight={42}
                   visibleCount={5}
                   highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
               <div className="flex-1">
@@ -404,6 +420,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   itemHeight={42}
                   visibleCount={5}
                   highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
             </div>
@@ -418,6 +436,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 itemHeight={42}
                 visibleCount={5}
                 highlightHeight={70}
+                onTickSound={handleTickSound}
+                onSelectSound={handleSelectSound}
               />
             ) : (
               <WheelPicker
@@ -428,6 +448,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 itemHeight={42}
                 visibleCount={5}
                 highlightHeight={70}
+                onTickSound={handleTickSound}
+                onSelectSound={handleSelectSound}
               />
             )
           )}
