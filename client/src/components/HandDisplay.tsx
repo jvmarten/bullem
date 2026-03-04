@@ -1,7 +1,10 @@
+import { memo } from 'react';
 import type { Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 
-export function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }) {
+// Memoized: cards don't change during a round — skip re-renders triggered
+// by unrelated parent state (current turn, timer, call history).
+export const HandDisplay = memo(function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }) {
   if (cards.length === 0) return null;
   const count = cards.length;
   return (
@@ -26,4 +29,4 @@ export function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }
       })}
     </div>
   );
-}
+});

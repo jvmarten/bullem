@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { TurnAction, handToString } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -40,25 +40,33 @@ function CardBackFan({ count, roundNumber, playerIndex }: { count: number; round
   return <div className="flex items-center">{cards}</div>;
 }
 
-function getLastAction(playerId: PlayerId, history?: TurnEntry[]): string | null {
-  if (!history) return null;
+function formatAction(e: TurnEntry): string {
+  switch (e.action) {
+    case TurnAction.CALL:
+      return e.hand ? handToString(e.hand) : 'calls';
+    case TurnAction.BULL:
+      return 'BULL!';
+    case TurnAction.TRUE:
+      return 'TRUE';
+    case TurnAction.LAST_CHANCE_RAISE:
+      return e.hand ? handToString(e.hand) : 'raises';
+    case TurnAction.LAST_CHANCE_PASS:
+      return 'pass';
+  }
+}
+
+/** Build a map of playerId → last action string in a single reverse pass.
+ *  O(history.length) instead of O(players * history.length). */
+function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
+  const map = new Map<PlayerId, string>();
+  if (!history) return map;
   for (let i = history.length - 1; i >= 0; i--) {
     const e = history[i];
-    if (e.playerId !== playerId) continue;
-    switch (e.action) {
-      case TurnAction.CALL:
-        return e.hand ? handToString(e.hand) : 'calls';
-      case TurnAction.BULL:
-        return 'BULL!';
-      case TurnAction.TRUE:
-        return 'TRUE';
-      case TurnAction.LAST_CHANCE_RAISE:
-        return e.hand ? handToString(e.hand) : 'raises';
-      case TurnAction.LAST_CHANCE_PASS:
-        return 'pass';
+    if (!map.has(e.playerId)) {
+      map.set(e.playerId, formatAction(e));
     }
   }
-  return null;
+  return map;
 }
 
 // Memoized to skip re-renders when only other players' state changed.
@@ -146,6 +154,9 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 
 export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber, turnHistory, collapsible }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
+  // Build the last-action map once per render instead of scanning history
+  // per-player. Memoized on history length since a new entry = new length.
+  const lastActionMap = useMemo(() => buildLastActionMap(turnHistory), [turnHistory?.length]);
 
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
@@ -180,7 +191,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               isMe={currentPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
-              lastAction={getLastAction(currentPlayer.id, turnHistory)}
+              lastAction={lastActionMap.get(currentPlayer.id) ?? null}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -191,7 +202,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
               isMe={nextPlayer.id === myPlayerId}
               maxCards={maxCards}
               roundNumber={roundNumber}
-              lastAction={getLastAction(nextPlayer.id, turnHistory)}
+              lastAction={lastActionMap.get(nextPlayer.id) ?? null}
             />
           )}
         </div>
@@ -224,7 +235,7 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
             isMe={p.id === myPlayerId}
             maxCards={maxCards}
             roundNumber={roundNumber}
-            lastAction={getLastAction(p.id, turnHistory)}
+            lastAction={lastActionMap.get(p.id) ?? null}
             showRemoveBot={showRemoveBot}
             onRemoveBot={onRemoveBot}
           />

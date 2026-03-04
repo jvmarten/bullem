@@ -232,10 +232,11 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const player = playersRef.current.find(p => p.id === currentId);
     if (!player?.isBot) return;
 
-    // Use faster delay for bull/last chance phases (matches server BotManager)
-    const state = engine.getClientState(currentId);
-    const inBullPhase = state.roundPhase === RoundPhase.BULL_PHASE
-      || state.roundPhase === RoundPhase.LAST_CHANCE;
+    // Use faster delay for bull/last chance phases (matches server BotManager).
+    // Use lightweight currentRoundPhase instead of building full client state.
+    const phase = engine.currentRoundPhase;
+    const inBullPhase = phase === RoundPhase.BULL_PHASE
+      || phase === RoundPhase.LAST_CHANCE;
     const delay = inBullPhase
       ? BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))
       : computeBotDelay();
