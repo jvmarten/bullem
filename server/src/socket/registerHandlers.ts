@@ -14,12 +14,24 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const RATE_LIMIT_WINDOW_MS = 1000;
 const RATE_LIMIT_MAX_EVENTS = 15;
 
+/** Minimum interval between game action events (ms) to prevent rapid-fire spam. */
+const GAME_ACTION_COOLDOWN_MS = 200;
+
+/** Socket event names that are game actions subject to per-event throttling. */
+const GAME_ACTION_EVENTS = new Set([
+  'game:call', 'game:bull', 'game:true',
+  'game:lastChanceRaise', 'game:lastChancePass', 'game:continue',
+]);
+
 function attachRateLimiter(socket: { use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void }): void {
   let eventCount = 0;
   let windowStart = Date.now();
+  let lastGameActionTime = 0;
 
-  socket.use((_event, next) => {
+  socket.use((event, next) => {
     const now = Date.now();
+
+    // Connection-level rate limit
     if (now - windowStart > RATE_LIMIT_WINDOW_MS) {
       eventCount = 0;
       windowStart = now;
@@ -27,9 +39,20 @@ function attachRateLimiter(socket: { use: (fn: (events: unknown[], next: (err?: 
     eventCount++;
     if (eventCount > RATE_LIMIT_MAX_EVENTS) {
       next(new Error('Rate limit exceeded'));
-    } else {
-      next();
+      return;
     }
+
+    // Per-event cooldown for game actions — prevents rapid-fire spam
+    const eventName = event[0];
+    if (typeof eventName === 'string' && GAME_ACTION_EVENTS.has(eventName)) {
+      if (now - lastGameActionTime < GAME_ACTION_COOLDOWN_MS) {
+        next(new Error('Too fast — please wait'));
+        return;
+      }
+      lastGameActionTime = now;
+    }
+
+    next();
   });
 }
 

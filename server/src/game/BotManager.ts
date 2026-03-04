@@ -21,14 +21,25 @@ let botCounter = 0;
 export class BotManager {
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
   private roomTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Separate timers for disconnected-player auto-actions, keyed by roomCode.
+   *  Tracked separately so clearTurnTimer cancels them alongside the main turn timer. */
+  private roomDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
 
   clearTurnTimer(roomCode: string): void {
     const existing = this.roomTurnTimers.get(roomCode);
-    if (!existing) return;
-    clearTimeout(existing);
-    this.pendingTimers.delete(existing);
-    this.roomTurnTimers.delete(roomCode);
+    if (existing) {
+      clearTimeout(existing);
+      this.pendingTimers.delete(existing);
+      this.roomTurnTimers.delete(roomCode);
+    }
+    // Also cancel any pending disconnect auto-action for this room
+    const disconnectTimer = this.roomDisconnectTimers.get(roomCode);
+    if (disconnectTimer) {
+      clearTimeout(disconnectTimer);
+      this.pendingTimers.delete(disconnectTimer);
+      this.roomDisconnectTimers.delete(roomCode);
+    }
   }
 
   setDifficulty(difficulty: BotDifficulty): void {
@@ -94,13 +105,22 @@ export class BotManager {
     }
   }
 
-  /** Schedule an auto-action for a disconnected player who has no turn timer */
+  /** Schedule an auto-action for a disconnected player who has no turn timer.
+   *  Tracked per-room so clearTurnTimer cancels it if the turn advances. */
   scheduleDisconnectAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+    // Cancel any existing disconnect timer for this room first
+    const existing = this.roomDisconnectTimers.get(room.roomCode);
+    if (existing) {
+      clearTimeout(existing);
+      this.pendingTimers.delete(existing);
+    }
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
+      this.roomDisconnectTimers.delete(room.roomCode);
       this.executeAutoAction(room, io, playerId);
     }, DISCONNECT_AUTO_ACTION_MS);
     this.pendingTimers.add(timer);
+    this.roomDisconnectTimers.set(room.roomCode, timer);
   }
 
   private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId, graceMs = 0): void {
@@ -165,6 +185,7 @@ export class BotManager {
     for (const t of this.pendingTimers) clearTimeout(t);
     this.pendingTimers.clear();
     this.roomTurnTimers.clear();
+    this.roomDisconnectTimers.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {

@@ -1,9 +1,12 @@
+import type { Server } from 'socket.io';
 import {
   ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS,
   GamePhase, MAX_PLAYERS, maxPlayersForMaxCards,
 } from '@bull-em/shared';
-import type { RoomListing, LiveGameListing } from '@bull-em/shared';
+import type { RoomListing, LiveGameListing, ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { Room } from './Room.js';
+
+type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
@@ -127,8 +130,11 @@ export class RoomManager {
     return names;
   }
 
-  startCleanup(): void {
+  private io: TypedServer | null = null;
+
+  startCleanup(io?: TypedServer): void {
     if (this.cleanupTimer) return;
+    if (io) this.io = io;
     this.cleanupTimer = setInterval(() => this.cleanupStaleRooms(), ROOM_CLEANUP_INTERVAL_MS);
   }
 
@@ -149,6 +155,11 @@ export class RoomManager {
       }
     }
     for (const code of staleCodes) {
+      // Notify any remaining connected sockets (spectators, players) before
+      // deleting the room — otherwise they'll be stuck waiting forever.
+      if (this.io) {
+        this.io.to(code).emit('room:deleted');
+      }
       this.deleteRoom(code);
     }
   }
