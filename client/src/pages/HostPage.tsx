@@ -6,7 +6,7 @@ import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS } from '@bull-em/shared'
 
 export function HostPage() {
   const navigate = useNavigate();
-  const { createRoom, updateSettings } = useGameContext();
+  const { isConnected, createRoom, updateSettings } = useGameContext();
   const [maxCards, setMaxCards] = useState(5);
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [turnTimer, setTurnTimer] = useState(30);
@@ -16,6 +16,7 @@ export function HostPage() {
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     const playerName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (!playerName) return navigate('/');
     setLoading(true);
@@ -25,7 +26,7 @@ export function HostPage() {
       updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create room');
+      setError(e instanceof Error ? e.message : 'Failed to create room — check your connection');
     } finally {
       setLoading(false);
     }
