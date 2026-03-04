@@ -4,7 +4,7 @@ import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
-  DECK_SIZE, maxPlayersForMaxCards,
+  DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
@@ -206,7 +206,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const computeBotDelay = useCallback((): number => {
     const engine = engineRef.current;
-    if (!engine) return BOT_THINK_DELAY_MIN;
+    const speedMultiplier = BOT_SPEED_MULTIPLIERS[(gameSettingsRef.current.botSpeed ?? DEFAULT_BOT_SPEED) as BotSpeed];
+    if (!engine) return Math.round(BOT_THINK_DELAY_MIN * speedMultiplier);
 
     // Use lightweight summary instead of building a full ClientGameState
     const { activePlayerCount, totalCards, turnCount } = engine.getRoundSummary();
@@ -220,8 +221,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     // Some randomness (±500ms)
     const jitter = (Math.random() - 0.5) * 1000;
 
-    const delay = Math.round(base + cardsFactor + roundDepth + jitter);
-    return Math.max(BOT_THINK_DELAY_MIN, Math.min(delay, 7000));
+    const raw = Math.round(base + cardsFactor + roundDepth + jitter);
+    const delay = Math.round(raw * speedMultiplier);
+    return Math.max(Math.round(BOT_THINK_DELAY_MIN * speedMultiplier), Math.min(delay, Math.round(7000 * speedMultiplier)));
   }, []);
 
   const scheduleBotTurn = useCallback(() => {
@@ -237,8 +239,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const phase = engine.currentRoundPhase;
     const inBullPhase = phase === RoundPhase.BULL_PHASE
       || phase === RoundPhase.LAST_CHANCE;
+    const speedMultiplier = BOT_SPEED_MULTIPLIERS[(gameSettingsRef.current.botSpeed ?? DEFAULT_BOT_SPEED) as BotSpeed];
     const delay = inBullPhase
-      ? BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))
+      ? Math.round((BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))) * speedMultiplier)
       : computeBotDelay();
 
     botTimerRef.current = setTimeout(() => {
