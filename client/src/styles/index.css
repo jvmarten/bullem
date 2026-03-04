@@ -33,7 +33,7 @@
 
   /* Typography */
   --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-title:   'Gotham', 'Montserrat', 'Arial Black', system-ui, sans-serif;
+  --font-title:   'Playfair Display', 'Georgia', serif;
   --font-body:    'Inter', system-ui, sans-serif;
 }
 
@@ -486,9 +486,49 @@ body {
 }
 
 /* ── Spectator desaturation ──────────────────────────── */
-/* ── Title Glow ─────────────────────────────────────── */
-.title-glow {
-  text-shadow: 0 0 12px var(--gold-glow), 0 0 4px rgba(212, 168, 67, 0.2);
+/* ── Title Logo ─────────────────────────────────────── */
+.title-logo-text {
+  font-family: var(--font-title);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: linear-gradient(
+    170deg,
+    #f5e6a3 0%,
+    #d4a843 25%,
+    #c8941e 45%,
+    #e8c56e 55%,
+    #d4a843 75%,
+    #a07c2e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 10px rgba(212, 168, 67, 0.35))
+          drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  position: relative;
+}
+
+.title-logo-large .title-logo-text {
+  font-size: 3.2rem;
+  line-height: 1.1;
+  animation: shimmer 4s ease-in-out infinite;
+}
+
+.title-logo-small .title-logo-text {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(212, 168, 67, 0.35))
+            drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(212, 168, 67, 0.55))
+            drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+  }
 }
 
 .spectating {
