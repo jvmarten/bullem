@@ -11,6 +11,9 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
+  /** Reverse index: roomCode → socketIds. Enables O(room_size) deleteRoom cleanup
+   *  instead of scanning every socket across all rooms. */
+  private roomToSockets = new Map<string, Set<string>>();
   /** O(1) index: playerId → roomCode. Maintained alongside Room.players. */
   private playerToRoom = new Map<string, string>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -40,6 +43,12 @@ export class RoomManager {
 
   assignSocketToRoom(socketId: string, roomCode: string): void {
     this.socketToRoom.set(socketId, roomCode);
+    let sockets = this.roomToSockets.get(roomCode);
+    if (!sockets) {
+      sockets = new Set();
+      this.roomToSockets.set(roomCode, sockets);
+    }
+    sockets.add(socketId);
   }
 
   /** Register a player → room mapping for O(1) lookups. */
@@ -60,6 +69,7 @@ export class RoomManager {
 
     const playerId = room.handleDisconnect(socketId, onTimeout);
     this.socketToRoom.delete(socketId);
+    this.roomToSockets.get(room.roomCode)?.delete(socketId);
 
     // If the player was fully removed (lobby phase), clean up the index
     if (playerId && !room.players.has(playerId)) {
@@ -77,7 +87,11 @@ export class RoomManager {
   }
 
   removeSocketMapping(socketId: string): void {
+    const roomCode = this.socketToRoom.get(socketId);
     this.socketToRoom.delete(socketId);
+    if (roomCode) {
+      this.roomToSockets.get(roomCode)?.delete(socketId);
+    }
   }
 
   deleteRoom(roomCode: string): void {
@@ -91,9 +105,14 @@ export class RoomManager {
     }
     this.rooms.delete(roomCode);
     this.cachedPlayerNames = null;
-    // Clean up socket mappings pointing to this room
-    for (const [socketId, code] of this.socketToRoom) {
-      if (code === roomCode) this.socketToRoom.delete(socketId);
+    // Clean up socket mappings using the reverse index (O(room_size) instead
+    // of O(total_sockets) — avoids scanning every socket across all rooms).
+    const sockets = this.roomToSockets.get(roomCode);
+    if (sockets) {
+      for (const socketId of sockets) {
+        this.socketToRoom.delete(socketId);
+      }
+      this.roomToSockets.delete(roomCode);
     }
   }
 
@@ -103,12 +122,12 @@ export class RoomManager {
       if (room.gamePhase !== GamePhase.LOBBY) continue;
       const effectiveMax = this.effectiveMaxPlayers(room);
       if (room.playerCount >= effectiveMax) continue;
-      const host = [...room.players.values()].find(p => p.isHost);
+      // O(1) host name via Room.hostName getter instead of scanning player map
       listings.push({
         roomCode: room.roomCode,
         playerCount: room.playerCount,
         maxPlayers: effectiveMax,
-        hostName: host?.name ?? '???',
+        hostName: room.hostName,
         settings: { ...room.settings },
       });
     }
@@ -120,12 +139,12 @@ export class RoomManager {
     for (const room of this.rooms.values()) {
       if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT) continue;
       if (!room.settings.allowSpectators) continue;
-      const host = [...room.players.values()].find(p => p.isHost);
       const state = room.getSpectatorGameState();
+      // O(1) host name via Room.hostName getter instead of scanning player map
       listings.push({
         roomCode: room.roomCode,
         playerCount: room.playerCount,
-        hostName: host?.name ?? '???',
+        hostName: room.hostName,
         roundNumber: state?.roundNumber ?? 0,
         spectatorsCanSeeCards: room.settings.spectatorsCanSeeCards ?? false,
       });

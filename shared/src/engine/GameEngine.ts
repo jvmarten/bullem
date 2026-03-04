@@ -578,12 +578,33 @@ export class GameEngine {
   }
 
   private isAfterLastCall(entry: TurnEntry): boolean {
-    const lastCallIndex = [...this.turnHistory].reverse().findIndex(
-      t => t.action === TurnAction.CALL || t.action === TurnAction.LAST_CHANCE_RAISE,
-    );
-    if (lastCallIndex === -1) return false;
-    const actualIndex = this.turnHistory.length - 1 - lastCallIndex;
-    return this.turnHistory.indexOf(entry) > actualIndex;
+    const lastCallIdx = this.getLastCallIndex();
+    if (lastCallIdx === -1) return false;
+    return this.turnHistory.indexOf(entry) > lastCallIdx;
+  }
+
+  /** Cached index of the last CALL/LAST_CHANCE_RAISE in turnHistory.
+   *  Avoids the O(history) reverse search on every isAfterLastCall() call,
+   *  which was previously O(history²) when called inside .some() loops. */
+  private _lastCallIndex = -1;
+  private _lastCallIndexLength = -1;
+
+  private getLastCallIndex(): number {
+    if (this._lastCallIndexLength === this.turnHistory.length) {
+      return this._lastCallIndex;
+    }
+    // Scan backwards once to find the last call/raise
+    let idx = -1;
+    for (let i = this.turnHistory.length - 1; i >= 0; i--) {
+      const action = this.turnHistory[i].action;
+      if (action === TurnAction.CALL || action === TurnAction.LAST_CHANCE_RAISE) {
+        idx = i;
+        break;
+      }
+    }
+    this._lastCallIndex = idx;
+    this._lastCallIndexLength = this.turnHistory.length;
+    return idx;
   }
 
   private getPlayerLastAction(playerId: PlayerId): TurnAction | null {

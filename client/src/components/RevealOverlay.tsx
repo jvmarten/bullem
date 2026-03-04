@@ -1,7 +1,7 @@
 import { handToString, TurnAction } from '@bull-em/shared';
 import type { RoundResult, Player, OwnedCard, TurnEntry, Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, memo } from 'react';
 
 function FlipCard({ card, delay }: { card: Card; delay: number }) {
   return (
@@ -39,7 +39,10 @@ function actionLabel(entry: TurnEntry): string {
   }
 }
 
-export function RevealOverlay({ result, players, onDismiss }: Props) {
+// Memoized: props are stable for the duration of the overlay. Without memo,
+// parent re-renders (e.g. from the countdown timer in the game page) would
+// re-render the entire overlay including flip-card animations.
+export const RevealOverlay = memo(function RevealOverlay({ result, players, onDismiss }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
 
@@ -165,4 +168,4 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
       </div>
     </div>
   );
-}
+});

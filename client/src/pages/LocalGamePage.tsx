@@ -82,6 +82,10 @@ export function LocalGamePage() {
     setHandSelectorOpen(false);
   }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
 
+  // Stable callback reference so ActionButtons' React.memo isn't broken by
+  // an inline arrow function creating a new reference on every render.
+  const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
+
   // Close hand selector when turn changes
   useEffect(() => {
     setHandSelectorOpen(false);
@@ -204,7 +208,7 @@ export function LocalGamePage() {
               onBull={callBull}
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
-              onExpand={() => setHandSelectorOpen(false)}
+              onExpand={closeHandSelector}
             />
             {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up ml-auto">

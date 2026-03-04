@@ -38,6 +38,11 @@ export class Room {
     this.lastActivity = Date.now();
   }
 
+  /** O(1) host name lookup — avoids scanning the player map in room listings. */
+  get hostName(): string {
+    return this.players.get(this.hostId)?.name ?? '???';
+  }
+
   addPlayer(socketId: string, playerId: PlayerId, name: string): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,

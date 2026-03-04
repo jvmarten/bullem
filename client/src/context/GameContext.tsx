@@ -2,6 +2,16 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, us
 import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
+/** Presence state (online player count/names) is split into a separate context
+ *  so that server-wide connect/disconnect events don't re-render game components.
+ *  Only Layout (which shows the player count) subscribes to this context. */
+export interface PresenceContextValue {
+  onlinePlayerCount: number;
+  onlinePlayerNames: string[];
+}
+
+export const PresenceContext = createContext<PresenceContextValue>({ onlinePlayerCount: 0, onlinePlayerNames: [] });
+
 export interface GameContextValue {
   roomState: RoomState | null;
   gameState: ClientGameState | null;
@@ -350,6 +360,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const lastChancePassAction = useCallback(() => socket.emit('game:lastChancePass'), []);
   const clearErrorAction = useCallback(() => setError(null), []);
 
+  // Presence context value is separate so online player count/name changes
+  // (server-wide events on every connect/disconnect) don't re-render game
+  // components. Only Layout subscribes to PresenceContext.
+  const presenceValue: PresenceContextValue = useMemo(() => ({
+    onlinePlayerCount,
+    onlinePlayerNames,
+  }), [onlinePlayerCount, onlinePlayerNames]);
+
   const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,
@@ -392,7 +410,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     addBot, removeBot,
   ]);
 
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+  return (
+    <PresenceContext.Provider value={presenceValue}>
+      <GameContext.Provider value={value}>{children}</GameContext.Provider>
+    </PresenceContext.Provider>
+  );
 }
 
 export function useGameContext(): GameContextValue {

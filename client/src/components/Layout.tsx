@@ -1,6 +1,6 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GameContext } from '../context/GameContext.js';
+import { GameContext, PresenceContext } from '../context/GameContext.js';
 import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
 import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
@@ -9,8 +9,9 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
   const hasConnected = ctx?.hasConnected ?? true;
-  const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
-  const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
+  // Read presence from the dedicated PresenceContext — this prevents game
+  // components from re-rendering when the global online count changes.
+  const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
   const [showPopup, setShowPopup] = useState(false);
   const [showVersionPopup, setShowVersionPopup] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);

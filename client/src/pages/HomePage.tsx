@@ -196,7 +196,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { isConnected, onlinePlayerCount, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
