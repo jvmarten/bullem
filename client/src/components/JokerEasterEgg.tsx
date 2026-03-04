@@ -125,14 +125,31 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
           <div className="joker-card-back-inner" />
         </div>
 
-        {/* Card Front — Joker */}
+        {/* Card Front — Joker face */}
         <div className="joker-card-face joker-card-front">
           <div className="joker-front-content">
-            <span className="joker-star">&#9733;</span>
+            <span className="joker-corner joker-corner-top">J<span className="joker-corner-suit">&#9830;</span></span>
+            <div className="joker-face">
+              <div className="joker-face-hat">
+                <span className="joker-bell">&#9752;</span>
+                <span className="joker-hat-tip" />
+                <span className="joker-bell">&#9752;</span>
+              </div>
+              <div className="joker-face-head">
+                <div className="joker-face-eyes">
+                  <span className="joker-eye">&#9679;</span>
+                  <span className="joker-eye">&#9679;</span>
+                </div>
+                <div className="joker-face-mouth" />
+              </div>
+              <div className="joker-face-collar">
+                <span className="joker-collar-point" />
+                <span className="joker-collar-point" />
+                <span className="joker-collar-point" />
+              </div>
+            </div>
             <span className="joker-label">JOKER</span>
-            <span className="joker-hat">&#9812;</span>
-            <span className="joker-label">JOKER</span>
-            <span className="joker-star joker-star-flip">&#9733;</span>
+            <span className="joker-corner joker-corner-bottom">J<span className="joker-corner-suit">&#9830;</span></span>
           </div>
         </div>
       </div>
