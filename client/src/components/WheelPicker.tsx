@@ -7,6 +7,7 @@ interface WheelPickerProps<T> {
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   itemHeight?: number;
   visibleCount?: number;
+  highlightHeight?: number;
 }
 
 // Memoized to prevent re-renders when parent state changes but picker
@@ -18,6 +19,7 @@ function WheelPickerInner<T>({
   renderItem,
   itemHeight = 48,
   visibleCount = 5,
+  highlightHeight,
 }: WheelPickerProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReportedRef = useRef(selectedIndex);
@@ -92,7 +94,10 @@ function WheelPickerInner<T>({
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>
       {/* Center slot highlight indicator */}
-      <div className="wheel-picker-center-highlight" style={{ top: centerOffset, height: itemHeight }} />
+      <div className="wheel-picker-center-highlight" style={{
+        height: highlightHeight ?? itemHeight,
+        top: centerOffset + (itemHeight - (highlightHeight ?? itemHeight)) / 2,
+      }} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
