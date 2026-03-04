@@ -18,6 +18,7 @@ type SoundName =
   | 'cardReveal'
   | 'fanfare'
   | 'wheelTick'
+  | 'wheelTickLow'
   | 'wheelSelect';
 
 interface ToneConfig {
@@ -102,13 +103,17 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
   ],
   wheelTick: [
-    // Soft roulette-wheel notch tick — very short, high-pitched, quiet
-    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.07, ramp: 0.03 },
+    // Soft roulette-wheel notch tick — very short, high-pitched, barely audible
+    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
+  ],
+  wheelTickLow: [
+    // Lower-pitched tick for hand type wheel — ~75% frequency of wheelTick
+    { frequency: 950, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
   ],
   wheelSelect: [
-    // Gentle two-tone marimba tap — soft confirmation ping
-    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.09, ramp: 0.04 },
-    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.08, delay: 0.04 },
+    // Gentle two-tone marimba tap — barely audible confirmation ping
+    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.045, ramp: 0.04 },
+    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.04, delay: 0.04 },
   ],
   fanfare: [
     // Celebratory trumpet fanfare for royal flush easter egg
