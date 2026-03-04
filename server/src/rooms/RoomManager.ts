@@ -140,11 +140,15 @@ export class RoomManager {
 
   private cleanupStaleRooms(): void {
     const now = Date.now();
+    // Collect codes first to avoid mutating the map during iteration
+    const staleCodes: string[] = [];
     for (const [code, room] of this.rooms) {
       if (room.isEmpty || now - room.lastActivity > ROOM_MAX_INACTIVE_MS) {
-        room.cleanup();
-        this.rooms.delete(code);
+        staleCodes.push(code);
       }
+    }
+    for (const code of staleCodes) {
+      this.deleteRoom(code);
     }
   }
 }
