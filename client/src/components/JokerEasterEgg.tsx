@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import stubbinUrl from '../assets/sounds/stubbin-full.mp3';
 import { useSound } from '../hooks/useSound.js';
 
 type Phase = 'idle' | 'fly-in' | 'flip' | 'levitate' | 'dismiss';
@@ -25,11 +24,14 @@ export function useJokerEasterEgg() {
     if (countRef.current >= TAP_THRESHOLD) {
       countRef.current = 0;
 
-      // Start audio IMMEDIATELY on the 53rd tap
-      const audio = new Audio(stubbinUrl);
-      audioRef.current = audio;
-      // Volume is set by the overlay once it mounts
-      audio.play().catch(() => {});
+      // Lazy-load the 1.1MB audio file only when the easter egg triggers.
+      // This keeps it out of the initial bundle for the 99.9% of users who
+      // never tap the logo 53 times.
+      import('../assets/sounds/stubbin-full.mp3').then(({ default: url }) => {
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.play().catch(() => {});
+      }).catch(() => {});
 
       setPhase('fly-in');
     } else {

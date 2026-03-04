@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
@@ -339,7 +339,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit('room:removeBot', { botId });
   }, []);
 
-  const value: GameContextValue = {
+  const startGame = useCallback(() => socket.emit('game:start'), []);
+  const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
+  const callBull = useCallback(() => socket.emit('game:bull'), []);
+  const callTrue = useCallback(() => socket.emit('game:true'), []);
+  const lastChanceRaiseAction = useCallback((hand: HandCall) => socket.emit('game:lastChanceRaise', { hand }), []);
+  const lastChancePassAction = useCallback(() => socket.emit('game:lastChancePass'), []);
+  const clearErrorAction = useCallback(() => setError(null), []);
+
+  const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,
     roundResult,
@@ -361,17 +369,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     listLiveGames,
     spectateGame,
     updateSettings,
-    startGame: () => socket.emit('game:start'),
-    callHand: (hand) => socket.emit('game:call', { hand }),
-    callBull: () => socket.emit('game:bull'),
-    callTrue: () => socket.emit('game:true'),
-    lastChanceRaise: (hand) => socket.emit('game:lastChanceRaise', { hand }),
-    lastChancePass: () => socket.emit('game:lastChancePass'),
-    clearError: () => setError(null),
+    startGame,
+    callHand,
+    callBull,
+    callTrue,
+    lastChanceRaise: lastChanceRaiseAction,
+    lastChancePass: lastChancePassAction,
+    clearError: clearErrorAction,
     clearRoundResult,
     addBot,
     removeBot,
-  };
+  }), [
+    roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected,
+    onlinePlayerCount, onlinePlayerNames,
+    createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
+    spectateGame, updateSettings, startGame, callHand, callBull, callTrue,
+    lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
+    addBot, removeBot,
+  ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

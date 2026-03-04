@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
@@ -607,18 +607,25 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = {
+  const clearErrorAction = useCallback(() => setError(null), []);
+  const noopListRooms = useCallback(async () => [] as never[], []);
+  const noopListLiveGames = useCallback(async () => [] as never[], []);
+  const noopSpectate = useCallback(async () => {}, []);
+  const noopUpdateSettings = useCallback(() => {}, []);
+  const noopDeleteRoom = useCallback(() => {}, []);
+
+  const value = useMemo(() => ({
     roomState,
     gameState,
     roundResult,
     roundTransition,
-    roundTransitionDeadline: null,
+    roundTransitionDeadline: null as null,
     winnerId,
     gameStats,
     playerId: HUMAN_ID,
     error,
-    isConnected: true,
-    hasConnected: true,
+    isConnected: true as const,
+    hasConnected: true as const,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -628,7 +635,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     callTrue,
     lastChanceRaise,
     lastChancePass,
-    clearError: () => setError(null),
+    clearError: clearErrorAction,
     clearRoundResult,
     addBot,
     removeBot,
@@ -640,12 +647,19 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     togglePause,
     onlinePlayerCount,
     onlinePlayerNames,
-    listRooms: async () => [],
-    listLiveGames: async () => [],
-    spectateGame: async () => {},
-    updateSettings: () => {},
-    deleteRoom: () => {},
-  };
+    listRooms: noopListRooms,
+    listLiveGames: noopListLiveGames,
+    spectateGame: noopSpectate,
+    updateSettings: noopUpdateSettings,
+    deleteRoom: noopDeleteRoom,
+  }), [
+    roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
+    error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
+    callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
+    addBot, removeBot, botDifficulty, setBotDifficulty, gameSettings,
+    setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
+    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom,
+  ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }
