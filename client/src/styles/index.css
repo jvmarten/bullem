@@ -685,21 +685,55 @@ body {
   }
 }
 
-/* Phase: levitate — Joker face up, gentle hover */
+/* Phase: levitate — Joker face up, organic zero-gravity float.
+   CRITICAL: animations use individual CSS transform properties (translate, rotate, scale)
+   which are applied INDEPENDENTLY of the `transform` property. This means
+   `transform: rotateY(180deg)` is NEVER overridden, keeping the Joker face visible. */
 .joker-levitate {
   transform: rotateY(180deg);
-  animation: joker-float 2.5s ease-in-out infinite;
+  animation:
+    joker-drift 6s ease-in-out infinite,
+    joker-rock 7s ease-in-out infinite,
+    joker-pulse 4s ease-in-out infinite;
 }
 
-@keyframes joker-float {
-  0%, 100% {
-    transform: rotateY(180deg) translateY(0) rotate(0deg);
+/* Lazy oval drift — vertical + horizontal, with shadow depth */
+@keyframes joker-drift {
+  0% {
+    translate: 0 0;
     filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
   }
-  50% {
-    transform: rotateY(180deg) translateY(-14px) rotate(2deg);
-    filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.3));
+  25% {
+    translate: 6px -12px;
+    filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.35));
   }
+  50% {
+    translate: -3px -18px;
+    filter: drop-shadow(0 24px 32px rgba(0, 0, 0, 0.28));
+  }
+  75% {
+    translate: -8px -6px;
+    filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.37));
+  }
+  100% {
+    translate: 0 0;
+    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
+  }
+}
+
+/* Slow irregular tilt/rock on Z axis */
+@keyframes joker-rock {
+  0%, 100% { rotate: 0deg; }
+  20% { rotate: 2.5deg; }
+  45% { rotate: -1.8deg; }
+  70% { rotate: 1.2deg; }
+  90% { rotate: -0.5deg; }
+}
+
+/* Very subtle breathing scale pulse */
+@keyframes joker-pulse {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.03; }
 }
 
 /* Phase: dismiss — spin away face-up */
