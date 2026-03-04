@@ -588,39 +588,167 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 12px;
+  gap: 2px;
+  padding: 8px 10px;
+  position: relative;
 }
 
-.joker-star {
-  font-size: 1.5rem;
-  color: #d4a843;
-  text-shadow: 0 0 6px rgba(212, 168, 67, 0.4);
+/* Corner indices (top-left and bottom-right) */
+.joker-corner {
+  position: absolute;
+  font-family: var(--font-title);
+  font-weight: 900;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: #c0392b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
 }
 
-.joker-star-flip {
+.joker-corner-top {
+  top: 6px;
+  left: 8px;
+}
+
+.joker-corner-bottom {
+  bottom: 6px;
+  right: 8px;
   transform: rotate(180deg);
+}
+
+.joker-corner-suit {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+/* Jester face — central illustration */
+.joker-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin: 2px 0;
+}
+
+/* Three-pointed jester hat */
+.joker-face-hat {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  color: #9b2c8f;
+  font-size: 0.7rem;
+  position: relative;
+}
+
+.joker-hat-tip {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 22px solid #9b2c8f;
+  position: relative;
+}
+
+.joker-hat-tip::before,
+.joker-hat-tip::after {
+  content: '';
+  position: absolute;
+  bottom: -22px;
+  width: 0;
+  height: 0;
+  border-bottom: 16px solid #c0392b;
+}
+
+.joker-hat-tip::before {
+  left: -24px;
+  border-left: 6px solid transparent;
+  border-right: 10px solid transparent;
+}
+
+.joker-hat-tip::after {
+  right: -24px;
+  border-left: 10px solid transparent;
+  border-right: 6px solid transparent;
+}
+
+.joker-bell {
+  font-size: 0.6rem;
+  color: #d4a843;
+  text-shadow: 0 0 4px rgba(212, 168, 67, 0.5);
+}
+
+/* Head — round face */
+.joker-face-head {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe4c9 0%, #f5d0a9 100%);
+  border: 2px solid #d4a843;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.joker-face-eyes {
+  display: flex;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.joker-eye {
+  font-size: 0.5rem;
+  color: #2c3e50;
+  line-height: 1;
+}
+
+/* Grinning mouth */
+.joker-face-mouth {
+  width: 18px;
+  height: 9px;
+  border-bottom: 2.5px solid #c0392b;
+  border-left: 2.5px solid #c0392b;
+  border-right: 2.5px solid #c0392b;
+  border-radius: 0 0 50% 50%;
+}
+
+/* Ruffled collar */
+.joker-face-collar {
+  display: flex;
+  gap: 2px;
+  margin-top: -2px;
+}
+
+.joker-collar-point {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 12px solid #d4a843;
+}
+
+.joker-collar-point:nth-child(2) {
+  border-top-color: #c0392b;
 }
 
 .joker-label {
   font-family: var(--font-title);
   font-weight: 900;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   letter-spacing: 0.15em;
   background: linear-gradient(135deg, #9b2c8f, #c0392b, #d4a843);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-
-.joker-hat {
-  font-size: 3.5rem;
-  background: linear-gradient(135deg, #9b2c8f, #c0392b);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-  line-height: 1;
+  margin-top: 2px;
 }
 
 /* Phase: fly-in — cinematic 5.5s spiral from distance */
