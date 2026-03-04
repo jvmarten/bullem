@@ -278,7 +278,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const renderSuit = useCallback((s: string, isSelected: boolean) => {
     const isRed = s === 'hearts' || s === 'diamonds';
     return (
-      <div className={`hs-rank-wheel-card hs-suit-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`}>
+      <div className={`hs-rank-wheel-card hs-suit-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`} data-suit-card>
         <span className={`hs-suit-wheel-symbol ${isSelected ? 'hs-suit-wheel-symbol-selected' : ''} ${isRed ? 'hs-suit-red' : 'hs-suit-black'}`}>
           {SUIT_SYMBOLS[s as Suit]}
         </span>
