@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, BotPlayer } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -264,6 +264,8 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
+    // Clear cross-round bot memory at the start of each new game
+    BotPlayer.resetMemory();
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);
