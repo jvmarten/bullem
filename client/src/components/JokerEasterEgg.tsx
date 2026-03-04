@@ -6,11 +6,15 @@ type Phase = 'idle' | 'fly-in' | 'flip' | 'levitate' | 'dismiss';
 
 const TAP_THRESHOLD = 53;
 const TAP_TIMEOUT_MS = 2000;
+const FLY_IN_MS = 5500;
+const FLIP_MS = 700;
+const DISMISS_MS = 600;
 
 export function useJokerEasterEgg() {
   const [phase, setPhase] = useState<Phase>('idle');
   const countRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleLogoClick = useCallback(() => {
     if (phase !== 'idle') return;
@@ -20,6 +24,13 @@ export function useJokerEasterEgg() {
 
     if (countRef.current >= TAP_THRESHOLD) {
       countRef.current = 0;
+
+      // Start audio IMMEDIATELY on the 53rd tap
+      const audio = new Audio(stubbinUrl);
+      audioRef.current = audio;
+      // Volume is set by the overlay once it mounts
+      audio.play().catch(() => {});
+
       setPhase('fly-in');
     } else {
       timerRef.current = setTimeout(() => {
@@ -32,46 +43,46 @@ export function useJokerEasterEgg() {
     return () => clearTimeout(timerRef.current);
   }, []);
 
-  return { phase, setPhase, handleLogoClick };
+  return { phase, setPhase, handleLogoClick, audioRef };
 }
 
-export function JokerOverlay({ phase, setPhase }: {
+export function JokerOverlay({ phase, setPhase, audioRef }: {
   phase: Phase;
   setPhase: (p: Phase) => void;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { volume, muted } = useSound();
+
+  // Sync volume/mute to the audio element whenever they change
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = muted ? 0 : volume;
+    }
+  }, [volume, muted, audioRef, phase]);
+
+  // Listen for audio ended → dismiss
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || phase === 'idle' || phase === 'dismiss') return;
+
+    const onEnded = () => setPhase('dismiss');
+    audio.addEventListener('ended', onEnded);
+    return () => audio.removeEventListener('ended', onEnded);
+  }, [phase, setPhase, audioRef]);
 
   // Advance phases on animation timers
   useEffect(() => {
     if (phase === 'fly-in') {
-      const t = setTimeout(() => setPhase('flip'), 1000);
+      const t = setTimeout(() => setPhase('flip'), FLY_IN_MS);
       return () => clearTimeout(t);
     }
     if (phase === 'flip') {
-      const t = setTimeout(() => setPhase('levitate'), 600);
+      const t = setTimeout(() => setPhase('levitate'), FLIP_MS);
       return () => clearTimeout(t);
     }
   }, [phase, setPhase]);
 
-  // Start audio when flipping
-  useEffect(() => {
-    if (phase !== 'flip') return;
-    const audio = new Audio(stubbinUrl);
-    audio.volume = muted ? 0 : volume;
-    audio.play().catch(() => {});
-    audioRef.current = audio;
-
-    audio.addEventListener('ended', () => {
-      setPhase('dismiss');
-    });
-
-    return () => {
-      audio.removeEventListener('ended', () => {});
-    };
-  }, [phase, volume, muted, setPhase]);
-
-  // Dismiss animation → idle
+  // Dismiss animation → idle + cleanup
   useEffect(() => {
     if (phase !== 'dismiss') return;
     const t = setTimeout(() => {
@@ -80,9 +91,9 @@ export function JokerOverlay({ phase, setPhase }: {
         audioRef.current = null;
       }
       setPhase('idle');
-    }, 600);
+    }, DISMISS_MS);
     return () => clearTimeout(t);
-  }, [phase, setPhase]);
+  }, [phase, setPhase, audioRef]);
 
   const handleDismiss = useCallback(() => {
     if (phase === 'levitate' || phase === 'flip') {
