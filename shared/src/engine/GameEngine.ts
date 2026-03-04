@@ -226,7 +226,8 @@ export class GameEngine {
 
     this.currentHand = hand;
     this.lastChanceUsed = true;
-    this.addTurnEntry(playerId, TurnAction.CALL, hand);
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
+    this.gameStats.playerStats[playerId].callsMade++;
     this.roundPhase = RoundPhase.BULL_PHASE;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
@@ -241,6 +242,7 @@ export class GameEngine {
     if (playerId !== this.lastCallerId) {
       return { type: 'error', message: 'Only the last caller can pass' };
     }
+    this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_PASS);
     return this.resolveRound();
   }
 
@@ -478,9 +480,13 @@ export class GameEngine {
 
   private advanceTurn(): void {
     const active = this.getActivePlayers();
+    if (active.length === 0) return;
     let next = (this.currentPlayerIndex + 1) % active.length;
-    // Skip the last caller (they don't respond to their own call)
-    while (active[next]?.id === this.lastCallerId) {
+    // Skip the last caller (they don't respond to their own call).
+    // Safety bound: iterate at most active.length times to prevent infinite loop
+    // if game state is somehow inconsistent.
+    let guard = active.length;
+    while (active[next]?.id === this.lastCallerId && guard-- > 0) {
       next = (next + 1) % active.length;
     }
     this.currentPlayerIndex = next;
@@ -492,7 +498,9 @@ export class GameEngine {
   }
 
   private isAfterLastCall(entry: TurnEntry): boolean {
-    const lastCallIndex = [...this.turnHistory].reverse().findIndex(t => t.action === TurnAction.CALL);
+    const lastCallIndex = [...this.turnHistory].reverse().findIndex(
+      t => t.action === TurnAction.CALL || t.action === TurnAction.LAST_CHANCE_RAISE,
+    );
     if (lastCallIndex === -1) return false;
     const actualIndex = this.turnHistory.length - 1 - lastCallIndex;
     return this.turnHistory.indexOf(entry) > actualIndex;
