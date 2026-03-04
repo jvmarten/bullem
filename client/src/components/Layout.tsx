@@ -1,6 +1,7 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { GameContext } from '../context/GameContext.js';
+import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
 import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
 
@@ -16,7 +17,10 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick } = useJokerEasterEgg();
+
   const handleTitleClick = () => {
+    jokerClick();
     const inPotentialSession = /^\/(room|game|local|results)/.test(location.pathname);
     if (inPotentialSession) {
       const ok = window.confirm('Leave current game/session and return home?');
@@ -93,12 +97,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.1.13
+              v0.1.14
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.1.13 &middot; 04.03.26
+                  v0.1.14 &middot; 04.03.26
                 </p>
               </div>
             )}
@@ -106,6 +110,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
+      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} />
     </div>
   );
 }
