@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, BotPlayer } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -14,6 +14,17 @@ function sanitizeName(raw: unknown): string | null {
   if (trimmed.length === 0 || trimmed.length > PLAYER_NAME_MAX_LENGTH) return null;
   if (!PLAYER_NAME_PATTERN.test(trimmed)) return null;
   return trimmed;
+}
+
+const ROOM_CODE_PATTERN = /^[A-Z]{4}$/;
+
+/** Validate a room code. Returns the uppercased code or null if invalid. */
+function sanitizeRoomCode(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const upper = raw.trim().toUpperCase();
+  if (upper.length !== ROOM_CODE_LENGTH) return null;
+  if (!ROOM_CODE_PATTERN.test(upper)) return null;
+  return upper;
 }
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -31,30 +42,34 @@ export function registerLobbyHandlers(
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, name);
+    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
-    callback({ roomCode: room.roomCode });
+    callback({ roomCode: room.roomCode, reconnectToken });
   });
 
   socket.on('room:join', (data, callback) => {
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
 
-    const room = roomManager.getRoom(data.roomCode);
+    const roomCode = sanitizeRoomCode(data.roomCode);
+    if (!roomCode) return callback({ error: 'Invalid room code' });
+
+    const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
 
-    // Check for reconnection
-    if (data.playerId && room.handleReconnect(socket.id, data.playerId)) {
+    // Check for reconnection — requires the secret reconnect token
+    if (data.playerId && room.handleReconnect(socket.id, data.playerId, data.reconnectToken)) {
       roomManager.assignSocketToRoom(socket.id, room.roomCode);
       socket.join(room.roomCode);
       broadcastRoomState(io, room);
       if (room.game) broadcastGameState(io, room);
       io.to(room.roomCode).emit('player:reconnected', data.playerId);
       broadcastPlayerNames(io, roomManager);
-      return callback({ playerId: data.playerId });
+      // Return the same reconnect token so the client can store it for future reconnects
+      return callback({ playerId: data.playerId, reconnectToken: data.reconnectToken! });
     }
 
     const effectiveMax = roomManager.effectiveMaxPlayers(room);
@@ -62,12 +77,12 @@ export function registerLobbyHandlers(
     if (room.gamePhase !== GamePhase.LOBBY) return callback({ error: 'Game already in progress' });
 
     const playerId = randomUUID();
-    room.addPlayer(socket.id, playerId, name);
+    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
-    callback({ playerId });
+    callback({ playerId, reconnectToken });
   });
 
   socket.on('room:leave', () => {
@@ -127,9 +142,9 @@ export function registerLobbyHandlers(
     // Clean up empty rooms
     if (room.isEmpty) {
       roomManager.deleteRoom(room.roomCode);
+    } else {
+      broadcastRoomState(io, room);
     }
-
-    broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
   });
 
@@ -158,7 +173,10 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:spectate', (data, callback) => {
-    const room = roomManager.getRoom(data.roomCode);
+    const roomCode = sanitizeRoomCode(data.roomCode);
+    if (!roomCode) return callback({ error: 'Invalid room code' });
+
+    const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
     if (!room.settings.allowSpectators) return callback({ error: 'Spectating not allowed' });
     if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT && room.gamePhase !== GamePhase.GAME_OVER) {

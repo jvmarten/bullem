@@ -122,7 +122,8 @@ export class GameEngine {
 
     // Re-deal cards based on each player's current card count (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      const available = Math.min(p.cardCount, this.deck.remaining);
+      const needed = p.cardCount || STARTING_CARDS;
+      const available = Math.min(needed, this.deck.remaining);
       p.cards = this.deck.deal(available);
     }
 

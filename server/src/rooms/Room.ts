@@ -4,6 +4,7 @@ import {
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
 } from '@bull-em/shared';
+import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
 
 export class Room {
@@ -11,6 +12,11 @@ export class Room {
   players = new Map<PlayerId, ServerPlayer>();
   socketToPlayer = new Map<string, PlayerId>();
   playerToSocket = new Map<PlayerId, string>();
+  /** Secret tokens per player for secure reconnection. Player IDs are visible
+   *  to all clients in game state, so we need a separate secret that only the
+   *  original player knows to prevent session hijacking during the disconnect
+   *  window. */
+  private reconnectTokens = new Map<PlayerId, string>();
   hostId: PlayerId = '';
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
@@ -31,7 +37,7 @@ export class Room {
     this.lastActivity = Date.now();
   }
 
-  addPlayer(socketId: string, playerId: PlayerId, name: string): ServerPlayer {
+  addPlayer(socketId: string, playerId: PlayerId, name: string): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,
       name,
@@ -45,8 +51,10 @@ export class Room {
     this.players.set(playerId, player);
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+    const reconnectToken = randomUUID();
+    this.reconnectTokens.set(playerId, reconnectToken);
     this.touch();
-    return player;
+    return { player, reconnectToken };
   }
 
   addBot(botId: PlayerId, name: string): ServerPlayer {
@@ -76,6 +84,7 @@ export class Room {
     this.socketToPlayer.delete(socketId);
     this.playerToSocket.delete(playerId);
     this.players.delete(playerId);
+    this.reconnectTokens.delete(playerId);
 
     // Reassign host if needed
     if (playerId === this.hostId && this.players.size > 0) {
@@ -115,14 +124,19 @@ export class Room {
     return playerId;
   }
 
-  handleReconnect(socketId: string, playerId: PlayerId): boolean {
+  handleReconnect(socketId: string, playerId: PlayerId, reconnectToken?: string): boolean {
     const player = this.players.get(playerId);
     if (!player) return false;
 
     // Only allow reconnection for actually disconnected players.
-    // Without this check, any socket that knows a player's UUID (visible in
-    // game state) could hijack their session via room:join with that playerId.
     if (player.isConnected) return false;
+
+    // Verify the reconnect token to prevent session hijacking. Player IDs are
+    // visible to all clients, so anyone could try to reconnect as a
+    // disconnected player. The reconnect token is a secret shared only with
+    // the original player at join time.
+    const storedToken = this.reconnectTokens.get(playerId);
+    if (!storedToken || storedToken !== reconnectToken) return false;
 
     const timer = this.disconnectTimers.get(playerId);
     if (timer) {
