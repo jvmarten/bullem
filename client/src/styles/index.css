@@ -494,17 +494,16 @@ body {
   text-transform: uppercase;
   background: linear-gradient(
     170deg,
-    #f5e6a3 0%,
-    #d4a843 25%,
-    #c8941e 45%,
-    #e8c56e 55%,
-    #d4a843 75%,
-    #a07c2e 100%
+    #dbb856 0%,
+    #d4a843 40%,
+    #dbb856 60%,
+    #d4a843 100%
   );
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: none;
+  -webkit-text-stroke: 0.5px rgba(212, 168, 67, 0.3);
   filter: drop-shadow(0 0 10px rgba(212, 168, 67, 0.35))
           drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
   position: relative;
