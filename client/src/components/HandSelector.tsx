@@ -358,6 +358,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
                 />
               </div>
               <div
@@ -376,6 +377,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
                 />
               </div>
             </div>
@@ -390,6 +392,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
                 />
               </div>
               <div className="flex-1">
@@ -400,6 +403,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderSuit}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
                 />
               </div>
             </div>
@@ -413,6 +417,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 renderItem={renderSuit}
                 itemHeight={42}
                 visibleCount={5}
+                highlightHeight={70}
               />
             ) : (
               <WheelPicker
@@ -422,6 +427,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 renderItem={renderRank}
                 itemHeight={42}
                 visibleCount={5}
+                highlightHeight={70}
               />
             )
           )}
