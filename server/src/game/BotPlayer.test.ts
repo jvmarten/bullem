@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { BotPlayer } from './BotPlayer.js';
 import {
   HandType, RoundPhase, GamePhase, BotDifficulty, TurnAction,
   isHigherHand,
 } from '@bull-em/shared';
-import type { Card, HandCall, ClientGameState } from '@bull-em/shared';
+import type { Card, HandCall, ClientGameState, RoundResult } from '@bull-em/shared';
 
 function makeState(overrides: Partial<ClientGameState> = {}): ClientGameState {
   return {
@@ -209,26 +209,30 @@ describe('BotPlayer', () => {
       expect(action.action).toBe('call');
     });
 
-    it('calls bull or raises when current hand exists in calling phase', () => {
+    it('calls bull when no legitimate higher hand exists in calling phase', () => {
       const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
       const state = makeState({
         roundPhase: RoundPhase.CALLING,
         currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
         lastCallerId: 'p1',
       });
+      // Easy bot never bluffs a raise — always calls bull when it can't legitimately raise
       const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-      expect(['call', 'bull']).toContain(action.action);
+      expect(action.action).toBe('bull');
     });
 
-    it('calls bull or true in bull phase', () => {
+    it('calls bull or true in bull phase (never raises)', () => {
       const cards: Card[] = [{ rank: '7', suit: 'spades' }];
       const state = makeState({
         roundPhase: RoundPhase.BULL_PHASE,
         currentHand: { type: HandType.HIGH_CARD, rank: '7' },
         lastCallerId: 'p1',
       });
-      const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
-      expect(['bull', 'true']).toContain(action.action);
+      // Easy bot never raises in bull phase — only bull or true
+      for (let i = 0; i < 100; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(['bull', 'true']).toContain(action.action);
+      }
     });
 
     it('handles last chance phase', () => {
@@ -825,6 +829,371 @@ describe('BotPlayer', () => {
       if (pairOf7 + otherPairs > 0) {
         expect(pairOf7).toBeGreaterThan(0);
       }
+    });
+  });
+
+  // ─── Easy Bot Behavioral Tests ──────────────────────────────────────
+
+  describe('Easy bot behavioral guarantees', () => {
+    it('never raises in bull phase (100 iterations)', () => {
+      const cards: Card[] = [
+        { rank: 'A', suit: 'spades' },
+        { rank: 'A', suit: 'hearts' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.HIGH_CARD, rank: '7' },
+        lastCallerId: 'p1',
+      });
+      for (let i = 0; i < 100; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(action.action).not.toBe('call');
+      }
+    });
+
+    it('never bluffs a raise in calling phase', () => {
+      // Bot has 3♣ — can't legitimately raise above pair of queens
+      const cards: Card[] = [{ rank: '3', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.PAIR, rank: 'Q' },
+        lastCallerId: 'p1',
+      });
+      for (let i = 0; i < 100; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        // Should always call bull since it can't legitimately raise
+        expect(action.action).toBe('bull');
+      }
+    });
+
+    it('opens truthfully >90% of the time (200 iterations)', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'hearts' }];
+      const state = makeState({ roundPhase: RoundPhase.CALLING, currentHand: null });
+      let truthful = 0;
+      const runs = 200;
+      for (let i = 0; i < runs; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        if (action.action === 'call') {
+          // Truthful = high card K (what the bot actually has)
+          if (action.hand.type === HandType.HIGH_CARD && action.hand.rank === 'K') {
+            truthful++;
+          }
+        }
+      }
+      // 95% truthful → expect at least 90% to account for variance
+      expect(truthful).toBeGreaterThan(runs * 0.90);
+    });
+
+    it('always passes in last chance when it cannot raise legitimately', () => {
+      const cards: Card[] = [{ rank: '2', suit: 'clubs' }];
+      const state = makeState({
+        roundPhase: RoundPhase.LAST_CHANCE,
+        currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
+        lastCallerId: 'bot1',
+      });
+      for (let i = 0; i < 100; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(action.action).toBe('lastChancePass');
+      }
+    });
+
+    it('raises legitimately in calling phase when it has a higher hand', () => {
+      // Bot has a pair of aces, current hand is high card 7
+      const cards: Card[] = [
+        { rank: 'A', suit: 'spades' },
+        { rank: 'A', suit: 'hearts' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.HIGH_CARD, rank: '7' },
+        lastCallerId: 'p1',
+      });
+      // Should always raise with the legitimate hand
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(action.action).toBe('call');
+      }
+    });
+
+    it('uses gut feeling: calls true when own hand type >= called type', () => {
+      // Bot has pair of 7s, called hand is a pair of Kings
+      // Same type → should always call true
+      const cards: Card[] = [
+        { rank: '7', suit: 'hearts' },
+        { rank: '7', suit: 'spades' },
+      ];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.PAIR, rank: 'K' },
+        lastCallerId: 'p1',
+      });
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(action.action).toBe('true');
+      }
+    });
+
+    it('uses gut feeling: calls bull when called type is 2+ above own', () => {
+      // Bot has high card 7, called hand is three of a kind (2 levels above)
+      const cards: Card[] = [{ rank: '7', suit: 'spades' }];
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.THREE_OF_A_KIND, rank: '9' },
+        lastCallerId: 'p1',
+      });
+      for (let i = 0; i < 50; i++) {
+        const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.EASY);
+        expect(action.action).toBe('bull');
+      }
+    });
+  });
+
+  // ─── Hard Bot Memory Tests ──────────────────────────────────────────
+
+  describe('Hard bot opponent memory', () => {
+    beforeEach(() => {
+      BotPlayer.resetMemory();
+    });
+
+    it('resetMemory() clears the map', () => {
+      // Add some memory
+      const result: RoundResult = {
+        calledHand: { type: HandType.PAIR, rank: '7' },
+        callerId: 'p1',
+        handExists: false,
+        revealedCards: [],
+        penalties: { p1: 1 },
+        penalizedPlayerIds: ['p1'],
+        eliminatedPlayerIds: [],
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
+          { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
+        ],
+      };
+      BotPlayer.updateMemory(result);
+      expect(BotPlayer.getMemory().size).toBeGreaterThan(0);
+      BotPlayer.resetMemory();
+      expect(BotPlayer.getMemory().size).toBe(0);
+    });
+
+    it('updateMemory() correctly tracks bluffs caught', () => {
+      const result: RoundResult = {
+        calledHand: { type: HandType.PAIR, rank: '7' },
+        callerId: 'p1',
+        handExists: false, // it was a bluff
+        revealedCards: [],
+        penalties: { p1: 1 },
+        penalizedPlayerIds: ['p1'],
+        eliminatedPlayerIds: [],
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
+          { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
+        ],
+      };
+      BotPlayer.updateMemory(result);
+      const profile = BotPlayer.getMemory().get('p1');
+      expect(profile).toBeDefined();
+      expect(profile!.totalCalls).toBe(1);
+      expect(profile!.bluffsCaught).toBe(1);
+      expect(profile!.truthsCaught).toBe(0);
+    });
+
+    it('updateMemory() correctly tracks truths caught', () => {
+      const result: RoundResult = {
+        calledHand: { type: HandType.PAIR, rank: '7' },
+        callerId: 'p1',
+        handExists: true, // hand existed
+        revealedCards: [],
+        penalties: {},
+        penalizedPlayerIds: [],
+        eliminatedPlayerIds: [],
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
+          { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
+        ],
+      };
+      BotPlayer.updateMemory(result);
+      const profile = BotPlayer.getMemory().get('p1');
+      expect(profile!.totalCalls).toBe(1);
+      expect(profile!.truthsCaught).toBe(1);
+      expect(profile!.bluffsCaught).toBe(0);
+    });
+
+    it('updateMemory() tracks bull caller accuracy', () => {
+      const result: RoundResult = {
+        calledHand: { type: HandType.PAIR, rank: '7' },
+        callerId: 'p1',
+        handExists: false,
+        revealedCards: [],
+        penalties: { p1: 1 },
+        penalizedPlayerIds: ['p1'],
+        eliminatedPlayerIds: [],
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
+          { playerId: 'p2', playerName: 'Bob', action: TurnAction.BULL, timestamp: 1 },
+        ],
+      };
+      BotPlayer.updateMemory(result);
+      const p2Profile = BotPlayer.getMemory().get('p2');
+      expect(p2Profile).toBeDefined();
+      expect(p2Profile!.bullCallsMade).toBe(1);
+      expect(p2Profile!.correctBulls).toBe(1);
+    });
+
+    it('hard bot is more suspicious of a player with high bluff history', () => {
+      // Build up a bluff-heavy profile for p1
+      for (let i = 0; i < 5; i++) {
+        BotPlayer.updateMemory({
+          calledHand: { type: HandType.PAIR, rank: '7' },
+          callerId: 'p1',
+          handExists: false, // caught bluffing
+          revealedCards: [],
+          penalties: { p1: 1 },
+          penalizedPlayerIds: ['p1'],
+          eliminatedPlayerIds: [],
+          turnHistory: [
+            { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
+            { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
+          ],
+        });
+      }
+
+      // Use a hand with moderate plausibility so memory can swing the decision.
+      // High card K with multiple cards in play — plausible enough to split the decision.
+      const cards: Card[] = [
+        { rank: '5', suit: 'clubs' },
+        { rank: '8', suit: 'hearts' },
+        { rank: 'J', suit: 'diamonds' },
+      ];
+      const currentHand: HandCall = { type: HandType.HIGH_CARD, rank: 'K' };
+
+      const manyPlayers = [
+        { id: 'bot1', name: 'Bot', cardCount: 3, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+        { id: 'p1', name: 'Alice', cardCount: 3, isConnected: true, isEliminated: false, isHost: true },
+        { id: 'p2', name: 'Bob', cardCount: 3, isConnected: true, isEliminated: false, isHost: false },
+      ];
+
+      // State where p1 (known bluffer) made the call
+      const stateBluffer = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p1',
+        players: manyPlayers,
+        turnHistory: [
+          { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: currentHand },
+        ],
+      });
+
+      // State where p2 (unknown player) made the call
+      const stateClean = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p2',
+        players: manyPlayers,
+        turnHistory: [
+          { playerId: 'p2', playerName: 'Bob', action: TurnAction.CALL, timestamp: 0, hand: currentHand },
+        ],
+      });
+
+      let bullsBluffer = 0;
+      let bullsClean = 0;
+      const runs = 300;
+
+      for (let i = 0; i < runs; i++) {
+        const a1 = BotPlayer.decideAction(stateBluffer, 'bot1', cards, BotDifficulty.HARD);
+        if (a1.action === 'bull') bullsBluffer++;
+        const a2 = BotPlayer.decideAction(stateClean, 'bot1', cards, BotDifficulty.HARD);
+        if (a2.action === 'bull') bullsClean++;
+      }
+
+      // Bot should be more suspicious of known bluffer (or at least equally so)
+      expect(bullsBluffer).toBeGreaterThanOrEqual(bullsClean);
+    });
+  });
+
+  // ─── Hard Bot Dynamic Threshold Tests ───────────────────────────────
+
+  describe('Hard bot dynamic bull threshold', () => {
+    beforeEach(() => {
+      BotPlayer.resetMemory();
+    });
+
+    it('bot with 1 card calls true more often than bot with 4 cards for same marginal hand', () => {
+      // Test the asymmetric threshold: 1-card=0.55, 4-card=0.35.
+      // Use a PAIR where the bot holds 1 of the rank. With enough total cards
+      // and BULL-only history (no CALL entries → no card inference),
+      // the plausibility should fall between the two thresholds.
+      //
+      // P(pair of 8) with bot holding one 8, 20 total cards:
+      // unseenCards=51(1-card) or 48(4-card), otherCards=19(1-card) or 16(4-card)
+      // remaining = 3, needed = 1
+      // P = 1 - hypergeomNone(~50, 3, ~18) ≈ pretty high
+      // + truthBoost(0.10) → adjustedP likely > 0.55 for both.
+      //
+      // So we need to use a less plausible hand. THREE_OF_A_KIND with one held:
+      // needs 2 more of 3 remaining, from ~18 draws of ~50.
+      // P(>=2 of 3 from 18 draws of 50) is moderate.
+      const currentHand: HandCall = { type: HandType.THREE_OF_A_KIND, rank: '8' };
+
+      // Only BULL entries in history — no CALL entries to trigger inference
+      const historyNoCalls = [
+        { playerId: 'p2', playerName: 'Bob', action: TurnAction.BULL as const, timestamp: 0 },
+      ];
+
+      // Scenario 1: Bot with 1 card (threshold = 0.55), total = 20 cards
+      const state1card = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p1',
+        turnHistory: historyNoCalls,
+        players: [
+          { id: 'bot1', name: 'Bot', cardCount: 1, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 5, isConnected: true, isEliminated: false, isHost: true },
+          { id: 'p2', name: 'Bob', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'Carol', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'Dave', cardCount: 4, isConnected: true, isEliminated: false, isHost: false },
+        ],
+      });
+
+      // Scenario 2: Bot with 4 cards (threshold = 0.35), total = 20 cards
+      const state4cards = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand,
+        lastCallerId: 'p1',
+        turnHistory: historyNoCalls,
+        players: [
+          { id: 'bot1', name: 'Bot', cardCount: 4, isConnected: true, isEliminated: false, isHost: false, isBot: true },
+          { id: 'p1', name: 'Alice', cardCount: 4, isConnected: true, isEliminated: false, isHost: true },
+          { id: 'p2', name: 'Bob', cardCount: 4, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'Carol', cardCount: 4, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'Dave', cardCount: 4, isConnected: true, isEliminated: false, isHost: false },
+        ],
+      });
+
+      // Bot holds one 8 (semi-evidence for three of a kind)
+      const cards1: Card[] = [{ rank: '8', suit: 'clubs' }];
+      const cards4: Card[] = [
+        { rank: '8', suit: 'clubs' },
+        { rank: '3', suit: 'hearts' },
+        { rank: '5', suit: 'diamonds' },
+        { rank: 'J', suit: 'spades' },
+      ];
+
+      let true1card = 0;
+      let true4cards = 0;
+      const runs = 300;
+
+      for (let i = 0; i < runs; i++) {
+        const a1 = BotPlayer.decideAction(state1card, 'bot1', cards1, BotDifficulty.HARD);
+        if (a1.action === 'true') true1card++;
+        const a4 = BotPlayer.decideAction(state4cards, 'bot1', cards4, BotDifficulty.HARD);
+        if (a4.action === 'true') true4cards++;
+      }
+
+      // With the asymmetric threshold: 1-card = 0.35 (lean true), 4-card = 0.55 (lean bull).
+      // The 1-card bot (safe) calls true more easily (lower bar, threshold 0.35).
+      // The 4-card bot (desperate) requires more evidence to call true (threshold 0.55).
+      expect(true1card).toBeGreaterThan(true4cards);
     });
   });
 });

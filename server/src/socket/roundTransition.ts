@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase } from '@bull-em/shared';
+import { GamePhase, BotPlayer } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { BotManager } from '../game/BotManager.js';
@@ -40,6 +40,9 @@ export function beginRoundResultPhase(
 
   room.gamePhase = GamePhase.ROUND_RESULT;
   io.to(room.roomCode).emit('game:roundResult', result);
+
+  // Update cross-round bot memory with round outcome
+  BotPlayer.updateMemory(result);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
     startNextRound(io, room, botManager);

@@ -2,7 +2,7 @@ import { HandType, RoundPhase, BotDifficulty, TurnAction } from '../types.js';
 import { RANK_VALUES, ALL_RANKS, ALL_SUITS, SUIT_ORDER } from '../constants.js';
 import { isHigherHand } from '../hands.js';
 import { HandChecker } from './HandChecker.js';
-import type { Card, HandCall, Rank, Suit, ClientGameState } from '../types.js';
+import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId } from '../types.js';
 
 export type BotAction =
   | { action: 'call'; hand: HandCall }
@@ -11,7 +11,95 @@ export type BotAction =
   | { action: 'lastChanceRaise'; hand: HandCall }
   | { action: 'lastChancePass' };
 
+export interface OpponentProfile {
+  totalCalls: number;
+  bluffsCaught: number;
+  truthsCaught: number;
+  bullCallsMade: number;
+  correctBulls: number;
+  lastHandTypes: HandType[];
+}
+
 export class BotPlayer {
+  // Cross-round opponent memory — persists within a game session (per-process state)
+  private static opponentMemory = new Map<string, OpponentProfile>();
+
+  /** Clear all opponent memory. Call at game start. */
+  static resetMemory(): void {
+    this.opponentMemory.clear();
+  }
+
+  /** Update opponent profiles from a round result. Call after each round resolves. */
+  static updateMemory(roundResult: RoundResult): void {
+    const { callerId, handExists, turnHistory } = roundResult;
+    if (!turnHistory) return;
+
+    // Track the caller (the player whose hand was being evaluated)
+    const callerProfile = this.getOrCreateProfile(callerId);
+    callerProfile.totalCalls++;
+    if (handExists) {
+      callerProfile.truthsCaught++;
+    } else {
+      callerProfile.bluffsCaught++;
+    }
+    // Track what hand type the caller used
+    if (roundResult.calledHand) {
+      callerProfile.lastHandTypes.push(roundResult.calledHand.type);
+      if (callerProfile.lastHandTypes.length > 5) {
+        callerProfile.lastHandTypes.shift();
+      }
+    }
+
+    // Track bull callers and whether they were correct
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.BULL) {
+        const bullProfile = this.getOrCreateProfile(entry.playerId);
+        bullProfile.bullCallsMade++;
+        if (!handExists) {
+          bullProfile.correctBulls++;
+        }
+      }
+    }
+  }
+
+  /** Get or create an opponent profile. */
+  private static getOrCreateProfile(playerId: string): OpponentProfile {
+    let profile = this.opponentMemory.get(playerId);
+    if (!profile) {
+      profile = {
+        totalCalls: 0,
+        bluffsCaught: 0,
+        truthsCaught: 0,
+        bullCallsMade: 0,
+        correctBulls: 0,
+        lastHandTypes: [],
+      };
+      this.opponentMemory.set(playerId, profile);
+    }
+    return profile;
+  }
+
+  /** Get the opponent memory map (for testing). */
+  static getMemory(): Map<string, OpponentProfile> {
+    return this.opponentMemory;
+  }
+
+  /**
+   * Get truthfulness adjustment for a specific player based on memory.
+   * Returns a multiplier (0..1) for the truthfulness boost.
+   * 1.0 = full trust, 0.5 = reduced trust, 0.0 = no trust.
+   */
+  private static getPlayerTrustFactor(playerId: string | null): number {
+    if (!playerId) return 1.0;
+    const profile = this.opponentMemory.get(playerId);
+    if (!profile || profile.totalCalls < 2) return 1.0;
+
+    const bluffRate = profile.bluffsCaught / profile.totalCalls;
+    if (bluffRate > 0.5) return 0.0;
+    if (bluffRate > 0.3) return 0.5;
+    return 1.0;
+  }
+
   /**
    * Decide what action a bot should take given the current game state, its cards, and difficulty.
    * For IMPOSSIBLE difficulty, allCards should contain the bot's own cards + human players' cards.
@@ -32,23 +120,17 @@ export class BotPlayer {
     return this.decideEasy(state, botId, botCards);
   }
 
-  // ─── EASY MODE ───────────────────────────────────────────────────────
+  // ─── EASY MODE — "The Beginner" ──────────────────────────────────────
+  // Feels like a new player who just learned the rules.
+  // Predictable, exploitable, but not random. Simple if/else logic only.
 
   private static decideEasy(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
 
     // LAST_CHANCE phase — everyone called bull on our hand.
-    // If we pass, the hand is checked: if it exists, the bullers lose.
-    // If we raise, the cycle restarts with the new (higher) hand.
+    // Easy bot: raise only if it has a legitimate higher hand, otherwise always pass.
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
-        const totalCards = this.getTotalCards(state);
-        const plausibility = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
-        // If the hand likely exists, pass — the bullers will be penalized
-        if (plausibility > 0.45) {
-          return { action: 'lastChancePass' };
-        }
-        // Hand probably doesn't exist — try to raise to escape
         const higher = this.findHandHigherThanSimple(botCards, currentHand);
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
@@ -58,45 +140,89 @@ export class BotPlayer {
     }
 
     // Opening call — no current hand
+    // 95% truthful: call the best hand in own cards.
+    // 5% bad bluff: call one hand type above what it actually has.
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
-      const hand = this.findBestHandInCards(botCards);
-      if (hand && Math.random() < 0.9) {
-        return { action: 'call', hand };
+      const bestHand = this.findBestHandInCards(botCards);
+      if (!bestHand) {
+        return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
       }
-      // 10% bluff
-      return { action: 'call', hand: this.makeBluffHandEasy(null) };
+      if (Math.random() < 0.05) {
+        // Bad bluff: one type above what we have, using our highest rank
+        const bluff = this.makeEasyBadBluff(botCards, bestHand);
+        return { action: 'call', hand: bluff };
+      }
+      return { action: 'call', hand: bestHand };
     }
 
-    // Raise or bull in calling phase
+    // Raising in calling phase
+    // Easy bot: if it has a legitimate higher hand, raise with it (100%).
+    // If not, call bull. Never bluffs a raise.
     if (roundPhase === RoundPhase.CALLING && currentHand) {
       const higher = this.findHandHigherThanSimple(botCards, currentHand);
-      if (higher && Math.random() < 0.6) {
+      if (higher) {
         return { action: 'call', hand: higher };
-      }
-      // 10% bluff chance
-      if (Math.random() < 0.1) {
-        const bluff = this.makeBluffHandEasy(currentHand);
-        if (bluff && isHigherHand(bluff, currentHand)) {
-          return { action: 'call', hand: bluff };
-        }
       }
       return { action: 'bull' };
     }
 
-    // Bull phase — simple coin flip weighted by rough heuristic
+    // Bull phase — "gut feeling" heuristic, no probability math.
+    // Never raises in bull phase (beginners don't think of this).
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      const totalCards = this.getTotalCards(state);
-      const plausibility = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
-
-      if (plausibility > 0.5) {
-        return Math.random() < 0.55 ? { action: 'true' } : { action: 'bull' };
-      }
-      return Math.random() < 0.65 ? { action: 'bull' } : { action: 'true' };
+      return this.handleEasyBullPhase(currentHand, botCards);
     }
 
     // Fallback
     if (currentHand) return { action: 'bull' };
     return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+  }
+
+  /**
+   * Easy bull phase: simple "gut feeling" based on own cards.
+   * No probability math, no card counting.
+   */
+  private static handleEasyBullPhase(currentHand: HandCall, botCards: Card[]): BotAction {
+    const bestOwn = this.findBestHandInCards(botCards);
+    const ownType = bestOwn ? bestOwn.type : -1;
+    const calledType = currentHand.type;
+
+    // If the called hand type is at or below what we can see → plausible to a beginner
+    if (calledType <= ownType) {
+      return { action: 'true' };
+    }
+
+    // If 2+ levels above anything the bot holds → "no way"
+    if (calledType >= ownType + 2) {
+      return { action: 'bull' };
+    }
+
+    // Exactly 1 level above → uncertain beginner: 60% true / 40% bull
+    return Math.random() < 0.6 ? { action: 'true' } : { action: 'bull' };
+  }
+
+  /**
+   * Easy bad bluff: call one hand type above what the bot actually has,
+   * using its highest rank. E.g., if it has King high, bluff "pair of Kings."
+   */
+  private static makeEasyBadBluff(botCards: Card[], bestHand: HandCall): HandCall {
+    let highestRank: Rank = botCards[0]?.rank ?? '2';
+    for (const c of botCards) {
+      if (RANK_VALUES[c.rank] > RANK_VALUES[highestRank]) {
+        highestRank = c.rank;
+      }
+    }
+
+    switch (bestHand.type) {
+      case HandType.HIGH_CARD:
+        return { type: HandType.PAIR, rank: highestRank };
+      case HandType.PAIR:
+        return { type: HandType.THREE_OF_A_KIND, rank: highestRank };
+      case HandType.THREE_OF_A_KIND:
+        return { type: HandType.FOUR_OF_A_KIND, rank: highestRank };
+      default:
+        // For anything else, just bump one type using the highest rank
+        return { type: HandType.PAIR, rank: highestRank };
+    }
   }
 
   // ─── IMPOSSIBLE MODE (Perfect Information) ─────────────────────────
@@ -365,7 +491,6 @@ export class BotPlayer {
   private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
     const totalCards = this.getTotalCards(state);
-    const desperate = botCards.length >= 4;
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
 
     // LAST_CHANCE phase — everyone called bull on our hand.
@@ -403,19 +528,19 @@ export class BotPlayer {
       return { action: 'lastChancePass' };
     }
 
-    // Opening call — start low and truthful
+    // Opening call — card-pool-aware strategy
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       return this.handleHardOpening(botCards, totalCards);
     }
 
     // Calling phase — EV-driven raise vs bull with GTO bluff frequency
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      return this.handleHardCallingPhase(currentHand, botCards, totalCards, desperate, numOpponents, state.turnHistory, botId);
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId);
     }
 
     // Bull phase — probability threshold with position-aware adjustment
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleHardBullPhase(currentHand, botCards, totalCards, desperate, state.turnHistory, botId);
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId);
     }
 
     // Fallback
@@ -424,13 +549,12 @@ export class BotPlayer {
   }
 
   /**
-   * Opening: pick from truthful hands with controlled randomization.
+   * Opening: card-pool-aware strategy.
    *
-   * Instead of always picking the lowest truthful hand (deterministic and exploitable),
-   * we vary our opening to be unpredictable:
-   * - 70% pick a random truthful hand (weighted toward lower ones)
-   * - 15% pick a mid-range bluff (harder to challenge, keeps opponents guessing)
-   * - 15% pick the lowest truthful hand (classic conservative play)
+   * - Many cards in play (>=10): Open with a mid-range truthful hand (upper half).
+   *   Preserves room to raise later.
+   * - Few cards in play (<6): Open conservatively with the lowest truthful hand.
+   * - Bluff frequency: 8% (down from 15%). Only bluff hands with P > 0.3.
    */
   private static handleHardOpening(botCards: Card[], totalCards: number): BotAction {
     const candidates: HandCall[] = [];
@@ -446,6 +570,25 @@ export class BotPlayer {
       if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
     }
 
+    // Two pairs we have
+    const pairRanks: Rank[] = [];
+    for (const [rank, count] of rankCounts) {
+      if (count >= 2) pairRanks.push(rank);
+    }
+    if (pairRanks.length >= 2) {
+      pairRanks.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
+      for (let i = 0; i < pairRanks.length; i++) {
+        for (let j = i + 1; j < pairRanks.length; j++) {
+          candidates.push({ type: HandType.TWO_PAIR, highRank: pairRanks[i], lowRank: pairRanks[j] });
+        }
+      }
+    }
+
+    // Three of a kind
+    for (const [rank, count] of rankCounts) {
+      if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
+    }
+
     // Sort by hand strength (lowest first)
     candidates.sort((a, b) => {
       if (a.type !== b.type) return a.type - b.type;
@@ -456,21 +599,29 @@ export class BotPlayer {
       return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
     }
 
-    const roll = Math.random();
-
-    // 15% strategic bluff opening — pick a plausible hand we don't hold
-    if (roll < 0.15) {
+    // 8% strategic bluff opening — only if the bluff is plausible (P > 0.3)
+    if (Math.random() < 0.08) {
       const bluff = this.makeBluffHandHard(null, totalCards);
-      return { action: 'call', hand: bluff };
+      const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
+      if (bluffP > 0.3) {
+        return { action: 'call', hand: bluff };
+      }
+      // Bluff not plausible enough — fall through to truthful opening
     }
 
-    // 15% conservative — lowest truthful hand
-    if (roll < 0.30) {
+    if (totalCards >= 10) {
+      // Many cards: open with upper half of truthful candidates (mid-range)
+      const upperStart = Math.floor(candidates.length / 2);
+      const idx = upperStart + Math.floor(Math.random() * (candidates.length - upperStart));
+      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)] };
+    }
+
+    if (totalCards < 6) {
+      // Few cards: open conservatively with the lowest truthful hand
       return { action: 'call', hand: candidates[0] };
     }
 
-    // 70% weighted random from truthful hands — bias toward lower half
-    // Use triangular distribution favoring lower index
+    // Medium card count: weighted random biased toward lower half
     const idx = Math.min(
       Math.floor(Math.random() * Math.random() * candidates.length),
       candidates.length - 1,
@@ -494,17 +645,22 @@ export class BotPlayer {
     currentHand: HandCall,
     botCards: Card[],
     totalCards: number,
-    desperate: boolean,
+    cardCount: number,
     numOpponents: number,
-    turnHistory: { playerId: string; action: TurnAction }[],
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
     botId: string,
+    lastCallerId: string | null,
   ): BotAction {
-    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+    const desperate = cardCount >= 4;
+
+    // Infer cards from call history to adjust probability
+    const inferred = this.inferCardsFromHistory(turnHistory, botId);
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
 
     // Truthfulness prior: callers usually hold cards related to their call.
-    // Boost plausibility to account for this information asymmetry.
-    const truthBoost = this.getTruthfulnessBoost(currentHand);
+    // Adjust by how much we trust this specific caller based on memory.
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId);
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
@@ -561,40 +717,54 @@ export class BotPlayer {
   /**
    * Bull phase: EV decision with position-aware bluff detection.
    *
-   * Base model: call true when P(exists) > 0.5, bull when < 0.5.
-   * Position adjustment: more raises in the round → caller more likely bluffing → lower effective P.
-   * Escalation adjustment: big jumps in hand type → more suspicious.
+   * Improvements:
+   * - Dynamic threshold based on card count (asymmetric cost-awareness)
+   * - Counter-bluff detection: bull-phase raises are suspicious
+   * - Reduced raise frequency (15% base, 25% desperate)
+   * - Only raise if current hand has low plausibility (< 0.5)
+   * - Call-sequence inference for better probability estimates
+   * - Memory-adjusted truthfulness per caller
    */
   private static handleHardBullPhase(
     currentHand: HandCall,
     botCards: Card[],
     totalCards: number,
-    desperate: boolean,
-    turnHistory: { playerId: string; action: TurnAction }[],
+    cardCount: number,
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
     botId: string,
+    lastCallerId: string | null,
   ): BotAction {
-    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+    // Infer cards from call history
+    const inferred = this.inferCardsFromHistory(turnHistory, botId);
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
 
-    // Truthfulness prior: callers usually hold cards related to their call
-    const truthBoost = this.getTruthfulnessBoost(currentHand);
+    // Truthfulness prior, adjusted by memory-based trust
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId);
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
-    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
-    // Consider raising in bull phase — strong strategic move that disrupts opponents
+    // Counter-bluff detection: was the current hand raised during bull phase?
+    // This is suspicious — apply additional penalty.
+    const bullPhaseRaisePenalty = this.detectBullPhaseRaise(turnHistory) ? 0.15 : 0;
+
+    let adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
+    adjustedP *= (1 - bullPhaseRaisePenalty);
+
+    // Consider raising in bull phase — only with a legitimate higher hand
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
     if (higher) {
-      // Raise more when desperate (need to avoid a bull penalty) or when hand is suspicious
-      const raiseChance = desperate ? 0.45 : 0.30;
-      if (Math.random() < raiseChance) {
-        return { action: 'call', hand: higher };
+      // Only raise if the current hand is suspicious (plausibility < 0.5)
+      if (adjustedP < 0.5) {
+        const raiseChance = cardCount >= 4 ? 0.25 : 0.15;
+        if (Math.random() < raiseChance) {
+          return { action: 'call', hand: higher };
+        }
       }
     }
 
-    // When desperate (4+ cards), shift threshold slightly toward true
-    // to avoid the penalty that would eliminate us
-    const threshold = desperate ? 0.35 : 0.48;
+    // Asymmetric cost-aware threshold based on card count
+    const threshold = this.getDynamicBullThreshold(cardCount);
     const noise = 0.05;
 
     if (adjustedP > threshold + noise) {
@@ -605,6 +775,90 @@ export class BotPlayer {
     }
     // Within noise band — randomize
     return Math.random() < adjustedP ? { action: 'true' } : { action: 'bull' };
+  }
+
+  /**
+   * Dynamic bull threshold based on bot's card count.
+   * More cards = more desperate = higher threshold (more aggressive bull calls).
+   * The threshold is compared to adjustedP: if P > threshold → call true.
+   * Higher threshold means the bot needs stronger evidence to call true,
+   * i.e., it leans toward calling bull.
+   */
+  private static getDynamicBullThreshold(cardCount: number): number {
+    switch (cardCount) {
+      case 1: return 0.35;  // Safe position, lean toward "true" (low bar)
+      case 2: return 0.42;  // Balanced-safe
+      case 3: return 0.48;  // Balanced
+      case 4: return 0.55;  // Desperate — aggressively call bull (high bar)
+      default: return 0.60; // Max desperation (5+ cards)
+    }
+  }
+
+  /**
+   * Detect if the current hand was raised during bull phase.
+   * A CALL action during BULL_PHASE in turnHistory means someone raised in bull phase.
+   */
+  private static detectBullPhaseRaise(
+    turnHistory: { playerId: string; action: TurnAction }[],
+  ): boolean {
+    // Check if the most recent CALL action came after a BULL or TRUE action
+    // This means someone raised during bull phase
+    let inBullPhase = false;
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.BULL || entry.action === TurnAction.TRUE) {
+        inBullPhase = true;
+      }
+      if (entry.action === TurnAction.CALL && inBullPhase) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Infer cards likely held by other players based on their call history.
+   * Returns estimated { rank, count } pairs for ranks likely held by opponents.
+   */
+  private static inferCardsFromHistory(
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+    botId: string,
+  ): { rank: Rank; count: number }[] {
+    const inferred: Map<Rank, number> = new Map();
+
+    for (const entry of turnHistory) {
+      if (entry.playerId === botId) continue;
+      if (entry.action !== TurnAction.CALL || !entry.hand) continue;
+
+      const hand = entry.hand;
+      switch (hand.type) {
+        case HandType.HIGH_CARD:
+          // Caller likely holds this rank
+          inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
+          break;
+        case HandType.PAIR:
+          // Caller likely holds at least one of this rank
+          inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
+          break;
+        case HandType.THREE_OF_A_KIND:
+          // Caller likely holds at least one of this rank
+          inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
+          break;
+        case HandType.FOUR_OF_A_KIND:
+          // Caller likely holds at least one of this rank
+          inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
+          break;
+        // Flush: we could infer suit, but rank-based inference is what we adjust the pool with
+        default:
+          break;
+      }
+    }
+
+    const result: { rank: Rank; count: number }[] = [];
+    for (const [rank, count] of inferred) {
+      // Cap inferred count at 1 per player call to avoid over-counting
+      result.push({ rank, count: Math.min(count, 2) });
+    }
+    return result;
   }
 
   /**
@@ -995,24 +1249,34 @@ export class BotPlayer {
   /**
    * Hypergeometric-approximation plausibility estimation.
    * More accurate probability estimates using number of cards seen vs remaining.
+   * Optional inferredCards adjusts the unseen pool based on call history analysis.
    */
   private static estimatePlausibilityHard(
     hand: HandCall,
     ownCards: Card[],
     totalCards: number,
+    inferredCards?: { rank: Rank; count: number }[],
   ): number {
     const otherCards = totalCards - ownCards.length;
     const deckSize = 52;
     const unseenCards = deckSize - ownCards.length;
+
+    // Helper: get inferred count for a specific rank (cards likely held by opponents)
+    const getInferred = (rank: Rank): number => {
+      if (!inferredCards) return 0;
+      const entry = inferredCards.find(e => e.rank === rank);
+      return entry ? entry.count : 0;
+    };
 
     switch (hand.type) {
       case HandType.HIGH_CARD: {
         // 4 copies of the rank in the deck; how many do we have?
         const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
         if (ownCount >= 1) return 0.98;
+        const inferCount = getInferred(hand.rank);
+        // If other players called this rank, it's more likely to exist
+        if (inferCount > 0) return 0.98;
         const remaining = 4 - ownCount;
-        // P(at least 1 among otherCards drawn from unseenCards with `remaining` copies)
-        // ≈ 1 - C(unseenCards-remaining, otherCards) / C(unseenCards, otherCards)
         const pNone = this.hypergeomNone(unseenCards, remaining, otherCards);
         return 1 - pNone;
       }
@@ -1020,31 +1284,40 @@ export class BotPlayer {
       case HandType.PAIR: {
         const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
         if (ownCount >= 2) return 0.98;
-        const remaining = 4 - ownCount;
-        const needed = 2 - ownCount;
-        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
+        const inferCount = getInferred(hand.rank);
+        // Adjust remaining copies down by inferred (they're accounted for)
+        const effectiveOwn = Math.min(ownCount + inferCount, 4);
+        if (effectiveOwn >= 2) return 0.95;
+        const remaining = 4 - effectiveOwn;
+        const needed = 2 - effectiveOwn;
+        if (needed <= 0) return 0.95;
+        return this.hypergeomAtLeast(unseenCards - inferCount, remaining, otherCards - inferCount, needed);
       }
 
       case HandType.TWO_PAIR: {
         if (totalCards < 4) return 0.01;
-        const rankCounts = this.getRankCounts(ownCards);
-        // Check if we already have the specific two pair called
         const highRank = (hand as { highRank: Rank }).highRank;
         const lowRank = (hand as { lowRank: Rank }).lowRank;
         const highOwn = ownCards.filter(c => c.rank === highRank).length;
         const lowOwn = ownCards.filter(c => c.rank === lowRank).length;
-        // P(both pairs exist) = P(>=2 of highRank) × P(>=2 of lowRank)
-        const pHigh = highOwn >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - highOwn, otherCards, 2 - highOwn);
-        const pLow = lowOwn >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - lowOwn, otherCards, 2 - lowOwn);
-        // Not perfectly independent, but a good approximation
+        const highInfer = getInferred(highRank);
+        const lowInfer = getInferred(lowRank);
+        const highEff = Math.min(highOwn + highInfer, 4);
+        const lowEff = Math.min(lowOwn + lowInfer, 4);
+        const pHigh = highEff >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - highEff, otherCards, Math.max(0, 2 - highEff));
+        const pLow = lowEff >= 2 ? 0.98 : this.hypergeomAtLeast(unseenCards, 4 - lowEff, otherCards, Math.max(0, 2 - lowEff));
         return pHigh * pLow;
       }
 
       case HandType.THREE_OF_A_KIND: {
         const ownCount = ownCards.filter(c => c.rank === hand.rank).length;
         if (ownCount >= 3) return 0.98;
-        const remaining = 4 - ownCount;
-        const needed = 3 - ownCount;
+        const inferCount = getInferred(hand.rank);
+        const effectiveOwn = Math.min(ownCount + inferCount, 4);
+        if (effectiveOwn >= 3) return 0.90;
+        const remaining = 4 - effectiveOwn;
+        const needed = 3 - effectiveOwn;
+        if (needed <= 0) return 0.90;
         return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
       }
 
@@ -1055,7 +1328,14 @@ export class BotPlayer {
         const remaining = 13 - ownSuitCount;
         const needed = 5 - ownSuitCount;
         if (needed <= 0) return 0.95;
-        return this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed) * 0.8;
+        // Proper flush probability with pigeonhole principle.
+        // With many total cards, flushes become near-certain.
+        const baseP = this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
+        // Pigeonhole clamps: with enough cards, some flush almost certainly exists
+        if (totalCards >= 20) return Math.max(baseP, 0.85);
+        if (totalCards >= 15) return Math.max(baseP, 0.70);
+        if (totalCards >= 10) return Math.max(baseP, 0.45);
+        return baseP;
       }
 
       case HandType.STRAIGHT: {
