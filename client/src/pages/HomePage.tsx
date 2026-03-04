@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
@@ -175,7 +175,10 @@ function getOrCreatePlayerName(): string {
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
-  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>('menu');
+  const location = useLocation();
+  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
+    () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
+  );
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);

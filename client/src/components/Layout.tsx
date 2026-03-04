@@ -93,7 +93,7 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               onClick={() => setShowVersionDate(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              {showVersionDate ? 'v0.1.8 · 04.03.26' : 'v0.1.8'}
+              {showVersionDate ? 'v0.1.9 · 04.03.26' : 'v0.1.9'}
             </button>
           )}
         </div>
