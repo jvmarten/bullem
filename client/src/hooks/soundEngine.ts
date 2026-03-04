@@ -16,7 +16,9 @@ type SoundName =
   | 'uiSoft'
   | 'deckShuffle'
   | 'cardReveal'
-  | 'fanfare';
+  | 'fanfare'
+  | 'wheelTick'
+  | 'wheelSelect';
 
 interface ToneConfig {
   frequency: number;
@@ -98,6 +100,15 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     // Satisfying card flip — crisp snap with resonance
     { frequency: 600, duration: 0.1, type: 'sine', gain: 0.14, ramp: 0.08 },
     { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
+  ],
+  wheelTick: [
+    // Soft roulette-wheel notch tick — very short, high-pitched, quiet
+    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.07, ramp: 0.03 },
+  ],
+  wheelSelect: [
+    // Gentle two-tone marimba tap — soft confirmation ping
+    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.09, ramp: 0.04 },
+    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.08, delay: 0.04 },
   ],
   fanfare: [
     // Celebratory trumpet fanfare for royal flush easter egg
