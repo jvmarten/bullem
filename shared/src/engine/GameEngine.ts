@@ -5,7 +5,7 @@ import {
 } from '../types.js';
 import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
-  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards,
+  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards, GameEngineSnapshot,
 } from '../types.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
@@ -534,6 +534,43 @@ export class GameEngine {
       hand,
       timestamp: Date.now(),
     });
+  }
+
+  /** Serialize the engine to a JSON-safe snapshot for persistence. */
+  serialize(): GameEngineSnapshot {
+    return {
+      players: this.players.map(p => ({ ...p, cards: [...p.cards] })),
+      settings: { ...this.settings },
+      roundNumber: this.roundNumber,
+      roundPhase: this.roundPhase,
+      currentPlayerIndex: this.currentPlayerIndex,
+      currentHand: this.currentHand ? { ...this.currentHand } : null,
+      lastCallerId: this.lastCallerId,
+      turnHistory: this.turnHistory.map(t => ({ ...t })),
+      startingPlayerIndex: this.startingPlayerIndex,
+      respondedPlayers: [...this.respondedPlayers],
+      lastChanceUsed: this.lastChanceUsed,
+      gameStats: JSON.parse(JSON.stringify(this.gameStats)),
+    };
+  }
+
+  /** Restore a GameEngine from a serialized snapshot. */
+  static restore(snapshot: GameEngineSnapshot): GameEngine {
+    const engine = new GameEngine(
+      snapshot.players.map(p => ({ ...p, cards: [...p.cards] })),
+      snapshot.settings,
+    );
+    engine.roundNumber = snapshot.roundNumber;
+    engine.roundPhase = snapshot.roundPhase;
+    engine.currentPlayerIndex = snapshot.currentPlayerIndex;
+    engine.currentHand = snapshot.currentHand;
+    engine.lastCallerId = snapshot.lastCallerId;
+    engine.turnHistory = snapshot.turnHistory;
+    engine.startingPlayerIndex = snapshot.startingPlayerIndex;
+    engine.respondedPlayers = new Set(snapshot.respondedPlayers);
+    engine.lastChanceUsed = snapshot.lastChanceUsed;
+    engine.gameStats = snapshot.gameStats;
+    return engine;
   }
 }
 

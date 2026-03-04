@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
+  BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards,
 } from '@bull-em/shared';
@@ -9,6 +10,39 @@ import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
 
 const HUMAN_ID = 'human-1';
+const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
+
+interface LocalGameSave {
+  engineSnapshot: GameEngineSnapshot;
+  players: ServerPlayer[];
+  botDifficulty: BotDifficulty;
+  gameSettings: GameSettings;
+  roundResult: RoundResult | null;
+  botCounter: number;
+}
+
+function saveLocalGame(save: LocalGameSave): void {
+  try {
+    localStorage.setItem(LOCAL_GAME_STORAGE_KEY, JSON.stringify(save));
+  } catch {
+    // Storage full or unavailable — silently ignore
+  }
+}
+
+function loadLocalGame(): LocalGameSave | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_GAME_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as LocalGameSave;
+  } catch {
+    localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
+    return null;
+  }
+}
+
+function clearLocalGameSave(): void {
+  localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
+}
 
 function toPublicPlayer(p: ServerPlayer): Player {
   return {
@@ -44,6 +78,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const gameSettingsRef = useRef<GameSettings>(gameSettings);
   const isPausedRef = useRef(false);
   const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
+  const restoredRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => {
@@ -74,11 +109,62 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Restore saved local game on mount (e.g., after page refresh)
+  useEffect(() => {
+    if (engineRef.current || roomState) return; // Already initialized
+    const save = loadLocalGame();
+    if (!save) return;
+
+    try {
+      const engine = GameEngine.restore(save.engineSnapshot);
+      engineRef.current = engine;
+      playersRef.current = save.players;
+      botDifficultyRef.current = save.botDifficulty;
+      gameSettingsRef.current = save.gameSettings;
+      botCounter.current = save.botCounter;
+      setBotDifficulty(save.botDifficulty);
+      setGameSettings(save.gameSettings);
+
+      setRoomState({
+        roomCode: 'LOCAL',
+        players: save.players.map(toPublicPlayer),
+        hostId: HUMAN_ID,
+        gamePhase: GamePhase.PLAYING,
+        settings: save.gameSettings,
+      });
+
+      const state = engine.getClientState(HUMAN_ID);
+      setGameState(state);
+
+      if (save.roundResult) {
+        setRoundResult(save.roundResult);
+      } else {
+        // No round result — schedule bot/human turns after render
+        restoredRef.current = true;
+      }
+    } catch {
+      clearLocalGameSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const clearHumanTimer = useCallback(() => {
     if (turnTimerRef.current) {
       clearTimeout(turnTimerRef.current);
       turnTimerRef.current = null;
     }
+  }, []);
+
+  const persistGame = useCallback((rr: RoundResult | null = null) => {
+    if (!engineRef.current) return;
+    saveLocalGame({
+      engineSnapshot: engineRef.current.serialize(),
+      players: playersRef.current.map(p => ({ ...p, cards: [...p.cards] })),
+      botDifficulty: botDifficultyRef.current,
+      gameSettings: gameSettingsRef.current,
+      roundResult: rr,
+      botCounter: botCounter.current,
+    });
   }, []);
 
   const broadcastState = useCallback(() => {
@@ -91,7 +177,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
-  }, []);
+    persistGame(null);
+  }, [persistGame]);
 
   const computeBotDelay = useCallback((): number => {
     const engine = engineRef.current;
@@ -123,7 +210,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const player = playersRef.current.find(p => p.id === currentId);
     if (!player?.isBot) return;
 
-    const delay = computeBotDelay();
+    // Use faster delay for bull/last chance phases (matches server BotManager)
+    const state = engine.getClientState(currentId);
+    const inBullPhase = state.roundPhase === RoundPhase.BULL_PHASE
+      || state.roundPhase === RoundPhase.LAST_CHANCE;
+    const delay = inBullPhase
+      ? BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))
+      : computeBotDelay();
 
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
@@ -197,10 +290,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         // Update game state so UI sees null deadline (without clearing roundResult)
         setGameState(engine.getClientState(HUMAN_ID));
         setRoundResult(result.result);
+        persistGame(result.result);
         break;
 
       case 'game_over':
         engine.setTurnDeadline(null);
+        clearLocalGameSave();
         if (result.finalRoundResult) {
           // Show the final round result overlay before navigating to results
           setGameState(engine.getClientState(HUMAN_ID));
@@ -212,7 +307,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         }
         break;
     }
-  }, [broadcastState, scheduleBotTurn, clearHumanTimer]);
+  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame]);
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -285,6 +380,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, [scheduleBotTurn, scheduleHumanTimer]);
 
+  // After restoring a saved game, schedule bot/human turns once callbacks are ready
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    restoredRef.current = false;
+    scheduleBotTurn();
+    scheduleHumanTimer();
+  }, [scheduleBotTurn, scheduleHumanTimer]);
+
   // --- Context API methods ---
 
   const createRoom = useCallback(async (playerName: string): Promise<string> => {
@@ -319,6 +422,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
     clearHumanTimer();
+    clearLocalGameSave();
     engineRef.current = null;
     playersRef.current = [];
     setRoomState(null);

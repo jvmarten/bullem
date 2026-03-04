@@ -480,7 +480,7 @@ export function HomePage() {
           </div>
 
           {/* Hand name + probability */}
-          <div style={{ minHeight: '36px', marginTop: '4px' }} className="text-center">
+          <div style={{ minHeight: '36px', marginTop: '-2px' }} className="text-center">
             {handCall && (
               <>
                 <span

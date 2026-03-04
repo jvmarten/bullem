@@ -37,9 +37,18 @@ export class BotPlayer {
   private static decideEasy(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
 
-    // LAST_CHANCE phase
+    // LAST_CHANCE phase — everyone called bull on our hand.
+    // If we pass, the hand is checked: if it exists, the bullers lose.
+    // If we raise, the cycle restarts with the new (higher) hand.
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
+        const totalCards = this.getTotalCards(state);
+        const plausibility = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
+        // If the hand likely exists, pass — the bullers will be penalized
+        if (plausibility > 0.45) {
+          return { action: 'lastChancePass' };
+        }
+        // Hand probably doesn't exist — try to raise to escape
         const higher = this.findHandHigherThanSimple(botCards, currentHand);
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
@@ -104,9 +113,15 @@ export class BotPlayer {
   ): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
 
-    // LAST_CHANCE phase — raise if we can find any hand that exists
+    // LAST_CHANCE phase — perfect knowledge: pass if hand exists (bullers lose), raise otherwise
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
+        const handExists = HandChecker.exists(allCards, currentHand);
+        if (handExists) {
+          // Hand exists — pass and let the bullers be penalized
+          return { action: 'lastChancePass' };
+        }
+        // Hand doesn't exist — must raise to avoid penalty
         const raise = this.findHighestExistingHand(allCards, currentHand);
         if (raise) return { action: 'lastChanceRaise', hand: raise };
       }
@@ -353,19 +368,36 @@ export class BotPlayer {
     const desperate = botCards.length >= 4;
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
 
-    // LAST_CHANCE phase — everyone called bull, so we raise or lose
+    // LAST_CHANCE phase — everyone called bull on our hand.
+    // If we pass, the hand is checked: if it exists, the bullers are penalized (we win).
+    // If we raise, the cycle restarts with the new (higher) hand.
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
-        // Try legitimate hand first
+        const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+        const truthBoost = this.getTruthfulnessBoost(currentHand);
+        const adjustedP = Math.min(1, plausibility + truthBoost);
+
+        // If the hand very likely exists, pass — the bullers will be penalized
+        if (adjustedP > 0.55) {
+          return { action: 'lastChancePass' };
+        }
+
+        // Moderate plausibility — still favor passing but occasionally raise
+        if (adjustedP > 0.35 && Math.random() < 0.6) {
+          return { action: 'lastChancePass' };
+        }
+
+        // Hand probably doesn't exist — try to raise to escape the penalty
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
         if (higher) return { action: 'lastChanceRaise', hand: higher };
-        // Try plausible bluff — we lose if we pass, so always attempt a raise
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
         if (bluff) return { action: 'lastChanceRaise', hand: bluff };
-        // Last resort: use any bluff even if implausible — passing guarantees loss
-        const desperateBluff = this.makeBluffHandHard(currentHand, totalCards);
-        if (isHigherHand(desperateBluff, currentHand)) {
-          return { action: 'lastChanceRaise', hand: desperateBluff };
+        // Last resort bluff — only if plausibility is very low (passing almost guarantees loss)
+        if (adjustedP < 0.2) {
+          const desperateBluff = this.makeBluffHandHard(currentHand, totalCards);
+          if (isHigherHand(desperateBluff, currentHand)) {
+            return { action: 'lastChanceRaise', hand: desperateBluff };
+          }
         }
       }
       return { action: 'lastChancePass' };
