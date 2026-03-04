@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import {
   HandType, ALL_RANKS, ALL_SUITS, RANK_VALUES,
   isHigherHand, handToString, getMinimumRaise,
@@ -146,7 +146,12 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
 
 /* ── Main Component ────────────────────────────────────── */
 
-export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true }: Props) {
+// Memoized: parent (GamePage/LocalGamePage) re-renders on every state broadcast
+// (turn history, player updates, timer ticks), but HandSelector's props only change
+// when the current hand changes or the turn changes. This is a heavy component with
+// multiple WheelPickers and internal state — skipping needless re-renders avoids
+// expensive reconciliation of the picker DOM trees.
+export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true }: Props) {
   const label = submitLabel ?? (currentHand ? 'Raise' : 'Call');
   const initial = getInitialState(currentHand);
   const [handType, setHandType] = useState<HandType>(initial.handType);
@@ -433,4 +438,4 @@ export function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel,
       )}
     </div>
   );
-}
+});

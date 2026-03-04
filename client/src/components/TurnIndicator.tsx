@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import type { Player, PlayerId } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
@@ -25,7 +25,12 @@ function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string 
   }
 }
 
-export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline, hasCurrentHand = false }: Props) {
+// Memoized: parent (GamePage/LocalGamePage) re-renders on every turn history
+// update, but TurnIndicator's props are stable within a turn. The internal
+// timer uses direct DOM manipulation (meterRef) at 10fps to avoid React
+// re-renders. Without memo, each parent re-render recreates the component,
+// tearing down and re-attaching the 100ms interval.
+export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId, turnDeadline, hasCurrentHand = false }: Props) {
   const isMyTurn = currentPlayerId === myPlayerId;
   const currentPlayer = players.find((p) => p.id === currentPlayerId);
   const { play } = useSound();
@@ -127,4 +132,4 @@ export function TurnIndicator({ currentPlayerId, roundPhase, players, myPlayerId
       )}
     </div>
   );
-}
+});
