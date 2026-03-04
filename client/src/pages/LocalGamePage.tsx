@@ -12,7 +12,7 @@ import { SpectatorView } from '../components/SpectatorView.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 
 export function LocalGamePage() {
@@ -49,6 +49,11 @@ export function LocalGamePage() {
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
+
+  const cardStats = useMemo(() => {
+    const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
+    return { total, pct: Math.round((total / 52) * 100) };
+  }, [gameState.players]);
   const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
     && gameState.lastCallerId === playerId;
 
@@ -91,15 +96,9 @@ export function LocalGamePage() {
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
             </span>
-            {(() => {
-              const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
-              const pct = Math.round((total / 52) * 100);
-              return (
-                <span className="text-[var(--gold-dim)] font-mono" title={`${total} of 52 cards in play`}>
-                  {total}/52 cards ({pct}%)
-                </span>
-              );
-            })()}
+            <span className="text-[var(--gold-dim)] font-mono" title={`${cardStats.total} of 52 cards in play`}>
+              {cardStats.total}/52 cards ({cardStats.pct}%)
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {togglePause && (

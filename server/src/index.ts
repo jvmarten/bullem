@@ -53,17 +53,21 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 }
 
-// Broadcast online player count and names on connect/disconnect
-function broadcastPlayerCount(): void {
-  const count = io.engine.clientsCount;
-  io.emit('server:playerCount', count);
-  io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+// Broadcast online player count and names on connect/disconnect.
+// Debounced: rapid connect/disconnect bursts (e.g. 20 players joining at once)
+// collapse into a single broadcast instead of one per event.
+let broadcastPending: ReturnType<typeof setTimeout> | null = null;
+function scheduleBroadcastPlayerCount(): void {
+  if (broadcastPending) return;
+  broadcastPending = setTimeout(() => {
+    broadcastPending = null;
+    const count = io.engine.clientsCount;
+    io.emit('server:playerCount', count);
+    io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+  }, 100);
 }
-io.on('connection', () => broadcastPlayerCount());
-io.engine.on('close', () => {
-  // engine 'close' fires after socket disconnect — delay to let count update
-  setTimeout(broadcastPlayerCount, 50);
-});
+io.on('connection', () => scheduleBroadcastPlayerCount());
+io.engine.on('close', () => scheduleBroadcastPlayerCount());
 
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {

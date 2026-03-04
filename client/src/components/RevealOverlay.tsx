@@ -1,7 +1,7 @@
 import { handToString, TurnAction } from '@bull-em/shared';
 import type { RoundResult, Player, OwnedCard, TurnEntry, Card } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 
 function FlipCard({ card, delay }: { card: Card; delay: number }) {
   return (
@@ -43,11 +43,36 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
 
+  // Single interval instead of chained timeouts — avoids creating 30 timeout
+  // closures and re-running the effect on every tick.
+  const mountedAtRef = useRef(Date.now());
   useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown]);
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - mountedAtRef.current) / 1000);
+      const remaining = Math.max(0, 30 - elapsed);
+      setCountdown(remaining);
+      if (remaining <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Memoize card grouping — result.revealedCards doesn't change once the
+  // overlay is shown, so this avoids re-running the reduce on every countdown tick.
+  const groupedCards = useMemo(() => {
+    const grouped: Record<string, { name: string; cards: OwnedCard[] }> = {};
+    for (const card of result.revealedCards) {
+      if (!grouped[card.playerId]) {
+        grouped[card.playerId] = { name: card.playerName, cards: [] };
+      }
+      grouped[card.playerId].cards.push(card);
+    }
+    let idx = 0;
+    return Object.entries(grouped).map(([playerId, { name, cards }]) => {
+      const startIndex = idx;
+      idx += cards.length;
+      return { playerId, name, cards, startIndex };
+    });
+  }, [result.revealedCards]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
@@ -90,34 +115,23 @@ export function RevealOverlay({ result, players, onDismiss }: Props) {
           </div>
         )}
 
-        {result.revealedCards.length > 0 && (() => {
-          const grouped = result.revealedCards.reduce<Record<string, { name: string; cards: OwnedCard[] }>>((acc, card) => {
-            if (!acc[card.playerId]) {
-              acc[card.playerId] = { name: card.playerName, cards: [] };
-            }
-            acc[card.playerId].cards.push(card);
-            return acc;
-          }, {});
-          let cardIndex = 0;
-          return (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
-                Revealed Cards
-              </p>
-              {Object.entries(grouped).map(([playerId, { name, cards }]) => (
-                <div key={playerId} className="mb-2">
-                  <p className="text-xs text-[var(--card-face)] font-medium mb-1">{name}</p>
-                  <div className="flex justify-center gap-1.5 flex-wrap">
-                    {cards.map((card) => {
-                      const i = cardIndex++;
-                      return <FlipCard key={i} card={card} delay={i} />;
-                    })}
-                  </div>
+        {groupedCards.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
+              Revealed Cards
+            </p>
+            {groupedCards.map(({ playerId, name, cards, startIndex }) => (
+              <div key={playerId} className="mb-2">
+                <p className="text-xs text-[var(--card-face)] font-medium mb-1">{name}</p>
+                <div className="flex justify-center gap-1.5 flex-wrap">
+                  {cards.map((card, j) => (
+                    <FlipCard key={startIndex + j} card={card} delay={startIndex + j} />
+                  ))}
                 </div>
-              ))}
-            </div>
-          );
-        })()}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="text-left space-y-1">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-1.5 font-semibold">

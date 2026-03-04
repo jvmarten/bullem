@@ -22,9 +22,11 @@ function startNextRound(io: TypedServer, room: Room, botManager: BotManager): vo
   }
 
   room.gamePhase = GamePhase.PLAYING;
-  broadcastNewRound(io, room);
+  // broadcastNewRound already sends per-player game state — no need to also
+  // call broadcastGameState which would duplicate the same data to every socket.
+  // Schedule the bot turn first so the human turn deadline is set before broadcast.
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
-  broadcastGameState(io, room);
+  broadcastNewRound(io, room);
 }
 
 export function beginRoundResultPhase(
