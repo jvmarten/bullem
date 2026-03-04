@@ -51,14 +51,17 @@ const ROOM_CODE_KEY = 'bull-em-room-code';
 const RECONNECT_TOKEN_KEY = 'bull-em-reconnect-token';
 const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
 
-/** Wrap a socket.emit callback promise with a timeout so it can't hang forever. */
+/** Wrap a socket.emit callback promise with a timeout so it can't hang forever.
+ *  The timeout is cleared once the inner promise settles, preventing leaked timers. */
 function withTimeout<T>(promise: Promise<T>, ms = SOCKET_CALLBACK_TIMEOUT_MS): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out')), ms),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Request timed out')), ms);
+  });
+  const cleanup = () => clearTimeout(timer);
+  // Clear the timer whether the inner promise resolves or rejects
+  promise.then(cleanup, cleanup);
+  return Promise.race([promise, timeoutPromise]);
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {

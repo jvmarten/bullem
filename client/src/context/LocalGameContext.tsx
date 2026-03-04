@@ -208,17 +208,15 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const engine = engineRef.current;
     if (!engine) return BOT_THINK_DELAY_MIN;
 
-    const state = engine.getClientState('__delay_calc__');
-    const activePlayers = state.players.filter(p => !p.isEliminated);
-    const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
-    const turnCount = state.turnHistory.length;
+    // Use lightweight summary instead of building a full ClientGameState
+    const { activePlayerCount, totalCards, turnCount } = engine.getRoundSummary();
 
     // Base: 2-3.5s random
     const base = 2000 + Math.floor(Math.random() * 1500);
     // More total cards = more to think about (+0-2s)
     const cardsFactor = Math.min(totalCards / 20, 1) * 2000;
     // Later in the round = more pressure, think longer (+0-1.5s)
-    const roundDepth = Math.min(turnCount / (activePlayers.length * 2), 1) * 1500;
+    const roundDepth = Math.min(turnCount / (activePlayerCount * 2), 1) * 1500;
     // Some randomness (±500ms)
     const jitter = (Math.random() - 0.5) * 1000;
 

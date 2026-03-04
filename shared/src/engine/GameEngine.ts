@@ -299,6 +299,19 @@ export class GameEngine {
     return this.players.filter(p => !p.isEliminated);
   }
 
+  /** Lightweight summary for bot delay calculations — avoids building a full ClientGameState. */
+  getRoundSummary(): { activePlayerCount: number; totalCards: number; turnCount: number } {
+    let activePlayerCount = 0;
+    let totalCards = 0;
+    for (const p of this.players) {
+      if (!p.isEliminated) {
+        activePlayerCount++;
+        totalCards += p.cardCount;
+      }
+    }
+    return { activePlayerCount, totalCards, turnCount: this.turnHistory.length };
+  }
+
   /** Eliminate a player mid-game (intentional leave). Returns the resulting game action. */
   eliminatePlayer(playerId: PlayerId): TurnResult {
     const player = this.players.find(p => p.id === playerId);

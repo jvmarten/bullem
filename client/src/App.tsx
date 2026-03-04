@@ -1,24 +1,49 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
-import { LocalGameProvider } from './context/LocalGameContext.js';
-import { HomePage } from './pages/HomePage.js';
-import { LobbyPage } from './pages/LobbyPage.js';
-import { GamePage } from './pages/GamePage.js';
-import { ResultsPage } from './pages/ResultsPage.js';
-import { LocalLobbyPage } from './pages/LocalLobbyPage.js';
-import { LocalGamePage } from './pages/LocalGamePage.js';
-import { LocalResultsPage } from './pages/LocalResultsPage.js';
-import { HowToPlayPage } from './pages/HowToPlayPage.js';
-import { HostPage } from './pages/HostPage.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
+
+// Eagerly loaded — the home page is the entry point most users hit first
+import { HomePage } from './pages/HomePage.js';
+
+// Lazy-loaded pages — deferred until the user navigates to them.
+// This keeps the initial bundle small: lobby/game/results code (plus the
+// entire LocalGameContext + GameEngine) is only fetched when needed.
+const HostPage = lazy(() => import('./pages/HostPage.js').then(m => ({ default: m.HostPage })));
+const LobbyPage = lazy(() => import('./pages/LobbyPage.js').then(m => ({ default: m.LobbyPage })));
+const GamePage = lazy(() => import('./pages/GamePage.js').then(m => ({ default: m.GamePage })));
+const ResultsPage = lazy(() => import('./pages/ResultsPage.js').then(m => ({ default: m.ResultsPage })));
+const HowToPlayPage = lazy(() => import('./pages/HowToPlayPage.js').then(m => ({ default: m.HowToPlayPage })));
+
+// Local game routes — the entire local game context + engine is only loaded
+// when the user enters the local game flow.
+const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => ({ default: m.LocalLobbyPage })));
+const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
+const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
+const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
 }
 
 function LocalLayout() {
-  return <LocalGameProvider><Outlet /></LocalGameProvider>;
+  return (
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <LazyLocalGameProvider><Outlet /></LazyLocalGameProvider>
+    </Suspense>
+  );
+}
+
+function RouteLoadingFallback() {
+  return (
+    <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-3">
+        <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-[var(--gold-dim)]">Loading&hellip;</p>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -26,28 +51,30 @@ export default function App() {
     <ErrorBoundary>
     <BrowserRouter>
       <ScrollToTop />
-      <Routes>
-        <Route path="/how-to-play" element={<HowToPlayPage />} />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          <Route path="/how-to-play" element={<HowToPlayPage />} />
 
-        {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
-        <Route element={<OnlineLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/host" element={<HostPage />} />
-          <Route path="/room/:roomCode" element={<LobbyPage />} />
-          <Route path="/game/:roomCode" element={<GamePage />} />
-          <Route path="/results/:roomCode" element={<ResultsPage />} />
-        </Route>
+          {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
+          <Route element={<OnlineLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/host" element={<HostPage />} />
+            <Route path="/room/:roomCode" element={<LobbyPage />} />
+            <Route path="/game/:roomCode" element={<GamePage />} />
+            <Route path="/results/:roomCode" element={<ResultsPage />} />
+          </Route>
 
-        {/* Local (offline) bot game routes */}
-        <Route element={<LocalLayout />}>
-          <Route path="/local" element={<LocalLobbyPage />} />
-          <Route path="/local/game" element={<LocalGamePage />} />
-          <Route path="/local/results" element={<LocalResultsPage />} />
-        </Route>
+          {/* Local (offline) bot game routes */}
+          <Route element={<LocalLayout />}>
+            <Route path="/local" element={<LocalLobbyPage />} />
+            <Route path="/local/game" element={<LocalGamePage />} />
+            <Route path="/local/results" element={<LocalResultsPage />} />
+          </Route>
 
-        {/* Catch-all: redirect unknown URLs to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Catch-all: redirect unknown URLs to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
     </ErrorBoundary>
   );
