@@ -20,6 +20,11 @@ export interface OpponentProfile {
   lastHandTypes: HandType[];
 }
 
+/** Maximum number of opponent profiles stored per scope (room/game).
+ *  With max 12 players per game, 50 is generous even accounting for
+ *  reconnects generating new player IDs. */
+const MAX_PROFILES_PER_SCOPE = 50;
+
 export class BotPlayer {
   // Cross-round opponent memory — scoped per room/game to prevent leaking
   // between concurrent games. Outer key is the scope (room code or game ID).
@@ -82,10 +87,16 @@ export class BotPlayer {
     }
   }
 
-  /** Get or create an opponent profile within a given memory map. */
+  /** Get or create an opponent profile within a given memory map.
+   *  Caps the number of profiles per scope to prevent unbounded growth. */
   private static getOrCreateProfileFrom(mem: Map<string, OpponentProfile>, playerId: string): OpponentProfile {
     let profile = mem.get(playerId);
     if (!profile) {
+      // Cap profile count — evict the oldest entry (first key) if at limit
+      if (mem.size >= MAX_PROFILES_PER_SCOPE) {
+        const oldest = mem.keys().next().value;
+        if (oldest !== undefined) mem.delete(oldest);
+      }
       profile = {
         totalCalls: 0,
         bluffsCaught: 0,

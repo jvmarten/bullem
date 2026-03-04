@@ -99,6 +99,14 @@ export function registerLobbyHandlers(
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
 
+    // If this socket is a spectator, clean up and exit early
+    if (room.spectatorSockets.has(socket.id)) {
+      room.spectatorSockets.delete(socket.id);
+      roomManager.removeSocketMapping(socket.id);
+      socket.leave(room.roomCode);
+      return;
+    }
+
     const playerId = room.getPlayerId(socket.id);
     botManager.clearTurnTimer(room.roomCode);
 

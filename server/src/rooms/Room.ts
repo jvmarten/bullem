@@ -186,9 +186,13 @@ export class Room {
   }
 
   get isRoundContinueComplete(): boolean {
-    const active = [...this.players.values()].filter(p => !p.isEliminated);
-    if (active.length === 0) return true;
-    return active.every(p => this.roundContinueReady.has(p.id));
+    let hasActive = false;
+    for (const p of this.players.values()) {
+      if (p.isEliminated) continue;
+      hasActive = true;
+      if (!this.roundContinueReady.has(p.id)) return false;
+    }
+    return hasActive;
   }
 
   cancelRoundContinueWindow(): void {
