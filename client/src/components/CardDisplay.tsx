@@ -1,7 +1,10 @@
+import { memo } from 'react';
 import type { Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS, SUIT_CSS, rankDisplay } from '../utils/cardUtils.js';
 
-export function CardDisplay({ card, small, className = '', style, onPointerEnter }: {
+// Memoized: cards are immutable once dealt. Without memo, every parent
+// re-render (turn changes, timer ticks) re-renders all card DOM elements.
+export const CardDisplay = memo(function CardDisplay({ card, small, className = '', style, onPointerEnter }: {
   card: Card;
   small?: boolean;
   className?: string;
@@ -29,4 +32,4 @@ export function CardDisplay({ card, small, className = '', style, onPointerEnter
       </span>
     </div>
   );
-}
+});

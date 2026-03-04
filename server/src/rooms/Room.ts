@@ -1,9 +1,11 @@
 import {
   GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_ONLINE_GAME_SETTINGS,
+  BotPlayer,
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
 } from '@bull-em/shared';
+import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
 
 export class Room {
@@ -11,6 +13,11 @@ export class Room {
   players = new Map<PlayerId, ServerPlayer>();
   socketToPlayer = new Map<string, PlayerId>();
   playerToSocket = new Map<PlayerId, string>();
+  /** Secret tokens per player for secure reconnection. Player IDs are visible
+   *  to all clients in game state, so we need a separate secret that only the
+   *  original player knows to prevent session hijacking during the disconnect
+   *  window. */
+  private reconnectTokens = new Map<PlayerId, string>();
   hostId: PlayerId = '';
   game: GameEngine | null = null;
   gamePhase = GamePhase.LOBBY;
@@ -31,7 +38,12 @@ export class Room {
     this.lastActivity = Date.now();
   }
 
-  addPlayer(socketId: string, playerId: PlayerId, name: string): ServerPlayer {
+  /** O(1) host name lookup — avoids scanning the player map in room listings. */
+  get hostName(): string {
+    return this.players.get(this.hostId)?.name ?? '???';
+  }
+
+  addPlayer(socketId: string, playerId: PlayerId, name: string): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,
       name,
@@ -45,8 +57,10 @@ export class Room {
     this.players.set(playerId, player);
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+    const reconnectToken = randomUUID();
+    this.reconnectTokens.set(playerId, reconnectToken);
     this.touch();
-    return player;
+    return { player, reconnectToken };
   }
 
   addBot(botId: PlayerId, name: string): ServerPlayer {
@@ -76,6 +90,7 @@ export class Room {
     this.socketToPlayer.delete(socketId);
     this.playerToSocket.delete(playerId);
     this.players.delete(playerId);
+    this.reconnectTokens.delete(playerId);
 
     // Reassign host if needed
     if (playerId === this.hostId && this.players.size > 0) {
@@ -115,9 +130,22 @@ export class Room {
     return playerId;
   }
 
-  handleReconnect(socketId: string, playerId: PlayerId): boolean {
+  /** Attempt to reconnect a player. Returns the new rotated reconnect token
+   *  on success, or null on failure. Token rotation limits the window for
+   *  a stolen token to be reused. */
+  handleReconnect(socketId: string, playerId: PlayerId, reconnectToken?: string): string | null {
     const player = this.players.get(playerId);
-    if (!player) return false;
+    if (!player) return null;
+
+    // Only allow reconnection for actually disconnected players.
+    if (player.isConnected) return null;
+
+    // Verify the reconnect token to prevent session hijacking. Player IDs are
+    // visible to all clients, so anyone could try to reconnect as a
+    // disconnected player. The reconnect token is a secret shared only with
+    // the original player at join time.
+    const storedToken = this.reconnectTokens.get(playerId);
+    if (!storedToken || storedToken !== reconnectToken) return null;
 
     const timer = this.disconnectTimers.get(playerId);
     if (timer) {
@@ -128,8 +156,13 @@ export class Room {
     player.isConnected = true;
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+
+    // Rotate the reconnect token — the old token is now invalid, limiting
+    // the window for a stolen token to be reused.
+    const newToken = randomUUID();
+    this.reconnectTokens.set(playerId, newToken);
     this.touch();
-    return true;
+    return newToken;
   }
 
 
@@ -148,16 +181,23 @@ export class Room {
     }, timeoutMs);
   }
 
-  markRoundContinueReady(playerId: PlayerId): void {
+  /** Mark a player as ready to continue. Returns false if already marked (idempotent). */
+  markRoundContinueReady(playerId: PlayerId): boolean {
     const p = this.players.get(playerId);
-    if (!p || p.isEliminated) return;
+    if (!p || p.isEliminated) return false;
+    if (this.roundContinueReady.has(playerId)) return false;
     this.roundContinueReady.add(playerId);
+    return true;
   }
 
   get isRoundContinueComplete(): boolean {
-    const active = [...this.players.values()].filter(p => !p.isEliminated);
-    if (active.length === 0) return true;
-    return active.every(p => this.roundContinueReady.has(p.id));
+    let hasActive = false;
+    for (const p of this.players.values()) {
+      if (p.isEliminated) continue;
+      hasActive = true;
+      if (!this.roundContinueReady.has(p.id)) return false;
+    }
+    return hasActive;
   }
 
   cancelRoundContinueWindow(): void {
@@ -166,6 +206,17 @@ export class Room {
       this.roundContinueTimer = null;
     }
     this.roundContinueReady.clear();
+  }
+
+  /** Clear all timers (disconnect, round continue) and bot memory. Call when the room is being destroyed. */
+  cleanup(): void {
+    for (const timer of this.disconnectTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.disconnectTimers.clear();
+    this.cancelRoundContinueWindow();
+    // Free bot memory scoped to this room
+    BotPlayer.resetMemory(this.roomCode);
   }
 
   getSocketId(playerId: PlayerId): string | undefined {

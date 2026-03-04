@@ -5,6 +5,7 @@ export const RANK_VALUES: Record<Rank, number> = {
   '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14,
 };
 
+/** Suit tiebreaker for straight flushes (only hand type where suit matters for ordering). */
 export const SUIT_ORDER: Record<Suit, number> = {
   clubs: 0, diamonds: 1, hearts: 2, spades: 3,
 };
@@ -19,13 +20,14 @@ export const MIN_MAX_CARDS = 1;
 export const STARTING_CARDS = 1;
 export const DECK_SIZE = 52;
 
+/** Max players is limited by deck size — each player needs at least maxCards cards. */
 export function maxPlayersForMaxCards(maxCards: number): number {
   return Math.floor(DECK_SIZE / maxCards);
 }
 
-export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const;
+export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const; // 0 = no timer (local only)
 export const DEFAULT_TURN_TIMER = 0;
-export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const;
+export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const; // online requires a timer
 export const DEFAULT_ONLINE_TURN_TIMER = 30;
 export const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12] as const;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
@@ -37,8 +39,8 @@ export const PLAYER_NAME_PATTERN = /^[a-zA-Z0-9 _\-'.!?]+$/;
 
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;
-export const BOT_BULL_DELAY_MIN = 800;
-export const BOT_BULL_DELAY_MAX = 2000;
+export const BOT_BULL_DELAY_MIN = 400;
+export const BOT_BULL_DELAY_MAX = 1200;
 
 export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000; // 10 minutes

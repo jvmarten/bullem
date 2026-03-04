@@ -1,19 +1,28 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GameContext } from '../context/GameContext.js';
+import { GameContext, PresenceContext } from '../context/GameContext.js';
+import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
+import { TitleLogo } from './TitleLogo.js';
+import { VolumeControl } from './VolumeControl.js';
 
 export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
-  const onlinePlayerCount = ctx?.onlinePlayerCount ?? 0;
-  const onlinePlayerNames = ctx?.onlinePlayerNames ?? [];
+  const hasConnected = ctx?.hasConnected ?? true;
+  // Read presence from the dedicated PresenceContext — this prevents game
+  // components from re-rendering when the global online count changes.
+  const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
   const [showPopup, setShowPopup] = useState(false);
-  const [showVersionDate, setShowVersionDate] = useState(false);
+  const [showVersionPopup, setShowVersionPopup] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
+  const versionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef } = useJokerEasterEgg();
+
   const handleTitleClick = () => {
+    jokerClick();
     const inPotentialSession = /^\/(room|game|local|results)/.test(location.pathname);
     if (inPotentialSession) {
       const ok = window.confirm('Leave current game/session and return home?');
@@ -24,10 +33,13 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
   };
 
   useEffect(() => {
-    if (!showPopup) return;
+    if (!showPopup && !showVersionPopup) return;
     const handler = (e: MouseEvent | TouchEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (showPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
+      }
+      if (showVersionPopup && versionRef.current && !versionRef.current.contains(e.target as Node)) {
+        setShowVersionPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -36,25 +48,20 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
     };
-  }, [showPopup]);
+  }, [showPopup, showVersionPopup]);
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
       <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
-        <button
-          onClick={handleTitleClick}
-          className={`font-title font-bold tracking-wider text-[var(--gold)] title-glow ${largeTitle ? 'text-5xl' : 'text-xl'} cursor-pointer hover:text-[var(--gold-light)] transition-colors min-h-[44px] relative z-10`}
-        >
-          Bull &rsquo;Em
-        </button>
-        {onlinePlayerCount > 0 && (
+        <TitleLogo size={largeTitle ? 'large' : 'small'} onClick={handleTitleClick} />
+        {isConnected && (
           <div ref={popupRef} className="absolute top-1/2 left-3 -translate-y-1/2">
             <button
               onClick={() => setShowPopup(prev => !prev)}
               className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              {onlinePlayerCount}
+              {onlinePlayerCount || 1}
             </button>
             {showPopup && (
               <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
@@ -79,22 +86,33 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
             )}
           </div>
         )}
-        {largeTitle && (
-          <button
-            onClick={() => setShowVersionDate(v => !v)}
-            className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-          >
-            {showVersionDate ? 'v0.1.5 · 03.03.26' : 'v0.1.5'}
-          </button>
-        )}
-        {!isConnected && (
-          <div className="absolute top-1/2 right-4 -translate-y-1/2 flex items-center gap-1.5 text-xs text-[var(--gold)]">
-            <span className="dot-disconnected" />
-            Reconnecting&hellip;
+        <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-2">
+          {!isConnected && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--gold)]">
+              <span className="dot-disconnected" />
+              {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
+            </div>
+          )}
+          <VolumeControl />
+          <div ref={versionRef} className="relative">
+            <button
+              onClick={() => setShowVersionPopup(v => !v)}
+              className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              v0.2.0
+            </button>
+            {showVersionPopup && (
+              <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
+                <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
+                  v0.2.0 &middot; 04.03.26
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
+      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} />
     </div>
   );
 }

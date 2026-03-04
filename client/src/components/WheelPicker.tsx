@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
+import { useRef, useEffect, useCallback, useState, memo, type ReactNode } from 'react';
 
 interface WheelPickerProps<T> {
   items: T[];
@@ -9,7 +9,9 @@ interface WheelPickerProps<T> {
   visibleCount?: number;
 }
 
-export function WheelPicker<T>({
+// Memoized to prevent re-renders when parent state changes but picker
+// props haven't changed (e.g. hand type change doesn't affect rank picker).
+function WheelPickerInner<T>({
   items,
   selectedIndex,
   onSelect,
@@ -119,3 +121,5 @@ export function WheelPicker<T>({
     </div>
   );
 }
+
+export const WheelPicker = memo(WheelPickerInner) as typeof WheelPickerInner;

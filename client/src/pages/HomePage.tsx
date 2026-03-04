@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
@@ -175,7 +175,10 @@ function getOrCreatePlayerName(): string {
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
-  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>('menu');
+  const location = useLocation();
+  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
+    () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
+  );
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
@@ -193,7 +196,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play } = useSound();
-  const { onlinePlayerCount, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -237,33 +240,37 @@ export function HomePage() {
 
 
   const handleQuickStart = async () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
-      setError('Failed to quick start');
+      setError('Failed to quick start — check your connection');
     }
   };
 
   const handleHost = () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
     if (!roomCode.trim()) return setError('Enter a room code');
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
   const handleBrowse = async () => {
+    if (!isConnected) return setError('Not connected to server — please wait and try again');
     setLoadingRooms(true);
     try {
       const [roomResult, liveResult] = await Promise.all([listRooms(), listLiveGames()]);
       setRooms(roomResult);
       setLiveGames(liveResult);
     } catch {
-      setError('Failed to load rooms');
+      setError('Failed to load rooms — check your connection');
     } finally {
       setLoadingRooms(false);
     }
@@ -480,7 +487,7 @@ export function HomePage() {
           </div>
 
           {/* Hand name + probability */}
-          <div style={{ minHeight: '36px', marginTop: '4px' }} className="text-center">
+          <div style={{ minHeight: '36px', marginTop: '-2px' }} className="text-center">
             {handCall && (
               <>
                 <span

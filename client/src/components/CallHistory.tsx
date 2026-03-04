@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { TurnAction, handToString } from '@bull-em/shared';
 import type { TurnEntry } from '@bull-em/shared';
 
-export function CallHistory({ history }: { history: TurnEntry[] }) {
+// Memoized: the history array reference changes on every game state update
+// (it's spread in getClientState), but the length is the primary render driver.
+// React.memo with a custom comparator avoids re-rendering the (potentially
+// long) list when nothing actually changed.
+export const CallHistory = memo(function CallHistory({ history }: { history: TurnEntry[] }) {
   const [visible, setVisible] = useState(false);
 
   if (history.length === 0) return null;
@@ -54,4 +58,4 @@ export function CallHistory({ history }: { history: TurnEntry[] }) {
       )}
     </div>
   );
-}
+}, (prev, next) => prev.history.length === next.history.length);

@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { GamePhase } from '@bull-em/shared';
+import { GamePhase, validateHandCall } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -19,6 +19,8 @@ export function registerGameHandlers(
   socket.on('game:call', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    const handError = validateHandCall(data.hand);
+    if (handError) { socket.emit('room:error', handError); return; }
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);
@@ -43,6 +45,8 @@ export function registerGameHandlers(
   socket.on('game:lastChanceRaise', (data) => {
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    const handError = validateHandCall(data.hand);
+    if (handError) { socket.emit('room:error', handError); return; }
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, botManager);

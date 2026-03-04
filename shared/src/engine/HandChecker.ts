@@ -2,7 +2,9 @@ import { RANK_VALUES } from '../constants.js';
 import type { Card, HandCall, OwnedCard, Rank, Suit } from '../types.js';
 import { HandType } from '../types.js';
 
+/** Pure static methods for checking whether hands exist in a pool of cards. */
 export class HandChecker {
+  /** Returns true if the called hand can be formed from the given cards. */
   static exists(allCards: Card[], hand: HandCall): boolean {
     switch (hand.type) {
       case HandType.HIGH_CARD:
@@ -41,6 +43,7 @@ export class HandChecker {
     }
   }
 
+  /** Returns a minimal set of cards forming the hand, or null if the hand doesn't exist. */
   static findMatchingCards(allCards: Card[], hand: HandCall): Card[] | null {
     if (!this.exists(allCards, hand)) return null;
 
@@ -83,6 +86,7 @@ export class HandChecker {
     }
   }
 
+  /** Returns ALL cards relevant to the hand (not just a minimal set) — used for the reveal overlay. */
   static findAllRelevantCards(allCards: OwnedCard[], hand: HandCall): OwnedCard[] {
     switch (hand.type) {
       case HandType.HIGH_CARD:

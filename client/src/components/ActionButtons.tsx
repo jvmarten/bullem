@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
 
@@ -13,7 +13,10 @@ interface Props {
   onExpand?: () => void;
 }
 
-export function ActionButtons({
+// Memoized: skips re-renders when parent state changes (e.g. timer ticks,
+// turn history updates) but these props haven't changed. Without memo, each
+// re-render tears down and re-attaches the document click/touch listeners.
+export const ActionButtons = memo(function ActionButtons({
   roundPhase,
   isMyTurn,
   hasCurrentHand,
@@ -111,4 +114,4 @@ export function ActionButtons({
       )}
     </div>
   );
-}
+});

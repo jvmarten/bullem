@@ -30,3 +30,7 @@ jobs:
           git checkout develop
           git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into develop [skip ci]"
           git push origin develop
+
+      - name: Delete merged branch
+        if: success() && github.ref_name != 'main' && github.ref_name != 'develop'
+        run: git push origin --delete "${{ github.ref_name }}" || true

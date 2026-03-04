@@ -154,14 +154,14 @@ export function LocalLobbyPage() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setBotDifficulty(BotDifficulty.EASY)}
+                onClick={() => setBotDifficulty(BotDifficulty.NORMAL)}
                 className={`flex-1 px-3 py-2 text-sm rounded transition-colors ${
-                  botDifficulty === BotDifficulty.EASY
+                  botDifficulty === BotDifficulty.NORMAL
                     ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                     : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                 }`}
               >
-                Easy
+                Normal
               </button>
               <button
                 onClick={() => setBotDifficulty(BotDifficulty.HARD)}
