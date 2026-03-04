@@ -21,28 +21,41 @@ export interface OpponentProfile {
 }
 
 export class BotPlayer {
-  // Cross-round opponent memory — persists within a game session (per-process state)
-  private static opponentMemory = new Map<string, OpponentProfile>();
+  // Cross-round opponent memory — scoped per room/game to prevent leaking
+  // between concurrent games. Outer key is the scope (room code or game ID).
+  private static scopedMemory = new Map<string, Map<string, OpponentProfile>>();
 
-  /** Clear opponent memory for specific players. Call at game start with the
-   *  game's player IDs so concurrent games in other rooms aren't affected. */
-  static resetMemory(playerIds?: string[]): void {
-    if (!playerIds) {
-      this.opponentMemory.clear();
+  /** Clear opponent memory for a specific scope (room/game). If no scope is
+   *  provided, clears ALL scopes (useful for tests). */
+  static resetMemory(scope?: string): void {
+    if (!scope) {
+      this.scopedMemory.clear();
       return;
     }
-    for (const id of playerIds) {
-      this.opponentMemory.delete(id);
-    }
+    this.scopedMemory.delete(scope);
   }
 
-  /** Update opponent profiles from a round result. Call after each round resolves. */
-  static updateMemory(roundResult: RoundResult): void {
+  /** Get the memory map for a given scope, creating it if needed. */
+  private static getScopedMemory(scope?: string): Map<string, OpponentProfile> {
+    if (!scope) return new Map();
+    let mem = this.scopedMemory.get(scope);
+    if (!mem) {
+      mem = new Map();
+      this.scopedMemory.set(scope, mem);
+    }
+    return mem;
+  }
+
+  /** Update opponent profiles from a round result. Call after each round resolves.
+   *  @param scope — room code or game ID to scope this memory to. */
+  static updateMemory(roundResult: RoundResult, scope?: string): void {
     const { callerId, handExists, turnHistory } = roundResult;
     if (!turnHistory) return;
 
+    const mem = this.getScopedMemory(scope);
+
     // Track the caller (the player whose hand was being evaluated)
-    const callerProfile = this.getOrCreateProfile(callerId);
+    const callerProfile = this.getOrCreateProfileFrom(mem, callerId);
     callerProfile.totalCalls++;
     if (handExists) {
       callerProfile.truthsCaught++;
@@ -60,7 +73,7 @@ export class BotPlayer {
     // Track bull callers and whether they were correct
     for (const entry of turnHistory) {
       if (entry.action === TurnAction.BULL) {
-        const bullProfile = this.getOrCreateProfile(entry.playerId);
+        const bullProfile = this.getOrCreateProfileFrom(mem, entry.playerId);
         bullProfile.bullCallsMade++;
         if (!handExists) {
           bullProfile.correctBulls++;
@@ -69,9 +82,9 @@ export class BotPlayer {
     }
   }
 
-  /** Get or create an opponent profile. */
-  private static getOrCreateProfile(playerId: string): OpponentProfile {
-    let profile = this.opponentMemory.get(playerId);
+  /** Get or create an opponent profile within a given memory map. */
+  private static getOrCreateProfileFrom(mem: Map<string, OpponentProfile>, playerId: string): OpponentProfile {
+    let profile = mem.get(playerId);
     if (!profile) {
       profile = {
         totalCalls: 0,
@@ -81,14 +94,19 @@ export class BotPlayer {
         correctBulls: 0,
         lastHandTypes: [],
       };
-      this.opponentMemory.set(playerId, profile);
+      mem.set(playerId, profile);
     }
     return profile;
   }
 
-  /** Get the opponent memory map (for testing). */
-  static getMemory(): Map<string, OpponentProfile> {
-    return this.opponentMemory;
+  /** Get the opponent memory map for a given scope (for testing). */
+  static getMemory(scope?: string): Map<string, OpponentProfile> {
+    if (!scope) {
+      // Return first scope's memory for backwards compatibility in tests
+      const first = this.scopedMemory.values().next().value;
+      return first ?? new Map();
+    }
+    return this.getScopedMemory(scope);
   }
 
   /**
@@ -96,9 +114,9 @@ export class BotPlayer {
    * Returns a multiplier (0..1) for the truthfulness boost.
    * 1.0 = full trust, 0.5 = reduced trust, 0.0 = no trust.
    */
-  private static getPlayerTrustFactor(playerId: string | null): number {
+  private static getPlayerTrustFactor(playerId: string | null, mem: Map<string, OpponentProfile>): number {
     if (!playerId) return 1.0;
-    const profile = this.opponentMemory.get(playerId);
+    const profile = mem.get(playerId);
     if (!profile || profile.totalCalls < 2) return 1.0;
 
     const bluffRate = profile.bluffsCaught / profile.totalCalls;
@@ -110,6 +128,7 @@ export class BotPlayer {
   /**
    * Decide what action a bot should take given the current game state, its cards, and difficulty.
    * For IMPOSSIBLE difficulty, allCards should contain the bot's own cards + human players' cards.
+   * @param scope — room code or game ID for scoped opponent memory (used in HARD mode).
    */
   static decideAction(
     state: ClientGameState,
@@ -117,12 +136,13 @@ export class BotPlayer {
     botCards: Card[],
     difficulty: BotDifficulty = BotDifficulty.NORMAL,
     allCards?: Card[],
+    scope?: string,
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
     }
     if (difficulty === BotDifficulty.HARD) {
-      return this.decideHard(state, botId, botCards);
+      return this.decideHard(state, botId, botCards, scope);
     }
     return this.decideNormal(state, botId, botCards);
   }
@@ -508,10 +528,11 @@ export class BotPlayer {
 
   // ─── HARD MODE (Probability-Driven + GTO Bluffing) ──────────────────
 
-  private static decideHard(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
+  private static decideHard(state: ClientGameState, botId: string, botCards: Card[], scope?: string): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
     const totalCards = this.getTotalCards(state);
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
+    const mem = this.getScopedMemory(scope);
 
     // LAST_CHANCE phase — everyone called bull on our hand.
     // If we pass, the hand is checked: if it exists, the bullers are penalized (we win).
@@ -555,12 +576,12 @@ export class BotPlayer {
 
     // Calling phase — EV-driven raise vs bull with GTO bluff frequency
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId);
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId, mem);
     }
 
     // Bull phase — probability threshold with position-aware adjustment
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId);
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId, mem);
     }
 
     // Fallback
@@ -670,6 +691,7 @@ export class BotPlayer {
     turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
     botId: string,
     lastCallerId: string | null,
+    mem: Map<string, OpponentProfile>,
   ): BotAction {
     const desperate = cardCount >= 4;
 
@@ -680,7 +702,7 @@ export class BotPlayer {
 
     // Truthfulness prior: callers usually hold cards related to their call.
     // Adjust by how much we trust this specific caller based on memory.
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId);
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem);
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
@@ -753,13 +775,14 @@ export class BotPlayer {
     turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
     botId: string,
     lastCallerId: string | null,
+    mem: Map<string, OpponentProfile>,
   ): BotAction {
     // Infer cards from call history
     const inferred = this.inferCardsFromHistory(turnHistory, botId);
     const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
 
     // Truthfulness prior, adjusted by memory-based trust
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId);
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem);
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);

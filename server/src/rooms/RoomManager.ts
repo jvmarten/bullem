@@ -11,6 +11,8 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
+  /** O(1) index: playerId → roomCode. Maintained alongside Room.players. */
+  private playerToRoom = new Map<string, string>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   createRoom(): Room {
@@ -37,6 +39,16 @@ export class RoomManager {
     this.socketToRoom.set(socketId, roomCode);
   }
 
+  /** Register a player → room mapping for O(1) lookups. */
+  assignPlayerToRoom(playerId: string, roomCode: string): void {
+    this.playerToRoom.set(playerId, roomCode);
+  }
+
+  /** Remove a player → room mapping. */
+  removePlayerMapping(playerId: string): void {
+    this.playerToRoom.delete(playerId);
+  }
+
   handleDisconnect(socketId: string, onTimeout?: (playerId: string) => void): { room: Room; playerId: string } | null {
     const room = this.getRoomForSocket(socketId);
     if (!room) return null;
@@ -44,9 +56,14 @@ export class RoomManager {
     const playerId = room.handleDisconnect(socketId, onTimeout);
     this.socketToRoom.delete(socketId);
 
+    // If the player was fully removed (lobby phase), clean up the index
+    if (playerId && !room.players.has(playerId)) {
+      this.playerToRoom.delete(playerId);
+    }
+
     if (room.isEmpty) {
-      room.cleanup();
-      this.rooms.delete(room.roomCode);
+      // deleteRoom will clean up remaining player mappings
+      this.deleteRoom(room.roomCode);
       return null;
     }
 
@@ -59,7 +76,13 @@ export class RoomManager {
 
   deleteRoom(roomCode: string): void {
     const room = this.rooms.get(roomCode);
-    if (room) room.cleanup();
+    if (room) {
+      // Clean up player → room mappings before destroying the room
+      for (const playerId of room.players.keys()) {
+        this.playerToRoom.delete(playerId);
+      }
+      room.cleanup();
+    }
     this.rooms.delete(roomCode);
     // Clean up socket mappings pointing to this room
     for (const [socketId, code] of this.socketToRoom) {
@@ -110,10 +133,8 @@ export class RoomManager {
   }
 
   getRoomForPlayer(playerId: string): Room | undefined {
-    for (const room of this.rooms.values()) {
-      if (room.players.has(playerId)) return room;
-    }
-    return undefined;
+    const code = this.playerToRoom.get(playerId);
+    return code ? this.rooms.get(code) : undefined;
   }
 
   get roomCount(): number {

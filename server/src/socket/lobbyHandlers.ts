@@ -44,6 +44,7 @@ export function registerLobbyHandlers(
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
@@ -61,15 +62,18 @@ export function registerLobbyHandlers(
     if (!room) return callback({ error: 'Room not found' });
 
     // Check for reconnection — requires the secret reconnect token
-    if (data.playerId && room.handleReconnect(socket.id, data.playerId, data.reconnectToken)) {
-      roomManager.assignSocketToRoom(socket.id, room.roomCode);
-      socket.join(room.roomCode);
-      broadcastRoomState(io, room);
-      if (room.game) broadcastGameState(io, room);
-      io.to(room.roomCode).emit('player:reconnected', data.playerId);
-      broadcastPlayerNames(io, roomManager);
-      // Return the same reconnect token so the client can store it for future reconnects
-      return callback({ playerId: data.playerId, reconnectToken: data.reconnectToken! });
+    if (data.playerId) {
+      const newToken = room.handleReconnect(socket.id, data.playerId, data.reconnectToken);
+      if (newToken) {
+        roomManager.assignSocketToRoom(socket.id, room.roomCode);
+        socket.join(room.roomCode);
+        broadcastRoomState(io, room);
+        if (room.game) broadcastGameState(io, room);
+        io.to(room.roomCode).emit('player:reconnected', data.playerId);
+        broadcastPlayerNames(io, roomManager);
+        // Return the rotated reconnect token so the client stores it for future reconnects
+        return callback({ playerId: data.playerId, reconnectToken: newToken });
+      }
     }
 
     const effectiveMax = roomManager.effectiveMaxPlayers(room);
@@ -84,6 +88,7 @@ export function registerLobbyHandlers(
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
@@ -104,6 +109,7 @@ export function registerLobbyHandlers(
       // Remove from room after engine elimination (engine keeps its own player list)
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
 
       switch (result.type) {
@@ -126,6 +132,7 @@ export function registerLobbyHandlers(
       const result = room.game.eliminatePlayer(playerId);
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
 
       if (result.type === 'game_over') {
@@ -141,6 +148,7 @@ export function registerLobbyHandlers(
     } else {
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
+      if (playerId) roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
     }
 
@@ -265,6 +273,7 @@ export function registerLobbyHandlers(
 
     try {
       const botId = botManager.addBot(room, data.botName);
+      roomManager.assignPlayerToRoom(botId, room.roomCode);
       broadcastRoomState(io, room);
       callback({ botId });
     } catch (e) {
@@ -283,6 +292,7 @@ export function registerLobbyHandlers(
     }
 
     botManager.removeBot(room, data.botId);
+    roomManager.removePlayerMapping(data.botId);
     broadcastRoomState(io, room);
   });
 
@@ -299,9 +309,8 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
-    // Clear cross-round bot memory for this game's players only — don't wipe
-    // memory for concurrent games in other rooms.
-    BotPlayer.resetMemory([...room.players.keys()]);
+    // Clear cross-round bot memory for this room's scope
+    BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);

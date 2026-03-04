@@ -12,9 +12,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const httpServer = createServer(app);
+/** Build the CORS origin setting.
+ *  - Development: allow all origins for local testing.
+ *  - Production: if CORS_ORIGINS env var is set, use it as an allowlist
+ *    (comma-separated). Otherwise default to same-origin (false). */
+function getCorsOrigin(): boolean | string[] {
+  if (process.env.NODE_ENV !== 'production') return true;
+  const envOrigins = process.env.CORS_ORIGINS;
+  if (envOrigins) {
+    return envOrigins.split(',').map(o => o.trim()).filter(Boolean);
+  }
+  // TODO(scale): When serving from multiple domains or via a CDN, set
+  // CORS_ORIGINS to the allowed origins (e.g. "https://bullem.fly.dev,https://bullem.com").
+  return false;
+}
+
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : true,
+    origin: getCorsOrigin(),
     methods: ['GET', 'POST'],
   },
 });

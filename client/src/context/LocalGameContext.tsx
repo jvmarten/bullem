@@ -341,7 +341,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards, 'local');
 
     let result: TurnResult;
     switch (decision.action) {
@@ -471,9 +471,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
     engine.startRound();
-    // Clear cross-round bot memory so bots don't carry over profiles from
-    // previous local games (matches server behavior in lobbyHandlers).
-    BotPlayer.resetMemory(shuffled.map(p => p.id));
+    // Clear cross-round bot memory for the local game scope
+    BotPlayer.resetMemory('local');
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
     scheduleBotTurn();
