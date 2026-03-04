@@ -503,7 +503,7 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: none;
-  -webkit-text-stroke: 0.5px rgba(212, 168, 67, 0.3);
+  -webkit-text-stroke: 1px rgba(212, 168, 67, 0.3);
   filter: drop-shadow(0 0 10px rgba(212, 168, 67, 0.35))
           drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
   position: relative;
