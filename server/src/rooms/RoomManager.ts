@@ -42,6 +42,7 @@ export class RoomManager {
     this.socketToRoom.delete(socketId);
 
     if (room.isEmpty) {
+      room.cleanup();
       this.rooms.delete(room.roomCode);
       return null;
     }

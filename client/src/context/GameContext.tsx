@@ -48,6 +48,7 @@ export const GameContext = createContext<GameContextValue | null>(null);
 const PLAYER_ID_KEY = 'bull-em-player-id';
 const PLAYER_NAME_KEY = 'bull-em-player-name';
 const ROOM_CODE_KEY = 'bull-em-room-code';
+const RECONNECT_TOKEN_KEY = 'bull-em-reconnect-token';
 const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
 
 /** Wrap a socket.emit callback promise with a timeout so it can't hang forever. */
@@ -142,6 +143,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     };
 
     socket.on('connect', () => { setIsConnected(true); setHasConnected(true); });
@@ -167,16 +169,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
           roundResultTimerRef.current = null;
         }
 
+        const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? undefined;
         socket.emit('room:join', {
           roomCode: storedRoomCode,
           playerName: storedName,
           playerId: storedId ?? undefined,
+          reconnectToken: storedToken,
         }, (response) => {
           if ('error' in response) {
             // Room no longer exists — clean up
             sessionStorage.removeItem(PLAYER_ID_KEY);
             sessionStorage.removeItem(PLAYER_NAME_KEY);
             sessionStorage.removeItem(ROOM_CODE_KEY);
+            sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
             setRoomState(null);
             setGameState(null);
           }
@@ -225,6 +230,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
+        sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
         resolve(response.roomCode);
       });
     }));
@@ -233,12 +239,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
     return withTimeout(new Promise((resolve, reject) => {
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? undefined;
-      socket.emit('room:join', { roomCode, playerName, playerId: storedId }, (response) => {
+      const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? undefined;
+      socket.emit('room:join', { roomCode, playerName, playerId: storedId, reconnectToken: storedToken }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         setPlayerId(response.playerId);
         sessionStorage.setItem(PLAYER_ID_KEY, response.playerId);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
         sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
+        sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
         resolve();
       });
     }));
@@ -255,6 +263,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
+    sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
   }, []);
 
   const deleteRoom = useCallback(() => {
@@ -268,6 +277,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
+    sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
   }, []);
 
   const listRooms = useCallback((): Promise<RoomListing[]> => {

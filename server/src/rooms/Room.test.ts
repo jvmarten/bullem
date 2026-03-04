@@ -11,15 +11,21 @@ describe('Room', () => {
 
   describe('addPlayer', () => {
     it('adds a player and assigns first as host', () => {
-      const player = room.addPlayer('socket1', 'player1', 'Alice');
+      const { player } = room.addPlayer('socket1', 'player1', 'Alice');
       expect(player.isHost).toBe(true);
       expect(room.hostId).toBe('player1');
       expect(room.playerCount).toBe(1);
     });
 
+    it('returns a reconnect token', () => {
+      const { reconnectToken } = room.addPlayer('socket1', 'player1', 'Alice');
+      expect(typeof reconnectToken).toBe('string');
+      expect(reconnectToken.length).toBeGreaterThan(0);
+    });
+
     it('second player is not host', () => {
       room.addPlayer('socket1', 'player1', 'Alice');
-      const p2 = room.addPlayer('socket2', 'player2', 'Bob');
+      const { player: p2 } = room.addPlayer('socket2', 'player2', 'Bob');
       expect(p2.isHost).toBe(false);
       expect(room.hostId).toBe('player1');
     });
@@ -77,17 +83,35 @@ describe('Room', () => {
   });
 
   describe('handleReconnect', () => {
-    it('reconnects a disconnected player', () => {
+    it('reconnects a disconnected player with valid token', () => {
+      const { reconnectToken } = room.addPlayer('socket1', 'player1', 'Alice');
+      room.addPlayer('socket2', 'player2', 'Bob');
+      room.startGame();
+      room.handleDisconnect('socket1');
+
+      const success = room.handleReconnect('socket3', 'player1', reconnectToken);
+      expect(success).toBe(true);
+      const player = room.players.get('player1');
+      expect(player?.isConnected).toBe(true);
+      expect(room.getSocketId('player1')).toBe('socket3');
+    });
+
+    it('rejects reconnect with wrong token', () => {
       room.addPlayer('socket1', 'player1', 'Alice');
       room.addPlayer('socket2', 'player2', 'Bob');
       room.startGame();
       room.handleDisconnect('socket1');
 
-      const success = room.handleReconnect('socket3', 'player1');
-      expect(success).toBe(true);
-      const player = room.players.get('player1');
-      expect(player?.isConnected).toBe(true);
-      expect(room.getSocketId('player1')).toBe('socket3');
+      expect(room.handleReconnect('socket3', 'player1', 'wrong-token')).toBe(false);
+    });
+
+    it('rejects reconnect with no token', () => {
+      room.addPlayer('socket1', 'player1', 'Alice');
+      room.addPlayer('socket2', 'player2', 'Bob');
+      room.startGame();
+      room.handleDisconnect('socket1');
+
+      expect(room.handleReconnect('socket3', 'player1')).toBe(false);
     });
 
     it('returns false for unknown player', () => {

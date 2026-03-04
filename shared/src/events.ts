@@ -1,8 +1,8 @@
 import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
 
 export interface ClientToServerEvents {
-  'room:create': (data: { playerName: string }, callback: (response: { roomCode: string } | { error: string }) => void) => void;
-  'room:join': (data: { roomCode: string; playerName: string; playerId?: string }, callback: (response: { playerId: string } | { error: string }) => void) => void;
+  'room:create': (data: { playerName: string }, callback: (response: { roomCode: string; reconnectToken: string } | { error: string }) => void) => void;
+  'room:join': (data: { roomCode: string; playerName: string; playerId?: string; reconnectToken?: string }, callback: (response: { playerId: string; reconnectToken: string } | { error: string }) => void) => void;
   'room:leave': () => void;
   'room:list': (callback: (response: { rooms: RoomListing[] }) => void) => void;
   'room:listLive': (callback: (response: { games: LiveGameListing[] }) => void) => void;

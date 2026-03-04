@@ -471,6 +471,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
     engine.startRound();
+    // Clear cross-round bot memory so bots don't carry over profiles from
+    // previous local games (matches server behavior in lobbyHandlers).
+    BotPlayer.resetMemory(shuffled.map(p => p.id));
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
     scheduleBotTurn();
