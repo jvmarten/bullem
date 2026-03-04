@@ -1012,10 +1012,10 @@ describe('BotPlayer', () => {
           { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
         ],
       };
-      BotPlayer.updateMemory(result);
-      expect(BotPlayer.getMemory().size).toBeGreaterThan(0);
-      BotPlayer.resetMemory();
-      expect(BotPlayer.getMemory().size).toBe(0);
+      BotPlayer.updateMemory(result, 'test');
+      expect(BotPlayer.getMemory('test').size).toBeGreaterThan(0);
+      BotPlayer.resetMemory('test');
+      expect(BotPlayer.getMemory('test').size).toBe(0);
     });
 
     it('updateMemory() correctly tracks bluffs caught', () => {
@@ -1032,8 +1032,8 @@ describe('BotPlayer', () => {
           { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
         ],
       };
-      BotPlayer.updateMemory(result);
-      const profile = BotPlayer.getMemory().get('p1');
+      BotPlayer.updateMemory(result, 'test');
+      const profile = BotPlayer.getMemory('test').get('p1');
       expect(profile).toBeDefined();
       expect(profile!.totalCalls).toBe(1);
       expect(profile!.bluffsCaught).toBe(1);
@@ -1054,8 +1054,8 @@ describe('BotPlayer', () => {
           { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
         ],
       };
-      BotPlayer.updateMemory(result);
-      const profile = BotPlayer.getMemory().get('p1');
+      BotPlayer.updateMemory(result, 'test');
+      const profile = BotPlayer.getMemory('test').get('p1');
       expect(profile!.totalCalls).toBe(1);
       expect(profile!.truthsCaught).toBe(1);
       expect(profile!.bluffsCaught).toBe(0);
@@ -1075,8 +1075,8 @@ describe('BotPlayer', () => {
           { playerId: 'p2', playerName: 'Bob', action: TurnAction.BULL, timestamp: 1 },
         ],
       };
-      BotPlayer.updateMemory(result);
-      const p2Profile = BotPlayer.getMemory().get('p2');
+      BotPlayer.updateMemory(result, 'test');
+      const p2Profile = BotPlayer.getMemory('test').get('p2');
       expect(p2Profile).toBeDefined();
       expect(p2Profile!.bullCallsMade).toBe(1);
       expect(p2Profile!.correctBulls).toBe(1);
@@ -1097,7 +1097,7 @@ describe('BotPlayer', () => {
             { playerId: 'p1', playerName: 'Alice', action: TurnAction.CALL, timestamp: 0, hand: { type: HandType.PAIR, rank: '7' } },
             { playerId: 'bot1', playerName: 'Bot', action: TurnAction.BULL, timestamp: 1 },
           ],
-        });
+        }, 'test');
       }
 
       // Use a hand with moderate plausibility so memory can swing the decision.
@@ -1142,9 +1142,9 @@ describe('BotPlayer', () => {
       const runs = 300;
 
       for (let i = 0; i < runs; i++) {
-        const a1 = BotPlayer.decideAction(stateBluffer, 'bot1', cards, BotDifficulty.HARD);
+        const a1 = BotPlayer.decideAction(stateBluffer, 'bot1', cards, BotDifficulty.HARD, undefined, 'test');
         if (a1.action === 'bull') bullsBluffer++;
-        const a2 = BotPlayer.decideAction(stateClean, 'bot1', cards, BotDifficulty.HARD);
+        const a2 = BotPlayer.decideAction(stateClean, 'bot1', cards, BotDifficulty.HARD, undefined, 'test');
         if (a2.action === 'bull') bullsClean++;
       }
 

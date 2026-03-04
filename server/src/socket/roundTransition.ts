@@ -41,8 +41,8 @@ export function beginRoundResultPhase(
   room.gamePhase = GamePhase.ROUND_RESULT;
   io.to(room.roomCode).emit('game:roundResult', result);
 
-  // Update cross-round bot memory with round outcome
-  BotPlayer.updateMemory(result);
+  // Update cross-round bot memory with round outcome, scoped to this room
+  BotPlayer.updateMemory(result, room.roomCode);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
     startNextRound(io, room, botManager);
@@ -60,7 +60,8 @@ export function markContinueReady(
   playerId: PlayerId,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
-  room.markRoundContinueReady(playerId);
+  // Idempotent: skip if already marked (prevents wasted isRoundContinueComplete checks)
+  if (!room.markRoundContinueReady(playerId)) return;
   if (room.isRoundContinueComplete) {
     startNextRound(io, room, botManager);
   }

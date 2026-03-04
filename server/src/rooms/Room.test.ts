@@ -83,14 +83,15 @@ describe('Room', () => {
   });
 
   describe('handleReconnect', () => {
-    it('reconnects a disconnected player with valid token', () => {
+    it('reconnects a disconnected player with valid token and rotates token', () => {
       const { reconnectToken } = room.addPlayer('socket1', 'player1', 'Alice');
       room.addPlayer('socket2', 'player2', 'Bob');
       room.startGame();
       room.handleDisconnect('socket1');
 
-      const success = room.handleReconnect('socket3', 'player1', reconnectToken);
-      expect(success).toBe(true);
+      const newToken = room.handleReconnect('socket3', 'player1', reconnectToken);
+      expect(newToken).toBeTruthy();
+      expect(newToken).not.toBe(reconnectToken); // token was rotated
       const player = room.players.get('player1');
       expect(player?.isConnected).toBe(true);
       expect(room.getSocketId('player1')).toBe('socket3');
@@ -102,7 +103,7 @@ describe('Room', () => {
       room.startGame();
       room.handleDisconnect('socket1');
 
-      expect(room.handleReconnect('socket3', 'player1', 'wrong-token')).toBe(false);
+      expect(room.handleReconnect('socket3', 'player1', 'wrong-token')).toBeNull();
     });
 
     it('rejects reconnect with no token', () => {
@@ -111,11 +112,11 @@ describe('Room', () => {
       room.startGame();
       room.handleDisconnect('socket1');
 
-      expect(room.handleReconnect('socket3', 'player1')).toBe(false);
+      expect(room.handleReconnect('socket3', 'player1')).toBeNull();
     });
 
-    it('returns false for unknown player', () => {
-      expect(room.handleReconnect('socket1', 'unknown')).toBe(false);
+    it('returns null for unknown player', () => {
+      expect(room.handleReconnect('socket1', 'unknown')).toBeNull();
     });
   });
 

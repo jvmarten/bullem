@@ -1,5 +1,6 @@
 import {
   GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_ONLINE_GAME_SETTINGS,
+  BotPlayer,
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
@@ -124,19 +125,22 @@ export class Room {
     return playerId;
   }
 
-  handleReconnect(socketId: string, playerId: PlayerId, reconnectToken?: string): boolean {
+  /** Attempt to reconnect a player. Returns the new rotated reconnect token
+   *  on success, or null on failure. Token rotation limits the window for
+   *  a stolen token to be reused. */
+  handleReconnect(socketId: string, playerId: PlayerId, reconnectToken?: string): string | null {
     const player = this.players.get(playerId);
-    if (!player) return false;
+    if (!player) return null;
 
     // Only allow reconnection for actually disconnected players.
-    if (player.isConnected) return false;
+    if (player.isConnected) return null;
 
     // Verify the reconnect token to prevent session hijacking. Player IDs are
     // visible to all clients, so anyone could try to reconnect as a
     // disconnected player. The reconnect token is a secret shared only with
     // the original player at join time.
     const storedToken = this.reconnectTokens.get(playerId);
-    if (!storedToken || storedToken !== reconnectToken) return false;
+    if (!storedToken || storedToken !== reconnectToken) return null;
 
     const timer = this.disconnectTimers.get(playerId);
     if (timer) {
@@ -147,8 +151,13 @@ export class Room {
     player.isConnected = true;
     this.socketToPlayer.set(socketId, playerId);
     this.playerToSocket.set(playerId, socketId);
+
+    // Rotate the reconnect token — the old token is now invalid, limiting
+    // the window for a stolen token to be reused.
+    const newToken = randomUUID();
+    this.reconnectTokens.set(playerId, newToken);
     this.touch();
-    return true;
+    return newToken;
   }
 
 
@@ -167,10 +176,13 @@ export class Room {
     }, timeoutMs);
   }
 
-  markRoundContinueReady(playerId: PlayerId): void {
+  /** Mark a player as ready to continue. Returns false if already marked (idempotent). */
+  markRoundContinueReady(playerId: PlayerId): boolean {
     const p = this.players.get(playerId);
-    if (!p || p.isEliminated) return;
+    if (!p || p.isEliminated) return false;
+    if (this.roundContinueReady.has(playerId)) return false;
     this.roundContinueReady.add(playerId);
+    return true;
   }
 
   get isRoundContinueComplete(): boolean {
@@ -187,13 +199,15 @@ export class Room {
     this.roundContinueReady.clear();
   }
 
-  /** Clear all timers (disconnect, round continue). Call when the room is being destroyed. */
+  /** Clear all timers (disconnect, round continue) and bot memory. Call when the room is being destroyed. */
   cleanup(): void {
     for (const timer of this.disconnectTimers.values()) {
       clearTimeout(timer);
     }
     this.disconnectTimers.clear();
     this.cancelRoundContinueWindow();
+    // Free bot memory scoped to this room
+    BotPlayer.resetMemory(this.roomCode);
   }
 
   getSocketId(playerId: PlayerId): string | undefined {
