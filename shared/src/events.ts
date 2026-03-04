@@ -1,5 +1,10 @@
 import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
 
+/**
+ * Socket.io events emitted by the client.
+ * Used as the type parameter for Socket.io Server/Socket generics to get
+ * compile-time type safety on both sides.
+ */
 export interface ClientToServerEvents {
   'room:create': (data: { playerName: string }, callback: (response: { roomCode: string; reconnectToken: string } | { error: string }) => void) => void;
   'room:join': (data: { roomCode: string; playerName: string; playerId?: string; reconnectToken?: string }, callback: (response: { playerId: string; reconnectToken: string } | { error: string }) => void) => void;
@@ -20,6 +25,7 @@ export interface ClientToServerEvents {
   'room:delete': () => void;
 }
 
+/** Socket.io events emitted by the server. Each player receives personalized game:state. */
 export interface ServerToClientEvents {
   'room:state': (state: RoomState) => void;
   'room:error': (message: string) => void;

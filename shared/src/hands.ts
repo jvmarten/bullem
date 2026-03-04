@@ -72,6 +72,11 @@ export function validateHandCall(hand: unknown): string | null {
   return null;
 }
 
+/**
+ * Compare two hand calls. Returns true if `newHand` strictly beats `currentHand`.
+ * Within the same HandType, uses standard poker value ordering (2 lowest, Ace highest).
+ * Flushes of different suits are considered equal — must raise to a higher hand type.
+ */
 export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean {
   if (newHand.type !== currentHand.type) {
     return newHand.type > currentHand.type;
@@ -167,6 +172,7 @@ function straightRange(highRank: Rank): string {
   return `${lowRank} to ${RANK_SINGULAR[highRank]}`;
 }
 
+/** Format a HandCall as a human-readable string (e.g., "Pair of 7s", "Straight Flush in spades, 5 to 9"). */
 export function handToString(hand: HandCall): string {
   switch (hand.type) {
     case HandType.HIGH_CARD:
