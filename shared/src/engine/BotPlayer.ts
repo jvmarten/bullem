@@ -24,9 +24,16 @@ export class BotPlayer {
   // Cross-round opponent memory — persists within a game session (per-process state)
   private static opponentMemory = new Map<string, OpponentProfile>();
 
-  /** Clear all opponent memory. Call at game start. */
-  static resetMemory(): void {
-    this.opponentMemory.clear();
+  /** Clear opponent memory for specific players. Call at game start with the
+   *  game's player IDs so concurrent games in other rooms aren't affected. */
+  static resetMemory(playerIds?: string[]): void {
+    if (!playerIds) {
+      this.opponentMemory.clear();
+      return;
+    }
+    for (const id of playerIds) {
+      this.opponentMemory.delete(id);
+    }
   }
 
   /** Update opponent profiles from a round result. Call after each round resolves. */

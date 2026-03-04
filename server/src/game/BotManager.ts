@@ -127,6 +127,13 @@ export class BotManager {
   private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
     this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
+
+    // If the player reconnected since this auto-action was scheduled (e.g. a
+    // disconnect auto-action timer that wasn't cancelled), don't force a move
+    // on a connected player who is actively playing.
+    const player = room.players.get(playerId);
+    if (player?.isConnected && !player.isBot) return;
+
     if (room.game.currentPlayerId !== playerId) {
       // The player was already eliminated (e.g., by the disconnect timer) and
       // the turn moved on. Re-schedule for the new current player so the game

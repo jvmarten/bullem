@@ -195,7 +195,7 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Invalid max cards setting');
       return;
     }
-    if (typeof turnTimer !== 'number' || !([0, ...ONLINE_TURN_TIMER_OPTIONS] as number[]).includes(turnTimer)) {
+    if (typeof turnTimer !== 'number' || !(ONLINE_TURN_TIMER_OPTIONS as readonly number[]).includes(turnTimer)) {
       socket.emit('room:error', 'Invalid turn timer setting');
       return;
     }
@@ -276,8 +276,9 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
-    // Clear cross-round bot memory at the start of each new game
-    BotPlayer.resetMemory();
+    // Clear cross-round bot memory for this game's players only — don't wipe
+    // memory for concurrent games in other rooms.
+    BotPlayer.resetMemory([...room.players.keys()]);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);

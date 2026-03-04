@@ -119,6 +119,11 @@ export class Room {
     const player = this.players.get(playerId);
     if (!player) return false;
 
+    // Only allow reconnection for actually disconnected players.
+    // Without this check, any socket that knows a player's UUID (visible in
+    // game state) could hijack their session via room:join with that playerId.
+    if (player.isConnected) return false;
+
     const timer = this.disconnectTimers.get(playerId);
     if (timer) {
       clearTimeout(timer);

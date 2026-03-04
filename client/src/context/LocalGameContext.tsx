@@ -550,7 +550,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, [roundResult, clearRoundResult]);
 
-  let botCounter = useRef(0);
+  const botCounter = useRef(0);
 
   const addBot = useCallback(async (botName?: string): Promise<string> => {
     const settings = gameSettingsRef.current;
