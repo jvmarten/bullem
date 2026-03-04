@@ -37,8 +37,9 @@ export function LocalGamePage() {
     }
   };
 
-  // Local games are in-memory only — if gameState is null (e.g. page refresh),
-  // redirect back to the lobby instead of showing a loading spinner forever.
+  // If gameState is null, there's no active local game — redirect to the lobby.
+  // Game state is restored synchronously in LocalGameProvider, so after a
+  // browser refresh gameState is already set on the first render.
   useEffect(() => {
     if (!gameState) navigate('/local');
   }, [gameState, navigate]);

@@ -45,6 +45,26 @@ function clearLocalGameSave(): void {
   localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
 }
 
+/**
+ * Attempt to restore a saved game synchronously.
+ * This runs during the first render (via useState lazy initializer) so that
+ * child components see restored state immediately — before any effects fire.
+ * Without this, LocalGamePage's redirect effect navigates away before the
+ * restore effect in LocalGameProvider has a chance to run (React runs child
+ * effects before parent effects).
+ */
+function tryRestoreGame(): { engine: GameEngine; save: LocalGameSave } | null {
+  const save = loadLocalGame();
+  if (!save) return null;
+  try {
+    const engine = GameEngine.restore(save.engineSnapshot);
+    return { engine, save };
+  } catch {
+    clearLocalGameSave();
+    return null;
+  }
+}
+
 function toPublicPlayer(p: ServerPlayer): Player {
   return {
     id: p.id,
@@ -58,30 +78,55 @@ function toPublicPlayer(p: ServerPlayer): Player {
 }
 
 export function LocalGameProvider({ children }: { children: ReactNode }) {
-  const [roomState, setRoomState] = useState<RoomState | null>(null);
-  const [gameState, setGameState] = useState<ClientGameState | null>(null);
-  const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
+  // Synchronously restore saved game on first render so child components
+  // see the restored state immediately (before any effects run).
+  const [initialRestore] = useState(tryRestoreGame);
+
+  const [roomState, setRoomState] = useState<RoomState | null>(
+    initialRestore ? {
+      roomCode: 'LOCAL',
+      players: initialRestore.save.players.map(toPublicPlayer),
+      hostId: HUMAN_ID,
+      gamePhase: GamePhase.PLAYING,
+      settings: initialRestore.save.gameSettings,
+    } : null,
+  );
+  const [gameState, setGameState] = useState<ClientGameState | null>(
+    initialRestore ? initialRestore.engine.getClientState(HUMAN_ID) : null,
+  );
+  const [roundResult, setRoundResult] = useState<RoundResult | null>(
+    initialRestore?.save.roundResult ?? null,
+  );
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(DEFAULT_BOT_DIFFICULTY as BotDifficulty);
-  const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(
+    initialRestore?.save.botDifficulty ?? (DEFAULT_BOT_DIFFICULTY as BotDifficulty),
+  );
+  const [gameSettings, setGameSettings] = useState<GameSettings>(
+    initialRestore?.save.gameSettings ?? { ...DEFAULT_GAME_SETTINGS },
+  );
 
   const [isPaused, setIsPaused] = useState(false);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
 
-  const engineRef = useRef<GameEngine | null>(null);
-  const playersRef = useRef<ServerPlayer[]>([]);
+  const engineRef = useRef<GameEngine | null>(initialRestore?.engine ?? null);
+  const playersRef = useRef<ServerPlayer[]>(initialRestore?.save.players ?? []);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
-  const gameSettingsRef = useRef<GameSettings>(gameSettings);
+  const botDifficultyRef = useRef<BotDifficulty>(
+    initialRestore?.save.botDifficulty ?? (DEFAULT_BOT_DIFFICULTY as BotDifficulty),
+  );
+  const gameSettingsRef = useRef<GameSettings>(
+    initialRestore?.save.gameSettings ?? { ...DEFAULT_GAME_SETTINGS },
+  );
   const isPausedRef = useRef(false);
   const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
-  const restoredRef = useRef(false);
+  // Schedule bot/human turns after restore if we're mid-round (no round result overlay)
+  const restoredRef = useRef(initialRestore !== null && !initialRestore.save.roundResult);
 
   // Keep refs in sync
   useEffect(() => {
@@ -124,44 +169,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Restore saved local game on mount (e.g., after page refresh)
-  useEffect(() => {
-    if (engineRef.current || roomState) return; // Already initialized
-    const save = loadLocalGame();
-    if (!save) return;
-
-    try {
-      const engine = GameEngine.restore(save.engineSnapshot);
-      engineRef.current = engine;
-      playersRef.current = save.players;
-      botDifficultyRef.current = save.botDifficulty;
-      gameSettingsRef.current = save.gameSettings;
-      botCounter.current = save.botCounter;
-      setBotDifficulty(save.botDifficulty);
-      setGameSettings(save.gameSettings);
-
-      setRoomState({
-        roomCode: 'LOCAL',
-        players: save.players.map(toPublicPlayer),
-        hostId: HUMAN_ID,
-        gamePhase: GamePhase.PLAYING,
-        settings: save.gameSettings,
-      });
-
-      const state = engine.getClientState(HUMAN_ID);
-      setGameState(state);
-
-      if (save.roundResult) {
-        setRoundResult(save.roundResult);
-      } else {
-        // No round result — schedule bot/human turns after render
-        restoredRef.current = true;
-      }
-    } catch {
-      clearLocalGameSave();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Game restoration now happens synchronously in useState initializers above,
+  // so child components see restored state on their first render.
 
   const clearHumanTimer = useCallback(() => {
     if (turnTimerRef.current) {
@@ -550,7 +559,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     };
   }, [roundResult, clearRoundResult]);
 
-  const botCounter = useRef(0);
+  const botCounter = useRef(initialRestore?.save.botCounter ?? 0);
 
   const addBot = useCallback(async (botName?: string): Promise<string> => {
     const settings = gameSettingsRef.current;
