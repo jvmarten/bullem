@@ -161,15 +161,15 @@ export function LocalGamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="text-center glass-raised px-3 py-1.5 animate-slide-up">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mr-2">
+          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold shrink-0">
               Current Call
             </span>
-            <span className="font-display text-base font-bold text-[var(--gold)]">
+            <span className="font-display text-base font-bold text-[var(--gold)] flex-1 text-center truncate px-1.5">
               {handToString(gameState.currentHand)}
             </span>
             {gameState.lastCallerId && (
-              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 ml-1.5">
+              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 shrink-0">
                 {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
               </span>
             )}
@@ -227,7 +227,7 @@ export function LocalGamePage() {
 
         {/* Hand selector — appears below the action buttons so buttons stay put */}
         {canRaise && handSelectorOpen && (
-          <div className="-mt-1">
+          <div className="-mt-2">
             <HandSelector
               currentHand={gameState.currentHand}
               onSubmit={handleHandSubmit}

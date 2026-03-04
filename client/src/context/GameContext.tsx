@@ -7,6 +7,7 @@ export interface GameContextValue {
   gameState: ClientGameState | null;
   roundResult: RoundResult | null;
   roundTransition: boolean;
+  roundTransitionDeadline: number | null;
   winnerId: PlayerId | null;
   gameStats: GameStats | null;
   playerId: string | null;
@@ -62,6 +63,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [roundTransition, setRoundTransition] = useState(false);
+  const [roundTransitionDeadline, setRoundTransitionDeadline] = useState<number | null>(null);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() =>
@@ -73,11 +75,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
+  const roundResultReceivedAtRef = useRef<number>(0);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
 
   // Keep roundResultRef in sync with roundResult state
   useEffect(() => {
     roundResultRef.current = roundResult;
+    if (roundResult) roundResultReceivedAtRef.current = Date.now();
   }, [roundResult]);
 
   // Auto-clear errors after 5 seconds
@@ -101,8 +105,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (pending) {
         setGameState(pending);
         setRoundTransition(false);
+        setRoundTransitionDeadline(null);
       } else {
         setRoundTransition(true);
+        setRoundTransitionDeadline(roundResultReceivedAtRef.current + 30000);
       }
     }, 30000);
     return () => {
@@ -119,6 +125,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       } else {
         setGameState(state);
         setRoundTransition(false);
+        setRoundTransitionDeadline(null);
       }
     };
 
@@ -302,8 +309,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (pending) {
       setGameState(pending);
       setRoundTransition(false);
+      setRoundTransitionDeadline(null);
     } else {
       setRoundTransition(true);
+      setRoundTransitionDeadline(roundResultReceivedAtRef.current + 30000);
     }
   }, []);
 
@@ -325,6 +334,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     gameState,
     roundResult,
     roundTransition,
+    roundTransitionDeadline,
     winnerId,
     gameStats,
     playerId,

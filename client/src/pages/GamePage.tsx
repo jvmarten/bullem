@@ -16,11 +16,42 @@ import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { HandCall } from '@bull-em/shared';
 
+function TransitionOverlay({ deadline }: { deadline: number | null }) {
+  const [remaining, setRemaining] = useState(() =>
+    deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0,
+  );
+
+  useEffect(() => {
+    if (!deadline) return;
+    const tick = () => setRemaining(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [deadline]);
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50"
+         style={{ background: 'var(--overlay)' }}>
+      <div className="text-center space-y-3 animate-fade-in">
+        <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-[var(--gold)] font-display text-lg font-semibold">
+          Next round starting&hellip;
+        </p>
+        {deadline && remaining > 0 && (
+          <p className="text-[var(--gold-dim)] text-sm">
+            {remaining}s
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const {
-    gameState, roomState, roundResult, roundTransition, winnerId, playerId,
+    gameState, roomState, roundResult, roundTransition, roundTransitionDeadline, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom,
   } = useGameContext();
@@ -190,15 +221,15 @@ export function GamePage() {
 
         {/* Current call display */}
         {gameState.currentHand && (
-          <div className="text-center glass-raised px-3 py-1.5 animate-slide-up">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mr-2">
+          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold shrink-0">
               Current Call
             </span>
-            <span className="font-display text-base font-bold text-[var(--gold)]">
+            <span className="font-display text-base font-bold text-[var(--gold)] flex-1 text-center truncate px-1.5">
               {handToString(gameState.currentHand)}
             </span>
             {gameState.lastCallerId && (
-              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 ml-1.5">
+              <span className="text-[10px] text-[var(--gold-dim)] opacity-70 shrink-0">
                 {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
               </span>
             )}
@@ -256,7 +287,7 @@ export function GamePage() {
 
         {/* Hand selector — appears below the action buttons so buttons stay put */}
         {canRaise && handSelectorOpen && (
-          <div className="-mt-1">
+          <div className="-mt-2">
             <HandSelector
               currentHand={gameState.currentHand}
               onSubmit={handleHandSubmit}
@@ -268,15 +299,7 @@ export function GamePage() {
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
-          <div className="fixed inset-0 flex items-center justify-center z-50"
-               style={{ background: 'var(--overlay)' }}>
-            <div className="text-center space-y-3 animate-fade-in">
-              <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-[var(--gold)] font-display text-lg font-semibold">
-                Next round starting&hellip;
-              </p>
-            </div>
-          </div>
+          <TransitionOverlay deadline={roundTransitionDeadline} />
         )}
 
         {/* Round result overlay */}
