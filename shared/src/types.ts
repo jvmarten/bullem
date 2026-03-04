@@ -159,6 +159,12 @@ export enum BotDifficulty {
   IMPOSSIBLE = 'impossible',
 }
 
+export enum BotSpeed {
+  SLOW = 'slow',
+  NORMAL = 'normal',
+  FAST = 'fast',
+}
+
 /** Configurable game settings, set by the host in the lobby. */
 export interface GameSettings {
   /** Maximum cards a player can hold before elimination (1–5, default 5). */
@@ -171,6 +177,8 @@ export interface GameSettings {
   allowSpectators?: boolean;
   /** Whether spectators can see player cards. If false, spectators see the game but not cards. */
   spectatorsCanSeeCards?: boolean;
+  /** Bot playing speed — affects delay between bot turns. Defaults to 'normal'. */
+  botSpeed?: BotSpeed;
 }
 
 export interface PlayerGameStats {

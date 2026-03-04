@@ -2,7 +2,7 @@ import type { Server } from 'socket.io';
 import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
-  maxPlayersForMaxCards,
+  maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
@@ -85,9 +85,10 @@ export class BotManager {
       const phase = room.game.currentRoundPhase;
       const inBullPhase = phase === RoundPhase.BULL_PHASE
         || phase === RoundPhase.LAST_CHANCE;
+      const speedMultiplier = BOT_SPEED_MULTIPLIERS[room.settings.botSpeed ?? (DEFAULT_BOT_SPEED as BotSpeed)];
       const delay = inBullPhase
-        ? this.computeBullDelay()
-        : this.computeBotDelay(room);
+        ? this.computeBullDelay(speedMultiplier)
+        : this.computeBotDelay(room, speedMultiplier);
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
@@ -280,12 +281,13 @@ export class BotManager {
     }
   }
 
-  private computeBullDelay(): number {
-    return BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN));
+  private computeBullDelay(speedMultiplier: number): number {
+    const base = BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN));
+    return Math.round(base * speedMultiplier);
   }
 
-  private computeBotDelay(room: Room): number {
-    if (!room.game) return BOT_THINK_DELAY_MIN;
+  private computeBotDelay(room: Room, speedMultiplier: number): number {
+    if (!room.game) return Math.round(BOT_THINK_DELAY_MIN * speedMultiplier);
 
     // Use lightweight summary instead of building a full ClientGameState
     const { activePlayerCount, totalCards, turnCount } = room.game.getRoundSummary();
@@ -302,8 +304,9 @@ export class BotManager {
     // Some randomness so bots don't feel robotic (±500ms)
     const jitter = (Math.random() - 0.5) * 1000;
 
-    const delay = Math.round(base + cardsFactor + roundDepth + jitter);
-    return Math.max(BOT_THINK_DELAY_MIN, Math.min(delay, 7000));
+    const raw = Math.round(base + cardsFactor + roundDepth + jitter);
+    const delay = Math.round(raw * speedMultiplier);
+    return Math.max(Math.round(BOT_THINK_DELAY_MIN * speedMultiplier), Math.min(delay, Math.round(7000 * speedMultiplier)));
   }
 
   private pickBotName(room: Room): string {

@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 
 export function LobbyPage() {
@@ -61,6 +61,8 @@ export function LobbyPage() {
   };
 
   const handleCloseRoom = () => {
+    const ok = window.confirm('Are you sure you want to close this room? All players will be disconnected.');
+    if (!ok) return;
     deleteRoom();
     navigate('/');
   };
@@ -171,12 +173,12 @@ export function LobbyPage() {
       return;
     }
     setLocalError('');
-    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
+    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
   const handleTimerChange = (seconds: number) => {
     if (settingsLocked) return;
-    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
+    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
   const handleMaxPlayersChange = (cap: number) => {
@@ -186,7 +188,7 @@ export function LobbyPage() {
       return;
     }
     setLocalError('');
-    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards });
+    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
   // Filter max player options to only show values <= card-based max
@@ -320,6 +322,32 @@ export function LobbyPage() {
               </div>
             </div>
 
+            {/* Bot Speed setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Bot Speed
+              </p>
+              <div className="flex gap-1.5">
+                {([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
+                  <button
+                    key={speed}
+                    onClick={() => updateSettings({
+                      maxCards, turnTimer, maxPlayers: maxPlayersSetting,
+                      allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+                      botSpeed: speed,
+                    })}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                      (settings.botSpeed ?? BotSpeed.NORMAL) === speed
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {speed}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Spectator settings */}
             <div className="glass px-4 py-3">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -333,6 +361,7 @@ export function LobbyPage() {
                       maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                       allowSpectators: !settings.allowSpectators,
                       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+                      botSpeed: settings.botSpeed,
                     })}
                     className={`w-11 h-6 rounded-full transition-colors relative border ${
                       settings.allowSpectators
@@ -353,6 +382,7 @@ export function LobbyPage() {
                         maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                         allowSpectators: settings.allowSpectators,
                         spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
+                        botSpeed: settings.botSpeed,
                       })}
                       className={`w-11 h-6 rounded-full transition-colors relative border ${
                         settings.spectatorsCanSeeCards

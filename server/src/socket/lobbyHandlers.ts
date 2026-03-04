@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -246,6 +246,13 @@ export function registerLobbyHandlers(
       }
     }
 
+    // Validate botSpeed if provided
+    const botSpeed = data.settings.botSpeed;
+    if (botSpeed !== undefined && !Object.values(BotSpeed).includes(botSpeed as BotSpeed)) {
+      socket.emit('room:error', 'Invalid bot speed setting');
+      return;
+    }
+
     // Sanitize boolean settings — coerce to boolean or strip non-boolean values
     const validated: GameSettings = {
       maxCards,
@@ -253,6 +260,7 @@ export function registerLobbyHandlers(
       maxPlayers,
       allowSpectators: data.settings.allowSpectators === true,
       spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
+      botSpeed: botSpeed as BotSpeed | undefined,
     };
 
     room.updateSettings(validated);

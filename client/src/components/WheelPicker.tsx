@@ -58,8 +58,11 @@ function WheelPickerInner<T>({
     lastTickIndexRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
     setScrollTop(targetTop);
-    // Clear flag after a tick so any resulting scroll events are suppressed
-    requestAnimationFrame(() => { isProgrammaticRef.current = false; });
+    // Keep programmatic flag set long enough to cover smooth-scroll duration
+    // (~300ms). Using requestAnimationFrame alone (~16ms) cleared too early,
+    // causing scroll events from the ongoing animation to play tick sounds.
+    const timer = window.setTimeout(() => { isProgrammaticRef.current = false; }, 400);
+    return () => clearTimeout(timer);
   }, [selectedIndex, itemHeight]);
 
   // Track which item is visually centered during scroll
