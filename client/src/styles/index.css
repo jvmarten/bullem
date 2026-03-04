@@ -33,7 +33,7 @@
 
   /* Typography */
   --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-title:   'Playfair Display', 'Georgia', serif;
+  --font-title:   'Big Shoulders Display', 'Impact', sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
 }
 
@@ -490,7 +490,8 @@ body {
 .title-logo-text {
   font-family: var(--font-title);
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   background: linear-gradient(
     170deg,
     #f5e6a3 0%,
