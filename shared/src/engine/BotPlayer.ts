@@ -108,7 +108,7 @@ export class BotPlayer {
     state: ClientGameState,
     botId: string,
     botCards: Card[],
-    difficulty: BotDifficulty = BotDifficulty.EASY,
+    difficulty: BotDifficulty = BotDifficulty.NORMAL,
     allCards?: Card[],
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
@@ -117,59 +117,76 @@ export class BotPlayer {
     if (difficulty === BotDifficulty.HARD) {
       return this.decideHard(state, botId, botCards);
     }
-    return this.decideEasy(state, botId, botCards);
+    return this.decideNormal(state, botId, botCards);
   }
 
-  // ─── EASY MODE — "The Beginner" ──────────────────────────────────────
-  // Feels like a new player who just learned the rules.
-  // Predictable, exploitable, but not random. Simple if/else logic only.
+  // ─── NORMAL MODE — "The Competent Player" ───────────────────────────
+  // Plays like a competent average player — knows the game, makes reasonable
+  // plays, occasionally bluffs, but doesn't use advanced math or opponent tracking.
+  // Uses estimatePlausibilitySimple and simple random percentages only.
 
-  private static decideEasy(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
+  private static decideNormal(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
+    const totalCards = this.getTotalCards(state);
 
     // LAST_CHANCE phase — everyone called bull on our hand.
-    // Easy bot: raise only if it has a legitimate higher hand, otherwise always pass.
+    // Raise if we have a legitimate higher hand. Otherwise 20% bluff raise
+    // (passing = guaranteed loss anyway), 80% pass.
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
         const higher = this.findHandHigherThanSimple(botCards, currentHand);
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
         }
+        // No legitimate hand — 20% bluff raise (passing is almost guaranteed loss)
+        if (Math.random() < 0.20) {
+          const bluff = this.makeNormalBluff(botCards, currentHand);
+          if (isHigherHand(bluff, currentHand)) {
+            return { action: 'lastChanceRaise', hand: bluff };
+          }
+        }
       }
       return { action: 'lastChancePass' };
     }
 
     // Opening call — no current hand
-    // 95% truthful: call the best hand in own cards.
-    // 5% bad bluff: call one hand type above what it actually has.
+    // 85% truthful: call the best hand the bot actually holds.
+    // 15% bluff: call one hand type above what it holds, using a rank it has.
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const bestHand = this.findBestHandInCards(botCards);
       if (!bestHand) {
         return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
       }
-      if (Math.random() < 0.05) {
-        // Bad bluff: one type above what we have, using our highest rank
-        const bluff = this.makeEasyBadBluff(botCards, bestHand);
+      if (Math.random() < 0.15) {
+        const bluff = this.makeNormalBluff(botCards, bestHand);
         return { action: 'call', hand: bluff };
       }
       return { action: 'call', hand: bestHand };
     }
 
     // Raising in calling phase
-    // Easy bot: if it has a legitimate higher hand, raise with it (100%).
-    // If not, call bull. Never bluffs a raise.
+    // Has a legitimate higher hand → raise 80%, call bull 20%.
+    // No legitimate raise → 10% bluff raise (one step above current hand), 90% call bull.
     if (roundPhase === RoundPhase.CALLING && currentHand) {
       const higher = this.findHandHigherThanSimple(botCards, currentHand);
       if (higher) {
-        return { action: 'call', hand: higher };
+        return Math.random() < 0.80
+          ? { action: 'call', hand: higher }
+          : { action: 'bull' };
+      }
+      // No legitimate raise — 10% bluff
+      if (Math.random() < 0.10) {
+        const bluff = this.makeNormalBluff(botCards, currentHand);
+        if (isHigherHand(bluff, currentHand)) {
+          return { action: 'call', hand: bluff };
+        }
       }
       return { action: 'bull' };
     }
 
-    // Bull phase — "gut feeling" heuristic, no probability math.
-    // Never raises in bull phase (beginners don't think of this).
+    // Bull phase — use estimatePlausibilitySimple heuristic.
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleEasyBullPhase(currentHand, botCards);
+      return this.handleNormalBullPhase(currentHand, botCards, totalCards);
     }
 
     // Fallback
@@ -178,33 +195,30 @@ export class BotPlayer {
   }
 
   /**
-   * Easy bull phase: simple "gut feeling" based on own cards.
-   * No probability math, no card counting.
+   * Normal bull phase: uses estimatePlausibilitySimple to decide.
+   * P > 0.6 → true. P < 0.4 → bull. 0.4–0.6 → 50/50.
+   * 10% chance to raise if bot has a legitimate higher hand.
    */
-  private static handleEasyBullPhase(currentHand: HandCall, botCards: Card[]): BotAction {
-    const bestOwn = this.findBestHandInCards(botCards);
-    const ownType = bestOwn ? bestOwn.type : -1;
-    const calledType = currentHand.type;
-
-    // If the called hand type is at or below what we can see → plausible to a beginner
-    if (calledType <= ownType) {
-      return { action: 'true' };
+  private static handleNormalBullPhase(currentHand: HandCall, botCards: Card[], totalCards: number): BotAction {
+    // 10% chance to raise if bot has a legitimate higher hand
+    const higher = this.findHandHigherThanSimple(botCards, currentHand);
+    if (higher && Math.random() < 0.10) {
+      return { action: 'call', hand: higher };
     }
 
-    // If 2+ levels above anything the bot holds → "no way"
-    if (calledType >= ownType + 2) {
-      return { action: 'bull' };
-    }
+    const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
 
-    // Exactly 1 level above → uncertain beginner: 60% true / 40% bull
-    return Math.random() < 0.6 ? { action: 'true' } : { action: 'bull' };
+    if (p > 0.6) return { action: 'true' };
+    if (p < 0.4) return { action: 'bull' };
+    // 0.4–0.6 uncertain zone: 50/50
+    return Math.random() < 0.5 ? { action: 'true' } : { action: 'bull' };
   }
 
   /**
-   * Easy bad bluff: call one hand type above what the bot actually has,
-   * using its highest rank. E.g., if it has King high, bluff "pair of Kings."
+   * Normal bluff: call one hand type above what the bot actually has,
+   * using a rank it actually holds. E.g., holds King high → bluff "pair of Kings."
    */
-  private static makeEasyBadBluff(botCards: Card[], bestHand: HandCall): HandCall {
+  private static makeNormalBluff(botCards: Card[], bestHand: HandCall): HandCall {
     let highestRank: Rank = botCards[0]?.rank ?? '2';
     for (const c of botCards) {
       if (RANK_VALUES[c.rank] > RANK_VALUES[highestRank]) {
@@ -220,7 +234,6 @@ export class BotPlayer {
       case HandType.THREE_OF_A_KIND:
         return { type: HandType.FOUR_OF_A_KIND, rank: highestRank };
       default:
-        // For anything else, just bump one type using the highest rank
         return { type: HandType.PAIR, rank: highestRank };
     }
   }
@@ -1193,7 +1206,7 @@ export class BotPlayer {
     return this.pickLowestValid(candidates, currentHand);
   }
 
-  // ─── PLAUSIBILITY (SIMPLE — Easy mode) ──────────────────────────────
+  // ─── PLAUSIBILITY (SIMPLE — Normal mode) ─────────────────────────────
 
   private static estimatePlausibilitySimple(
     hand: HandCall,
