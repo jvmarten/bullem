@@ -14,6 +14,9 @@ interface Props {
   onHandChange?: (hand: HandCall | null, isValid: boolean) => void;
   submitLabel?: string;
   showSubmit?: boolean;
+  /** When set, the selector opens on this hand type instead of the minimum raise type.
+   *  Used to remember the player's last-selected category across turns. */
+  preferredHandType?: HandType;
 }
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
@@ -133,25 +136,49 @@ function getPreviewCards(hand: HandCall | null): Card[] {
 
 /* ── Initial state from current hand ───────────────────── */
 
-function getInitialState(currentHand: HandCall | null): { handType: HandType; rank: Rank; rank2: Rank; suit: Suit } {
-  if (!currentHand) return { handType: HandType.HIGH_CARD, rank: '2', rank2: '3', suit: 'spades' };
+function getInitialState(
+  currentHand: HandCall | null,
+  preferredHandType?: HandType,
+): { handType: HandType; rank: Rank; rank2: Rank; suit: Suit } {
+  if (!currentHand) {
+    const ht = preferredHandType ?? HandType.HIGH_CARD;
+    // Sensible defaults per type so the picker starts in a valid position
+    return { handType: ht, rank: '2', rank2: '3', suit: 'spades' };
+  }
   const minRaise = getMinimumRaise(currentHand);
   if (!minRaise) return { handType: currentHand.type, rank: 'A', rank2: 'K', suit: 'spades' };
-  const ht = minRaise.type;
+
+  // If the player has a preferred type and it's at or above the minimum raise type,
+  // use it with sensible defaults — they'll still need to pick a valid rank/suit.
+  const usePreferred = preferredHandType !== undefined
+    && preferredHandType >= minRaise.type
+    && preferredHandType !== HandType.ROYAL_FLUSH;
+
+  const ht = usePreferred ? preferredHandType : minRaise.type;
   let rank: Rank = '2';
   let rank2: Rank = '3';
   let suit: Suit = 'spades';
-  switch (minRaise.type) {
-    case HandType.HIGH_CARD: rank = minRaise.rank; break;
-    case HandType.PAIR: rank = minRaise.rank; break;
-    case HandType.TWO_PAIR: rank = minRaise.highRank; rank2 = minRaise.lowRank; break;
-    case HandType.THREE_OF_A_KIND: rank = minRaise.rank; break;
-    case HandType.FLUSH: suit = minRaise.suit; break;
-    case HandType.STRAIGHT: rank = minRaise.highRank; break;
-    case HandType.FULL_HOUSE: rank = minRaise.threeRank; rank2 = minRaise.twoRank; break;
-    case HandType.FOUR_OF_A_KIND: rank = minRaise.rank; break;
-    case HandType.STRAIGHT_FLUSH: suit = minRaise.suit; rank = minRaise.highRank; break;
-    case HandType.ROYAL_FLUSH: suit = minRaise.suit; break;
+
+  if (usePreferred && ht !== minRaise.type) {
+    // Preferred type is higher than min raise — start at lowest values for that type
+    switch (ht) {
+      case HandType.STRAIGHT: case HandType.STRAIGHT_FLUSH: rank = '5'; break;
+      default: break;
+    }
+  } else {
+    // Use exact minimum raise values
+    switch (minRaise.type) {
+      case HandType.HIGH_CARD: rank = minRaise.rank; break;
+      case HandType.PAIR: rank = minRaise.rank; break;
+      case HandType.TWO_PAIR: rank = minRaise.highRank; rank2 = minRaise.lowRank; break;
+      case HandType.THREE_OF_A_KIND: rank = minRaise.rank; break;
+      case HandType.FLUSH: suit = minRaise.suit; break;
+      case HandType.STRAIGHT: rank = minRaise.highRank; break;
+      case HandType.FULL_HOUSE: rank = minRaise.threeRank; rank2 = minRaise.twoRank; break;
+      case HandType.FOUR_OF_A_KIND: rank = minRaise.rank; break;
+      case HandType.STRAIGHT_FLUSH: suit = minRaise.suit; rank = minRaise.highRank; break;
+      case HandType.ROYAL_FLUSH: suit = minRaise.suit; break;
+    }
   }
   return { handType: ht, rank, rank2, suit };
 }
@@ -163,9 +190,9 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
 // when the current hand changes or the turn changes. This is a heavy component with
 // multiple WheelPickers and internal state — skipping needless re-renders avoids
 // expensive reconciliation of the picker DOM trees.
-export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true }: Props) {
+export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true, preferredHandType }: Props) {
   const label = submitLabel ?? (currentHand ? 'Raise' : 'Call');
-  const initial = getInitialState(currentHand);
+  const initial = getInitialState(currentHand, preferredHandType);
   const [handType, setHandType] = useState<HandType>(initial.handType);
   const [rank, setRank] = useState<Rank>(initial.rank);
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
