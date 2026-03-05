@@ -206,7 +206,7 @@ export function getHandTypeName(type: HandType): string {
 export function getMinimumRaise(currentHand: HandCall): HandCall | null {
   function nextRank(r: Rank): Rank | null {
     const idx = ALL_RANKS.indexOf(r);
-    return idx < ALL_RANKS.length - 1 ? ALL_RANKS[idx + 1] : null;
+    return idx < ALL_RANKS.length - 1 ? ALL_RANKS[idx + 1]! : null;
   }
 
   switch (currentHand.type) {
@@ -224,8 +224,8 @@ export function getMinimumRaise(currentHand: HandCall): HandCall | null {
       const { highRank, lowRank } = currentHand;
       // Try next lowRank that's still below highRank
       for (let i = ALL_RANKS.indexOf(lowRank) + 1; i < ALL_RANKS.length; i++) {
-        if (RANK_VALUES[ALL_RANKS[i]] < RANK_VALUES[highRank]) {
-          return { type: HandType.TWO_PAIR, highRank, lowRank: ALL_RANKS[i] };
+        if (RANK_VALUES[ALL_RANKS[i]!] < RANK_VALUES[highRank]) {
+          return { type: HandType.TWO_PAIR, highRank, lowRank: ALL_RANKS[i]! };
         }
       }
       const nh = nextRank(highRank);
@@ -248,8 +248,8 @@ export function getMinimumRaise(currentHand: HandCall): HandCall | null {
     case HandType.FULL_HOUSE: {
       const { threeRank, twoRank } = currentHand;
       for (let i = ALL_RANKS.indexOf(twoRank) + 1; i < ALL_RANKS.length; i++) {
-        if (ALL_RANKS[i] !== threeRank) {
-          return { type: HandType.FULL_HOUSE, threeRank, twoRank: ALL_RANKS[i] };
+        if (ALL_RANKS[i]! !== threeRank) {
+          return { type: HandType.FULL_HOUSE, threeRank, twoRank: ALL_RANKS[i]! };
         }
       }
       const nt = nextRank(threeRank);
@@ -274,7 +274,7 @@ export function getMinimumRaise(currentHand: HandCall): HandCall | null {
       // Try next suit with lowest straight flush
       const suitIdx = ALL_SUITS.indexOf(sfSuit);
       if (suitIdx < ALL_SUITS.length - 1) {
-        return { type: HandType.STRAIGHT_FLUSH, suit: ALL_SUITS[suitIdx + 1], highRank: '5' };
+        return { type: HandType.STRAIGHT_FLUSH, suit: ALL_SUITS[suitIdx + 1]!, highRank: '5' };
       }
       return { type: HandType.ROYAL_FLUSH, suit: 'clubs' };
     }

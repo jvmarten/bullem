@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSound } from '../hooks/useSound.js';
+import cardFront from '../assets/images/joker-card-front.svg';
+import cardBack from '../assets/images/joker-card-back.svg';
 
-type Phase = 'idle' | 'fly-in' | 'flip' | 'levitate' | 'dismiss';
+type Phase = 'idle' | 'flying' | 'dismiss';
 
 const TAP_THRESHOLD = 53;
 const TAP_TIMEOUT_MS = 2000;
-const FLY_IN_MS = 5500;
-const FLIP_MS = 700;
 const DISMISS_MS = 600;
 
 export function useJokerEasterEgg() {
@@ -33,7 +33,7 @@ export function useJokerEasterEgg() {
         audio.play().catch(() => {});
       }).catch(() => {});
 
-      setPhase('fly-in');
+      setPhase('flying');
     } else {
       timerRef.current = setTimeout(() => {
         countRef.current = 0;
@@ -48,12 +48,58 @@ export function useJokerEasterEgg() {
   return { phase, setPhase, handleLogoClick, audioRef };
 }
 
+/** Catmull-Rom spline interpolation for continuous, smooth curves through waypoints */
+function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
+}
+
+interface Waypoint {
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
+  rz: number;
+  duration: number;
+}
+
+function randomWaypoint(): Waypoint {
+  const padding = 60;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return {
+    x: padding + Math.random() * (w - 2 * padding) - w / 2,
+    y: padding + Math.random() * (h - 2 * padding) - h / 2,
+    z: -300 + Math.random() * 400, // -300 to 100 (less extreme depth)
+    rx: Math.random() * 180 - 90,  // gentler rotation range
+    ry: Math.random() * 180 - 90,
+    rz: Math.random() * 120 - 60,
+    // Much slower: 3000-8000ms, with varied pacing
+    duration: 3000 + Math.random() * 5000,
+  };
+}
+
 export function JokerOverlay({ phase, setPhase, audioRef }: {
   phase: Phase;
   setPhase: (p: Phase) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }) {
   const { volume, muted } = useSound();
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const animRef = useRef<number>(0);
+  // Sliding window of 4 waypoints for Catmull-Rom spline interpolation.
+  // The card always travels along the curve between waypoints[1] and waypoints[2],
+  // using waypoints[0] and waypoints[3] as tangent guides.
+  const waypointsRef = useRef<Waypoint[]>([]);
+  const segmentStartRef = useRef(0);
+  const segmentDurationRef = useRef(0);
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {
@@ -62,7 +108,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     }
   }, [volume, muted, audioRef, phase]);
 
-  // Listen for audio ended → dismiss
+  // Listen for audio ended -> dismiss
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || phase === 'idle' || phase === 'dismiss') return;
@@ -72,21 +118,96 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     return () => audio.removeEventListener('ended', onEnded);
   }, [phase, setPhase, audioRef]);
 
-  // Advance phases on animation timers
+  // Screen shake + haptic when flying starts
   useEffect(() => {
-    if (phase === 'fly-in') {
-      const t = setTimeout(() => setPhase('flip'), FLY_IN_MS);
-      return () => clearTimeout(t);
-    }
-    if (phase === 'flip') {
-      const t = setTimeout(() => setPhase('levitate'), FLIP_MS);
-      return () => clearTimeout(t);
-    }
-  }, [phase, setPhase]);
+    if (phase !== 'flying') return;
 
-  // Dismiss animation → idle + cleanup
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 30, 100, 30, 200]);
+    }
+
+    // Screen shake
+    document.documentElement.classList.add('screen-shake-heavy');
+    const onEnd = () => {
+      document.documentElement.classList.remove('screen-shake-heavy');
+    };
+    const timer = setTimeout(onEnd, 500);
+    return () => {
+      clearTimeout(timer);
+      document.documentElement.classList.remove('screen-shake-heavy');
+    };
+  }, [phase]);
+
+  // Flying animation via requestAnimationFrame with Catmull-Rom spline
+  useEffect(() => {
+    if (phase !== 'flying') return;
+
+    // Seed 4 waypoints: the first is the off-screen entry point
+    const entry: Waypoint = {
+      x: window.innerWidth * 0.4,
+      y: -window.innerHeight * 0.4,
+      z: -400,
+      rx: 20, ry: 30, rz: 15,
+      duration: 4000,
+    };
+    const wp1 = randomWaypoint();
+    const wp2 = randomWaypoint();
+    const wp3 = randomWaypoint();
+    waypointsRef.current = [entry, wp1, wp2, wp3];
+    // The card travels from waypoints[1] to waypoints[2] using the segment duration
+    segmentDurationRef.current = wp2.duration;
+    segmentStartRef.current = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - segmentStartRef.current;
+      const duration = segmentDurationRef.current;
+      const t = Math.min(elapsed / duration, 1);
+
+      const wps = waypointsRef.current;
+      const p0 = wps[0];
+      const p1 = wps[1];
+      const p2 = wps[2];
+      const p3 = wps[3];
+      if (!p0 || !p1 || !p2 || !p3) return;
+
+      const x = catmullRom(p0.x, p1.x, p2.x, p3.x, t);
+      const y = catmullRom(p0.y, p1.y, p2.y, p3.y, t);
+      const z = catmullRom(p0.z, p1.z, p2.z, p3.z, t);
+      const rx = catmullRom(p0.rx, p1.rx, p2.rx, p3.rx, t);
+      const ry = catmullRom(p0.ry, p1.ry, p2.ry, p3.ry, t);
+      const rz = catmullRom(p0.rz, p1.rz, p2.rz, p3.rz, t);
+
+      if (cardRef.current) {
+        cardRef.current.style.transform =
+          `translate3d(${x}px, ${y}px, ${z}px) ` +
+          `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
+      }
+
+      // Advance to next segment when current one completes
+      if (t >= 1) {
+        waypointsRef.current = [p1, p2, p3, randomWaypoint()];
+        segmentDurationRef.current = p3.duration;
+        segmentStartRef.current = now;
+      }
+
+      animRef.current = requestAnimationFrame(animate);
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+    };
+  }, [phase]);
+
+  // Dismiss animation -> idle + cleanup
   useEffect(() => {
     if (phase !== 'dismiss') return;
+
+    // Stop the flying animation — card will keep its last transform via the dismiss CSS animation
+    cancelAnimationFrame(animRef.current);
+
     const t = setTimeout(() => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -98,18 +219,12 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   }, [phase, setPhase, audioRef]);
 
   const handleDismiss = useCallback(() => {
-    if (phase === 'levitate' || phase === 'flip') {
+    if (phase === 'flying') {
       setPhase('dismiss');
     }
   }, [phase, setPhase]);
 
   if (phase === 'idle') return null;
-
-  const cardAnimClass =
-    phase === 'fly-in' ? 'joker-fly-in' :
-    phase === 'flip' ? 'joker-flip' :
-    phase === 'levitate' ? 'joker-levitate' :
-    phase === 'dismiss' ? 'joker-dismiss' : '';
 
   return (
     <div
@@ -118,41 +233,29 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     >
       {/* 3D Card — only the card itself is clickable */}
       <div
-        className={`joker-card-container ${cardAnimClass} pointer-events-auto cursor-pointer`}
+        ref={cardRef}
+        className={`joker-card-container ${phase === 'dismiss' ? 'joker-dismiss' : ''} pointer-events-auto cursor-pointer`}
         style={{ transformStyle: 'preserve-3d' }}
         onClick={handleDismiss}
       >
-        {/* Card Back */}
+        {/* Card Back (default visible face) */}
         <div className="joker-card-face joker-card-back">
-          <div className="joker-card-back-inner" />
+          <img
+            src={cardBack}
+            alt="Card back"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
+            draggable={false}
+          />
         </div>
 
-        {/* Card Front — Joker face */}
+        {/* Card Front — Joker face (rotated 180deg on Y so backface-visibility works) */}
         <div className="joker-card-face joker-card-front">
-          <div className="joker-front-content">
-            <span className="joker-corner joker-corner-top">J<span className="joker-corner-suit">&#9830;</span></span>
-            <div className="joker-face">
-              <div className="joker-face-hat">
-                <span className="joker-bell">&#9752;</span>
-                <span className="joker-hat-tip" />
-                <span className="joker-bell">&#9752;</span>
-              </div>
-              <div className="joker-face-head">
-                <div className="joker-face-eyes">
-                  <span className="joker-eye">&#9679;</span>
-                  <span className="joker-eye">&#9679;</span>
-                </div>
-                <div className="joker-face-mouth" />
-              </div>
-              <div className="joker-face-collar">
-                <span className="joker-collar-point" />
-                <span className="joker-collar-point" />
-                <span className="joker-collar-point" />
-              </div>
-            </div>
-            <span className="joker-label">JOKER</span>
-            <span className="joker-corner joker-corner-bottom">J<span className="joker-corner-suit">&#9830;</span></span>
-          </div>
+          <img
+            src={cardFront}
+            alt="Joker"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
+            draggable={false}
+          />
         </div>
       </div>
     </div>

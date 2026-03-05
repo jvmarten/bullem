@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useToast } from '../context/ToastContext.js';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
@@ -26,7 +27,9 @@ function dealFiveCards(): DealCard[] {
   }
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    const temp = deck[i]!;
+    deck[i] = deck[j]!;
+    deck[j] = temp;
   }
   return deck.slice(0, 5);
 }
@@ -37,47 +40,47 @@ function classifyHand(cards: DealCard[]): HandCall {
     rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
   }
 
-  const isFlush = cards.every(c => c.suit === cards[0].suit);
+  const isFlush = cards.every(c => c.suit === cards[0]!.suit);
   const values = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => a - b);
-  const isSequential = values.every((v, i) => i === 0 || v === values[i - 1] + 1);
+  const isSequential = values.every((v, i) => i === 0 || v === values[i - 1]! + 1);
   const isWheel = values[0] === 2 && values[1] === 3 && values[2] === 4 && values[3] === 5 && values[4] === 14;
   const isStraight = isSequential || isWheel;
-  const highVal = isWheel ? 5 : values[4];
-  const highRank = RANK_ORDER[highVal - 2];
+  const highVal = isWheel ? 5 : values[4]!;
+  const highRank = RANK_ORDER[highVal - 2]!;
 
   const groups = [...rankCounts.entries()]
     .sort((a, b) => b[1] - a[1] || RANK_VAL[b[0]] - RANK_VAL[a[0]]);
 
   if (isFlush && isStraight && values[4] === 14 && values[0] === 10) {
-    return { type: HandType.ROYAL_FLUSH, suit: cards[0].suit };
+    return { type: HandType.ROYAL_FLUSH, suit: cards[0]!.suit };
   }
   if (isFlush && isStraight) {
-    return { type: HandType.STRAIGHT_FLUSH, suit: cards[0].suit, highRank };
+    return { type: HandType.STRAIGHT_FLUSH, suit: cards[0]!.suit, highRank };
   }
-  if (groups[0][1] === 4) {
-    return { type: HandType.FOUR_OF_A_KIND, rank: groups[0][0] };
+  if (groups[0]![1] === 4) {
+    return { type: HandType.FOUR_OF_A_KIND, rank: groups[0]![0] };
   }
-  if (groups[0][1] === 3 && groups[1][1] === 2) {
-    return { type: HandType.FULL_HOUSE, threeRank: groups[0][0], twoRank: groups[1][0] };
+  if (groups[0]![1] === 3 && groups[1]![1] === 2) {
+    return { type: HandType.FULL_HOUSE, threeRank: groups[0]![0], twoRank: groups[1]![0] };
   }
   if (isStraight) {
     return { type: HandType.STRAIGHT, highRank };
   }
-  if (groups[0][1] === 3) {
-    return { type: HandType.THREE_OF_A_KIND, rank: groups[0][0] };
+  if (groups[0]![1] === 3) {
+    return { type: HandType.THREE_OF_A_KIND, rank: groups[0]![0] };
   }
   if (isFlush) {
-    return { type: HandType.FLUSH, suit: cards[0].suit };
+    return { type: HandType.FLUSH, suit: cards[0]!.suit };
   }
-  if (groups[0][1] === 2 && groups[1][1] === 2) {
-    const [a, b] = [groups[0][0], groups[1][0]];
+  if (groups[0]![1] === 2 && groups[1]![1] === 2) {
+    const [a, b] = [groups[0]![0], groups[1]![0]];
     const [highPair, lowPair] = RANK_VAL[a] > RANK_VAL[b] ? [a, b] : [b, a];
     return { type: HandType.TWO_PAIR, highRank: highPair, lowRank: lowPair };
   }
-  if (groups[0][1] === 2) {
-    return { type: HandType.PAIR, rank: groups[0][0] };
+  if (groups[0]![1] === 2) {
+    return { type: HandType.PAIR, rank: groups[0]![0] };
   }
-  return { type: HandType.HIGH_CARD, rank: groups[0][0] };
+  return { type: HandType.HIGH_CARD, rank: groups[0]![0] };
 }
 
 function getSuitColor(suit: Suit): string {
@@ -115,29 +118,29 @@ function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
       break;
     case HandType.FOUR_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.THREE_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.TWO_PAIR:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.highRank || cards[i].rank === hand.lowRank) {
+        if (cards[i]!.rank === hand.highRank || cards[i]!.rank === hand.lowRank) {
           indices.add(i);
         }
       }
       break;
     case HandType.PAIR:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.HIGH_CARD:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) { indices.add(i); break; }
+        if (cards[i]!.rank === hand.rank) { indices.add(i); break; }
       }
       break;
   }
@@ -150,7 +153,9 @@ function shuffleArray<T>(arr: T[]): T[] {
   const next = [...arr];
   for (let i = next.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
+    const temp = next[i]!;
+    next[i] = next[j]!;
+    next[j] = temp;
   }
   return next;
 }
@@ -172,15 +177,19 @@ function getOrCreatePlayerName(): string {
   return name;
 }
 
+// Hue offsets for the "coming soon" wallpaper background on each press
+const RANKED_HUE_OFFSETS = [0, 30, 60, 120, 180, 210, 270, 330];
+
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
+  const [rankedPressCount, setRankedPressCount] = useState(0);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
   );
   const [roomCode, setRoomCode] = useState('');
-  const [error, setError] = useState('');
+  const { addToast } = useToast();
   const [isHovered, setIsHovered] = useState(false);
   const [dealtCards, setDealtCards] = useState<DealCard[] | null>(null);
   const [handCall, setHandCall] = useState<HandCall | null>(null);
@@ -195,8 +204,8 @@ export function HomePage() {
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
-  const { play } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
+  const { play, startLoop, stopLoop, stopAllLoops } = useSound();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -219,6 +228,25 @@ export function HomePage() {
     };
   }, [isShuffling]);
 
+  // Play looping shuffle sound while the deck is shuffling
+  useEffect(() => {
+    if (isShuffling) {
+      startLoop('deckShuffleLoop');
+    } else {
+      stopLoop('deckShuffleLoop');
+    }
+    return () => {
+      stopLoop('deckShuffleLoop');
+    };
+  }, [isShuffling, startLoop, stopLoop]);
+
+  // Stop all looping sounds on unmount (e.g. navigating to another page)
+  useEffect(() => {
+    return () => {
+      stopAllLoops();
+    };
+  }, [stopAllLoops]);
+
   const getPlayerName = (): string => {
     const current = name.trim() || getOrCreatePlayerName();
     localStorage.setItem(PLAYER_NAME_STORAGE_KEY, current);
@@ -240,37 +268,37 @@ export function HomePage() {
 
 
   const handleQuickStart = async () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
-      setError('Failed to quick start — check your connection');
+      addToast('Failed to quick start — check your connection');
     }
   };
 
   const handleHost = () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
-    if (!roomCode.trim()) return setError('Enter a room code');
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!roomCode.trim()) return addToast('Enter a room code');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
   const handleBrowse = async () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     setLoadingRooms(true);
     try {
       const [roomResult, liveResult] = await Promise.all([listRooms(), listLiveGames()]);
       setRooms(roomResult);
       setLiveGames(liveResult);
     } catch {
-      setError('Failed to load rooms — check your connection');
+      addToast('Failed to load rooms — check your connection');
     } finally {
       setLoadingRooms(false);
     }
@@ -287,7 +315,17 @@ export function HomePage() {
       await spectateGame(code);
       navigate(`/game/${code}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to spectate');
+      addToast(e instanceof Error ? e.message : 'Failed to spectate');
+    }
+  };
+
+  const handleWatchRandom = async () => {
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
+    try {
+      const code = await watchRandomGame();
+      navigate(`/game/${code}`);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No live games to watch');
     }
   };
 
@@ -361,7 +399,9 @@ export function HomePage() {
 
   return (
     <Layout largeTitle>
-      <div className="flex flex-col items-center gap-8 pt-8">
+      <div className="home-content flex flex-col items-center gap-8 pt-8">
+        {/* Left panel in landscape: deck demo */}
+        <div className="home-left">
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">
           <div
@@ -381,7 +421,7 @@ export function HomePage() {
               const dealAngle = 0;
 
               // Use shuffleOrder to determine stack position during shuffle
-              const pos = shuffleOrder[i];
+              const pos = shuffleOrder[i]!;
               const stackX = pos * 0.5;
               const stackY = -pos * 1.2;
               const stackAngle = (pos - (CARD_COUNT - 1) / 2) * 1.5;
@@ -508,13 +548,10 @@ export function HomePage() {
             )}
           </div>
         </div>
+        </div>{/* end home-left */}
 
-        {error && (
-          <div className="w-full glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
-            {error}
-          </div>
-        )}
-
+        {/* Right panel in landscape: name + menu buttons */}
+        <div className="home-right">
         {/* Player name display — tap to edit */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
@@ -556,10 +593,22 @@ export function HomePage() {
               Play Offline
             </button>
             <Link
-              to="/how-to-play"
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              to="/tutorial"
+              className="w-full btn-gold py-4 text-lg text-center block"
             >
-              How to Play
+              Interactive Tutorial
+            </Link>
+            <button
+              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
+              className="w-full btn-ghost py-4 text-lg"
+            >
+              Watch a Game
+            </button>
+            <Link
+              to="/how-to-play"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
+            >
+              Rules
             </Link>
           </div>
         )}
@@ -597,8 +646,28 @@ export function HomePage() {
                 </button>
               </>
             )}
+            {/* Ranked Play — teaser button */}
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); setError(''); }}
+              onClick={() => {
+                play('uiClick');
+                setRankedPressCount(prev => prev + 1);
+              }}
+              className="w-full btn-gold py-4 text-lg relative overflow-hidden"
+              style={{
+                cursor: 'default',
+                ...(rankedPressCount > 0 ? {
+                  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+                    `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='40'><text x='4' y='14' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text><text x='84' y='34' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text></svg>`,
+                  )}")`,
+                  backgroundSize: '160px 40px',
+                  transition: 'background-image 0.3s ease',
+                } : {}),
+              }}
+            >
+              <span className="relative z-10">Ranked Play</span>
+            </button>
+            <button
+              onClick={() => { play('uiSoft'); setMode('menu'); setRankedPressCount(0); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -624,7 +693,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -694,6 +763,9 @@ export function HomePage() {
                         <div className="text-right text-xs text-[var(--gold-dim)]">
                           <span>{game.playerCount} players</span>
                           <span className="ml-2">Rd {game.roundNumber}</span>
+                          {game.spectatorCount > 0 && (
+                            <span className="ml-2">{game.spectatorCount} watching</span>
+                          )}
                           {game.spectatorsCanSeeCards && (
                             <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
                           )}
@@ -711,13 +783,14 @@ export function HomePage() {
               Refresh
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
             </button>
           </div>
         )}
+        </div>{/* end home-right */}
       </div>
     </Layout>
   );

@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
+import { ToastProvider } from './context/ToastContext.js';
+import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 
@@ -15,6 +17,7 @@ const LobbyPage = lazy(() => import('./pages/LobbyPage.js').then(m => ({ default
 const GamePage = lazy(() => import('./pages/GamePage.js').then(m => ({ default: m.GamePage })));
 const ResultsPage = lazy(() => import('./pages/ResultsPage.js').then(m => ({ default: m.ResultsPage })));
 const HowToPlayPage = lazy(() => import('./pages/HowToPlayPage.js').then(m => ({ default: m.HowToPlayPage })));
+const TutorialPage = lazy(() => import('./pages/TutorialPage.js').then(m => ({ default: m.TutorialPage })));
 
 // Local game routes — the entire local game context + engine is only loaded
 // when the user enters the local game flow.
@@ -22,6 +25,7 @@ const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => 
 const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
 const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
 const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -49,11 +53,14 @@ function RouteLoadingFallback() {
 export default function App() {
   return (
     <ErrorBoundary>
+    <ToastProvider>
     <BrowserRouter>
+      <ToastContainer />
       <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/how-to-play" element={<HowToPlayPage />} />
+          <Route path="/tutorial" element={<TutorialPage />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
@@ -71,11 +78,12 @@ export default function App() {
             <Route path="/local/results" element={<LocalResultsPage />} />
           </Route>
 
-          {/* Catch-all: redirect unknown URLs to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Catch-all: show 404 page for unknown URLs */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </ToastProvider>
     </ErrorBoundary>
   );
 }

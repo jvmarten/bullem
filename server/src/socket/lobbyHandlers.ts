@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -104,6 +104,8 @@ export function registerLobbyHandlers(
       room.spectatorSockets.delete(socket.id);
       roomManager.removeSocketMapping(socket.id);
       socket.leave(room.roomCode);
+      // Notify players that spectator count changed
+      broadcastRoomState(io, room);
       return;
     }
 
@@ -212,7 +214,31 @@ export function registerLobbyHandlers(
     const state = room.getSpectatorGameState();
     if (state) socket.emit('game:state', state);
 
+    // Notify players that spectator count changed
+    broadcastRoomState(io, room);
+
     callback({ ok: true });
+  });
+
+  socket.on('room:watchRandom', (callback) => {
+    const roomCode = roomManager.getRandomLiveGame();
+    if (!roomCode) return callback({ error: 'No live games available' });
+
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return callback({ error: 'No live games available' });
+
+    room.spectatorSockets.add(socket.id);
+    roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    socket.join(room.roomCode);
+
+    // Send initial spectator state
+    const state = room.getSpectatorGameState();
+    if (state) socket.emit('game:state', state);
+
+    // Notify players that spectator count changed
+    broadcastRoomState(io, room);
+
+    callback({ roomCode: room.roomCode });
   });
 
   socket.on('room:updateSettings', (data) => {
@@ -253,6 +279,14 @@ export function registerLobbyHandlers(
       return;
     }
 
+    // Validate lastChanceMode if provided
+    const VALID_LAST_CHANCE_MODES: LastChanceMode[] = ['classic', 'strict'];
+    const lastChanceMode = data.settings.lastChanceMode;
+    if (lastChanceMode !== undefined && !VALID_LAST_CHANCE_MODES.includes(lastChanceMode as LastChanceMode)) {
+      socket.emit('room:error', 'Invalid last chance mode setting');
+      return;
+    }
+
     // Sanitize boolean settings — coerce to boolean or strip non-boolean values
     const validated: GameSettings = {
       maxCards,
@@ -261,6 +295,7 @@ export function registerLobbyHandlers(
       allowSpectators: data.settings.allowSpectators === true,
       spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
       botSpeed: botSpeed as BotSpeed | undefined,
+      lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
     };
 
     room.updateSettings(validated);
@@ -297,6 +332,55 @@ export function registerLobbyHandlers(
     }
   });
 
+  socket.on('room:kickPlayer', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return callback({ error: 'No room found' });
+
+    const hostPlayerId = room.getPlayerId(socket.id);
+    if (hostPlayerId !== room.hostId) {
+      return callback({ error: 'Only the host can kick players' });
+    }
+
+    if (room.gamePhase !== GamePhase.LOBBY) {
+      return callback({ error: 'Can only kick players in the lobby' });
+    }
+
+    if (typeof data.playerId !== 'string' || !data.playerId) {
+      return callback({ error: 'Invalid player ID' });
+    }
+
+    if (data.playerId === hostPlayerId) {
+      return callback({ error: 'Cannot kick yourself' });
+    }
+
+    const targetPlayer = room.players.get(data.playerId);
+    if (!targetPlayer) {
+      return callback({ error: 'Player not found' });
+    }
+
+    // Bots should be removed via room:removeBot
+    if (targetPlayer.isBot) {
+      return callback({ error: 'Use remove bot to remove bots' });
+    }
+
+    const targetSocketId = room.getSocketId(data.playerId);
+    if (targetSocketId) {
+      // Notify the kicked player before removing them
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('room:kicked');
+        targetSocket.leave(room.roomCode);
+      }
+      room.removePlayer(targetSocketId);
+      roomManager.removeSocketMapping(targetSocketId);
+    }
+    roomManager.removePlayerMapping(data.playerId);
+
+    broadcastRoomState(io, room);
+    broadcastPlayerNames(io, roomManager);
+    callback({ ok: true });
+  });
+
   socket.on('room:removeBot', (data) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
@@ -328,6 +412,34 @@ export function registerLobbyHandlers(
     // Clear cross-round bot memory for this room's scope
     BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
+    botManager.scheduleBotTurn(room, io);
+    broadcastRoomState(io, room);
+    broadcastGameState(io, room);
+  });
+
+  socket.on('game:rematch', () => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can start a rematch');
+      return;
+    }
+    if (room.gamePhase !== GamePhase.GAME_OVER) {
+      socket.emit('room:error', 'Game is not over');
+      return;
+    }
+    if (room.playerCount < MIN_PLAYERS) {
+      socket.emit('room:error', `Need at least ${MIN_PLAYERS} players for a rematch`);
+      return;
+    }
+
+    botManager.clearTurnTimer(room.roomCode);
+    // Notify clients the rematch is starting (so they can clear results state)
+    io.to(room.roomCode).emit('game:rematchStarting');
+
+    room.resetForRematch();
+    BotPlayer.resetMemory(room.roomCode);
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);
     broadcastGameState(io, room);

@@ -1,6 +1,25 @@
 import { RANK_VALUES, HandType } from '@bull-em/shared';
 import type { HandCall, Rank } from '@bull-em/shared';
 import fahSoundUrl from '../assets/sounds/fah.mp3';
+import cardDealUrl from '../assets/sounds/card-deal.mp3';
+import cardRevealUrl from '../assets/sounds/card-reveal.mp3';
+import deckShuffleUrl from '../assets/sounds/deck-shuffle.mp3';
+import bullCalledUrl from '../assets/sounds/bull-called.mp3';
+import trueCalledUrl from '../assets/sounds/true-called.mp3';
+import callMadeUrl from '../assets/sounds/call-made.mp3';
+import roundWinUrl from '../assets/sounds/round-win.mp3';
+import eliminatedUrl from '../assets/sounds/eliminated.mp3';
+import gameOverUrl from '../assets/sounds/game-over.mp3';
+import yourTurnUrl from '../assets/sounds/your-turn.mp3';
+import timerTickUrl from '../assets/sounds/timer-tick.mp3';
+import heartbeatUrl from '../assets/sounds/heartbeat.mp3';
+import uiClickUrl from '../assets/sounds/ui-click.mp3';
+import uiSoftUrl from '../assets/sounds/ui-soft.mp3';
+import fanfareUrl from '../assets/sounds/fanfare.mp3';
+import wheelTickUrl from '../assets/sounds/wheel-tick.mp3';
+import wheelTickLowUrl from '../assets/sounds/wheel-tick-low.mp3';
+import wheelSelectUrl from '../assets/sounds/wheel-select.mp3';
+import tuplausUrl from '../assets/sounds/tuplaus.mp3';
 
 type SoundName =
   | 'cardDeal'
@@ -13,6 +32,7 @@ type SoundName =
   | 'gameOver'
   | 'yourTurn'
   | 'timerTick'
+  | 'heartbeat'
   | 'uiHover'
   | 'uiClick'
   | 'uiSoft'
@@ -21,7 +41,8 @@ type SoundName =
   | 'fanfare'
   | 'wheelTick'
   | 'wheelTickLow'
-  | 'wheelSelect';
+  | 'wheelSelect'
+  | 'deckShuffleLoop';
 
 interface ToneConfig {
   frequency: number;
@@ -33,101 +54,83 @@ interface ToneConfig {
   delay?: number;         // start delay in seconds
 }
 
-// Sounds that use an audio file instead of oscillator tones
+// Sounds that use an audio file instead of oscillator tones.
+// Most sounds now use pre-rendered MP3 files for richer quality.
 const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
-  roundLose: { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
+  cardDeal:    { url: cardDealUrl, gain: 0.18 },
+  cardReveal:  { url: cardRevealUrl, gain: 0.3 },
+  deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
+  bullCalled:  { url: bullCalledUrl, gain: 0.5 },
+  trueCalled:  { url: trueCalledUrl, gain: 0.45 },
+  callMade:    { url: callMadeUrl, gain: 0.45 },
+  roundWin:    { url: roundWinUrl, gain: 0.5 },
+  roundLose:   { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
+  eliminated:  { url: eliminatedUrl, gain: 0.5 },
+  gameOver:    { url: gameOverUrl, gain: 0.45 },
+  yourTurn:    { url: yourTurnUrl, gain: 0.14 },
+  timerTick:   { url: timerTickUrl, gain: 0.5 },
+  heartbeat:   { url: heartbeatUrl, gain: 0.55 },
+  uiClick:     { url: uiClickUrl, gain: 0.4 },
+  uiSoft:      { url: uiSoftUrl, gain: 0.35 },
+  fanfare:     { url: fanfareUrl, gain: 0.45 },
+  wheelTick:   { url: wheelTickUrl, gain: 0.35 },
+  wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
+  wheelSelect: { url: wheelSelectUrl, gain: 0.35 },
+  deckShuffleLoop: { url: tuplausUrl, gain: 0.2 },
 };
 
-// Each sound is one or more tones layered together
+// Oscillator fallbacks — used only for sounds without an audio file (uiHover)
+// and for the dynamic playHandPreview which generates tones based on hand rank.
 const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
-  cardDeal: [
-    { frequency: 800, duration: 0.06, type: 'sine', gain: 0.15, ramp: 0.05 },
-    { frequency: 2400, duration: 0.04, type: 'triangle', gain: 0.08 },
-  ],
-  callMade: [
-    { frequency: 520, duration: 0.12, type: 'sine', gain: 0.15, ramp: 0.1 },
-    { frequency: 780, duration: 0.08, type: 'sine', gain: 0.08, delay: 0.04 },
-  ],
-  bullCalled: [
-    { frequency: 200, duration: 0.25, type: 'sine', gain: 0.28, ramp: 0.22 },
-    { frequency: 160, duration: 0.3, type: 'triangle', gain: 0.16, delay: 0.08 },
-  ],
-  trueCalled: [
-    { frequency: 660, duration: 0.15, type: 'sine', gain: 0.15, ramp: 0.12 },
-    { frequency: 880, duration: 0.12, type: 'sine', gain: 0.1, delay: 0.06 },
-  ],
-  roundWin: [
-    { frequency: 523, duration: 0.15, type: 'sine', gain: 0.15 },
-    { frequency: 659, duration: 0.15, type: 'sine', gain: 0.15, delay: 0.1 },
-    { frequency: 784, duration: 0.25, type: 'sine', gain: 0.18, delay: 0.2 },
-  ],
-  roundLose: [], // uses audio file (fah.mp3) — see AUDIO_FILE_SOUNDS
-  eliminated: [
-    { frequency: 350, duration: 0.3, type: 'sawtooth', gain: 0.1, ramp: 0.25 },
-    { frequency: 250, duration: 0.4, type: 'sine', gain: 0.08, delay: 0.1 },
-  ],
-  gameOver: [
-    { frequency: 523, duration: 0.18, type: 'sine', gain: 0.15 },
-    { frequency: 659, duration: 0.18, type: 'sine', gain: 0.15, delay: 0.12 },
-    { frequency: 784, duration: 0.18, type: 'sine', gain: 0.15, delay: 0.24 },
-    { frequency: 1047, duration: 0.4, type: 'sine', gain: 0.2, delay: 0.36 },
-  ],
-  yourTurn: [
-    { frequency: 880, duration: 0.08, type: 'sine', gain: 0.12 },
-    { frequency: 1100, duration: 0.1, type: 'sine', gain: 0.15, delay: 0.08 },
-  ],
-  timerTick: [
-    { frequency: 1000, duration: 0.08, type: 'sine', gain: 0.2, ramp: 0.07 },
-    { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
-  ],
+  cardDeal: [],
+  callMade: [],
+  bullCalled: [],
+  trueCalled: [],
+  roundWin: [],
+  roundLose: [],
+  eliminated: [],
+  gameOver: [],
+  yourTurn: [],
+  timerTick: [],
+  heartbeat: [],
   uiHover: [
-    // Barely-there card flick — ultra-soft whisper
+    // Barely-there card flick — ultra-soft whisper (kept as oscillator for minimal latency)
     { frequency: 3800, duration: 0.01, type: 'sine', gain: 0.005, ramp: 0.008 },
   ],
-  uiClick: [
-    { frequency: 850, duration: 0.05, type: 'sine', gain: 0.08, ramp: 0.04 },
-    { frequency: 1250, duration: 0.03, type: 'triangle', gain: 0.04, delay: 0.015 },
-  ],
-  uiSoft: [
-    { frequency: 720, duration: 0.045, type: 'sine', gain: 0.05, ramp: 0.035 },
-  ],
-  deckShuffle: [
-    // Gentle riffle shuffle — soft layered clicks
-    { frequency: 2000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 },
-    { frequency: 2400, duration: 0.03, type: 'sine', gain: 0.02, delay: 0.04 },
-    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.025, delay: 0.08 },
-    { frequency: 2200, duration: 0.03, type: 'sine', gain: 0.02, delay: 0.12 },
-    { frequency: 2600, duration: 0.04, type: 'triangle', gain: 0.02, delay: 0.16 },
-  ],
-  cardReveal: [
-    // Satisfying card flip — crisp snap with resonance
-    { frequency: 600, duration: 0.1, type: 'sine', gain: 0.14, ramp: 0.08 },
-    { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
-  ],
-  wheelTick: [
-    // Soft roulette-wheel notch tick — very short, high-pitched, barely audible
-    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
-  ],
-  wheelTickLow: [
-    // Lower-pitched tick for hand type wheel — ~75% frequency of wheelTick
-    { frequency: 950, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
-  ],
-  wheelSelect: [
-    // Gentle two-tone marimba tap — barely audible confirmation ping
-    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.045, ramp: 0.04 },
-    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.04, delay: 0.04 },
-  ],
-  fanfare: [
-    // Celebratory trumpet fanfare for royal flush easter egg
-    { frequency: 523, duration: 0.2, type: 'sine', gain: 0.16 },
-    { frequency: 659, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.15 },
-    { frequency: 784, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.3 },
-    { frequency: 1047, duration: 0.5, type: 'sine', gain: 0.2, delay: 0.45 },
-    { frequency: 1047, duration: 0.3, type: 'triangle', gain: 0.08, delay: 0.45 },
-    { frequency: 784, duration: 0.15, type: 'sine', gain: 0.1, delay: 0.8 },
-    { frequency: 1047, duration: 0.6, type: 'sine', gain: 0.18, delay: 0.9 },
-  ],
+  uiClick: [],
+  uiSoft: [],
+  deckShuffle: [],
+  cardReveal: [],
+  wheelTick: [],
+  wheelTickLow: [],
+  wheelSelect: [],
+  fanfare: [],
+  deckShuffleLoop: [],
 };
+
+// Haptic vibration patterns (in ms) for key game events.
+// navigator.vibrate() is a no-op on unsupported devices (desktop browsers),
+// so this gracefully degrades without any feature detection.
+const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
+  yourTurn:    [40, 30, 40],      // double tap — "hey, it's you"
+  bullCalled:  [100],             // firm single pulse
+  trueCalled:  [50],              // gentle pulse
+  callMade:    [20],              // subtle tick
+  roundWin:    [30, 40, 30, 40, 60], // celebratory triple pulse
+  roundLose:   [80, 30, 120],     // descending buzz
+  eliminated:  [200],             // long buzz — you're out
+  gameOver:    [40, 30, 40, 30, 40, 60, 100], // big fanfare pattern
+  cardDeal:    [15],              // tiny tap
+  heartbeat:   [60, 80, 40],     // lub-dub pulse
+};
+
+function vibrate(pattern: number | number[]): void {
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // Vibration API not available — graceful no-op
+  }
+}
 
 let audioCtx: AudioContext | null = null;
 
@@ -286,10 +289,22 @@ const VOLUME_KEY = 'bull-em-volume';
 export interface SoundController {
   play: (name: SoundName) => void;
   playHandPreview: (hand: HandCall) => void;
+  /** Start a looping sound. Restarts from the beginning each time. */
+  startLoop: (name: SoundName) => void;
+  /** Stop a currently looping sound with a short fade-out. */
+  stopLoop: (name: SoundName) => void;
+  /** Stop all active loops — useful for cleanup on navigation. */
+  stopAllLoops: () => void;
   muted: boolean;
   toggleMute: () => void;
   volume: number;
   setVolume: (v: number) => void;
+}
+
+// Tracks active looping audio sources so they can be stopped
+interface ActiveLoop {
+  source: AudioBufferSourceNode;
+  gainNode: GainNode;
 }
 
 export function createSoundController(): SoundController {
@@ -297,12 +312,17 @@ export function createSoundController(): SoundController {
   let volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
   if (isNaN(volume) || volume < 0 || volume > 1) volume = 1;
 
+  const activeLoops = new Map<SoundName, ActiveLoop>();
+
   const controller: SoundController = {
     get muted() { return muted; },
     get volume() { return volume; },
 
     play(name: SoundName) {
       if (muted) return;
+
+      const haptic = HAPTIC_PATTERNS[name];
+      if (haptic) vibrate(haptic);
 
       const audioEntry = AUDIO_FILE_SOUNDS[name];
       if (audioEntry) {
@@ -321,16 +341,88 @@ export function createSoundController(): SoundController {
       const freq = 400 + (hand.type * 100) + (subRank * 80);
 
       const tones: ToneConfig[] = [
-        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
-        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
+        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.04, ramp: 0.06 },
+        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.02, ramp: 0.04 },
       ];
 
       // ROYAL_FLUSH: add a shimmer sparkle tone
       if (hand.type === HandType.ROYAL_FLUSH) {
-        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 });
+        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.015, ramp: 0.025 });
       }
 
       playTones(tones, volume);
+    },
+
+    startLoop(name: SoundName) {
+      // Stop any existing loop for this sound first
+      controller.stopLoop(name);
+
+      if (muted) return;
+
+      const audioEntry = AUDIO_FILE_SOUNDS[name];
+      if (!audioEntry) return;
+
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const startPlayback = (buf: AudioBuffer) => {
+        const source = ctx.createBufferSource();
+        const gainNode = ctx.createGain();
+        source.buffer = buf;
+        source.loop = true;
+        const effectiveGain = volume * audioEntry.gain;
+        gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime);
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        source.start(0);
+        activeLoops.set(name, { source, gainNode });
+      };
+
+      const cached = audioBufferCache.get(audioEntry.url);
+      if (cached) {
+        startPlayback(cached);
+        return;
+      }
+
+      loadAudioBuffer(audioEntry.url).then(buf => {
+        if (!buf) return;
+        // Check we haven't been stopped while loading
+        if (!activeLoops.has(name)) return;
+        startPlayback(buf);
+      });
+      // Set a placeholder so stopLoop knows a load is pending
+      // (will be overwritten by startPlayback or cleaned up by stopLoop)
+    },
+
+    stopLoop(name: SoundName) {
+      const loop = activeLoops.get(name);
+      if (!loop) {
+        activeLoops.delete(name);
+        return;
+      }
+
+      const ctx = getAudioContext();
+      if (ctx) {
+        // Short fade-out to avoid click
+        const now = ctx.currentTime;
+        loop.gainNode.gain.setValueAtTime(loop.gainNode.gain.value, now);
+        loop.gainNode.gain.linearRampToValueAtTime(0, now + 0.05);
+        try { loop.source.stop(now + 0.06); } catch { /* already stopped */ }
+      } else {
+        try { loop.source.stop(); } catch { /* already stopped */ }
+      }
+
+      activeLoops.delete(name);
+    },
+
+    stopAllLoops() {
+      for (const name of [...activeLoops.keys()]) {
+        controller.stopLoop(name);
+      }
     },
 
     toggleMute() {

@@ -8,7 +8,7 @@ on:
   workflow_call:
 
 jobs:
-  lint-and-build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,8 +19,92 @@ jobs:
           cache: npm
 
       - run: npm ci
+
       - run: npm run build
-      - run: npm test
+
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            shared/dist
+            server/dist
+            client/dist
+            node_modules
+            shared/node_modules
+            server/node_modules
+            client/node_modules
+          key: build-${{ github.sha }}
+
+  test-shared:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            shared/dist
+            server/dist
+            client/dist
+            node_modules
+            shared/node_modules
+            server/node_modules
+            client/node_modules
+          key: build-${{ github.sha }}
+
+      - run: npm test -w shared
+
+  test-server:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            shared/dist
+            server/dist
+            client/dist
+            node_modules
+            shared/node_modules
+            server/node_modules
+            client/node_modules
+          key: build-${{ github.sha }}
+
+      - run: npm test -w server
+
+  test-client:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            shared/dist
+            server/dist
+            client/dist
+            node_modules
+            shared/node_modules
+            server/node_modules
+            client/node_modules
+          key: build-${{ github.sha }}
+
+      - run: npm test -w client
 
   docker-build:
     runs-on: ubuntu-latest

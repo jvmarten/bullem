@@ -89,6 +89,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       hostId: HUMAN_ID,
       gamePhase: GamePhase.PLAYING,
       settings: initialRestore.save.gameSettings,
+      spectatorCount: 0,
     } : null,
   );
   const [gameState, setGameState] = useState<ClientGameState | null>(
@@ -435,6 +436,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       hostId: HUMAN_ID,
       gamePhase: GamePhase.LOBBY,
       settings: { ...DEFAULT_GAME_SETTINGS },
+      spectatorCount: 0,
     });
 
     return 'LOCAL';
@@ -475,7 +477,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
     }
     const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
@@ -609,12 +613,55 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const requestRematch = useCallback(() => {
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    clearHumanTimer();
+    clearLocalGameSave();
+
+    // Reset all players to starting state
+    for (const p of playersRef.current) {
+      p.cardCount = STARTING_CARDS;
+      p.isEliminated = false;
+      p.cards = [];
+    }
+
+    // Shuffle seating order
+    const shuffled = [...playersRef.current];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
+    }
+
+    const settings = gameSettingsRef.current;
+    const engine = new GameEngine(shuffled, settings);
+    engineRef.current = engine;
+    engine.startRound();
+    BotPlayer.resetMemory('local');
+
+    setWinnerId(null);
+    setGameStats(null);
+    setRoundResult(null);
+    setRoundTransition(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+
+    setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING, players: playersRef.current.map(toPublicPlayer) } : null);
+    scheduleBotTurn();
+    scheduleHumanTimer();
+    broadcastState();
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer]);
+
   const clearErrorAction = useCallback(() => setError(null), []);
   const noopListRooms = useCallback(async () => [] as never[], []);
   const noopListLiveGames = useCallback(async () => [] as never[], []);
   const noopSpectate = useCallback(async () => {}, []);
+  const noopWatchRandom = useCallback(async (): Promise<string> => { throw new Error('Not available offline'); }, []);
   const noopUpdateSettings = useCallback(() => {}, []);
   const noopDeleteRoom = useCallback(() => {}, []);
+  const noopKickPlayer = useCallback((): Promise<void> => Promise.resolve(), []);
 
   const value = useMemo(() => ({
     roomState,
@@ -628,6 +675,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected: true as const,
     hasConnected: true as const,
+    disconnectDeadlines: new Map() as ReadonlyMap<string, number>,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -641,6 +689,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     clearRoundResult,
     addBot,
     removeBot,
+    requestRematch,
     botDifficulty,
     setBotDifficulty,
     gameSettings,
@@ -652,15 +701,17 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     listRooms: noopListRooms,
     listLiveGames: noopListLiveGames,
     spectateGame: noopSpectate,
+    watchRandomGame: noopWatchRandom,
     updateSettings: noopUpdateSettings,
     deleteRoom: noopDeleteRoom,
+    kickPlayer: noopKickPlayer,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
-    addBot, removeBot, botDifficulty, setBotDifficulty, gameSettings,
+    addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
     setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
-    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom,
+    noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
   ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

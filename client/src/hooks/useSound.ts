@@ -42,7 +42,19 @@ export function useSound() {
     notifyListeners();
   }, []);
 
-  return { play, playHandPreview, muted, toggleMute, volume, setVolume };
+  const startLoop = useCallback((name: SoundName) => {
+    sound.startLoop(name);
+  }, []);
+
+  const stopLoop = useCallback((name: SoundName) => {
+    sound.stopLoop(name);
+  }, []);
+
+  const stopAllLoops = useCallback(() => {
+    sound.stopAllLoops();
+  }, []);
+
+  return { play, playHandPreview, muted, toggleMute, volume, setVolume, startLoop, stopLoop, stopAllLoops };
 }
 
 /**
@@ -72,7 +84,7 @@ export function useGameSounds(
     if (history.length > prevLen) {
       // Play sound for each new entry
       for (let i = prevLen; i < history.length; i++) {
-        const entry: TurnEntry = history[i];
+        const entry: TurnEntry = history[i]!;
         switch (entry.action) {
           case TurnAction.CALL:
           case TurnAction.LAST_CHANCE_RAISE:

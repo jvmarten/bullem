@@ -67,7 +67,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
       if (!grouped[card.playerId]) {
         grouped[card.playerId] = { name: card.playerName, cards: [] };
       }
-      grouped[card.playerId].cards.push(card);
+      grouped[card.playerId]!.cards.push(card);
     }
     let idx = 0;
     return Object.entries(grouped).map(([playerId, { name, cards }]) => {
@@ -142,7 +142,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
           </p>
           {players.filter(p => result.penalties[p.id] !== undefined).map((p) => {
             const newCardCount = result.penalties[p.id];
-            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount > p.cardCount;
+            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount! > p.cardCount;
             const isEliminated = result.eliminatedPlayerIds.includes(p.id);
             return (
               <div key={p.id} className={`flex justify-between items-center text-sm px-3 py-1.5 rounded-lg ${
@@ -161,8 +161,17 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
         </div>
 
         <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-[var(--surface-raised)] to-transparent">
-          <button onClick={onDismiss} className="w-full btn-gold py-3">
-            {countdown > 0 ? `Continue (${countdown}s)` : 'Continue'}
+          <button onClick={onDismiss} className={`w-full btn-gold py-3 transition-all ${countdown > 0 && countdown <= 5 ? 'animate-pulse-glow' : ''}`}>
+            {countdown > 0 ? (
+              <>
+                Continue{' '}
+                <span className={`inline-block transition-all ${
+                  countdown <= 5 ? 'text-[var(--danger)] font-bold text-lg' : ''
+                }`}>
+                  ({countdown}s)
+                </span>
+              </>
+            ) : 'Continue'}
           </button>
         </div>
       </div>

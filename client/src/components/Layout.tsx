@@ -5,7 +5,16 @@ import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
 import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
 
-export function Layout({ children, largeTitle }: { children: ReactNode; largeTitle?: boolean }) {
+interface LayoutProps {
+  children: ReactNode;
+  largeTitle?: boolean;
+  /** Extra elements rendered in the header left group — visible only in landscape/desktop */
+  headerLeftExtra?: ReactNode;
+  /** Extra elements rendered in the header right group — visible only in landscape/desktop */
+  headerRightExtra?: ReactNode;
+}
+
+export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra }: LayoutProps) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
   const hasConnected = ctx?.hasConnected ?? true;
@@ -52,41 +61,56 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <header className={`px-4 text-center border-b border-[var(--felt-border)] relative ${largeTitle ? 'py-6' : 'py-1.5'}`}>
-        <TitleLogo size={largeTitle ? 'large' : 'small'} onClick={handleTitleClick} />
-        {isConnected && (
-          <div ref={popupRef} className="absolute top-1/2 left-3 -translate-y-1/2">
-            <button
-              onClick={() => setShowPopup(prev => !prev)}
-              className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              {onlinePlayerCount || 1}
-            </button>
-            {showPopup && (
-              <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
-                <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
-                  Online ({onlinePlayerNames.length || onlinePlayerCount})
-                </p>
-                {onlinePlayerNames.length > 0 ? (
-                  <ul className="space-y-0.5">
-                    {onlinePlayerNames.map((name, i) => (
-                      <li key={i} className="text-xs text-[var(--gold-light)] flex items-center gap-1.5">
-                        <span className="inline-block w-1 h-1 rounded-full bg-green-500 flex-shrink-0" />
-                        {name}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-[var(--gold-dim)]">
-                    {onlinePlayerCount} players online
+      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-6 layout-header-large' : 'py-1.5'}`}>
+        {/* Left group */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          {isConnected && (
+            <div ref={popupRef} className="relative">
+              <button
+                onClick={() => setShowPopup(prev => !prev)}
+                className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+                {onlinePlayerCount || 1}
+              </button>
+              {showPopup && (
+                <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
+                  <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
+                    Online ({onlinePlayerNames.length || onlinePlayerCount})
                   </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-2">
+                  {onlinePlayerNames.length > 0 ? (
+                    <ul className="space-y-0.5">
+                      {onlinePlayerNames.map((name, i) => (
+                        <li key={i} className="text-xs text-[var(--gold-light)] flex items-center gap-1.5">
+                          <span className="inline-block w-1 h-1 rounded-full bg-green-500 flex-shrink-0" />
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-[var(--gold-dim)]">
+                      {onlinePlayerCount} players online
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {headerLeftExtra && (
+            <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
+          )}
+        </div>
+
+        {/* Center — logo */}
+        <div className="flex-shrink-0">
+          <TitleLogo size={largeTitle ? 'large' : 'small'} onClick={handleTitleClick} />
+        </div>
+
+        {/* Right group */}
+        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+          {headerRightExtra && (
+            <div className="landscape-only items-center gap-3">{headerRightExtra}</div>
+          )}
           {!isConnected && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--gold)]">
               <span className="dot-disconnected" />
@@ -99,12 +123,12 @@ export function Layout({ children, largeTitle }: { children: ReactNode; largeTit
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.2.3
+              v0.2.9
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.2.3 &middot; 05.03.26
+                  v0.2.9 &middot; 05.03.26
                 </p>
               </div>
             )}

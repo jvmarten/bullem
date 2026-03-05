@@ -12,6 +12,9 @@ export interface PresenceContextValue {
 
 export const PresenceContext = createContext<PresenceContextValue>({ onlinePlayerCount: 0, onlinePlayerNames: [] });
 
+/** Map of playerId → Unix timestamp (ms) when their disconnect timer expires. */
+export type DisconnectDeadlines = ReadonlyMap<string, number>;
+
 export interface GameContextValue {
   roomState: RoomState | null;
   gameState: ClientGameState | null;
@@ -25,6 +28,8 @@ export interface GameContextValue {
   isConnected: boolean;
   /** True once the socket has connected at least once this session */
   hasConnected: boolean;
+  /** Deadlines for disconnected players' reconnect windows. */
+  disconnectDeadlines: DisconnectDeadlines;
   onlinePlayerCount: number;
   onlinePlayerNames: string[];
   createRoom: (playerName: string) => Promise<string>;
@@ -34,6 +39,7 @@ export interface GameContextValue {
   listRooms: () => Promise<RoomListing[]>;
   listLiveGames: () => Promise<LiveGameListing[]>;
   spectateGame: (roomCode: string) => Promise<void>;
+  watchRandomGame: () => Promise<string>;
   updateSettings: (settings: GameSettings) => void;
   startGame: () => void;
   callHand: (hand: HandCall) => void;
@@ -45,6 +51,8 @@ export interface GameContextValue {
   clearRoundResult: () => void;
   addBot: (botName?: string) => Promise<string>;
   removeBot: (botId: string) => void;
+  kickPlayer: (playerId: string) => Promise<void>;
+  requestRematch: () => void;
   botDifficulty?: BotDifficulty;
   setBotDifficulty?: (d: BotDifficulty) => void;
   gameSettings?: GameSettings;
@@ -90,6 +98,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [hasConnected, setHasConnected] = useState(socket.connected);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
+  const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -151,6 +160,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setRoundTransition(false);
       setWinnerId(null);
       setGameStats(null);
+      setDisconnectDeadlines(new Map());
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -204,7 +214,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('room:state', (state) => {
       setRoomState(state);
       if (!sessionStorage.getItem(PLAYER_ID_KEY) && state.players.length === 1) {
-        const id = state.players[0].id;
+        const id = state.players[0]!.id;
         setPlayerId(id);
         sessionStorage.setItem(PLAYER_ID_KEY, id);
       }
@@ -213,8 +223,36 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
     socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
+    socket.on('game:rematchStarting', () => {
+      setWinnerId(null);
+      setGameStats(null);
+      setRoundResult(null);
+      setRoundTransition(false);
+      setRoundTransitionDeadline(null);
+      pendingGameStateRef.current = null;
+      if (roundResultTimerRef.current) {
+        clearTimeout(roundResultTimerRef.current);
+        roundResultTimerRef.current = null;
+      }
+    });
     socket.on('room:error', setError);
     socket.on('room:deleted', clearRoomState);
+    socket.on('room:kicked', clearRoomState);
+    socket.on('player:disconnected', (disconnectedId: string, deadline: number) => {
+      setDisconnectDeadlines(prev => {
+        const next = new Map(prev);
+        next.set(disconnectedId, deadline);
+        return next;
+      });
+    });
+    socket.on('player:reconnected', (reconnectedId: string) => {
+      setDisconnectDeadlines(prev => {
+        if (!prev.has(reconnectedId)) return prev;
+        const next = new Map(prev);
+        next.delete(reconnectedId);
+        return next;
+      });
+    });
     socket.on('server:playerCount', setOnlinePlayerCount);
     socket.on('server:playerNames', setOnlinePlayerNames);
 
@@ -226,8 +264,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:newRound');
       socket.off('game:roundResult');
       socket.off('game:over');
+      socket.off('game:rematchStarting');
       socket.off('room:error');
       socket.off('room:deleted');
+      socket.off('room:kicked');
+      socket.off('player:disconnected');
+      socket.off('player:reconnected');
       socket.off('server:playerCount');
       socket.off('server:playerNames');
       socket.io.off('reconnect', handleReconnect);
@@ -312,6 +354,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const watchRandomGame = useCallback((): Promise<string> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('room:watchRandom', (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
+        resolve(response.roomCode);
+      });
+    }));
+  }, []);
+
   const updateSettings = useCallback((settings: GameSettings) => {
     socket.emit('room:updateSettings', { settings });
   }, []);
@@ -352,7 +404,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit('room:removeBot', { botId });
   }, []);
 
+  const kickPlayer = useCallback((targetPlayerId: string): Promise<void> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('room:kickPlayer', { playerId: targetPlayerId }, (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        resolve();
+      });
+    }));
+  }, []);
+
   const startGame = useCallback(() => socket.emit('game:start'), []);
+  const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
   const callBull = useCallback(() => socket.emit('game:bull'), []);
   const callTrue = useCallback(() => socket.emit('game:true'), []);
@@ -380,6 +442,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected,
     hasConnected,
+    disconnectDeadlines,
     onlinePlayerCount,
     onlinePlayerNames,
     createRoom,
@@ -389,6 +452,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     listRooms,
     listLiveGames,
     spectateGame,
+    watchRandomGame,
     updateSettings,
     startGame,
     callHand,
@@ -400,14 +464,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     clearRoundResult,
     addBot,
     removeBot,
+    kickPlayer,
+    requestRematch,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
-    winnerId, gameStats, playerId, error, isConnected, hasConnected,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     onlinePlayerCount, onlinePlayerNames,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
-    spectateGame, updateSettings, startGame, callHand, callBull, callTrue,
+    spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
-    addBot, removeBot,
+    addBot, removeBot, kickPlayer, requestRematch,
   ]);
 
   return (

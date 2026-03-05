@@ -20,9 +20,12 @@ export interface ClientToServerEvents {
   'game:lastChanceRaise': (data: { hand: HandCall }) => void;
   'game:lastChancePass': () => void;
   'game:continue': () => void;
+  'game:rematch': () => void;
   'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
   'room:removeBot': (data: { botId: string }) => void;
+  'room:kickPlayer': (data: { playerId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:delete': () => void;
+  'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -33,9 +36,11 @@ export interface ServerToClientEvents {
   'game:roundResult': (result: RoundResult) => void;
   'game:newRound': (state: ClientGameState) => void;
   'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
-  'player:disconnected': (playerId: PlayerId) => void;
+  'game:rematchStarting': () => void;
+  'player:disconnected': (playerId: PlayerId, disconnectDeadline: number) => void;
   'player:reconnected': (playerId: PlayerId) => void;
   'server:playerCount': (count: number) => void;
   'server:playerNames': (names: string[]) => void;
   'room:deleted': () => void;
+  'room:kicked': () => void;
 }

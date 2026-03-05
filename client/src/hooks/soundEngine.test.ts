@@ -122,11 +122,11 @@ describe('createSoundController', () => {
     expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
   });
 
-  it('play creates oscillators when not muted', () => {
+  it('play creates oscillators for oscillator-only sounds when not muted', () => {
     const ctrl = createSoundController();
-    ctrl.play('yourTurn');
-    // yourTurn has 2 tones
-    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(2);
+    ctrl.play('uiHover');
+    // uiHover has 1 oscillator tone (kept as oscillator for minimal latency)
+    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(1);
   });
 
   it('handles invalid volume in localStorage gracefully', () => {

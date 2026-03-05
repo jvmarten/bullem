@@ -29,6 +29,8 @@ export class Room {
   private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
   /** Socket IDs of spectators watching this game */
   spectatorSockets = new Set<string>();
+  /** When true, the room is exempt from stale-room cleanup (e.g., background bot game). */
+  isBackgroundGame = false;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -233,13 +235,58 @@ export class Room {
     // Shuffle seating order — positions stay fixed for the entire game
     for (let i = activePlayers.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [activePlayers[i], activePlayers[j]] = [activePlayers[j], activePlayers[i]];
+      const temp = activePlayers[i]!;
+      activePlayers[i] = activePlayers[j]!;
+      activePlayers[j] = temp;
     }
     this.cancelRoundContinueWindow();
     this.game = new GameEngine(activePlayers, this.settings);
     this.game.startRound();
     this.touch();
     return this.game;
+  }
+
+  /** Reset the room for a rematch: keep players and settings, create a fresh GameEngine.
+   *  All players are un-eliminated and reset to starting card count. */
+  resetForRematch(): GameEngine {
+    // Reset all players to starting state
+    for (const player of this.players.values()) {
+      player.cardCount = STARTING_CARDS;
+      player.isEliminated = false;
+      player.cards = [];
+    }
+
+    // Remove disconnected players (they missed the rematch)
+    const disconnected: PlayerId[] = [];
+    for (const [id, player] of this.players) {
+      if (!player.isConnected && !player.isBot) {
+        disconnected.push(id);
+      }
+    }
+    for (const id of disconnected) {
+      this.players.delete(id);
+      this.reconnectTokens.delete(id);
+      this.playerToSocket.delete(id);
+    }
+
+    // Reassign host if the current host was disconnected
+    if (!this.players.has(this.hostId) && this.players.size > 0) {
+      for (const p of this.players.values()) {
+        if (!p.isBot) {
+          p.isHost = true;
+          this.hostId = p.id;
+          break;
+        }
+      }
+      // If only bots remain, pick the first one
+      if (!this.players.has(this.hostId)) {
+        const first = this.players.values().next().value!;
+        first.isHost = true;
+        this.hostId = first.id;
+      }
+    }
+
+    return this.startGame();
   }
 
   updateSettings(settings: GameSettings): void {
@@ -255,6 +302,7 @@ export class Room {
       hostId: this.hostId,
       gamePhase: this.gamePhase,
       settings: { ...this.settings },
+      spectatorCount: this.spectatorSockets.size,
     };
   }
 
