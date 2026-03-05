@@ -9,6 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { ShareButton } from '../components/ShareButton.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
@@ -184,6 +185,7 @@ export function GamePage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+            {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
