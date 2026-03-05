@@ -5,6 +5,8 @@ import {
 } from '@bull-em/shared';
 import type { RoomListing, LiveGameListing, ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { Room } from './Room.js';
+import type { RedisStore } from './RedisStore.js';
+import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -21,6 +23,44 @@ export class RoomManager {
   /** Cached result of getOnlinePlayerNames. Invalidated when players change. */
   private cachedPlayerNames: string[] | null = null;
 
+  /** Optional Redis persistence layer. When set, room state is persisted on
+   *  every mutation and rooms are restored from Redis on startup. */
+  private redisStore: RedisStore | null = null;
+
+  /** Attach a Redis store for session persistence. Must be called before
+   *  restoreFromRedis() and before any rooms are created. */
+  setRedisStore(store: RedisStore): void {
+    this.redisStore = store;
+  }
+
+  /** Persist a room's current state to Redis (fire-and-forget).
+   *  Call after any mutation that changes room or game state. */
+  persistRoom(room: Room): void {
+    if (!this.redisStore) return;
+    // Fire-and-forget: don't await — errors logged inside RedisStore
+    void this.redisStore.persist(room);
+  }
+
+  /** Restore all rooms from Redis into memory. Called once at startup.
+   *  Rebuilds the in-memory indices (playerToRoom, etc.) from restored rooms.
+   *  Human players are marked disconnected — they must reconnect normally. */
+  async restoreFromRedis(): Promise<number> {
+    if (!this.redisStore) return 0;
+    const rooms = await this.redisStore.restoreAll();
+    for (const room of rooms) {
+      this.rooms.set(room.roomCode, room);
+      // Rebuild player → room index for all players (humans + bots)
+      for (const playerId of room.players.keys()) {
+        this.playerToRoom.set(playerId, room.roomCode);
+      }
+    }
+    this.cachedPlayerNames = null;
+    if (rooms.length > 0) {
+      logger.info({ count: rooms.length }, 'Rooms restored into RoomManager from Redis');
+    }
+    return rooms.length;
+  }
+
   createRoom(): Room {
     let code: string;
     do {
@@ -29,6 +69,7 @@ export class RoomManager {
 
     const room = new Room(code);
     this.rooms.set(code, room);
+    this.persistRoom(room);
     return room;
   }
 
@@ -105,6 +146,10 @@ export class RoomManager {
     }
     this.rooms.delete(roomCode);
     this.cachedPlayerNames = null;
+    // Remove from Redis persistence
+    if (this.redisStore) {
+      void this.redisStore.remove(roomCode);
+    }
     // Clean up socket mappings using the reverse index (O(room_size) instead
     // of O(total_sockets) — avoids scanning every socket across all rooms).
     const sockets = this.roomToSockets.get(roomCode);
