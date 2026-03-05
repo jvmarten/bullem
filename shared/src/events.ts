@@ -36,7 +36,7 @@ export interface ServerToClientEvents {
   'game:newRound': (state: ClientGameState) => void;
   'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
   'game:rematchStarting': () => void;
-  'player:disconnected': (playerId: PlayerId) => void;
+  'player:disconnected': (playerId: PlayerId, disconnectDeadline: number) => void;
   'player:reconnected': (playerId: PlayerId) => void;
   'server:playerCount': (count: number) => void;
   'server:playerNames': (names: string[]) => void;

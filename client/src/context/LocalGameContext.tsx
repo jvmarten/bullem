@@ -672,6 +672,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected: true as const,
     hasConnected: true as const,
+    disconnectDeadlines: new Map() as ReadonlyMap<string, number>,
     createRoom,
     joinRoom,
     leaveRoom,

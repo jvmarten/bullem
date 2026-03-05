@@ -82,7 +82,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 }) {
   return (
     <div
-      className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-200 ${
+      className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
         p.isEliminated
           ? 'glass opacity-40'
           : isMe
@@ -92,7 +92,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
             : isCurrent
               ? 'glass-raised border border-[var(--danger)] ring-1 ring-[var(--gold)] animate-pulse-glow'
               : 'glass'
-      }`}
+      } ${!p.isEliminated && !p.isConnected ? 'player-disconnected' : ''}`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
         <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''}`}>

@@ -12,6 +12,9 @@ export interface PresenceContextValue {
 
 export const PresenceContext = createContext<PresenceContextValue>({ onlinePlayerCount: 0, onlinePlayerNames: [] });
 
+/** Map of playerId → Unix timestamp (ms) when their disconnect timer expires. */
+export type DisconnectDeadlines = ReadonlyMap<string, number>;
+
 export interface GameContextValue {
   roomState: RoomState | null;
   gameState: ClientGameState | null;
@@ -25,6 +28,8 @@ export interface GameContextValue {
   isConnected: boolean;
   /** True once the socket has connected at least once this session */
   hasConnected: boolean;
+  /** Deadlines for disconnected players' reconnect windows. */
+  disconnectDeadlines: DisconnectDeadlines;
   onlinePlayerCount: number;
   onlinePlayerNames: string[];
   createRoom: (playerName: string) => Promise<string>;
@@ -92,6 +97,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [hasConnected, setHasConnected] = useState(socket.connected);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
+  const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -153,6 +159,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setRoundTransition(false);
       setWinnerId(null);
       setGameStats(null);
+      setDisconnectDeadlines(new Map());
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -230,6 +237,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('room:error', setError);
     socket.on('room:deleted', clearRoomState);
     socket.on('room:kicked', clearRoomState);
+    socket.on('player:disconnected', (disconnectedId: string, deadline: number) => {
+      setDisconnectDeadlines(prev => {
+        const next = new Map(prev);
+        next.set(disconnectedId, deadline);
+        return next;
+      });
+    });
+    socket.on('player:reconnected', (reconnectedId: string) => {
+      setDisconnectDeadlines(prev => {
+        if (!prev.has(reconnectedId)) return prev;
+        const next = new Map(prev);
+        next.delete(reconnectedId);
+        return next;
+      });
+    });
     socket.on('server:playerCount', setOnlinePlayerCount);
     socket.on('server:playerNames', setOnlinePlayerNames);
 
@@ -245,6 +267,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('room:error');
       socket.off('room:deleted');
       socket.off('room:kicked');
+      socket.off('player:disconnected');
+      socket.off('player:reconnected');
       socket.off('server:playerCount');
       socket.off('server:playerNames');
       socket.io.off('reconnect', handleReconnect);
@@ -407,6 +431,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected,
     hasConnected,
+    disconnectDeadlines,
     onlinePlayerCount,
     onlinePlayerNames,
     createRoom,
@@ -431,7 +456,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     requestRematch,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
-    winnerId, gameStats, playerId, error, isConnected, hasConnected,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     onlinePlayerCount, onlinePlayerNames,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, updateSettings, startGame, callHand, callBull, callTrue,

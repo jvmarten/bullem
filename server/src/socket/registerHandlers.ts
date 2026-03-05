@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase } from '@bull-em/shared';
+import { GamePhase, DISCONNECT_TIMEOUT_MS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -151,7 +151,8 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         // when it expires regardless of connection status. Clearing it on any
         // disconnect (including non-current players) was an exploit: close the
         // browser, reconnect, and the timer is gone → unlimited turn time.
-        io.to(result.room.roomCode).emit('player:disconnected', result.playerId);
+        const disconnectDeadline = Date.now() + DISCONNECT_TIMEOUT_MS;
+        io.to(result.room.roomCode).emit('player:disconnected', result.playerId, disconnectDeadline);
         broadcastRoomState(io, result.room);
         if (result.room.game) {
           // Do NOT call markContinueReady here. A disconnect (app switch, page
