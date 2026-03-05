@@ -1403,6 +1403,143 @@ body {
   transition: opacity 500ms ease, filter 500ms ease;
 }
 
+/* ── Landscape Layout ─────────────────────────────────── */
+/* Two-column layout for landscape phones and wide viewports.
+   Sidebar (player list + call history) moves to the left;
+   main game area (cards, actions, hand selector) fills the right. */
+
+/* Phone landscape: narrow height, wide width */
+@media (orientation: landscape) and (max-height: 500px) {
+  .game-layout {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 80px); /* subtract header + padding */
+    overflow: hidden;
+  }
+
+  .game-content {
+    display: flex;
+    flex-direction: row;
+    gap: 0.75rem;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .game-sidebar {
+    width: 220px;
+    min-width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+
+  .game-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+
+  /* Wider card fan in landscape */
+  .hand-display-large .playing-card {
+    width: 3.75rem;
+    height: 5.25rem;
+  }
+  .hand-display-large .playing-card span:first-child {
+    font-size: 1.125rem;
+  }
+  .hand-display-large .playing-card span:last-child {
+    font-size: 1.375rem;
+  }
+
+  /* Reduce padding in landscape to maximize space */
+  .game-top-bar {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* Compact header in landscape phone */
+  .felt-bg > header {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+}
+
+/* Tablet landscape & desktop: wider viewports */
+@media (min-width: 768px) and (min-height: 501px) {
+  .game-content {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .game-sidebar {
+    width: 260px;
+    min-width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    max-height: calc(100dvh - 120px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+
+  .game-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Larger cards on wider screens */
+  .hand-display-large .playing-card {
+    width: 4rem;
+    height: 5.5rem;
+  }
+  .hand-display-large .playing-card span:first-child {
+    font-size: 1.25rem;
+  }
+  .hand-display-large .playing-card span:last-child {
+    font-size: 1.5rem;
+  }
+
+  /* Wider card fan — less overlap */
+  .game-main .hand-display-large {
+    gap: 2px;
+  }
+}
+
+/* Portrait phone fallback — stack everything vertically (default) */
+.game-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.game-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.game-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 @media (hover: none) and (pointer: coarse) {
   .hs-rank-card:hover:not(.hs-rank-card-selected) {
     transform: none;
