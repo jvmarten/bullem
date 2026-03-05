@@ -193,9 +193,9 @@ export function GamePage() {
 
   return (
     <Layout>
-      <div className={`space-y-2 ${isEliminated || isSpectator ? 'spectating' : ''}`}>
+      <div className={`game-layout ${isEliminated || isSpectator ? 'spectating' : ''}`}>
         {/* Top bar */}
-        <div className="flex justify-between items-center text-xs">
+        <div className="game-top-bar flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
@@ -226,124 +226,131 @@ export function GamePage() {
           </div>
         )}
 
-        <TurnIndicator
-          currentPlayerId={gameState.currentPlayerId}
-          roundPhase={gameState.roundPhase}
-          players={gameState.players}
-          myPlayerId={playerId}
-          turnDeadline={gameState.turnDeadline}
-          hasCurrentHand={gameState.currentHand !== null}
-        />
+        <div className="game-content">
+          {/* Sidebar — player list & call history (side column in landscape) */}
+          <div className="game-sidebar">
+            <PlayerList
+              players={gameState.players}
+              currentPlayerId={gameState.currentPlayerId}
+              myPlayerId={playerId}
+              maxCards={gameState.maxCards}
+              roundNumber={gameState.roundNumber}
+              turnHistory={gameState.turnHistory}
+              collapsible
+            />
 
-        <PlayerList
-          players={gameState.players}
-          currentPlayerId={gameState.currentPlayerId}
-          myPlayerId={playerId}
-          maxCards={gameState.maxCards}
-          roundNumber={gameState.roundNumber}
-          turnHistory={gameState.turnHistory}
-          collapsible
-        />
-
-        {/* Disconnect countdown banners for other players */}
-        <DisconnectBanner
-          players={gameState.players}
-          disconnectDeadlines={disconnectDeadlines}
-        />
-
-        {/* Current call display */}
-        {gameState.currentHand && (
-          <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
-            <div className="w-1/4 min-w-0 shrink-0">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-                Current Call
-              </span>
-            </div>
-            <div className="flex-1 min-w-0 text-center">
-              <span className="font-display text-base font-bold text-[var(--gold)] break-words">
-                {handToString(gameState.currentHand)}
-              </span>
-            </div>
-            <div className="w-1/4 min-w-0 shrink-0 text-right">
-              {gameState.lastCallerId && (
-                <span className="text-[9px] text-[var(--gold-dim)] opacity-70 truncate block">
-                  {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
-                </span>
-              )}
-            </div>
+            <CallHistory history={gameState.turnHistory} />
           </div>
-        )}
 
-        {/* My cards */}
-        {!isEliminated && !isSpectator && <HandDisplay cards={gameState.myCards} large />}
-
-        {/* Spectator view — eliminated players and external spectators see all cards */}
-        {(isEliminated || isSpectator) && gameState.spectatorCards && (
-          <SpectatorView spectatorCards={gameState.spectatorCards} />
-        )}
-
-        <CallHistory history={gameState.turnHistory} />
-
-        {/* Action row — BULL/TRUE on left, Raise/Call on right */}
-        {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
-        {!isEliminated && !isSpectator && (
-          <div className="flex justify-between items-start">
-            <ActionButtons
+          {/* Main area — cards, actions, hand selector */}
+          <div className="game-main">
+            <TurnIndicator
+              currentPlayerId={gameState.currentPlayerId}
               roundPhase={gameState.roundPhase}
-              isMyTurn={isMyTurn}
+              players={gameState.players}
+              myPlayerId={playerId}
+              turnDeadline={gameState.turnDeadline}
               hasCurrentHand={gameState.currentHand !== null}
-              isLastChanceCaller={isLastChanceCaller}
-              onBull={callBull}
-              onTrue={callTrue}
-              onLastChancePass={lastChancePass}
-              onExpand={closeHandSelector}
             />
-            {canRaise && !handSelectorOpen && (
-              <div className="flex justify-end animate-slide-up ml-auto gap-2">
-                {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-                  <button
-                    onClick={handleQuickRaise}
-                    className="btn-ghost border-[var(--gold-dim)] px-4 py-2 text-sm font-semibold"
-                    title="Auto-raise to the minimum valid hand"
-                  >
-                    Min Raise
-                  </button>
+
+            {/* Disconnect countdown banners for other players */}
+            <DisconnectBanner
+              players={gameState.players}
+              disconnectDeadlines={disconnectDeadlines}
+            />
+
+            {/* Current call display */}
+            {gameState.currentHand && (
+              <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+                <div className="w-1/4 min-w-0 shrink-0">
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                    Current Call
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0 text-center">
+                  <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                    {handToString(gameState.currentHand)}
+                  </span>
+                </div>
+                <div className="w-1/4 min-w-0 shrink-0 text-right">
+                  {gameState.lastCallerId && (
+                    <span className="text-[9px] text-[var(--gold-dim)] opacity-70 truncate block">
+                      {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* My cards */}
+            {!isEliminated && !isSpectator && <HandDisplay cards={gameState.myCards} large />}
+
+            {/* Spectator view — eliminated players and external spectators see all cards */}
+            {(isEliminated || isSpectator) && gameState.spectatorCards && (
+              <SpectatorView spectatorCards={gameState.spectatorCards} />
+            )}
+
+            {/* Action row — BULL/TRUE on left, Raise/Call on right */}
+            {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
+            {!isEliminated && !isSpectator && (
+              <div className="flex justify-between items-start">
+                <ActionButtons
+                  roundPhase={gameState.roundPhase}
+                  isMyTurn={isMyTurn}
+                  hasCurrentHand={gameState.currentHand !== null}
+                  isLastChanceCaller={isLastChanceCaller}
+                  onBull={callBull}
+                  onTrue={callTrue}
+                  onLastChancePass={lastChancePass}
+                  onExpand={closeHandSelector}
+                />
+                {canRaise && !handSelectorOpen && (
+                  <div className="flex justify-end animate-slide-up ml-auto gap-2">
+                    {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                      <button
+                        onClick={handleQuickRaise}
+                        className="btn-ghost border-[var(--gold-dim)] px-4 py-2 text-sm font-semibold"
+                        title="Auto-raise to the minimum valid hand"
+                      >
+                        Min Raise
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
+                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                  </div>
                 )}
-                <button
-                  onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
-                >
-                  {gameState.currentHand ? 'Raise' : 'Call'}
-                </button>
+                {canRaise && handSelectorOpen && (
+                  <div className="flex flex-col items-center ml-auto">
+                    <button
+                      onClick={handleHandSubmit}
+                      disabled={!pendingValid}
+                      className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                    <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Hand selector — appears below the action buttons so buttons stay put */}
             {canRaise && handSelectorOpen && (
-              <div className="flex flex-col items-center ml-auto">
-                <button
-                  onClick={handleHandSubmit}
-                  disabled={!pendingValid}
-                  className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
-                >
-                  {gameState.currentHand ? 'Raise' : 'Call'}
-                </button>
-                <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+              <div className="-mt-2">
+                <HandSelector
+                  currentHand={gameState.currentHand}
+                  onSubmit={handleHandSubmit}
+                  onHandChange={handleHandChange}
+                  showSubmit={false}
+                />
               </div>
             )}
           </div>
-        )}
-
-        {/* Hand selector — appears below the action buttons so buttons stay put */}
-        {canRaise && handSelectorOpen && (
-          <div className="-mt-2">
-            <HandSelector
-              currentHand={gameState.currentHand}
-              onSubmit={handleHandSubmit}
-              onHandChange={handleHandChange}
-              showSubmit={false}
-
-            />
-          </div>
-        )}
+        </div>
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
