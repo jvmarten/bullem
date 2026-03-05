@@ -342,11 +342,28 @@ export class GameEngine {
     turnHistorySnapshot: TurnEntry[];
     turnHistoryLength: number;
     playerCount: number;
+    connectedCount: number;
+    eliminatedCount: number;
   } | null = null;
 
   private getSharedClientState(): { publicPlayers: Player[]; turnHistorySnapshot: TurnEntry[] } {
     const cached = this._sharedClientState;
-    if (cached && cached.turnHistoryLength === this.turnHistory.length && cached.playerCount === this.players.length) {
+    // Count connected and eliminated players so the cache invalidates when
+    // player state is mutated externally (e.g. Room sets isConnected = false
+    // on a disconnect — the engine's player objects are shared references).
+    let connectedCount = 0;
+    let eliminatedCount = 0;
+    for (const p of this.players) {
+      if (p.isConnected) connectedCount++;
+      if (p.isEliminated) eliminatedCount++;
+    }
+    if (
+      cached
+      && cached.turnHistoryLength === this.turnHistory.length
+      && cached.playerCount === this.players.length
+      && cached.connectedCount === connectedCount
+      && cached.eliminatedCount === eliminatedCount
+    ) {
       return cached;
     }
     const shared = {
@@ -354,6 +371,8 @@ export class GameEngine {
       turnHistorySnapshot: [...this.turnHistory],
       turnHistoryLength: this.turnHistory.length,
       playerCount: this.players.length,
+      connectedCount,
+      eliminatedCount,
     };
     this._sharedClientState = shared;
     return shared;

@@ -116,6 +116,7 @@ function handleResult(
         io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
       }
       room.gamePhase = GamePhase.GAME_OVER;
+      room.cancelRoundContinueWindow();
       broadcastGameReplay(io, room, result.winnerId);
       io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
       break;

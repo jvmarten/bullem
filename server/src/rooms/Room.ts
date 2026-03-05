@@ -120,6 +120,13 @@ export class Room {
     this.socketToPlayer.delete(socketId);
     this.playerToSocket.delete(playerId);
 
+    // Clear any existing disconnect timer for this player before starting a
+    // new one. Without this, a rapid reconnect → disconnect cycle could
+    // overwrite the Map entry without clearing the old setTimeout, leaking a
+    // timer that later fires a spurious elimination.
+    const existing = this.disconnectTimers.get(playerId);
+    if (existing) clearTimeout(existing);
+
     const timer = setTimeout(() => {
       this.disconnectTimers.delete(playerId);
       if (onTimeout) {

@@ -137,7 +137,7 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
   if (!currentHand) return { handType: HandType.HIGH_CARD, rank: '2', rank2: '3', suit: 'spades' };
   const minRaise = getMinimumRaise(currentHand);
   if (!minRaise) return { handType: currentHand.type, rank: 'A', rank2: 'K', suit: 'spades' };
-  const ht = minRaise.type;
+  let ht = minRaise.type;
   let rank: Rank = '2';
   let rank2: Rank = '3';
   let suit: Suit = 'spades';
@@ -151,7 +151,9 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
     case HandType.FULL_HOUSE: rank = minRaise.threeRank; rank2 = minRaise.twoRank; break;
     case HandType.FOUR_OF_A_KIND: rank = minRaise.rank; break;
     case HandType.STRAIGHT_FLUSH: suit = minRaise.suit; rank = minRaise.highRank; break;
-    case HandType.ROYAL_FLUSH: suit = minRaise.suit; break;
+    // Royal Flush is not in the hand type wheel — present it as Straight Flush
+    // with Ace high, which the hand builder auto-converts to Royal Flush.
+    case HandType.ROYAL_FLUSH: ht = HandType.STRAIGHT_FLUSH; suit = minRaise.suit; rank = 'A'; break;
   }
   return { handType: ht, rank, rank2, suit };
 }

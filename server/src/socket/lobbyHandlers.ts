@@ -403,6 +403,11 @@ export function registerLobbyHandlers(
       return;
     }
 
+    if (typeof data.botId !== 'string' || !data.botId) {
+      socket.emit('room:error', 'Invalid bot ID');
+      return;
+    }
+
     botManager.removeBot(room, data.botId);
     roomManager.removePlayerMapping(data.botId);
     broadcastRoomState(io, room);
