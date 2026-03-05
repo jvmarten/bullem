@@ -226,6 +226,8 @@ export interface RoomState {
   hostId: PlayerId;
   gamePhase: GamePhase;
   settings: GameSettings;
+  /** Number of external spectators currently watching this game. */
+  spectatorCount: number;
 }
 
 /** Summary of a room in the lobby browser (rooms waiting for players). */
@@ -244,4 +246,6 @@ export interface LiveGameListing {
   hostName: string;
   roundNumber: number;
   spectatorsCanSeeCards: boolean;
+  /** Number of external spectators currently watching. */
+  spectatorCount: number;
 }

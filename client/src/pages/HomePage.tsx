@@ -206,7 +206,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -317,6 +317,16 @@ export function HomePage() {
       navigate(`/game/${code}`);
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to spectate');
+    }
+  };
+
+  const handleWatchRandom = async () => {
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
+    try {
+      const code = await watchRandomGame();
+      navigate(`/game/${code}`);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'No live games to watch');
     }
   };
 
@@ -589,6 +599,12 @@ export function HomePage() {
             >
               Interactive Tutorial
             </Link>
+            <button
+              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
+              className="w-full btn-ghost py-4 text-lg"
+            >
+              Watch a Game
+            </button>
             <Link
               to="/how-to-play"
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
@@ -757,6 +773,9 @@ export function HomePage() {
                         <div className="text-right text-xs text-[var(--gold-dim)]">
                           <span>{game.playerCount} players</span>
                           <span className="ml-2">Rd {game.roundNumber}</span>
+                          {game.spectatorCount > 0 && (
+                            <span className="ml-2">{game.spectatorCount} watching</span>
+                          )}
                           {game.spectatorsCanSeeCards && (
                             <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
                           )}

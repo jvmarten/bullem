@@ -104,6 +104,8 @@ export function registerLobbyHandlers(
       room.spectatorSockets.delete(socket.id);
       roomManager.removeSocketMapping(socket.id);
       socket.leave(room.roomCode);
+      // Notify players that spectator count changed
+      broadcastRoomState(io, room);
       return;
     }
 
@@ -212,7 +214,31 @@ export function registerLobbyHandlers(
     const state = room.getSpectatorGameState();
     if (state) socket.emit('game:state', state);
 
+    // Notify players that spectator count changed
+    broadcastRoomState(io, room);
+
     callback({ ok: true });
+  });
+
+  socket.on('room:watchRandom', (callback) => {
+    const roomCode = roomManager.getRandomLiveGame();
+    if (!roomCode) return callback({ error: 'No live games available' });
+
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return callback({ error: 'No live games available' });
+
+    room.spectatorSockets.add(socket.id);
+    roomManager.assignSocketToRoom(socket.id, room.roomCode);
+    socket.join(room.roomCode);
+
+    // Send initial spectator state
+    const state = room.getSpectatorGameState();
+    if (state) socket.emit('game:state', state);
+
+    // Notify players that spectator count changed
+    broadcastRoomState(io, room);
+
+    callback({ roomCode: room.roomCode });
   });
 
   socket.on('room:updateSettings', (data) => {

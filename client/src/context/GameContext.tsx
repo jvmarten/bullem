@@ -39,6 +39,7 @@ export interface GameContextValue {
   listRooms: () => Promise<RoomListing[]>;
   listLiveGames: () => Promise<LiveGameListing[]>;
   spectateGame: (roomCode: string) => Promise<void>;
+  watchRandomGame: () => Promise<string>;
   updateSettings: (settings: GameSettings) => void;
   startGame: () => void;
   callHand: (hand: HandCall) => void;
@@ -353,6 +354,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const watchRandomGame = useCallback((): Promise<string> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('room:watchRandom', (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
+        resolve(response.roomCode);
+      });
+    }));
+  }, []);
+
   const updateSettings = useCallback((settings: GameSettings) => {
     socket.emit('room:updateSettings', { settings });
   }, []);
@@ -441,6 +452,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     listRooms,
     listLiveGames,
     spectateGame,
+    watchRandomGame,
     updateSettings,
     startGame,
     callHand,
@@ -459,7 +471,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     onlinePlayerCount, onlinePlayerNames,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
-    spectateGame, updateSettings, startGame, callHand, callBull, callTrue,
+    spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch,
   ]);

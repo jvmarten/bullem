@@ -29,6 +29,8 @@ export class Room {
   private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
   /** Socket IDs of spectators watching this game */
   spectatorSockets = new Set<string>();
+  /** When true, the room is exempt from stale-room cleanup (e.g., background bot game). */
+  isBackgroundGame = false;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -300,6 +302,7 @@ export class Room {
       hostId: this.hostId,
       gamePhase: this.gamePhase,
       settings: { ...this.settings },
+      spectatorCount: this.spectatorSockets.size,
     };
   }
 
