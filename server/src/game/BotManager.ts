@@ -148,21 +148,22 @@ export class BotManager {
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
       this.roomTurnTimers.delete(room.roomCode);
-      this.executeAutoAction(room, io, playerId);
+      this.executeAutoAction(room, io, playerId, true);
     }, totalMs);
     this.pendingTimers.add(timer);
     this.roomTurnTimers.set(room.roomCode, timer);
   }
 
-  private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+  private executeAutoAction(room: Room, io: TypedServer, playerId: PlayerId, isTimerExpiry = false): void {
     this.clearTurnTimer(room.roomCode);
     if (!room.game || room.gamePhase !== GamePhase.PLAYING) return;
 
-    // If the player reconnected since this auto-action was scheduled (e.g. a
-    // disconnect auto-action timer that wasn't cancelled), don't force a move
-    // on a connected player who is actively playing.
+    // If this is a disconnect auto-action (not a turn timer expiry) and the
+    // player reconnected since it was scheduled, don't force a move on a
+    // connected player who is actively playing.  Turn timer expiries always
+    // execute — the player ran out of time regardless of connection status.
     const player = room.players.get(playerId);
-    if (player?.isConnected && !player.isBot) return;
+    if (!isTimerExpiry && player?.isConnected && !player.isBot) return;
 
     if (room.game.currentPlayerId !== playerId) {
       // The player was already eliminated (e.g., by the disconnect timer) and

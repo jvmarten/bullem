@@ -159,7 +159,6 @@ export function LocalGamePage() {
   const headerRightExtra = (
     <>
       {pauseButton}
-      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">LOCAL</span>
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -167,6 +166,7 @@ export function LocalGamePage() {
       >
         Leave
       </button>
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">LOCAL</span>
     </>
   );
 
@@ -185,7 +185,6 @@ export function LocalGamePage() {
           </div>
           <div className="flex items-center gap-3">
             {pauseButton}
-            <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -193,6 +192,7 @@ export function LocalGamePage() {
             >
               Leave
             </button>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
           </div>
         </div>
 
