@@ -1,6 +1,7 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { GameContext, PresenceContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
 import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
@@ -12,6 +13,31 @@ interface LayoutProps {
   headerLeftExtra?: ReactNode;
   /** Extra elements rendered in the header right group — visible only in landscape/desktop */
   headerRightExtra?: ReactNode;
+}
+
+function AuthLink() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) {
+    return (
+      <Link
+        to="/profile"
+        className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1"
+        title={user.username}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span className="hidden sm:inline">{user.username}</span>
+      </Link>
+    );
+  }
+  return (
+    <Link
+      to="/login"
+      className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+    >
+      Guest
+    </Link>
+  );
 }
 
 export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra }: LayoutProps) {
@@ -117,6 +143,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
             </div>
           )}
+          <AuthLink />
           <VolumeControl />
           <div ref={versionRef} className="relative">
             <button

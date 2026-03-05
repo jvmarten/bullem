@@ -239,6 +239,38 @@ export interface RoomListing {
   settings: GameSettings;
 }
 
+// ── Auth types ──────────────────────────────────────────────────────────
+
+/** Authenticated user stored in the database. Never send password_hash to clients. */
+export interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string;
+  authProvider: 'email';
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+/** Public-facing profile (safe to send to any client). */
+export interface PublicProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  createdAt: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  /** Percentage of correct bull calls (0–100). Null if no bulls called. */
+  bullAccuracy: number | null;
+  /** Percentage of bluffs that were not called out (0–100). Null if no bluffs. */
+  bluffSuccessRate: number | null;
+}
+
+/** Response body for POST /auth/register and POST /auth/login. */
+export interface AuthResponse {
+  user: Omit<User, 'email'> & { email: string };
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;
