@@ -10,6 +10,8 @@ interface Props {
   maxCards?: number;
   showRemoveBot?: boolean;
   onRemoveBot?: (botId: string) => void;
+  showKickPlayer?: boolean;
+  onKickPlayer?: (playerId: string) => void;
   roundNumber?: number;
   turnHistory?: TurnEntry[];
   /** Enable collapse/expand toggle. Default shown (expanded). */
@@ -72,10 +74,11 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
+  showKickPlayer?: boolean; onKickPlayer?: (playerId: string) => void;
 }) {
   return (
     <div
@@ -147,12 +150,21 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
             ✕
           </button>
         )}
+        {showKickPlayer && !p.isBot && !p.isHost && onKickPlayer && (
+          <button
+            onClick={() => onKickPlayer(p.id)}
+            className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
+            title="Kick player"
+          >
+            ✕
+          </button>
+        )}
       </div>
     </div>
   );
 });
 
-export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, roundNumber, turnHistory, collapsible }: Props) {
+export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -238,6 +250,8 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
             lastAction={lastActionMap.get(p.id) ?? null}
             showRemoveBot={showRemoveBot}
             onRemoveBot={onRemoveBot}
+            showKickPlayer={showKickPlayer}
+            onKickPlayer={onKickPlayer}
           />
         ))}
       </div>

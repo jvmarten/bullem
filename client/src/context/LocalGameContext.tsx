@@ -658,6 +658,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const noopSpectate = useCallback(async () => {}, []);
   const noopUpdateSettings = useCallback(() => {}, []);
   const noopDeleteRoom = useCallback(() => {}, []);
+  const noopKickPlayer = useCallback((): Promise<void> => Promise.resolve(), []);
 
   const value = useMemo(() => ({
     roomState,
@@ -698,13 +699,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     spectateGame: noopSpectate,
     updateSettings: noopUpdateSettings,
     deleteRoom: noopDeleteRoom,
+    kickPlayer: noopKickPlayer,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
     addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
     setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
-    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom,
+    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
   ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
