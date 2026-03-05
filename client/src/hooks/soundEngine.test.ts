@@ -141,6 +141,31 @@ describe('createSoundController', () => {
     // Should NOT create oscillators for audio-file-backed sounds
     expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
   });
+
+  it('playHandPreview exists and does not throw for HandType values 0–9', () => {
+    const ctrl = createSoundController();
+    expect(typeof ctrl.playHandPreview).toBe('function');
+    for (let handType = 0; handType <= 9; handType++) {
+      expect(() => ctrl.playHandPreview(handType)).not.toThrow();
+    }
+  });
+
+  it('playHandPreview creates oscillators with pitch scaling', () => {
+    const ctrl = createSoundController();
+    ctrl.playHandPreview(0); // HIGH_CARD — 2 tones (primary + harmonic)
+    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(2);
+
+    vi.clearAllMocks();
+    ctrl.playHandPreview(9); // ROYAL_FLUSH — 3 tones (primary + harmonic + shimmer)
+    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(3);
+  });
+
+  it('playHandPreview does nothing when muted', () => {
+    const ctrl = createSoundController();
+    ctrl.toggleMute();
+    ctrl.playHandPreview(5);
+    expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
+  });
 });
 
 // Import after mocks are set up

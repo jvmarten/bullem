@@ -28,6 +28,10 @@ export function useSound() {
     sound.play(name);
   }, []);
 
+  const playHandPreview = useCallback((handType: number) => {
+    sound.playHandPreview(handType);
+  }, []);
+
   const toggleMute = useCallback(() => {
     sound.toggleMute();
     notifyListeners();
@@ -38,7 +42,7 @@ export function useSound() {
     notifyListeners();
   }, []);
 
-  return { play, muted, toggleMute, volume, setVolume };
+  return { play, playHandPreview, muted, toggleMute, volume, setVolume };
 }
 
 /**

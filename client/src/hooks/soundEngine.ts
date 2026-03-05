@@ -256,6 +256,7 @@ const VOLUME_KEY = 'bull-em-volume';
 
 export interface SoundController {
   play: (name: SoundName) => void;
+  playHandPreview: (handType: number) => void;
   muted: boolean;
   toggleMute: () => void;
   volume: number;
@@ -282,6 +283,27 @@ export function createSoundController(): SoundController {
 
       const tones = SOUND_DEFS[name];
       if (tones) playTones(tones, volume);
+    },
+
+    playHandPreview(handType: number) {
+      if (muted) return;
+
+      // Map HandType (0–9) to frequency: ~400 Hz (HIGH_CARD) up to ~1400 Hz (ROYAL_FLUSH)
+      const baseFreq = 400 + (handType / 9) * 1000;
+
+      const tones: ToneConfig[] = [
+        // Primary sine tone
+        { frequency: baseFreq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
+        // Quieter triangle harmonic at 1.5x frequency
+        { frequency: baseFreq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
+      ];
+
+      // ROYAL_FLUSH (9): add a shimmer sparkle tone
+      if (handType === 9) {
+        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 });
+      }
+
+      playTones(tones, volume);
     },
 
     toggleMute() {
