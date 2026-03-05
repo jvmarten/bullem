@@ -165,6 +165,11 @@ export enum BotSpeed {
   FAST = 'fast',
 }
 
+/** Controls what happens after a last chance raise.
+ *  - 'classic': enters BULL_PHASE — all responders get bull/true/raise (current behavior).
+ *  - 'strict': enters CALLING — first responder can only bull/raise. True unlocks after a bull is called. */
+export type LastChanceMode = 'classic' | 'strict';
+
 /** Configurable game settings, set by the host in the lobby. */
 export interface GameSettings {
   /** Maximum cards a player can hold before elimination (1–5, default 5). */
@@ -179,6 +184,8 @@ export interface GameSettings {
   spectatorsCanSeeCards?: boolean;
   /** Bot playing speed — affects delay between bot turns. Defaults to 'normal'. */
   botSpeed?: BotSpeed;
+  /** Last chance raise rules. Defaults to 'classic'. */
+  lastChanceMode?: LastChanceMode;
 }
 
 export interface PlayerGameStats {
