@@ -170,6 +170,26 @@ body {
 }
 .btn-safe:active { transform: scale(0.97); }
 
+/* ── Amber Button (Min Raise) ─────────────────────── */
+.btn-amber {
+  background: linear-gradient(180deg, #e8a832 0%, #c98b1a 100%);
+  color: var(--felt-dark);
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(201, 139, 26, 0.3);
+  border: 1px solid #a87514;
+  cursor: pointer;
+}
+.btn-amber:hover {
+  background: linear-gradient(180deg, #f0b840 0%, #e8a832 100%);
+  box-shadow: 0 4px 16px rgba(201, 139, 26, 0.4);
+  transform: translateY(-1px);
+}
+.btn-amber:active { transform: scale(0.97); }
+
 /* ── Input Fields ────────────────────────────────────── */
 .input-felt {
   background: rgba(0, 0, 0, 0.25);

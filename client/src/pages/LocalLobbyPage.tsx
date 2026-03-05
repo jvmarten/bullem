@@ -6,6 +6,7 @@ import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
+import { useSound } from '../hooks/useSound.js';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
@@ -15,13 +16,16 @@ export function LocalLobbyPage() {
     gameSettings, setGameSettings,
   } = useGameContext();
   const { addToast } = useToast();
+  const { play } = useSound();
   useErrorToast(error, clearError);
   const initializedRef = useRef(false);
   // Guard against ghost taps: on mobile, the "Play Offline" tap can pass through
-  // to "Start Game" if it occupies the same screen position after navigation
+  // to "Start Game" if it occupies the same screen position after navigation.
+  // 500ms covers slow devices; pointer-events:none on the button provides an
+  // extra layer of protection against events that sneak past the disabled attr.
   const [interactionReady, setInteractionReady] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setInteractionReady(true), 350);
+    const timer = setTimeout(() => setInteractionReady(true), 500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -112,6 +116,7 @@ export function LocalLobbyPage() {
             onClick={startGame}
             disabled={!canStart || !interactionReady}
             className="w-full btn-gold py-3 text-lg"
+            style={!interactionReady ? { pointerEvents: 'none' } : undefined}
           >
             {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
           </button>
@@ -132,7 +137,7 @@ export function LocalLobbyPage() {
               {[1, 2, 3, 4, 5].map(n => (
                 <button
                   key={n}
-                  onClick={() => handleMaxCardsChange(n)}
+                  onClick={() => { play('uiSoft'); handleMaxCardsChange(n); }}
                   className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
                     maxCards === n
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -156,7 +161,7 @@ export function LocalLobbyPage() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setBotDifficulty(BotDifficulty.NORMAL)}
+                onClick={() => { play('uiSoft'); setBotDifficulty(BotDifficulty.NORMAL); }}
                 className={`flex-1 px-3 py-2 text-sm rounded transition-colors ${
                   botDifficulty === BotDifficulty.NORMAL
                     ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -166,7 +171,7 @@ export function LocalLobbyPage() {
                 Normal
               </button>
               <button
-                onClick={() => setBotDifficulty(BotDifficulty.HARD)}
+                onClick={() => { play('uiSoft'); setBotDifficulty(BotDifficulty.HARD); }}
                 className={`flex-1 px-3 py-2 text-sm rounded transition-colors ${
                   botDifficulty === BotDifficulty.HARD
                     ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -178,7 +183,7 @@ export function LocalLobbyPage() {
             </div>
             <div className="flex justify-center mt-2">
               <button
-                onClick={() => setBotDifficulty(BotDifficulty.IMPOSSIBLE)}
+                onClick={() => { play('uiSoft'); setBotDifficulty(BotDifficulty.IMPOSSIBLE); }}
                 className={`px-2 py-1 text-[10px] rounded transition-colors ${
                   botDifficulty === BotDifficulty.IMPOSSIBLE
                     ? 'bg-[var(--danger)] text-white font-semibold'
@@ -200,7 +205,7 @@ export function LocalLobbyPage() {
               {([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
                 <button
                   key={speed}
-                  onClick={() => setGameSettings({ ...gameSettings, botSpeed: speed })}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, botSpeed: speed }); }}
                   className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
                     (gameSettings.botSpeed ?? BotSpeed.NORMAL) === speed
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -223,7 +228,7 @@ export function LocalLobbyPage() {
               {TURN_TIMER_OPTIONS.map(seconds => (
                 <button
                   key={seconds}
-                  onClick={() => setGameSettings({ ...gameSettings, turnTimer: seconds })}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, turnTimer: seconds }); }}
                   className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
                     (gameSettings.turnTimer ?? 0) === seconds
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
