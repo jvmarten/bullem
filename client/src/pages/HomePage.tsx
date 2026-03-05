@@ -646,17 +646,15 @@ export function HomePage() {
               </>
             )}
             {/* Ranked Play — disabled teaser */}
-            <div className="mt-2 pt-2 border-t border-white/10">
-              <button
-                disabled
-                className="w-full btn-gold py-4 text-lg relative opacity-60"
-              >
-                Ranked Play
-                <span className="ml-2 text-[0.65rem] font-bold uppercase tracking-wider bg-white/15 px-2 py-0.5 rounded-full">
-                  Coming Soon
-                </span>
-              </button>
-            </div>
+            <button
+              disabled
+              className="w-full btn-gold py-4 text-lg relative"
+            >
+              Ranked Play
+              <span className="ml-2 text-xs font-semibold uppercase tracking-wider opacity-70">
+                Coming Soon
+              </span>
+            </button>
             <button
               onClick={() => { play('uiSoft'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
