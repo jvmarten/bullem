@@ -19,6 +19,7 @@ import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
+import { getMinimumRaise, HandType } from '@bull-em/shared';
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
@@ -150,10 +151,13 @@ export function GamePage() {
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
+  // Remember the player's last-selected hand type across turns
+  const lastHandTypeRef = useRef<HandType | undefined>(undefined);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
     setPendingValid(valid);
+    if (hand) lastHandTypeRef.current = hand.type;
   }, []);
 
   const handleHandSubmit = useCallback(() => {
@@ -165,6 +169,21 @@ export function GamePage() {
     }
     setHandSelectorOpen(false);
   }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
+
+  // Quick raise — immediately submit the minimum valid raise
+  const handleQuickRaise = useCallback(() => {
+    const current = gameState.currentHand;
+    if (!current) return;
+    const minRaise = getMinimumRaise(current);
+    if (!minRaise) return;
+    play('callMade');
+    if (isLastChanceCaller) {
+      lastChanceRaise(minRaise);
+    } else {
+      callHand(minRaise);
+    }
+    setHandSelectorOpen(false);
+  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand, play]);
 
   // Stable callback reference so ActionButtons' React.memo isn't broken by
   // an inline arrow function creating a new reference on every render.
@@ -283,7 +302,16 @@ export function GamePage() {
               onExpand={closeHandSelector}
             />
             {canRaise && !handSelectorOpen && (
-              <div className="flex justify-end animate-slide-up ml-auto">
+              <div className="flex justify-end animate-slide-up ml-auto gap-2">
+                {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                  <button
+                    onClick={handleQuickRaise}
+                    className="btn-ghost border-[var(--gold-dim)] px-4 py-2 text-sm font-semibold"
+                    title="Auto-raise to the minimum valid hand"
+                  >
+                    Min Raise
+                  </button>
+                )}
                 <button
                   onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                   className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
@@ -315,6 +343,7 @@ export function GamePage() {
               onSubmit={handleHandSubmit}
               onHandChange={handleHandChange}
               showSubmit={false}
+              preferredHandType={lastHandTypeRef.current}
             />
           </div>
         )}
