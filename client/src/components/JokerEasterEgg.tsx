@@ -48,14 +48,16 @@ export function useJokerEasterEgg() {
   return { phase, setPhase, handleLogoClick, audioRef };
 }
 
-/** Lerp helper for smooth interpolation */
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-/** Eased t using cubic ease-out */
-function easeOut(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
+/** Catmull-Rom spline interpolation for continuous, smooth curves through waypoints */
+function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
 }
 
 interface Waypoint {
@@ -69,18 +71,18 @@ interface Waypoint {
 }
 
 function randomWaypoint(): Waypoint {
-  const padding = 40;
+  const padding = 60;
   const w = window.innerWidth;
   const h = window.innerHeight;
   return {
     x: padding + Math.random() * (w - 2 * padding) - w / 2,
     y: padding + Math.random() * (h - 2 * padding) - h / 2,
-    z: -500 + Math.random() * 700, // -500 to 200
-    rx: Math.random() * 720 - 360,
-    ry: Math.random() * 720 - 360,
-    rz: Math.random() * 720 - 360,
-    // Weighted toward faster: 300-1200ms, with bias toward low end
-    duration: 300 + Math.pow(Math.random(), 2) * 900,
+    z: -300 + Math.random() * 400, // -300 to 100 (less extreme depth)
+    rx: Math.random() * 180 - 90,  // gentler rotation range
+    ry: Math.random() * 180 - 90,
+    rz: Math.random() * 120 - 60,
+    // Much slower: 3000-8000ms, with varied pacing
+    duration: 3000 + Math.random() * 5000,
   };
 }
 
@@ -92,10 +94,12 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   const { volume, muted } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const animRef = useRef<number>(0);
-  const currentRef = useRef({ x: 0, y: 0, z: -800, rx: 40, ry: 60, rz: 30 });
-  const targetRef = useRef<Waypoint>(randomWaypoint());
-  const startTimeRef = useRef(0);
-  const startPosRef = useRef({ ...currentRef.current });
+  // Sliding window of 4 waypoints for Catmull-Rom spline interpolation.
+  // The card always travels along the curve between waypoints[1] and waypoints[2],
+  // using waypoints[0] and waypoints[3] as tangent guides.
+  const waypointsRef = useRef<Waypoint[]>([]);
+  const segmentStartRef = useRef(0);
+  const segmentDurationRef = useRef(0);
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {
@@ -135,48 +139,56 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     };
   }, [phase]);
 
-  // Flying animation via requestAnimationFrame
+  // Flying animation via requestAnimationFrame with Catmull-Rom spline
   useEffect(() => {
     if (phase !== 'flying') return;
 
-    // Initialize position off-screen
-    currentRef.current = { x: window.innerWidth * 0.4, y: -window.innerHeight * 0.4, z: -800, rx: 40, ry: 60, rz: 30 };
-    targetRef.current = randomWaypoint();
-    startTimeRef.current = performance.now();
-    startPosRef.current = { ...currentRef.current };
+    // Seed 4 waypoints: the first is the off-screen entry point
+    const entry: Waypoint = {
+      x: window.innerWidth * 0.4,
+      y: -window.innerHeight * 0.4,
+      z: -400,
+      rx: 20, ry: 30, rz: 15,
+      duration: 4000,
+    };
+    const wp1 = randomWaypoint();
+    const wp2 = randomWaypoint();
+    const wp3 = randomWaypoint();
+    waypointsRef.current = [entry, wp1, wp2, wp3];
+    // The card travels from waypoints[1] to waypoints[2] using the segment duration
+    segmentDurationRef.current = wp2.duration;
+    segmentStartRef.current = performance.now();
 
     const animate = (now: number) => {
-      const elapsed = now - startTimeRef.current;
-      const target = targetRef.current;
-      const duration = target.duration;
-      const rawT = Math.min(elapsed / duration, 1);
-      const t = easeOut(rawT);
+      const elapsed = now - segmentStartRef.current;
+      const duration = segmentDurationRef.current;
+      const t = Math.min(elapsed / duration, 1);
 
-      const start = startPosRef.current;
-      const cur = currentRef.current;
-      cur.x = lerp(start.x, target.x, t);
-      cur.y = lerp(start.y, target.y, t);
-      cur.z = lerp(start.z, target.z, t);
-      cur.rx = lerp(start.rx, target.rx, t);
-      cur.ry = lerp(start.ry, target.ry, t);
-      cur.rz = lerp(start.rz, target.rz, t);
+      const wps = waypointsRef.current;
+      const p0 = wps[0];
+      const p1 = wps[1];
+      const p2 = wps[2];
+      const p3 = wps[3];
+      if (!p0 || !p1 || !p2 || !p3) return;
 
-      // Speed-based blur
-      const speed = rawT < 1 ? (1 - rawT) : 0;
-      const blur = speed > 0.3 ? 0.5 : 0;
+      const x = catmullRom(p0.x, p1.x, p2.x, p3.x, t);
+      const y = catmullRom(p0.y, p1.y, p2.y, p3.y, t);
+      const z = catmullRom(p0.z, p1.z, p2.z, p3.z, t);
+      const rx = catmullRom(p0.rx, p1.rx, p2.rx, p3.rx, t);
+      const ry = catmullRom(p0.ry, p1.ry, p2.ry, p3.ry, t);
+      const rz = catmullRom(p0.rz, p1.rz, p2.rz, p3.rz, t);
 
       if (cardRef.current) {
         cardRef.current.style.transform =
-          `translate3d(${cur.x}px, ${cur.y}px, ${cur.z}px) ` +
-          `rotateX(${cur.rx}deg) rotateY(${cur.ry}deg) rotateZ(${cur.rz}deg)`;
-        cardRef.current.style.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+          `translate3d(${x}px, ${y}px, ${z}px) ` +
+          `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
       }
 
-      // Pick new target when we arrive
-      if (rawT >= 1) {
-        startPosRef.current = { ...cur };
-        targetRef.current = randomWaypoint();
-        startTimeRef.current = now;
+      // Advance to next segment when current one completes
+      if (t >= 1) {
+        waypointsRef.current = [p1, p2, p3, randomWaypoint()];
+        segmentDurationRef.current = p3.duration;
+        segmentStartRef.current = now;
       }
 
       animRef.current = requestAnimationFrame(animate);
