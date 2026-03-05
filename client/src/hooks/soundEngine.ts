@@ -13,6 +13,7 @@ type SoundName =
   | 'gameOver'
   | 'yourTurn'
   | 'timerTick'
+  | 'heartbeat'
   | 'uiHover'
   | 'uiClick'
   | 'uiSoft'
@@ -80,6 +81,14 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     { frequency: 1000, duration: 0.08, type: 'sine', gain: 0.2, ramp: 0.07 },
     { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
   ],
+  heartbeat: [
+    // Lub — deep thud
+    { frequency: 60, duration: 0.12, type: 'sine', gain: 0.3, ramp: 0.1 },
+    { frequency: 80, duration: 0.08, type: 'triangle', gain: 0.15, delay: 0.02 },
+    // Dub — slightly higher follow-up
+    { frequency: 70, duration: 0.1, type: 'sine', gain: 0.22, delay: 0.15 },
+    { frequency: 90, duration: 0.06, type: 'triangle', gain: 0.1, delay: 0.17 },
+  ],
   uiHover: [
     // Barely-there card flick — ultra-soft whisper
     { frequency: 3800, duration: 0.01, type: 'sine', gain: 0.005, ramp: 0.008 },
@@ -142,6 +151,7 @@ const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
   eliminated:  [200],             // long buzz — you're out
   gameOver:    [40, 30, 40, 30, 40, 60, 100], // big fanfare pattern
   cardDeal:    [15],              // tiny tap
+  heartbeat:   [60, 80, 40],     // lub-dub pulse
 };
 
 function vibrate(pattern: number | number[]): void {
