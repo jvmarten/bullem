@@ -83,7 +83,7 @@ const STEPS: TutorialStep[] = [
       </>
     ),
     highlight: '[data-tutorial="my-cards"]',
-    position: 'top',
+    position: 'bottom',
     visibleSections: ['players', 'cards'],
   },
   {
