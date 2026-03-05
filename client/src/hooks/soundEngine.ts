@@ -129,6 +129,29 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   ],
 };
 
+// Haptic vibration patterns (in ms) for key game events.
+// navigator.vibrate() is a no-op on unsupported devices (desktop browsers),
+// so this gracefully degrades without any feature detection.
+const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
+  yourTurn:    [40, 30, 40],      // double tap — "hey, it's you"
+  bullCalled:  [100],             // firm single pulse
+  trueCalled:  [50],              // gentle pulse
+  callMade:    [20],              // subtle tick
+  roundWin:    [30, 40, 30, 40, 60], // celebratory triple pulse
+  roundLose:   [80, 30, 120],     // descending buzz
+  eliminated:  [200],             // long buzz — you're out
+  gameOver:    [40, 30, 40, 30, 40, 60, 100], // big fanfare pattern
+  cardDeal:    [15],              // tiny tap
+};
+
+function vibrate(pattern: number | number[]): void {
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // Vibration API not available — graceful no-op
+  }
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -303,6 +326,9 @@ export function createSoundController(): SoundController {
 
     play(name: SoundName) {
       if (muted) return;
+
+      const haptic = HAPTIC_PATTERNS[name];
+      if (haptic) vibrate(haptic);
 
       const audioEntry = AUDIO_FILE_SOUNDS[name];
       if (audioEntry) {
