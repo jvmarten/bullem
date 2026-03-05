@@ -7,6 +7,7 @@ import type {
 } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
+import type { RoomSnapshot } from './RedisStore.js';
 
 export class Room {
   readonly roomCode: string;
@@ -219,6 +220,63 @@ export class Room {
     this.cancelRoundContinueWindow();
     // Free bot memory scoped to this room
     BotPlayer.resetMemory(this.roomCode);
+  }
+
+  /** Serialize the room to a JSON-safe snapshot for Redis persistence.
+   *  Socket mappings and timers are NOT included — they are ephemeral.
+   *  After restore, players will be marked disconnected and must reconnect. */
+  serialize(): RoomSnapshot {
+    return {
+      roomCode: this.roomCode,
+      players: [...this.players.values()].map(p => ({ ...p, cards: [...p.cards] })),
+      hostId: this.hostId,
+      gamePhase: this.gamePhase,
+      settings: { ...this.settings },
+      lastActivity: this.lastActivity,
+      isBackgroundGame: this.isBackgroundGame,
+      reconnectTokens: Object.fromEntries(this.reconnectTokens),
+      gameSnapshot: this.game ? this.game.serialize() : null,
+    };
+  }
+
+  /** Restore a Room from a serialized snapshot. All human players are marked
+   *  disconnected since sockets are ephemeral — they must reconnect via the
+   *  normal reconnect flow (which validates their reconnect token). */
+  static restore(snapshot: RoomSnapshot): Room {
+    const room = new Room(snapshot.roomCode);
+    room.hostId = snapshot.hostId;
+    room.gamePhase = snapshot.gamePhase;
+    room.settings = { ...snapshot.settings };
+    room.lastActivity = snapshot.lastActivity;
+    room.isBackgroundGame = snapshot.isBackgroundGame;
+
+    // Restore players — mark all humans as disconnected (sockets are gone)
+    for (const p of snapshot.players) {
+      const player: ServerPlayer = { ...p, cards: [...p.cards] };
+      if (!player.isBot) {
+        player.isConnected = false;
+      }
+      room.players.set(player.id, player);
+    }
+
+    // Restore reconnect tokens so players can rejoin
+    for (const [playerId, token] of Object.entries(snapshot.reconnectTokens)) {
+      room.reconnectTokens.set(playerId, token);
+    }
+
+    // Restore game engine if a game was in progress
+    if (snapshot.gameSnapshot) {
+      try {
+        room.game = GameEngine.restore(snapshot.gameSnapshot);
+      } catch {
+        // If the game snapshot is corrupted, reset to lobby.
+        // Players can start a new game rather than losing the room entirely.
+        room.game = null;
+        room.gamePhase = GamePhase.LOBBY;
+      }
+    }
+
+    return room;
   }
 
   getSocketId(playerId: PlayerId): string | undefined {

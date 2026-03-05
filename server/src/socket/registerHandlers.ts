@@ -127,14 +127,14 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
             }
             break;
           case 'resolve':
-            beginRoundResultPhase(io, room, botManager, elimResult.result);
+            beginRoundResultPhase(io, room, botManager, elimResult.result, roomManager);
             break;
           case 'last_chance':
           case 'continue':
             if (room.gamePhase === GamePhase.ROUND_RESULT) {
               // Player eliminated during round result — check if remaining
               // active players have all continued; start next round if so.
-              checkRoundContinueComplete(io, room, botManager);
+              checkRoundContinueComplete(io, room, botManager, roomManager);
               if (room.gamePhase === GamePhase.ROUND_RESULT) {
                 broadcastGameState(io, room);
               }
@@ -145,6 +145,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
             break;
         }
         broadcastRoomState(io, room);
+        roomManager.persistRoom(room);
       };
 
       // Clean up spectator if applicable

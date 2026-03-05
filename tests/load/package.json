@@ -1,0 +1,22 @@
+{
+  "name": "@bull-em/load-tests",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/runner.ts",
+    "scenario:rooms": "tsx src/runner.ts --scenario room-throughput",
+    "scenario:games": "tsx src/runner.ts --scenario full-game",
+    "scenario:stress": "tsx src/runner.ts --scenario stress",
+    "scenario:all": "tsx src/runner.ts --scenario all"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

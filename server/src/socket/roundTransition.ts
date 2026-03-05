@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import { GamePhase, BotPlayer } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
+import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
 import { broadcastGameState, broadcastNewRound } from './broadcast.js';
 
@@ -9,7 +10,7 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const ROUND_CONTINUE_TIMEOUT_MS = 30_000;
 const POST_RESOLVE_GRACE_MS = 5_000;
 
-function startNextRound(io: TypedServer, room: Room, botManager: BotManager): void {
+function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, botManager: BotManager): void {
   // Guard against double execution — the timeout and the last player's
   // "continue" can both fire startNextRound if they race.
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
@@ -18,6 +19,7 @@ function startNextRound(io: TypedServer, room: Room, botManager: BotManager): vo
   if (nextResult.type === 'game_over') {
     room.gamePhase = GamePhase.GAME_OVER;
     io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
+    roomManager.persistRoom(room);
     return;
   }
 
@@ -27,6 +29,7 @@ function startNextRound(io: TypedServer, room: Room, botManager: BotManager): vo
   // Schedule the bot turn first so the human turn deadline is set before broadcast.
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
   broadcastNewRound(io, room);
+  roomManager.persistRoom(room);
 }
 
 export function beginRoundResultPhase(
@@ -34,6 +37,7 @@ export function beginRoundResultPhase(
   room: Room,
   botManager: BotManager,
   result: RoundResult,
+  roomManager?: RoomManager,
 ): void {
   if (!room.game) return;
 
@@ -47,12 +51,14 @@ export function beginRoundResultPhase(
   BotPlayer.updateMemory(result, room.roomCode);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
-    startNextRound(io, room, botManager);
+    startNextRound(io, room, roomManager!, botManager);
   });
 
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, botManager);
+    startNextRound(io, room, roomManager!, botManager);
   }
+
+  if (roomManager) roomManager.persistRoom(room);
 }
 
 export function markContinueReady(
@@ -60,12 +66,13 @@ export function markContinueReady(
   room: Room,
   botManager: BotManager,
   playerId: PlayerId,
+  roomManager?: RoomManager,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   // Idempotent: skip if already marked (prevents wasted isRoundContinueComplete checks)
   if (!room.markRoundContinueReady(playerId)) return;
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, botManager);
+    startNextRound(io, room, roomManager!, botManager);
   }
 }
 
@@ -75,9 +82,10 @@ export function checkRoundContinueComplete(
   io: TypedServer,
   room: Room,
   botManager: BotManager,
+  roomManager?: RoomManager,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, botManager);
+    startNextRound(io, room, roomManager!, botManager);
   }
 }

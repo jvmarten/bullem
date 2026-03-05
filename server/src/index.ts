@@ -10,10 +10,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
+import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 import logger from './logger.js';
+import { pool, closePool, migrate } from './db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +45,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 // Attach Redis adapter for multi-instance pub/sub when REDIS_URL is set.
 // Falls back to the default in-memory adapter for local development.
+// The same Redis instance is reused for session persistence (RedisStore).
+let redisStore: RedisStore | null = null;
 if (process.env.REDIS_URL) {
   const pubClient = new Redis(process.env.REDIS_URL);
   const subClient = pubClient.duplicate();
@@ -50,21 +54,68 @@ if (process.env.REDIS_URL) {
   pubClient.on('connect', () => {
     logger.info('Redis adapter connected — Socket.io pub/sub is active');
   });
+
+  // Create a dedicated client for session persistence (separate from pub/sub
+  // clients to avoid command conflicts on subscribed connections).
+  const storeClient = new Redis(process.env.REDIS_URL);
+  redisStore = new RedisStore(storeClient);
 }
 
 const roomManager = new RoomManager();
+if (redisStore) {
+  roomManager.setRedisStore(redisStore);
+}
 const botManager = new BotManager();
+botManager.setRoomManager(roomManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
 registerHandlers(io, roomManager, botManager);
-roomManager.startCleanup(io);
-backgroundGameManager.start();
+
+// Restore rooms from Redis before accepting connections, then start cleanup.
+// Uses an async IIFE — server starts listening immediately but rooms are
+// restored in the background. This is safe because Socket.io buffers events
+// until handlers are registered, and the restore typically completes in <100ms.
+(async () => {
+  // Run database migrations if PostgreSQL is available
+  if (pool) {
+    try {
+      await migrate(pool);
+    } catch (err) {
+      logger.error({ err }, 'Database migration failed — continuing without persistence');
+    }
+  }
+
+  if (redisStore) {
+    try {
+      const count = await roomManager.restoreFromRedis();
+      if (count > 0) {
+        logger.info({ count }, 'Session persistence: rooms restored from Redis');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Failed to restore rooms from Redis on startup');
+    }
+  }
+  roomManager.startCleanup(io);
+  backgroundGameManager.start();
+})();
 
 // Health check — registered before the SPA catch-all
-app.get('/health', (_req, res) => res.json({
-  status: 'ok',
-  rooms: roomManager.roomCount,
-  players: io.engine.clientsCount,
-}));
+app.get('/health', async (_req, res) => {
+  let db: 'ok' | 'unavailable' = 'unavailable';
+  if (pool) {
+    try {
+      await pool.query('SELECT 1');
+      db = 'ok';
+    } catch {
+      db = 'unavailable';
+    }
+  }
+  res.json({
+    status: 'ok',
+    db,
+    rooms: roomManager.roomCount,
+    players: io.engine.clientsCount,
+  });
+});
 
 // Sentry Express error handler — must be registered after all routes/middleware
 Sentry.setupExpressErrorHandler(app);
@@ -99,6 +150,10 @@ function shutdown(): void {
   botManager.clearTimers();
   roomManager.stopCleanup();
   io.close();
+  // Close the database pool before exiting
+  closePool().catch((err) => {
+    logger.error({ err }, 'Error closing database pool during shutdown');
+  });
   httpServer.close(() => process.exit(0));
   // Force exit after 5s if connections don't close cleanly
   setTimeout(() => process.exit(1), 5000);
