@@ -171,7 +171,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
 
-  const { play } = useSound();
+  const { play, playHandPreview } = useSound();
   const handleTickSound = useCallback(() => play('wheelTick'), [play]);
   const handleTickSoundLow = useCallback(() => play('wheelTickLow'), [play]);
   const handleSelectSound = useCallback(() => play('wheelSelect'), [play]);
@@ -227,7 +227,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
 
   useEffect(() => {
     onHandChange?.(hand, isValid);
-  }, [hand, isValid, onHandChange]);
+    if (hand) playHandPreview(hand.type);
+  }, [hand, isValid, onHandChange, playHandPreview]);
 
   const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
