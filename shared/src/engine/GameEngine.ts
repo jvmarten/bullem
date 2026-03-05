@@ -7,6 +7,7 @@ import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
   GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards, GameEngineSnapshot,
 } from '../types.js';
+import type { RoundSnapshot } from '../replay.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
 
@@ -39,6 +40,10 @@ export class GameEngine {
   private lastChanceUsed = false;
   private gameStats: GameStats;
   private _turnDeadline: number | null = null;
+  /** Round snapshots collected for game replay. Populated at each round resolution. */
+  private _roundSnapshots: RoundSnapshot[] = [];
+  /** Cards dealt at the start of the current round — captured before any actions. */
+  private _roundStartCards: SpectatorPlayerCards[] = [];
   /** Cached active players list — invalidated when the eliminated count changes.
    *  Avoids creating a new filtered array on every call to getActivePlayers(),
    *  which is invoked 5-10 times per turn action across validateTurn, advanceTurn,
@@ -97,6 +102,13 @@ export class GameEngine {
       p.cards = this.deck.deal(available);
     }
 
+    // Capture dealt cards for replay before any actions modify state
+    this._roundStartCards = this.getActivePlayers().map(p => ({
+      playerId: p.id,
+      playerName: p.name,
+      cards: [...p.cards],
+    }));
+
     // Starting player rotates each round
     const active = this.getActivePlayers();
     this.startingPlayerIndex = (this.roundNumber - 1) % active.length;
@@ -146,6 +158,13 @@ export class GameEngine {
       const available = Math.min(needed, this.deck.remaining);
       p.cards = this.deck.deal(available);
     }
+
+    // Capture dealt cards for replay before any actions modify state
+    this._roundStartCards = this.getActivePlayers().map(p => ({
+      playerId: p.id,
+      playerName: p.name,
+      cards: [...p.cards],
+    }));
 
     this.startingPlayerIndex = nextStarterActiveIndex;
     this.currentPlayerIndex = this.startingPlayerIndex;
@@ -342,6 +361,11 @@ export class GameEngine {
 
   getGameStats(): GameStats {
     return this.gameStats;
+  }
+
+  /** Get all round snapshots recorded during this game (for building a replay). */
+  getRoundSnapshots(): RoundSnapshot[] {
+    return this._roundSnapshots;
   }
 
   getActivePlayers(): ServerPlayer[] {
@@ -546,6 +570,14 @@ export class GameEngine {
       turnHistory: [...this.turnHistory],
     };
     this.lastRoundResult = result;
+
+    // Record round snapshot for replay
+    this._roundSnapshots.push({
+      roundNumber: this.roundNumber,
+      playerCards: this._roundStartCards,
+      turnHistory: [...this.turnHistory],
+      result,
+    });
 
     // Check for game over
     const remaining = this.getActivePlayers();

@@ -26,6 +26,7 @@ const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => 
 const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
 const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
 const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
+const ReplayPage = lazy(() => import('./pages/ReplayPage.js').then(m => ({ default: m.ReplayPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
 
 // Auth pages
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="/room/:roomCode" element={<LobbyPage />} />
             <Route path="/game/:roomCode" element={<GamePage />} />
             <Route path="/results/:roomCode" element={<ResultsPage />} />
+            <Route path="/replay" element={<ReplayPage />} />
           </Route>
 
           {/* Local (offline) bot game routes */}
@@ -86,6 +88,7 @@ export default function App() {
             <Route path="/local" element={<LocalLobbyPage />} />
             <Route path="/local/game" element={<LocalGamePage />} />
             <Route path="/local/results" element={<LocalResultsPage />} />
+            <Route path="/local/replay" element={<ReplayPage />} />
           </Route>
 
           {/* Catch-all: show 404 page for unknown URLs */}

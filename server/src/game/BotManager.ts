@@ -9,7 +9,7 @@ import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
-import { broadcastGameState } from '../socket/broadcast.js';
+import { broadcastGameState, broadcastGameReplay } from '../socket/broadcast.js';
 import { beginRoundResultPhase } from '../socket/roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -285,6 +285,7 @@ export class BotManager {
         }
         room.gamePhase = GamePhase.GAME_OVER;
         room.cancelRoundContinueWindow();
+        broadcastGameReplay(io, room, result.winnerId);
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
     }
