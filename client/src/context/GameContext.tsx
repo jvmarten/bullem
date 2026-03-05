@@ -45,6 +45,7 @@ export interface GameContextValue {
   clearRoundResult: () => void;
   addBot: (botName?: string) => Promise<string>;
   removeBot: (botId: string) => void;
+  requestRematch: () => void;
   botDifficulty?: BotDifficulty;
   setBotDifficulty?: (d: BotDifficulty) => void;
   gameSettings?: GameSettings;
@@ -213,6 +214,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
     socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
+    socket.on('game:rematchStarting', () => {
+      setWinnerId(null);
+      setGameStats(null);
+      setRoundResult(null);
+      setRoundTransition(false);
+      setRoundTransitionDeadline(null);
+      pendingGameStateRef.current = null;
+      if (roundResultTimerRef.current) {
+        clearTimeout(roundResultTimerRef.current);
+        roundResultTimerRef.current = null;
+      }
+    });
     socket.on('room:error', setError);
     socket.on('room:deleted', clearRoomState);
     socket.on('server:playerCount', setOnlinePlayerCount);
@@ -226,6 +239,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:newRound');
       socket.off('game:roundResult');
       socket.off('game:over');
+      socket.off('game:rematchStarting');
       socket.off('room:error');
       socket.off('room:deleted');
       socket.off('server:playerCount');
@@ -353,6 +367,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startGame = useCallback(() => socket.emit('game:start'), []);
+  const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
   const callBull = useCallback(() => socket.emit('game:bull'), []);
   const callTrue = useCallback(() => socket.emit('game:true'), []);
@@ -400,6 +415,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     clearRoundResult,
     addBot,
     removeBot,
+    requestRematch,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected,
@@ -407,7 +423,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
-    addBot, removeBot,
+    addBot, removeBot, requestRematch,
   ]);
 
   return (

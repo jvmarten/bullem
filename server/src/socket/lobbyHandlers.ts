@@ -332,4 +332,32 @@ export function registerLobbyHandlers(
     broadcastRoomState(io, room);
     broadcastGameState(io, room);
   });
+
+  socket.on('game:rematch', () => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can start a rematch');
+      return;
+    }
+    if (room.gamePhase !== GamePhase.GAME_OVER) {
+      socket.emit('room:error', 'Game is not over');
+      return;
+    }
+    if (room.playerCount < MIN_PLAYERS) {
+      socket.emit('room:error', `Need at least ${MIN_PLAYERS} players for a rematch`);
+      return;
+    }
+
+    botManager.clearTurnTimer(room.roomCode);
+    // Notify clients the rematch is starting (so they can clear results state)
+    io.to(room.roomCode).emit('game:rematchStarting');
+
+    room.resetForRematch();
+    BotPlayer.resetMemory(room.roomCode);
+    botManager.scheduleBotTurn(room, io);
+    broadcastRoomState(io, room);
+    broadcastGameState(io, room);
+  });
 }
