@@ -26,7 +26,9 @@ function dealFiveCards(): DealCard[] {
   }
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    const temp = deck[i]!;
+    deck[i] = deck[j]!;
+    deck[j] = temp;
   }
   return deck.slice(0, 5);
 }
@@ -37,47 +39,47 @@ function classifyHand(cards: DealCard[]): HandCall {
     rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
   }
 
-  const isFlush = cards.every(c => c.suit === cards[0].suit);
+  const isFlush = cards.every(c => c.suit === cards[0]!.suit);
   const values = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => a - b);
-  const isSequential = values.every((v, i) => i === 0 || v === values[i - 1] + 1);
+  const isSequential = values.every((v, i) => i === 0 || v === values[i - 1]! + 1);
   const isWheel = values[0] === 2 && values[1] === 3 && values[2] === 4 && values[3] === 5 && values[4] === 14;
   const isStraight = isSequential || isWheel;
-  const highVal = isWheel ? 5 : values[4];
-  const highRank = RANK_ORDER[highVal - 2];
+  const highVal = isWheel ? 5 : values[4]!;
+  const highRank = RANK_ORDER[highVal - 2]!;
 
   const groups = [...rankCounts.entries()]
     .sort((a, b) => b[1] - a[1] || RANK_VAL[b[0]] - RANK_VAL[a[0]]);
 
   if (isFlush && isStraight && values[4] === 14 && values[0] === 10) {
-    return { type: HandType.ROYAL_FLUSH, suit: cards[0].suit };
+    return { type: HandType.ROYAL_FLUSH, suit: cards[0]!.suit };
   }
   if (isFlush && isStraight) {
-    return { type: HandType.STRAIGHT_FLUSH, suit: cards[0].suit, highRank };
+    return { type: HandType.STRAIGHT_FLUSH, suit: cards[0]!.suit, highRank };
   }
-  if (groups[0][1] === 4) {
-    return { type: HandType.FOUR_OF_A_KIND, rank: groups[0][0] };
+  if (groups[0]![1] === 4) {
+    return { type: HandType.FOUR_OF_A_KIND, rank: groups[0]![0] };
   }
-  if (groups[0][1] === 3 && groups[1][1] === 2) {
-    return { type: HandType.FULL_HOUSE, threeRank: groups[0][0], twoRank: groups[1][0] };
+  if (groups[0]![1] === 3 && groups[1]![1] === 2) {
+    return { type: HandType.FULL_HOUSE, threeRank: groups[0]![0], twoRank: groups[1]![0] };
   }
   if (isStraight) {
     return { type: HandType.STRAIGHT, highRank };
   }
-  if (groups[0][1] === 3) {
-    return { type: HandType.THREE_OF_A_KIND, rank: groups[0][0] };
+  if (groups[0]![1] === 3) {
+    return { type: HandType.THREE_OF_A_KIND, rank: groups[0]![0] };
   }
   if (isFlush) {
-    return { type: HandType.FLUSH, suit: cards[0].suit };
+    return { type: HandType.FLUSH, suit: cards[0]!.suit };
   }
-  if (groups[0][1] === 2 && groups[1][1] === 2) {
-    const [a, b] = [groups[0][0], groups[1][0]];
+  if (groups[0]![1] === 2 && groups[1]![1] === 2) {
+    const [a, b] = [groups[0]![0], groups[1]![0]];
     const [highPair, lowPair] = RANK_VAL[a] > RANK_VAL[b] ? [a, b] : [b, a];
     return { type: HandType.TWO_PAIR, highRank: highPair, lowRank: lowPair };
   }
-  if (groups[0][1] === 2) {
-    return { type: HandType.PAIR, rank: groups[0][0] };
+  if (groups[0]![1] === 2) {
+    return { type: HandType.PAIR, rank: groups[0]![0] };
   }
-  return { type: HandType.HIGH_CARD, rank: groups[0][0] };
+  return { type: HandType.HIGH_CARD, rank: groups[0]![0] };
 }
 
 function getSuitColor(suit: Suit): string {
@@ -115,29 +117,29 @@ function getRelevantIndices(cards: DealCard[], hand: HandCall): Set<number> {
       break;
     case HandType.FOUR_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.THREE_OF_A_KIND:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.TWO_PAIR:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.highRank || cards[i].rank === hand.lowRank) {
+        if (cards[i]!.rank === hand.highRank || cards[i]!.rank === hand.lowRank) {
           indices.add(i);
         }
       }
       break;
     case HandType.PAIR:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) indices.add(i);
+        if (cards[i]!.rank === hand.rank) indices.add(i);
       }
       break;
     case HandType.HIGH_CARD:
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].rank === hand.rank) { indices.add(i); break; }
+        if (cards[i]!.rank === hand.rank) { indices.add(i); break; }
       }
       break;
   }
@@ -150,7 +152,9 @@ function shuffleArray<T>(arr: T[]): T[] {
   const next = [...arr];
   for (let i = next.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
+    const temp = next[i]!;
+    next[i] = next[j]!;
+    next[j] = temp;
   }
   return next;
 }
@@ -381,7 +385,7 @@ export function HomePage() {
               const dealAngle = 0;
 
               // Use shuffleOrder to determine stack position during shuffle
-              const pos = shuffleOrder[i];
+              const pos = shuffleOrder[i]!;
               const stackX = pos * 0.5;
               const stackY = -pos * 1.2;
               const stackAngle = (pos - (CARD_COUNT - 1) / 2) * 1.5;
