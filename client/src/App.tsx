@@ -17,6 +17,7 @@ const LobbyPage = lazy(() => import('./pages/LobbyPage.js').then(m => ({ default
 const GamePage = lazy(() => import('./pages/GamePage.js').then(m => ({ default: m.GamePage })));
 const ResultsPage = lazy(() => import('./pages/ResultsPage.js').then(m => ({ default: m.ResultsPage })));
 const HowToPlayPage = lazy(() => import('./pages/HowToPlayPage.js').then(m => ({ default: m.HowToPlayPage })));
+const TutorialPage = lazy(() => import('./pages/TutorialPage.js').then(m => ({ default: m.TutorialPage })));
 
 // Local game routes — the entire local game context + engine is only loaded
 // when the user enters the local game flow.
@@ -58,6 +59,7 @@ export default function App() {
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/how-to-play" element={<HowToPlayPage />} />
+          <Route path="/tutorial" element={<TutorialPage />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>

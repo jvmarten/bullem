@@ -121,10 +121,18 @@ export function HowToPlayPage() {
           </>
         )}
 
+        {/* Try interactive tutorial */}
+        <button
+          onClick={() => navigate('/tutorial')}
+          className="btn-gold px-10 py-2 text-base mt-2 self-center"
+        >
+          Try Interactive Tutorial
+        </button>
+
         {/* Back button */}
         <button
           onClick={() => navigate('/')}
-          className="btn-gold px-10 py-2 text-base mt-2 self-center"
+          className="btn-ghost px-10 py-2 text-base self-center"
         >
           Back to Home
         </button>
