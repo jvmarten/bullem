@@ -1,6 +1,24 @@
 import { RANK_VALUES, HandType } from '@bull-em/shared';
 import type { HandCall, Rank } from '@bull-em/shared';
 import fahSoundUrl from '../assets/sounds/fah.mp3';
+import cardDealUrl from '../assets/sounds/card-deal.mp3';
+import cardRevealUrl from '../assets/sounds/card-reveal.mp3';
+import deckShuffleUrl from '../assets/sounds/deck-shuffle.mp3';
+import bullCalledUrl from '../assets/sounds/bull-called.mp3';
+import trueCalledUrl from '../assets/sounds/true-called.mp3';
+import callMadeUrl from '../assets/sounds/call-made.mp3';
+import roundWinUrl from '../assets/sounds/round-win.mp3';
+import eliminatedUrl from '../assets/sounds/eliminated.mp3';
+import gameOverUrl from '../assets/sounds/game-over.mp3';
+import yourTurnUrl from '../assets/sounds/your-turn.mp3';
+import timerTickUrl from '../assets/sounds/timer-tick.mp3';
+import heartbeatUrl from '../assets/sounds/heartbeat.mp3';
+import uiClickUrl from '../assets/sounds/ui-click.mp3';
+import uiSoftUrl from '../assets/sounds/ui-soft.mp3';
+import fanfareUrl from '../assets/sounds/fanfare.mp3';
+import wheelTickUrl from '../assets/sounds/wheel-tick.mp3';
+import wheelTickLowUrl from '../assets/sounds/wheel-tick-low.mp3';
+import wheelSelectUrl from '../assets/sounds/wheel-select.mp3';
 
 type SoundName =
   | 'cardDeal'
@@ -34,108 +52,56 @@ interface ToneConfig {
   delay?: number;         // start delay in seconds
 }
 
-// Sounds that use an audio file instead of oscillator tones
+// Sounds that use an audio file instead of oscillator tones.
+// Most sounds now use pre-rendered MP3 files for richer quality.
 const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
-  roundLose: { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
+  cardDeal:    { url: cardDealUrl, gain: 0.5 },
+  cardReveal:  { url: cardRevealUrl, gain: 0.45 },
+  deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
+  bullCalled:  { url: bullCalledUrl, gain: 0.5 },
+  trueCalled:  { url: trueCalledUrl, gain: 0.45 },
+  callMade:    { url: callMadeUrl, gain: 0.45 },
+  roundWin:    { url: roundWinUrl, gain: 0.5 },
+  roundLose:   { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
+  eliminated:  { url: eliminatedUrl, gain: 0.5 },
+  gameOver:    { url: gameOverUrl, gain: 0.45 },
+  yourTurn:    { url: yourTurnUrl, gain: 0.45 },
+  timerTick:   { url: timerTickUrl, gain: 0.5 },
+  heartbeat:   { url: heartbeatUrl, gain: 0.55 },
+  uiClick:     { url: uiClickUrl, gain: 0.4 },
+  uiSoft:      { url: uiSoftUrl, gain: 0.35 },
+  fanfare:     { url: fanfareUrl, gain: 0.45 },
+  wheelTick:   { url: wheelTickUrl, gain: 0.35 },
+  wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
+  wheelSelect: { url: wheelSelectUrl, gain: 0.35 },
 };
 
-// Each sound is one or more tones layered together
+// Oscillator fallbacks — used only for sounds without an audio file (uiHover)
+// and for the dynamic playHandPreview which generates tones based on hand rank.
 const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
-  cardDeal: [
-    { frequency: 800, duration: 0.06, type: 'sine', gain: 0.15, ramp: 0.05 },
-    { frequency: 2400, duration: 0.04, type: 'triangle', gain: 0.08 },
-  ],
-  callMade: [
-    { frequency: 520, duration: 0.12, type: 'sine', gain: 0.15, ramp: 0.1 },
-    { frequency: 780, duration: 0.08, type: 'sine', gain: 0.08, delay: 0.04 },
-  ],
-  bullCalled: [
-    { frequency: 200, duration: 0.25, type: 'sine', gain: 0.28, ramp: 0.22 },
-    { frequency: 160, duration: 0.3, type: 'triangle', gain: 0.16, delay: 0.08 },
-  ],
-  trueCalled: [
-    { frequency: 660, duration: 0.15, type: 'sine', gain: 0.15, ramp: 0.12 },
-    { frequency: 880, duration: 0.12, type: 'sine', gain: 0.1, delay: 0.06 },
-  ],
-  roundWin: [
-    { frequency: 523, duration: 0.15, type: 'sine', gain: 0.15 },
-    { frequency: 659, duration: 0.15, type: 'sine', gain: 0.15, delay: 0.1 },
-    { frequency: 784, duration: 0.25, type: 'sine', gain: 0.18, delay: 0.2 },
-  ],
-  roundLose: [], // uses audio file (fah.mp3) — see AUDIO_FILE_SOUNDS
-  eliminated: [
-    { frequency: 350, duration: 0.3, type: 'sawtooth', gain: 0.1, ramp: 0.25 },
-    { frequency: 250, duration: 0.4, type: 'sine', gain: 0.08, delay: 0.1 },
-  ],
-  gameOver: [
-    { frequency: 523, duration: 0.18, type: 'sine', gain: 0.15 },
-    { frequency: 659, duration: 0.18, type: 'sine', gain: 0.15, delay: 0.12 },
-    { frequency: 784, duration: 0.18, type: 'sine', gain: 0.15, delay: 0.24 },
-    { frequency: 1047, duration: 0.4, type: 'sine', gain: 0.2, delay: 0.36 },
-  ],
-  yourTurn: [
-    { frequency: 880, duration: 0.08, type: 'sine', gain: 0.12 },
-    { frequency: 1100, duration: 0.1, type: 'sine', gain: 0.15, delay: 0.08 },
-  ],
-  timerTick: [
-    { frequency: 1000, duration: 0.08, type: 'sine', gain: 0.2, ramp: 0.07 },
-    { frequency: 1500, duration: 0.05, type: 'triangle', gain: 0.1, delay: 0.02 },
-  ],
-  heartbeat: [
-    // Lub — deep thud
-    { frequency: 60, duration: 0.12, type: 'sine', gain: 0.3, ramp: 0.1 },
-    { frequency: 80, duration: 0.08, type: 'triangle', gain: 0.15, delay: 0.02 },
-    // Dub — slightly higher follow-up
-    { frequency: 70, duration: 0.1, type: 'sine', gain: 0.22, delay: 0.15 },
-    { frequency: 90, duration: 0.06, type: 'triangle', gain: 0.1, delay: 0.17 },
-  ],
+  cardDeal: [],
+  callMade: [],
+  bullCalled: [],
+  trueCalled: [],
+  roundWin: [],
+  roundLose: [],
+  eliminated: [],
+  gameOver: [],
+  yourTurn: [],
+  timerTick: [],
+  heartbeat: [],
   uiHover: [
-    // Barely-there card flick — ultra-soft whisper
+    // Barely-there card flick — ultra-soft whisper (kept as oscillator for minimal latency)
     { frequency: 3800, duration: 0.01, type: 'sine', gain: 0.005, ramp: 0.008 },
   ],
-  uiClick: [
-    { frequency: 850, duration: 0.05, type: 'sine', gain: 0.08, ramp: 0.04 },
-    { frequency: 1250, duration: 0.03, type: 'triangle', gain: 0.04, delay: 0.015 },
-  ],
-  uiSoft: [
-    { frequency: 720, duration: 0.045, type: 'sine', gain: 0.05, ramp: 0.035 },
-  ],
-  deckShuffle: [
-    // Gentle riffle shuffle — soft layered clicks
-    { frequency: 2000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 },
-    { frequency: 2400, duration: 0.03, type: 'sine', gain: 0.02, delay: 0.04 },
-    { frequency: 1800, duration: 0.03, type: 'sine', gain: 0.025, delay: 0.08 },
-    { frequency: 2200, duration: 0.03, type: 'sine', gain: 0.02, delay: 0.12 },
-    { frequency: 2600, duration: 0.04, type: 'triangle', gain: 0.02, delay: 0.16 },
-  ],
-  cardReveal: [
-    // Satisfying card flip — crisp snap with resonance
-    { frequency: 600, duration: 0.1, type: 'sine', gain: 0.14, ramp: 0.08 },
-    { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
-  ],
-  wheelTick: [
-    // Soft roulette-wheel notch tick — very short, high-pitched, barely audible
-    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
-  ],
-  wheelTickLow: [
-    // Lower-pitched tick for hand type wheel — ~75% frequency of wheelTick
-    { frequency: 950, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
-  ],
-  wheelSelect: [
-    // Gentle two-tone marimba tap — barely audible confirmation ping
-    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.045, ramp: 0.04 },
-    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.04, delay: 0.04 },
-  ],
-  fanfare: [
-    // Celebratory trumpet fanfare for royal flush easter egg
-    { frequency: 523, duration: 0.2, type: 'sine', gain: 0.16 },
-    { frequency: 659, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.15 },
-    { frequency: 784, duration: 0.2, type: 'sine', gain: 0.16, delay: 0.3 },
-    { frequency: 1047, duration: 0.5, type: 'sine', gain: 0.2, delay: 0.45 },
-    { frequency: 1047, duration: 0.3, type: 'triangle', gain: 0.08, delay: 0.45 },
-    { frequency: 784, duration: 0.15, type: 'sine', gain: 0.1, delay: 0.8 },
-    { frequency: 1047, duration: 0.6, type: 'sine', gain: 0.18, delay: 0.9 },
-  ],
+  uiClick: [],
+  uiSoft: [],
+  deckShuffle: [],
+  cardReveal: [],
+  wheelTick: [],
+  wheelTickLow: [],
+  wheelSelect: [],
+  fanfare: [],
 };
 
 // Haptic vibration patterns (in ms) for key game events.
