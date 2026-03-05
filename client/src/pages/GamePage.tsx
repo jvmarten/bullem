@@ -10,6 +10,8 @@ import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
+import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
+import { DisconnectBanner } from '../components/DisconnectBanner.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -56,6 +58,7 @@ export function GamePage() {
     gameState, roomState, roundResult, roundTransition, roundTransitionDeadline, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
+    isConnected, hasConnected, disconnectDeadlines,
   } = useGameContext();
   useErrorToast(error, clearError);
   const { play } = useSound();
@@ -226,6 +229,12 @@ export function GamePage() {
           collapsible
         />
 
+        {/* Disconnect countdown banners for other players */}
+        <DisconnectBanner
+          players={gameState.players}
+          disconnectDeadlines={disconnectDeadlines}
+        />
+
         {/* Current call display */}
         {gameState.currentHand && (
           <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
@@ -323,6 +332,9 @@ export function GamePage() {
             onDismiss={clearRoundResult}
           />
         )}
+
+        {/* Reconnecting overlay — shown when own connection drops */}
+        {!isConnected && hasConnected && <ReconnectOverlay />}
       </div>
     </Layout>
   );
