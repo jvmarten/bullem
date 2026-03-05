@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -6,13 +6,22 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  errorMessage: string | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, errorMessage: null };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown): State {
+    const message = error instanceof Error ? error.message : String(error);
+    return { hasError: true, errorMessage: message };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[ErrorBoundary] Uncaught error:', error);
+    if (info.componentStack) {
+      console.error('[ErrorBoundary] Component stack:', info.componentStack);
+    }
   }
 
   render() {
@@ -27,6 +36,11 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-[var(--gold-dim)] text-sm">
               An unexpected error occurred. Please refresh the page.
             </p>
+            {this.state.errorMessage && (
+              <p className="text-[var(--danger)] text-xs font-mono break-words opacity-70">
+                {this.state.errorMessage}
+              </p>
+            )}
             <button
               onClick={() => window.location.reload()}
               className="btn-gold px-6 py-2"

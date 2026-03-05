@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { ToastProvider } from './context/ToastContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
@@ -25,6 +25,7 @@ const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => 
 const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
 const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
 const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -77,8 +78,8 @@ export default function App() {
             <Route path="/local/results" element={<LocalResultsPage />} />
           </Route>
 
-          {/* Catch-all: redirect unknown URLs to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Catch-all: show 404 page for unknown URLs */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
