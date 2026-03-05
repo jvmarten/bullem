@@ -23,6 +23,7 @@ export interface ClientToServerEvents {
   'game:rematch': () => void;
   'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
   'room:removeBot': (data: { botId: string }) => void;
+  'room:kickPlayer': (data: { playerId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:delete': () => void;
 }
 
@@ -40,4 +41,5 @@ export interface ServerToClientEvents {
   'server:playerCount': (count: number) => void;
   'server:playerNames': (names: string[]) => void;
   'room:deleted': () => void;
+  'room:kicked': () => void;
 }

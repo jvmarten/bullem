@@ -297,6 +297,55 @@ export function registerLobbyHandlers(
     }
   });
 
+  socket.on('room:kickPlayer', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return callback({ error: 'No room found' });
+
+    const hostPlayerId = room.getPlayerId(socket.id);
+    if (hostPlayerId !== room.hostId) {
+      return callback({ error: 'Only the host can kick players' });
+    }
+
+    if (room.gamePhase !== GamePhase.LOBBY) {
+      return callback({ error: 'Can only kick players in the lobby' });
+    }
+
+    if (typeof data.playerId !== 'string' || !data.playerId) {
+      return callback({ error: 'Invalid player ID' });
+    }
+
+    if (data.playerId === hostPlayerId) {
+      return callback({ error: 'Cannot kick yourself' });
+    }
+
+    const targetPlayer = room.players.get(data.playerId);
+    if (!targetPlayer) {
+      return callback({ error: 'Player not found' });
+    }
+
+    // Bots should be removed via room:removeBot
+    if (targetPlayer.isBot) {
+      return callback({ error: 'Use remove bot to remove bots' });
+    }
+
+    const targetSocketId = room.getSocketId(data.playerId);
+    if (targetSocketId) {
+      // Notify the kicked player before removing them
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('room:kicked');
+        targetSocket.leave(room.roomCode);
+      }
+      room.removePlayer(targetSocketId);
+      roomManager.removeSocketMapping(targetSocketId);
+    }
+    roomManager.removePlayerMapping(data.playerId);
+
+    broadcastRoomState(io, room);
+    broadcastPlayerNames(io, roomManager);
+    callback({ ok: true });
+  });
+
   socket.on('room:removeBot', (data) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;

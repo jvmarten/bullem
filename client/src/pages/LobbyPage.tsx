@@ -7,11 +7,12 @@ import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_T
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
+import { socket } from '../socket.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, error, clearError, updateSettings } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
   const { addToast } = useToast();
   useErrorToast(error, clearError);
   const [joining, setJoining] = useState(false);
@@ -24,6 +25,16 @@ export function LobbyPage() {
       navigate(`/game/${roomCode}`);
     }
   }, [gameState, roomState?.gamePhase, roomCode, navigate]);
+
+  // Navigate kicked players back to home with a toast notification
+  useEffect(() => {
+    const handleKicked = () => {
+      addToast('You were kicked from the room by the host');
+      navigate('/');
+    };
+    socket.on('room:kicked', handleKicked);
+    return () => { socket.off('room:kicked', handleKicked); };
+  }, [addToast, navigate]);
 
   // Auto-join room when navigating directly to /room/:roomCode
   useEffect(() => {
@@ -187,6 +198,8 @@ export function LobbyPage() {
           maxCards={maxCards}
           showRemoveBot={isHost}
           onRemoveBot={removeBot}
+          showKickPlayer={isHost}
+          onKickPlayer={(targetId) => kickPlayer(targetId).catch(e => addToast(e instanceof Error ? e.message : 'Failed to kick player'))}
         />
 
         {isHost && (
