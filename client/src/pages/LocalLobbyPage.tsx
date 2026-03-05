@@ -24,6 +24,7 @@ export function LocalLobbyPage() {
   // 500ms covers slow devices; pointer-events:none on the button provides an
   // extra layer of protection against events that sneak past the disabled attr.
   const [interactionReady, setInteractionReady] = useState(false);
+  const [showLcrInfo, setShowLcrInfo] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setInteractionReady(true), 500);
     return () => clearTimeout(timer);
@@ -247,28 +248,43 @@ export function LocalLobbyPage() {
 
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-              Last Chance Rules
-            </p>
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Allow &lsquo;True&rsquo; in LCR?
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowLcrInfo(v => !v)}
+                className="w-4 h-4 rounded-full border border-[var(--gold-dim)] text-[var(--gold-dim)] text-[9px] leading-none flex items-center justify-center hover:border-[var(--gold)] hover:text-[var(--gold)] transition-colors"
+                aria-label="What is LCR?"
+              >
+                ?
+              </button>
+            </div>
+            {showLcrInfo && (
+              <div className="bg-black/40 rounded px-3 py-2 mb-2 text-[10px] text-[var(--gold-dim)] leading-relaxed">
+                <strong className="text-[var(--gold)]">LCR</strong> = Last Chance Raise — when everyone calls bull, the last caller gets one chance to raise. This setting controls whether the next player can call &lsquo;True&rsquo; after that raise.
+              </div>
+              )}
             <div className="flex gap-1.5">
-              {(['classic', 'strict'] as const).map(mode => (
+              {([['classic', 'Yes'], ['strict', 'No']] as const).map(([mode, label]) => (
                 <button
                   key={mode}
                   onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, lastChanceMode: mode }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
                     (gameSettings.lastChanceMode ?? 'classic') === mode
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                   }`}
                 >
-                  {mode}
+                  {label}
                 </button>
               ))}
             </div>
             <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
               {(gameSettings.lastChanceMode ?? 'classic') === 'classic'
-                ? 'After a last chance raise, all players can bull, true, or raise'
-                : 'After a last chance raise, next player must bull or raise. True unlocks after a bull is called'}
+                ? 'After LCR, all players can bull, true, or raise'
+                : 'After LCR, next player must bull or raise — no true option'}
             </p>
           </div>
         )}
