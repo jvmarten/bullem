@@ -177,9 +177,13 @@ function getOrCreatePlayerName(): string {
   return name;
 }
 
+const RANKED_RIBBON_MAX_SCALE = 1.35;
+const RANKED_RIBBON_GROW_STEP = 0.06;
+
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
+  const [rankedRibbonScale, setRankedRibbonScale] = useState(1);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
@@ -601,8 +605,31 @@ export function HomePage() {
                 </button>
               </>
             )}
+            {/* Ranked Match — teaser button */}
             <button
-              onClick={() => { play('uiSoft'); setMode('menu');}}
+              onClick={() => {
+                play('uiClick');
+                setRankedRibbonScale(prev =>
+                  Math.min(prev + RANKED_RIBBON_GROW_STEP, RANKED_RIBBON_MAX_SCALE),
+                );
+              }}
+              className="w-full btn-ghost py-4 text-lg relative overflow-hidden"
+              style={{ cursor: 'default' }}
+            >
+              Ranked Match
+              {/* "Coming Soon" ribbon */}
+              <span
+                className="ranked-ribbon"
+                style={{
+                  transform: `rotate(35deg) scale(${rankedRibbonScale})`,
+                  transition: 'transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1)',
+                }}
+              >
+                Coming Soon
+              </span>
+            </button>
+            <button
+              onClick={() => { play('uiSoft'); setMode('menu'); setRankedRibbonScale(1); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
