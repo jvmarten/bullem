@@ -109,7 +109,7 @@ export class GameEngine {
 
   get winnerId(): PlayerId | null {
     const active = this.getActivePlayers();
-    return active.length === 1 ? active[0].id : null;
+    return active.length === 1 ? active[0]!.id : null;
   }
 
   /** Advance to the next round: rotate starting player, re-deal cards, reset turn state. */
@@ -123,10 +123,10 @@ export class GameEngine {
     const prevStarterId = active[this.startingPlayerIndex % active.length]?.id;
     const prevStarterGlobalIndex = this.players.findIndex(p => p.id === prevStarterId);
     let nextGlobalIndex = (prevStarterGlobalIndex + 1) % this.players.length;
-    while (this.players[nextGlobalIndex].isEliminated) {
+    while (this.players[nextGlobalIndex]!.isEliminated) {
       nextGlobalIndex = (nextGlobalIndex + 1) % this.players.length;
     }
-    const nextStarterId = this.players[nextGlobalIndex].id;
+    const nextStarterId = this.players[nextGlobalIndex]!.id;
     const nextStarterActiveIndex = active.findIndex(p => p.id === nextStarterId);
 
     // Reset round state
@@ -169,7 +169,7 @@ export class GameEngine {
     this.currentHand = hand;
     this.lastCallerId = playerId;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
-    this.gameStats.playerStats[playerId].callsMade++;
+    this.gameStats.playerStats[playerId]!.callsMade++;
 
     // A raise resets the bull phase
     this.roundPhase = RoundPhase.CALLING;
@@ -187,7 +187,7 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.BULL);
     this.respondedPlayers.add(playerId);
-    this.gameStats.playerStats[playerId].bullsCalled++;
+    this.gameStats.playerStats[playerId]!.bullsCalled++;
 
     if (this.roundPhase === RoundPhase.CALLING) {
       this.roundPhase = RoundPhase.BULL_PHASE;
@@ -227,7 +227,7 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.TRUE);
     this.respondedPlayers.add(playerId);
-    this.gameStats.playerStats[playerId].truesCalled++;
+    this.gameStats.playerStats[playerId]!.truesCalled++;
 
     if (this.allNonCallersResponded()) {
       return this.resolveRound();
@@ -251,7 +251,7 @@ export class GameEngine {
     this.currentHand = hand;
     this.lastChanceUsed = true;
     this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
-    this.gameStats.playerStats[playerId].callsMade++;
+    this.gameStats.playerStats[playerId]!.callsMade++;
     this.roundPhase = RoundPhase.BULL_PHASE;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
@@ -488,7 +488,7 @@ export class GameEngine {
     for (const p of activePlayers) {
       const lastAction = this.getPlayerLastAction(p.id);
       let incorrect = false;
-      const stats = this.gameStats.playerStats[p.id];
+      const stats = this.gameStats.playerStats[p.id]!;
 
       if (p.id === this.lastCallerId) {
         // The caller is wrong if the hand doesn't exist
@@ -596,7 +596,7 @@ export class GameEngine {
     // Scan backwards once to find the last call/raise
     let idx = -1;
     for (let i = this.turnHistory.length - 1; i >= 0; i--) {
-      const action = this.turnHistory[i].action;
+      const action = this.turnHistory[i]!.action;
       if (action === TurnAction.CALL || action === TurnAction.LAST_CHANCE_RAISE) {
         idx = i;
         break;
@@ -609,8 +609,8 @@ export class GameEngine {
 
   private getPlayerLastAction(playerId: PlayerId): TurnAction | null {
     for (let i = this.turnHistory.length - 1; i >= 0; i--) {
-      if (this.turnHistory[i].playerId === playerId) {
-        return this.turnHistory[i].action;
+      if (this.turnHistory[i]!.playerId === playerId) {
+        return this.turnHistory[i]!.action;
       }
     }
     return null;

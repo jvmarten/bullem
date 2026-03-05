@@ -5,10 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noFallthroughCasesInSwitch": true,
-    // TODO(scale): Enable noUncheckedIndexedAccess once existing array/map
-    // access patterns in BotPlayer.ts, GameEngine.ts, and Deck.ts are updated
-    // to handle T | undefined. Requires a dedicated strict-types cleanup pass.
-    // "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
