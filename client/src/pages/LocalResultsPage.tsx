@@ -20,7 +20,8 @@ export function LocalResultsPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
+      <div className="results-content flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
+        <div className="results-left">
         <div className="text-5xl animate-float">
           {isWinner ? '\uD83C\uDFC6' : '\uD83D\uDE14'}
         </div>
@@ -39,7 +40,9 @@ export function LocalResultsPage() {
         {gameStats && gameState && (
           <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
         )}
+        </div>{/* end results-left */}
 
+        <div className="results-right">
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <button
             onClick={() => { requestRematch(); navigate('/local/game'); }}
@@ -60,6 +63,7 @@ export function LocalResultsPage() {
             Back to Home
           </button>
         </div>
+        </div>{/* end results-right */}
       </div>
     </Layout>
   );

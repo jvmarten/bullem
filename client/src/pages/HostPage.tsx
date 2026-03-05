@@ -52,9 +52,10 @@ export function HostPage() {
 
   return (
     <Layout>
-      <div className="space-y-4 max-w-md mx-auto pt-4">
-        <h2 className="font-display text-2xl text-[var(--gold)] text-center">Host Game</h2>
+      <div className="host-content space-y-4 max-w-md mx-auto pt-4">
+        <h2 className="font-display text-2xl text-[var(--gold)] text-center host-title">Host Game</h2>
 
+        <div className="host-left">
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Max Cards</p>
           <div className="flex gap-1.5">{[1,2,3,4,5].map(n => (
@@ -78,7 +79,9 @@ export function HostPage() {
             <button key={n} onClick={() => { play('uiSoft'); setTurnTimer(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${turnTimer===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}s</button>
           ))}</div>
         </div>
+        </div>{/* end host-left */}
 
+        <div className="host-right">
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Spectators</p>
           <div className="space-y-2">
@@ -107,6 +110,7 @@ export function HostPage() {
 
         <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
         <button onClick={() => navigate('/')} className="w-full btn-ghost py-2">Back</button>
+        </div>{/* end host-right */}
       </div>
     </Layout>
   );
