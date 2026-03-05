@@ -201,6 +201,7 @@ export function handToString(hand: HandCall): string {
   }
 }
 
+/** Get the display name for a HandType enum value (e.g., HandType.FULL_HOUSE → "Full House"). */
 export function getHandTypeName(type: HandType): string {
   return HAND_TYPE_NAMES[type];
 }

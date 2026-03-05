@@ -69,6 +69,7 @@ export class GameEngine {
     this.gameStats = { totalRounds: 0, playerStats };
   }
 
+  /** Turn timer in seconds (0 = disabled). */
   get turnTimer(): number {
     return this.settings.turnTimer ?? 0;
   }
@@ -115,10 +116,12 @@ export class GameEngine {
     this.currentPlayerIndex = this.startingPlayerIndex;
   }
 
+  /** True if one or fewer players remain (game is over). */
   get gameOver(): boolean {
     return this.getActivePlayers().length <= 1;
   }
 
+  /** ID of the last remaining player, or null if the game is still in progress. */
   get winnerId(): PlayerId | null {
     const active = this.getActivePlayers();
     return active.length === 1 ? active[0]!.id : null;
@@ -172,6 +175,7 @@ export class GameEngine {
     return { type: 'new_round' };
   }
 
+  /** ID of the player whose turn it currently is. */
   get currentPlayerId(): PlayerId {
     return this.getActivePlayers()[this.currentPlayerIndex]?.id ?? '';
   }

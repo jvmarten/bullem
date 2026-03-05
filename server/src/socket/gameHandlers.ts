@@ -69,6 +69,7 @@ export function registerGameHandlers(
   });
 }
 
+/** Extract room + game + playerId from a socket, or emit an error and return null. */
 function getGameContext(socket: TypedSocket, roomManager: RoomManager) {
   const room = roomManager.getRoomForSocket(socket.id);
   if (!room || !room.game) {
@@ -83,6 +84,7 @@ function getGameContext(socket: TypedSocket, roomManager: RoomManager) {
   return { room, game: room.game, playerId };
 }
 
+/** Dispatch a TurnResult from the game engine: broadcast state, schedule next turn, or end the game. */
 function handleResult(
   io: TypedServer,
   room: ReturnType<RoomManager['getRoom']> & {},
