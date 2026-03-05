@@ -14,6 +14,13 @@ export function LocalLobbyPage() {
   } = useGameContext();
   const [localError, setLocalError] = useState('');
   const initializedRef = useRef(false);
+  // Guard against ghost taps: on mobile, the "Play Offline" tap can pass through
+  // to "Start Game" if it occupies the same screen position after navigation
+  const [interactionReady, setInteractionReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setInteractionReady(true), 350);
+    return () => clearTimeout(timer);
+  }, []);
 
   const maxCards = gameSettings?.maxCards ?? MAX_CARDS;
   const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
@@ -108,7 +115,7 @@ export function LocalLobbyPage() {
         <div className="flex flex-col gap-3">
           <button
             onClick={startGame}
-            disabled={!canStart}
+            disabled={!canStart || !interactionReady}
             className="w-full btn-gold py-3 text-lg"
           >
             {canStart ? 'Start Game' : `Need ${MIN_PLAYERS}+ Players`}
