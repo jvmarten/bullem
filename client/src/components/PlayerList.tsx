@@ -92,7 +92,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''}`}>
+        <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''}`}>
           {p.isBot ? '\u2699' : playerInitial(p.name)}
         </div>
         <div className="flex flex-col min-w-0">
