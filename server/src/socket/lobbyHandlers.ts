@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -260,7 +260,14 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Settings are locked after other players join');
       return;
     }
-    // Validate settings
+
+    // Reject if data.settings is not a plain object (prevents prototype pollution)
+    if (!data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings)) {
+      socket.emit('room:error', 'Invalid settings payload');
+      return;
+    }
+
+    // Validate required fields
     const { maxCards, turnTimer } = data.settings;
     if (typeof maxCards !== 'number' || maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS || !Number.isInteger(maxCards)) {
       socket.emit('room:error', 'Invalid max cards setting');
@@ -270,30 +277,32 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Invalid turn timer setting');
       return;
     }
+
+    // Validate maxPlayers against the allowlist of supported values
     const maxPlayers = data.settings.maxPlayers;
     if (maxPlayers !== undefined) {
-      if (typeof maxPlayers !== 'number' || maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS || !Number.isInteger(maxPlayers)) {
+      if (typeof maxPlayers !== 'number' || !(MAX_PLAYERS_OPTIONS as readonly number[]).includes(maxPlayers)) {
         socket.emit('room:error', 'Invalid max players setting');
         return;
       }
     }
 
-    // Validate botSpeed if provided
+    // Validate botSpeed against enum values
     const botSpeed = data.settings.botSpeed;
     if (botSpeed !== undefined && !Object.values(BotSpeed).includes(botSpeed as BotSpeed)) {
       socket.emit('room:error', 'Invalid bot speed setting');
       return;
     }
 
-    // Validate lastChanceMode if provided
-    const VALID_LAST_CHANCE_MODES: LastChanceMode[] = ['classic', 'strict'];
+    // Validate lastChanceMode against the shared constant
     const lastChanceMode = data.settings.lastChanceMode;
-    if (lastChanceMode !== undefined && !VALID_LAST_CHANCE_MODES.includes(lastChanceMode as LastChanceMode)) {
+    if (lastChanceMode !== undefined && !(LAST_CHANCE_MODES as readonly string[]).includes(lastChanceMode)) {
       socket.emit('room:error', 'Invalid last chance mode setting');
       return;
     }
 
-    // Sanitize boolean settings — coerce to boolean or strip non-boolean values
+    // Build a validated settings object — only pick known fields to prevent
+    // unexpected properties from leaking into game state.
     const validated: GameSettings = {
       maxCards,
       turnTimer,

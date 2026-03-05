@@ -35,6 +35,13 @@ function roomKey(roomCode: string): string {
   return `${KEY_PREFIX}${roomCode}`;
 }
 
+/** Maximum retries for Redis write operations before giving up. */
+const MAX_RETRIES = 3;
+/** Base delay (ms) for exponential backoff between retries. */
+const RETRY_BASE_DELAY_MS = 200;
+/** Number of consecutive failures before logging a critical alert. */
+const CONSECUTIVE_FAILURE_ALERT_THRESHOLD = 5;
+
 /**
  * Redis-backed persistence layer for room and game state.
  *
@@ -43,12 +50,49 @@ function roomKey(roomCode: string): string {
  *   logged but don't crash the server — the in-memory state is always authoritative.
  * - Reads only happen at startup (restoreAll) or explicit load — never on the hot path.
  * - All values are JSON strings with a 24h TTL to prevent key leaks.
+ * - Write operations retry with exponential backoff on transient failures.
+ * - Consecutive failure tracking triggers critical-level alerts for monitoring.
  */
 export class RedisStore {
   private redis: Redis;
+  /** Tracks consecutive write failures for alerting. Reset on any success. */
+  private consecutiveFailures = 0;
 
   constructor(redis: Redis) {
     this.redis = redis;
+  }
+
+  /** Retry a Redis operation with exponential backoff. */
+  private async withRetry<T>(operation: () => Promise<T>, context: string): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const result = await operation();
+        // Reset failure counter on success
+        if (this.consecutiveFailures > 0) {
+          logger.info({ previousFailures: this.consecutiveFailures }, 'Redis connection recovered');
+          this.consecutiveFailures = 0;
+        }
+        return result;
+      } catch (err) {
+        lastError = err;
+        if (attempt < MAX_RETRIES) {
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    // All retries exhausted
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= CONSECUTIVE_FAILURE_ALERT_THRESHOLD) {
+      logger.fatal(
+        { err: lastError, consecutiveFailures: this.consecutiveFailures, context },
+        'Redis persistent failure — room state may be lost on restart. Investigate immediately.',
+      );
+    } else {
+      logger.error({ err: lastError, attempt: MAX_RETRIES + 1, context }, `Redis ${context} failed after ${MAX_RETRIES + 1} attempts`);
+    }
+    throw lastError;
   }
 
   /** Persist a room's current state to Redis. Fire-and-forget — errors are logged. */
@@ -57,25 +101,29 @@ export class RedisStore {
       const snapshot = room.serialize();
       const key = roomKey(room.roomCode);
       const value = JSON.stringify(snapshot);
-      // Pipeline: SET with TTL + add to index — single round-trip
-      const pipeline = this.redis.pipeline();
-      pipeline.set(key, value, 'EX', ROOM_TTL_SECONDS);
-      pipeline.sadd(INDEX_KEY, room.roomCode);
-      await pipeline.exec();
-    } catch (err) {
-      logger.error({ err, roomCode: room.roomCode }, 'Failed to persist room to Redis');
+      await this.withRetry(async () => {
+        // Pipeline: SET with TTL + add to index — single round-trip
+        const pipeline = this.redis.pipeline();
+        pipeline.set(key, value, 'EX', ROOM_TTL_SECONDS);
+        pipeline.sadd(INDEX_KEY, room.roomCode);
+        await pipeline.exec();
+      }, `persist(${room.roomCode})`);
+    } catch {
+      // withRetry already logged the error — swallow to maintain fire-and-forget
     }
   }
 
   /** Remove a room from Redis. Called when a room is deleted. */
   async remove(roomCode: string): Promise<void> {
     try {
-      const pipeline = this.redis.pipeline();
-      pipeline.del(roomKey(roomCode));
-      pipeline.srem(INDEX_KEY, roomCode);
-      await pipeline.exec();
-    } catch (err) {
-      logger.error({ err, roomCode }, 'Failed to remove room from Redis');
+      await this.withRetry(async () => {
+        const pipeline = this.redis.pipeline();
+        pipeline.del(roomKey(roomCode));
+        pipeline.srem(INDEX_KEY, roomCode);
+        await pipeline.exec();
+      }, `remove(${roomCode})`);
+    } catch {
+      // withRetry already logged the error — swallow to maintain fire-and-forget
     }
   }
 
