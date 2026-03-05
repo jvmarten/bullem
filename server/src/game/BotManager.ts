@@ -25,6 +25,11 @@ export class BotManager {
   /** Separate timers for disconnected-player auto-actions, keyed by roomCode.
    *  Tracked separately so clearTurnTimer cancels them alongside the main turn timer. */
   private roomDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Per-room generation counter. Incremented on every scheduleBotTurn /
+   *  clearTurnTimer call so that stale timer callbacks (from a previous
+   *  scheduling cycle) can detect they're outdated and bail out. Prevents
+   *  race conditions when two rapid events both trigger scheduling. */
+  private roomTimerGeneration = new Map<string, number>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
   private roomManager!: RoomManager;
 
@@ -35,6 +40,9 @@ export class BotManager {
   }
 
   clearTurnTimer(roomCode: string): void {
+    // Bump generation so any in-flight timer callbacks for this room become stale
+    this.bumpGeneration(roomCode);
+
     const existing = this.roomTurnTimers.get(roomCode);
     if (existing) {
       clearTimeout(existing);
@@ -48,6 +56,13 @@ export class BotManager {
       this.pendingTimers.delete(disconnectTimer);
       this.roomDisconnectTimers.delete(roomCode);
     }
+  }
+
+  /** Increment and return the generation counter for a room. */
+  private bumpGeneration(roomCode: string): number {
+    const next = (this.roomTimerGeneration.get(roomCode) ?? 0) + 1;
+    this.roomTimerGeneration.set(roomCode, next);
+    return next;
   }
 
   setDifficulty(difficulty: BotDifficulty): void {
@@ -87,6 +102,10 @@ export class BotManager {
     const player = room.players.get(currentId);
     if (!player) return;
 
+    // Capture the current generation — timer callbacks check this to detect
+    // if a newer scheduling cycle has superseded them.
+    const generation = this.roomTimerGeneration.get(room.roomCode) ?? 0;
+
     if (player.isBot) {
       // Use lightweight currentRoundPhase instead of building full client state
       // just to check the phase — avoids O(players) map + history copy.
@@ -101,40 +120,44 @@ export class BotManager {
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
         this.roomTurnTimers.delete(room.roomCode);
+        // Stale check: if generation has advanced, a newer schedule superseded this one
+        if (this.roomTimerGeneration.get(room.roomCode) !== generation) return;
         this.executeBotTurn(room, io, currentId);
       }, delay + graceMs);
       this.pendingTimers.add(timer);
       this.roomTurnTimers.set(room.roomCode, timer);
     } else {
-      this.scheduleHumanTurnTimer(room, io, currentId, graceMs);
+      this.scheduleHumanTurnTimer(room, io, currentId, graceMs, generation);
       // If the player is disconnected and no turn timer is configured,
       // scheduleHumanTurnTimer is a no-op. Schedule an auto-action so the
       // game doesn't stall waiting for a player who may never return.
       if (!player.isConnected && !room.settings.turnTimer) {
-        this.scheduleDisconnectAutoAction(room, io, currentId);
+        this.scheduleDisconnectAutoAction(room, io, currentId, generation);
       }
     }
   }
 
   /** Schedule an auto-action for a disconnected player who has no turn timer.
    *  Tracked per-room so clearTurnTimer cancels it if the turn advances. */
-  scheduleDisconnectAutoAction(room: Room, io: TypedServer, playerId: PlayerId): void {
+  scheduleDisconnectAutoAction(room: Room, io: TypedServer, playerId: PlayerId, generation?: number): void {
     // Cancel any existing disconnect timer for this room first
     const existing = this.roomDisconnectTimers.get(room.roomCode);
     if (existing) {
       clearTimeout(existing);
       this.pendingTimers.delete(existing);
     }
+    const gen = generation ?? (this.roomTimerGeneration.get(room.roomCode) ?? 0);
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
       this.roomDisconnectTimers.delete(room.roomCode);
+      if (this.roomTimerGeneration.get(room.roomCode) !== gen) return;
       this.executeAutoAction(room, io, playerId);
     }, DISCONNECT_AUTO_ACTION_MS);
     this.pendingTimers.add(timer);
     this.roomDisconnectTimers.set(room.roomCode, timer);
   }
 
-  private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId, graceMs = 0): void {
+  private scheduleHumanTurnTimer(room: Room, io: TypedServer, playerId: PlayerId, graceMs = 0, generation?: number): void {
     if (!room.game) return;
     const timerSeconds = room.settings.turnTimer;
     if (!timerSeconds || timerSeconds <= 0) {
@@ -146,9 +169,11 @@ export class BotManager {
     const deadline = Date.now() + totalMs;
     room.game.setTurnDeadline(deadline);
 
+    const gen = generation ?? (this.roomTimerGeneration.get(room.roomCode) ?? 0);
     const timer = setTimeout(() => {
       this.pendingTimers.delete(timer);
       this.roomTurnTimers.delete(room.roomCode);
+      if (this.roomTimerGeneration.get(room.roomCode) !== gen) return;
       this.executeAutoAction(room, io, playerId, true);
     }, totalMs);
     this.pendingTimers.add(timer);
@@ -198,6 +223,7 @@ export class BotManager {
     this.pendingTimers.clear();
     this.roomTurnTimers.clear();
     this.roomDisconnectTimers.clear();
+    this.roomTimerGeneration.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {
