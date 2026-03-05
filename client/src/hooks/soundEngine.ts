@@ -267,14 +267,14 @@ function computeSubRank(hand: HandCall): number {
     case HandType.FOUR_OF_A_KIND:
       return normalizeRank(hand.rank);
     case HandType.TWO_PAIR:
-      return ((RANK_VALUES[hand.highRank] - 2) * 13 + (RANK_VALUES[hand.lowRank] - 2)) / (12 * 13);
+      return ((RANK_VALUES[hand.highRank] - 2) * 3 + (RANK_VALUES[hand.lowRank] - 2)) / (12 * 3 + 12);
     case HandType.FLUSH:
       return 0.5;
     case HandType.STRAIGHT:
     case HandType.STRAIGHT_FLUSH:
       return (RANK_VALUES[hand.highRank] - 5) / 9;
     case HandType.FULL_HOUSE:
-      return ((RANK_VALUES[hand.threeRank] - 2) * 13 + (RANK_VALUES[hand.twoRank] - 2)) / (12 * 13);
+      return ((RANK_VALUES[hand.threeRank] - 2) * 3 + (RANK_VALUES[hand.twoRank] - 2)) / (12 * 3 + 12);
     case HandType.ROYAL_FLUSH:
       return 1.0;
   }
