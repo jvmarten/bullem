@@ -116,8 +116,11 @@ export function isHigherHand(newHand: HandCall, currentHand: HandCall): boolean 
 
     case HandType.STRAIGHT_FLUSH: {
       const curr = currentHand as typeof newHand;
-      if (newHand.suit !== curr.suit) return suitHigher(newHand.suit, curr.suit);
-      return rankHigher(newHand.highRank, curr.highRank);
+      // Rank is the primary comparison; suit breaks ties (as documented in SUIT_ORDER).
+      // Previously suit was the primary, which meant a 5-high in spades beat a
+      // K-high in clubs — clearly wrong.
+      if (newHand.highRank !== curr.highRank) return rankHigher(newHand.highRank, curr.highRank);
+      return suitHigher(newHand.suit, curr.suit);
     }
 
     case HandType.ROYAL_FLUSH:
@@ -198,6 +201,7 @@ export function handToString(hand: HandCall): string {
   }
 }
 
+/** Get the display name for a HandType enum value (e.g., HandType.FULL_HOUSE → "Full House"). */
 export function getHandTypeName(type: HandType): string {
   return HAND_TYPE_NAMES[type];
 }
@@ -266,15 +270,17 @@ export function getMinimumRaise(currentHand: HandCall): HandCall | null {
     }
     case HandType.STRAIGHT_FLUSH: {
       const { suit: sfSuit, highRank: sfHigh } = currentHand;
-      const nr = nextRank(sfHigh);
-      // Next rank in same suit (K+1 would be Ace = Royal Flush, different type)
-      if (nr && nr !== 'A') {
-        return { type: HandType.STRAIGHT_FLUSH, suit: sfSuit, highRank: nr };
-      }
-      // Try next suit with lowest straight flush
+      // Rank is primary, suit is tiebreaker (matching isHigherHand).
+      // Try next suit at the same rank first (suit tiebreaker increment).
       const suitIdx = ALL_SUITS.indexOf(sfSuit);
       if (suitIdx < ALL_SUITS.length - 1) {
-        return { type: HandType.STRAIGHT_FLUSH, suit: ALL_SUITS[suitIdx + 1]!, highRank: '5' };
+        return { type: HandType.STRAIGHT_FLUSH, suit: ALL_SUITS[suitIdx + 1]!, highRank: sfHigh };
+      }
+      // All suits exhausted at this rank — go to next rank, lowest suit.
+      // K+1 would be Ace = Royal Flush (different hand type).
+      const nr = nextRank(sfHigh);
+      if (nr && nr !== 'A') {
+        return { type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: nr };
       }
       return { type: HandType.ROYAL_FLUSH, suit: 'clubs' };
     }

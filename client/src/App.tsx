@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
+import { AuthProvider } from './context/AuthContext.js';
 import { ToastProvider } from './context/ToastContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -25,7 +26,13 @@ const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => 
 const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
 const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
 const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
+const ReplayPage = lazy(() => import('./pages/ReplayPage.js').then(m => ({ default: m.ReplayPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
+
+// Auth pages
+const LoginPage = lazy(() => import('./pages/LoginPage.js').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('./pages/RegisterPage.js').then(m => ({ default: m.RegisterPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.js').then(m => ({ default: m.ProfilePage })));
 
 function OnlineLayout() {
   return <GameProvider><Outlet /></GameProvider>;
@@ -53,6 +60,7 @@ function RouteLoadingFallback() {
 export default function App() {
   return (
     <ErrorBoundary>
+    <AuthProvider>
     <ToastProvider>
     <BrowserRouter>
       <ToastContainer />
@@ -61,6 +69,9 @@ export default function App() {
         <Routes>
           <Route path="/how-to-play" element={<HowToPlayPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
@@ -69,6 +80,7 @@ export default function App() {
             <Route path="/room/:roomCode" element={<LobbyPage />} />
             <Route path="/game/:roomCode" element={<GamePage />} />
             <Route path="/results/:roomCode" element={<ResultsPage />} />
+            <Route path="/replay" element={<ReplayPage />} />
           </Route>
 
           {/* Local (offline) bot game routes */}
@@ -76,6 +88,7 @@ export default function App() {
             <Route path="/local" element={<LocalLobbyPage />} />
             <Route path="/local/game" element={<LocalGamePage />} />
             <Route path="/local/results" element={<LocalResultsPage />} />
+            <Route path="/local/replay" element={<ReplayPage />} />
           </Route>
 
           {/* Catch-all: show 404 page for unknown URLs */}
@@ -84,6 +97,7 @@ export default function App() {
       </Suspense>
     </BrowserRouter>
     </ToastProvider>
+    </AuthProvider>
     </ErrorBoundary>
   );
 }

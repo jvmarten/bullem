@@ -244,10 +244,15 @@ export class RoomManager {
   }
 
   private io: TypedServer | null = null;
+  /** Optional callback to clear bot/turn timers when a room is deleted during
+   *  stale-room cleanup. Without this, pending bot timers fire after the room
+   *  is gone, wasting CPU and potentially persisting data for deleted rooms. */
+  private onRoomCleanup: ((roomCode: string) => void) | null = null;
 
-  startCleanup(io?: TypedServer): void {
+  startCleanup(io?: TypedServer, onRoomCleanup?: (roomCode: string) => void): void {
     if (this.cleanupTimer) return;
     if (io) this.io = io;
+    if (onRoomCleanup) this.onRoomCleanup = onRoomCleanup;
     this.cleanupTimer = setInterval(() => this.cleanupStaleRooms(), ROOM_CLEANUP_INTERVAL_MS);
   }
 
@@ -269,6 +274,9 @@ export class RoomManager {
       }
     }
     for (const code of staleCodes) {
+      // Clear bot/turn timers before deleting, so pending setTimeout callbacks
+      // don't fire against a deleted room.
+      if (this.onRoomCleanup) this.onRoomCleanup(code);
       // Notify any remaining connected sockets (spectators, players) before
       // deleting the room — otherwise they'll be stuck waiting forever.
       if (this.io) {

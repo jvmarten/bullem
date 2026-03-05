@@ -1,6 +1,10 @@
 import { ALL_RANKS, ALL_SUITS } from '../constants.js';
 import type { Card } from '../types.js';
 
+/**
+ * Standard 52-card deck with Fisher-Yates shuffle.
+ * Call {@link reset} between rounds to rebuild and reshuffle.
+ */
 export class Deck {
   private cards: Card[] = [];
 
@@ -8,6 +12,7 @@ export class Deck {
     this.reset();
   }
 
+  /** Rebuild the full 52-card deck and shuffle it. */
   reset(): void {
     this.cards = [];
     for (const suit of ALL_SUITS) {
@@ -27,10 +32,12 @@ export class Deck {
     }
   }
 
+  /** Remove and return `count` cards from the top of the deck. */
   deal(count: number): Card[] {
     return this.cards.splice(0, count);
   }
 
+  /** Number of cards remaining in the deck. */
   get remaining(): number {
     return this.cards.length;
   }

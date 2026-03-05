@@ -10,7 +10,7 @@ const logger = pino({
     : {}),
 });
 
-export interface ChildLoggerContext {
+interface ChildLoggerContext {
   roomCode?: string;
   playerId?: string;
 }

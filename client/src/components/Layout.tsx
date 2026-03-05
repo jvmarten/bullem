@@ -1,9 +1,11 @@
 import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { GameContext, PresenceContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { useJokerEasterEgg, JokerOverlay } from './JokerEasterEgg.js';
 import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
+import { socket } from '../socket.js';
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,6 +14,31 @@ interface LayoutProps {
   headerLeftExtra?: ReactNode;
   /** Extra elements rendered in the header right group — visible only in landscape/desktop */
   headerRightExtra?: ReactNode;
+}
+
+function AuthLink() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) {
+    return (
+      <Link
+        to="/profile"
+        className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1"
+        title={user.username}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span className="hidden sm:inline">{user.username}</span>
+      </Link>
+    );
+  }
+  return (
+    <Link
+      to="/login"
+      className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+    >
+      Guest
+    </Link>
+  );
 }
 
 export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra }: LayoutProps) {
@@ -23,6 +50,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
   const [showPopup, setShowPopup] = useState(false);
   const [showVersionPopup, setShowVersionPopup] = useState(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const versionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -40,6 +68,17 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
     }
     navigate('/');
   };
+
+  // Measure latency via Socket.io engine ping/pong when popup is open
+  useEffect(() => {
+    if (!showPopup) return;
+    const engine = socket.io.engine;
+    if (!engine) return;
+    // engine-io fires pong with latency in ms, but the TS typings omit the arg
+    const onPong = ((ms: number) => setLatencyMs(ms)) as () => void;
+    engine.on('pong', onPong);
+    return () => { engine.off('pong', onPong); };
+  }, [showPopup]);
 
   useEffect(() => {
     if (!showPopup && !showVersionPopup) return;
@@ -77,6 +116,11 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
                 <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
                   <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
                     Online ({onlinePlayerNames.length || onlinePlayerCount})
+                    {latencyMs !== null && (
+                      <span className="ml-2 text-[8px] normal-case tracking-normal opacity-70">
+                        {latencyMs}ms
+                      </span>
+                    )}
                   </p>
                   {onlinePlayerNames.length > 0 ? (
                     <ul className="space-y-0.5">
@@ -96,6 +140,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
+          <AuthLink />
           {headerLeftExtra && (
             <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
           )}
@@ -123,12 +168,12 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.2.9
+              v0.3.3
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.2.9 &middot; 05.03.26
+                  v0.3.3 &middot; 05.03.26
                 </p>
               </div>
             )}

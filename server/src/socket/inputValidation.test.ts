@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH,
   MIN_MAX_CARDS, MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MIN_PLAYERS, MAX_PLAYERS,
+  MAX_PLAYERS_OPTIONS, BotSpeed, LAST_CHANCE_MODES,
 } from '@bull-em/shared';
 
 // These validation functions are private in lobbyHandlers.ts.
@@ -145,7 +146,21 @@ describe('settings validation rules', () => {
 
   function validateMaxPlayers(v: unknown): boolean {
     if (v === undefined) return true;
-    return typeof v === 'number' && v >= MIN_PLAYERS && v <= MAX_PLAYERS && Number.isInteger(v);
+    return typeof v === 'number' && (MAX_PLAYERS_OPTIONS as readonly number[]).includes(v);
+  }
+
+  function validateBotSpeed(v: unknown): boolean {
+    if (v === undefined) return true;
+    return typeof v === 'string' && Object.values(BotSpeed).includes(v as BotSpeed);
+  }
+
+  function validateLastChanceMode(v: unknown): boolean {
+    if (v === undefined) return true;
+    return typeof v === 'string' && (LAST_CHANCE_MODES as readonly string[]).includes(v);
+  }
+
+  function validateSettingsPayload(v: unknown): boolean {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
   }
 
   describe('maxCards validation', () => {
@@ -205,24 +220,85 @@ describe('settings validation rules', () => {
       expect(validateMaxPlayers(undefined)).toBe(true);
     });
 
-    it('accepts valid range', () => {
-      expect(validateMaxPlayers(2)).toBe(true);
-      expect(validateMaxPlayers(6)).toBe(true);
-      expect(validateMaxPlayers(12)).toBe(true);
+    it('accepts all valid options', () => {
+      for (const opt of MAX_PLAYERS_OPTIONS) {
+        expect(validateMaxPlayers(opt)).toBe(true);
+      }
     });
 
-    it('rejects below minimum', () => {
+    it('rejects values not in the allowlist', () => {
       expect(validateMaxPlayers(1)).toBe(false);
-      expect(validateMaxPlayers(0)).toBe(false);
-    });
-
-    it('rejects above maximum', () => {
+      expect(validateMaxPlayers(7)).toBe(false); // not in MAX_PLAYERS_OPTIONS
+      expect(validateMaxPlayers(9)).toBe(false); // not in MAX_PLAYERS_OPTIONS
       expect(validateMaxPlayers(13)).toBe(false);
-      expect(validateMaxPlayers(100)).toBe(false);
     });
 
-    it('rejects non-integer', () => {
-      expect(validateMaxPlayers(2.5)).toBe(false);
+    it('rejects non-number', () => {
+      expect(validateMaxPlayers('6')).toBe(false);
+      expect(validateMaxPlayers(null)).toBe(false);
+    });
+  });
+
+  describe('botSpeed validation', () => {
+    it('accepts undefined (uses default)', () => {
+      expect(validateBotSpeed(undefined)).toBe(true);
+    });
+
+    it('accepts all valid enum values', () => {
+      expect(validateBotSpeed('slow')).toBe(true);
+      expect(validateBotSpeed('normal')).toBe(true);
+      expect(validateBotSpeed('fast')).toBe(true);
+    });
+
+    it('rejects invalid strings', () => {
+      expect(validateBotSpeed('turbo')).toBe(false);
+      expect(validateBotSpeed('')).toBe(false);
+    });
+
+    it('rejects non-string types', () => {
+      expect(validateBotSpeed(1)).toBe(false);
+      expect(validateBotSpeed(null)).toBe(false);
+    });
+  });
+
+  describe('lastChanceMode validation', () => {
+    it('accepts undefined (uses default)', () => {
+      expect(validateLastChanceMode(undefined)).toBe(true);
+    });
+
+    it('accepts all valid modes', () => {
+      for (const mode of LAST_CHANCE_MODES) {
+        expect(validateLastChanceMode(mode)).toBe(true);
+      }
+    });
+
+    it('rejects invalid strings', () => {
+      expect(validateLastChanceMode('hardcore')).toBe(false);
+      expect(validateLastChanceMode('')).toBe(false);
+    });
+
+    it('rejects non-string types', () => {
+      expect(validateLastChanceMode(1)).toBe(false);
+      expect(validateLastChanceMode(null)).toBe(false);
+    });
+  });
+
+  describe('settings payload validation', () => {
+    it('accepts plain objects', () => {
+      expect(validateSettingsPayload({})).toBe(true);
+      expect(validateSettingsPayload({ maxCards: 5 })).toBe(true);
+    });
+
+    it('rejects non-objects', () => {
+      expect(validateSettingsPayload(null)).toBe(false);
+      expect(validateSettingsPayload(undefined)).toBe(false);
+      expect(validateSettingsPayload('string')).toBe(false);
+      expect(validateSettingsPayload(42)).toBe(false);
+    });
+
+    it('rejects arrays', () => {
+      expect(validateSettingsPayload([])).toBe(false);
+      expect(validateSettingsPayload([1, 2, 3])).toBe(false);
     });
   });
 });

@@ -1,4 +1,5 @@
 import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
+import type { GameReplay } from './replay.js';
 
 /**
  * Socket.io events emitted by the client.
@@ -36,6 +37,7 @@ export interface ServerToClientEvents {
   'game:roundResult': (result: RoundResult) => void;
   'game:newRound': (state: ClientGameState) => void;
   'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
+  'game:replay': (replay: GameReplay) => void;
   'game:rematchStarting': () => void;
   'player:disconnected': (playerId: PlayerId, disconnectDeadline: number) => void;
   'player:reconnected': (playerId: PlayerId) => void;

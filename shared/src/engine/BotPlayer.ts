@@ -4,6 +4,7 @@ import { isHigherHand } from '../hands.js';
 import { HandChecker } from './HandChecker.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId } from '../types.js';
 
+/** The action a bot decides to take on its turn. */
 export type BotAction =
   | { action: 'call'; hand: HandCall }
   | { action: 'bull' }
@@ -11,12 +12,14 @@ export type BotAction =
   | { action: 'lastChanceRaise'; hand: HandCall }
   | { action: 'lastChancePass' };
 
+/** Cross-round memory of an opponent's behavior, used by hard/impossible bots. */
 export interface OpponentProfile {
   totalCalls: number;
   bluffsCaught: number;
   truthsCaught: number;
   bullCallsMade: number;
   correctBulls: number;
+  /** Recent hand types called — used to detect patterns (max 5 entries). */
   lastHandTypes: HandType[];
 }
 
@@ -25,6 +28,15 @@ export interface OpponentProfile {
  *  reconnects generating new player IDs. */
 const MAX_PROFILES_PER_SCOPE = 50;
 
+/**
+ * AI player for bot opponents. All methods are static — no instance state.
+ *
+ * Three difficulty levels:
+ * - **NORMAL** — estimates hand probability using only its own cards.
+ * - **HARD** — factors in opponent behavior patterns (bluff rate, call history)
+ *   via cross-round {@link OpponentProfile} memory scoped per room.
+ * - **IMPOSSIBLE** — sees all human players' cards (but not other bots').
+ */
 export class BotPlayer {
   // Cross-round opponent memory — scoped per room/game to prevent leaking
   // between concurrent games. Outer key is the scope (room code or game ID).

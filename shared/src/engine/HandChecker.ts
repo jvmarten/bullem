@@ -2,7 +2,13 @@ import { RANK_VALUES } from '../constants.js';
 import type { Card, HandCall, OwnedCard, Rank, Suit } from '../types.js';
 import { HandType } from '../types.js';
 
-/** Pure static methods for checking whether hands exist in a pool of cards. */
+/**
+ * Pure static methods for checking whether poker hands exist in a pool of cards.
+ *
+ * Used during round resolution to determine if the called hand can actually be
+ * formed from all players' combined cards. Also provides card-finding methods
+ * for the reveal overlay (showing which cards formed or disproved the hand).
+ */
 export class HandChecker {
   /** Returns true if the called hand can be formed from the given cards. */
   static exists(allCards: Card[], hand: HandCall): boolean {

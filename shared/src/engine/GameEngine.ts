@@ -7,6 +7,7 @@ import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
   GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards, GameEngineSnapshot,
 } from '../types.js';
+import type { RoundSnapshot } from '../replay.js';
 import { Deck } from './Deck.js';
 import { HandChecker } from './HandChecker.js';
 
@@ -39,6 +40,10 @@ export class GameEngine {
   private lastChanceUsed = false;
   private gameStats: GameStats;
   private _turnDeadline: number | null = null;
+  /** Round snapshots collected for game replay. Populated at each round resolution. */
+  private _roundSnapshots: RoundSnapshot[] = [];
+  /** Cards dealt at the start of the current round — captured before any actions. */
+  private _roundStartCards: SpectatorPlayerCards[] = [];
   /** Cached active players list — invalidated when the eliminated count changes.
    *  Avoids creating a new filtered array on every call to getActivePlayers(),
    *  which is invoked 5-10 times per turn action across validateTurn, advanceTurn,
@@ -64,6 +69,7 @@ export class GameEngine {
     this.gameStats = { totalRounds: 0, playerStats };
   }
 
+  /** Turn timer in seconds (0 = disabled). */
   get turnTimer(): number {
     return this.settings.turnTimer ?? 0;
   }
@@ -97,16 +103,25 @@ export class GameEngine {
       p.cards = this.deck.deal(available);
     }
 
+    // Capture dealt cards for replay before any actions modify state
+    this._roundStartCards = this.getActivePlayers().map(p => ({
+      playerId: p.id,
+      playerName: p.name,
+      cards: [...p.cards],
+    }));
+
     // Starting player rotates each round
     const active = this.getActivePlayers();
     this.startingPlayerIndex = (this.roundNumber - 1) % active.length;
     this.currentPlayerIndex = this.startingPlayerIndex;
   }
 
+  /** True if one or fewer players remain (game is over). */
   get gameOver(): boolean {
     return this.getActivePlayers().length <= 1;
   }
 
+  /** ID of the last remaining player, or null if the game is still in progress. */
   get winnerId(): PlayerId | null {
     const active = this.getActivePlayers();
     return active.length === 1 ? active[0]!.id : null;
@@ -147,12 +162,20 @@ export class GameEngine {
       p.cards = this.deck.deal(available);
     }
 
+    // Capture dealt cards for replay before any actions modify state
+    this._roundStartCards = this.getActivePlayers().map(p => ({
+      playerId: p.id,
+      playerName: p.name,
+      cards: [...p.cards],
+    }));
+
     this.startingPlayerIndex = nextStarterActiveIndex;
     this.currentPlayerIndex = this.startingPlayerIndex;
 
     return { type: 'new_round' };
   }
 
+  /** ID of the player whose turn it currently is. */
   get currentPlayerId(): PlayerId {
     return this.getActivePlayers()[this.currentPlayerIndex]?.id ?? '';
   }
@@ -323,11 +346,28 @@ export class GameEngine {
     turnHistorySnapshot: TurnEntry[];
     turnHistoryLength: number;
     playerCount: number;
+    connectedCount: number;
+    eliminatedCount: number;
   } | null = null;
 
   private getSharedClientState(): { publicPlayers: Player[]; turnHistorySnapshot: TurnEntry[] } {
     const cached = this._sharedClientState;
-    if (cached && cached.turnHistoryLength === this.turnHistory.length && cached.playerCount === this.players.length) {
+    // Count connected and eliminated players so the cache invalidates when
+    // player state is mutated externally (e.g. Room sets isConnected = false
+    // on a disconnect — the engine's player objects are shared references).
+    let connectedCount = 0;
+    let eliminatedCount = 0;
+    for (const p of this.players) {
+      if (p.isConnected) connectedCount++;
+      if (p.isEliminated) eliminatedCount++;
+    }
+    if (
+      cached
+      && cached.turnHistoryLength === this.turnHistory.length
+      && cached.playerCount === this.players.length
+      && cached.connectedCount === connectedCount
+      && cached.eliminatedCount === eliminatedCount
+    ) {
       return cached;
     }
     const shared = {
@@ -335,6 +375,8 @@ export class GameEngine {
       turnHistorySnapshot: [...this.turnHistory],
       turnHistoryLength: this.turnHistory.length,
       playerCount: this.players.length,
+      connectedCount,
+      eliminatedCount,
     };
     this._sharedClientState = shared;
     return shared;
@@ -342,6 +384,11 @@ export class GameEngine {
 
   getGameStats(): GameStats {
     return this.gameStats;
+  }
+
+  /** Get all round snapshots recorded during this game (for building a replay). */
+  getRoundSnapshots(): RoundSnapshot[] {
+    return this._roundSnapshots;
   }
 
   getActivePlayers(): ServerPlayer[] {
@@ -546,6 +593,14 @@ export class GameEngine {
       turnHistory: [...this.turnHistory],
     };
     this.lastRoundResult = result;
+
+    // Record round snapshot for replay
+    this._roundSnapshots.push({
+      roundNumber: this.roundNumber,
+      playerCards: this._roundStartCards,
+      turnHistory: [...this.turnHistory],
+      result,
+    });
 
     // Check for game over
     const remaining = this.getActivePlayers();

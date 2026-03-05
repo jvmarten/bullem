@@ -4,7 +4,7 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
-import { broadcastGameState } from './broadcast.js';
+import { broadcastGameState, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -69,6 +69,7 @@ export function registerGameHandlers(
   });
 }
 
+/** Extract room + game + playerId from a socket, or emit an error and return null. */
 function getGameContext(socket: TypedSocket, roomManager: RoomManager) {
   const room = roomManager.getRoomForSocket(socket.id);
   if (!room || !room.game) {
@@ -83,6 +84,7 @@ function getGameContext(socket: TypedSocket, roomManager: RoomManager) {
   return { room, game: room.game, playerId };
 }
 
+/** Dispatch a TurnResult from the game engine: broadcast state, schedule next turn, or end the game. */
 function handleResult(
   io: TypedServer,
   room: ReturnType<RoomManager['getRoom']> & {},
@@ -116,6 +118,8 @@ function handleResult(
         io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
       }
       room.gamePhase = GamePhase.GAME_OVER;
+      room.cancelRoundContinueWindow();
+      broadcastGameReplay(io, room, result.winnerId);
       io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
       break;
   }

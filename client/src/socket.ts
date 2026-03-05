@@ -10,6 +10,7 @@ export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
+  withCredentials: true,
 });
 
 // Connect once at module load — the socket stays connected for the lifetime of

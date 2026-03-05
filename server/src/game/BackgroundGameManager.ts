@@ -4,7 +4,6 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
 import { broadcastGameState, broadcastRoomState } from '../socket/broadcast.js';
-import { beginRoundResultPhase } from '../socket/roundTransition.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -23,6 +22,10 @@ const RESTART_DELAY_MS = 8_000;
 export class BackgroundGameManager {
   private roomCode: string | null = null;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Tracked so stop() can clean it up — prevents orphaned intervals. */
+  private watchInterval: ReturnType<typeof setInterval> | null = null;
+  /** Set to true on stop() to prevent createAndStartGame from running after shutdown. */
+  private stopped = false;
 
   constructor(
     private readonly io: TypedServer,
@@ -32,11 +35,17 @@ export class BackgroundGameManager {
 
   /** Create the background room and start the first game. */
   start(): void {
+    this.stopped = false;
     this.createAndStartGame();
   }
 
-  /** Clean up timers and room on shutdown. */
+  /** Clean up all timers, intervals, and the background room on shutdown. */
   stop(): void {
+    this.stopped = true;
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
+      this.watchInterval = null;
+    }
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
@@ -54,6 +63,14 @@ export class BackgroundGameManager {
   }
 
   private createAndStartGame(): void {
+    if (this.stopped) return;
+
+    // Clean up previous watch interval
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
+      this.watchInterval = null;
+    }
+
     // Clean up previous room if it exists
     if (this.roomCode) {
       this.botManager.clearTurnTimer(this.roomCode);
@@ -99,23 +116,35 @@ export class BackgroundGameManager {
    *  Uses a lightweight interval instead of hooking into game events to
    *  keep the background game decoupled from core game flow. */
   private watchForGameOver(): void {
-    const checkInterval = setInterval(() => {
-      if (!this.roomCode) {
-        clearInterval(checkInterval);
+    // Clean up any previous interval before creating a new one
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
+    }
+
+    this.watchInterval = setInterval(() => {
+      if (this.stopped || !this.roomCode) {
+        if (this.watchInterval) {
+          clearInterval(this.watchInterval);
+          this.watchInterval = null;
+        }
         return;
       }
 
       const room = this.roomManager.getRoom(this.roomCode);
       if (!room || room.gamePhase === GamePhase.GAME_OVER || room.gamePhase === GamePhase.FINISHED) {
-        clearInterval(checkInterval);
+        if (this.watchInterval) {
+          clearInterval(this.watchInterval);
+          this.watchInterval = null;
+        }
         this.scheduleRestart();
       }
     }, 2000);
     // Don't let this interval prevent process exit
-    checkInterval.unref();
+    this.watchInterval.unref();
   }
 
   private scheduleRestart(): void {
+    if (this.stopped) return;
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;

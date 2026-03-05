@@ -1,5 +1,6 @@
 import type { Rank, Suit, BotSpeed } from './types.js';
 
+/** Numeric value for each rank (2=2, ..., A=14). Used for hand comparison ordering. */
 export const RANK_VALUES: Record<Rank, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
   '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14,
@@ -30,20 +31,25 @@ export const DEFAULT_TURN_TIMER = 0;
 export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const; // online requires a timer
 export const DEFAULT_ONLINE_TURN_TIMER = 30;
 export const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12] as const;
-export const DEFAULT_LAST_CHANCE_MODE = 'classic' as const;
+export const LAST_CHANCE_MODES = ['classic', 'strict'] as const;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS };
+/** How long a disconnected player has to reconnect before being eliminated (ms). */
 export const DISCONNECT_TIMEOUT_MS = 30_000;
 export const ROOM_CODE_LENGTH = 4;
 export const PLAYER_NAME_MAX_LENGTH = 20;
+/** Allowed characters in player names (alphanumeric, spaces, common punctuation). */
 export const PLAYER_NAME_PATTERN = /^[a-zA-Z0-9 _\-'.!?]+$/;
 
+// Bot delay ranges (ms) — jittered within these bounds for human-like timing
 export const BOT_THINK_DELAY_MIN = 1500;
 export const BOT_THINK_DELAY_MAX = 4000;
 export const BOT_BULL_DELAY_MIN = 400;
 export const BOT_BULL_DELAY_MAX = 1200;
 
+/** Interval for checking and cleaning up stale/empty rooms. */
 export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+/** Rooms with no activity for this duration are cleaned up. */
 export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000; // 10 minutes
 
 export const DEFAULT_BOT_DIFFICULTY = 'hard' as const;

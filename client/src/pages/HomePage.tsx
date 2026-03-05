@@ -178,12 +178,10 @@ function getOrCreatePlayerName(): string {
 }
 
 // Hue offsets for the "coming soon" wallpaper background on each press
-const RANKED_HUE_OFFSETS = [0, 30, 60, 120, 180, 210, 270, 330];
 
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
-  const [rankedPressCount, setRankedPressCount] = useState(0);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
@@ -489,11 +487,12 @@ export function HomePage() {
                           boxShadow: isHighlighted
                             ? '0 4px 12px rgba(212, 168, 67, 0.5), 0 0 8px rgba(212, 168, 67, 0.3)'
                             : '0 2px 6px rgba(0,0,0,0.3)',
+                          opacity: showHighlight && !isHighlighted ? 0.45 : 1,
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          transition: 'border 0.3s, box-shadow 0.3s',
+                          transition: 'border 0.3s, box-shadow 0.3s, opacity 0.4s',
                         }}
                       >
                         {card && (
@@ -594,7 +593,7 @@ export function HomePage() {
             </button>
             <Link
               to="/tutorial"
-              className="w-full btn-gold py-4 text-lg text-center block"
+              className="w-full btn-info py-4 text-lg text-center block"
             >
               Interactive Tutorial
             </Link>
@@ -646,28 +645,18 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {/* Ranked Play — teaser button */}
+            {/* Ranked Play — disabled teaser */}
             <button
-              onClick={() => {
-                play('uiClick');
-                setRankedPressCount(prev => prev + 1);
-              }}
-              className="w-full btn-gold py-4 text-lg relative overflow-hidden"
-              style={{
-                cursor: 'default',
-                ...(rankedPressCount > 0 ? {
-                  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
-                    `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='40'><text x='4' y='14' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text><text x='84' y='34' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text></svg>`,
-                  )}")`,
-                  backgroundSize: '160px 40px',
-                  transition: 'background-image 0.3s ease',
-                } : {}),
-              }}
+              disabled
+              className="w-full btn-gold py-4 text-lg relative"
             >
-              <span className="relative z-10">Ranked Play</span>
+              Ranked Play
+              <span className="ml-2 text-xs font-semibold uppercase tracking-wider opacity-70">
+                Coming Soon
+              </span>
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); setRankedPressCount(0); }}
+              onClick={() => { play('uiSoft'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
