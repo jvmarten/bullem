@@ -26,9 +26,10 @@ export class BotManager {
    *  Tracked separately so clearTurnTimer cancels them alongside the main turn timer. */
   private roomDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
-  private roomManager: RoomManager | null = null;
+  private roomManager!: RoomManager;
 
-  /** Attach a RoomManager reference for Redis persistence after bot actions. */
+  /** Attach a RoomManager reference for Redis persistence after bot actions.
+   *  Must be called before any bot actions are processed. */
   setRoomManager(rm: RoomManager): void {
     this.roomManager = rm;
   }
@@ -271,7 +272,7 @@ export class BotManager {
         break;
 
       case 'resolve': {
-        beginRoundResultPhase(io, room, this, result.result, this.roomManager ?? undefined);
+        beginRoundResultPhase(io, room, this, result.result, this.roomManager);
         break;
       }
 
@@ -288,7 +289,7 @@ export class BotManager {
         break;
     }
     // Persist after every bot action that mutated game state
-    if (result.type !== 'error' && this.roomManager) {
+    if (result.type !== 'error') {
       this.roomManager.persistRoom(room);
     }
   }

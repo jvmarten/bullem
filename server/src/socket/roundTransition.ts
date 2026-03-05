@@ -37,7 +37,7 @@ export function beginRoundResultPhase(
   room: Room,
   botManager: BotManager,
   result: RoundResult,
-  roomManager?: RoomManager,
+  roomManager: RoomManager,
 ): void {
   if (!room.game) return;
 
@@ -51,14 +51,14 @@ export function beginRoundResultPhase(
   BotPlayer.updateMemory(result, room.roomCode);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
-    startNextRound(io, room, roomManager!, botManager);
+    startNextRound(io, room, roomManager, botManager);
   });
 
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, roomManager!, botManager);
+    startNextRound(io, room, roomManager, botManager);
   }
 
-  if (roomManager) roomManager.persistRoom(room);
+  roomManager.persistRoom(room);
 }
 
 export function markContinueReady(
@@ -66,13 +66,13 @@ export function markContinueReady(
   room: Room,
   botManager: BotManager,
   playerId: PlayerId,
-  roomManager?: RoomManager,
+  roomManager: RoomManager,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   // Idempotent: skip if already marked (prevents wasted isRoundContinueComplete checks)
   if (!room.markRoundContinueReady(playerId)) return;
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, roomManager!, botManager);
+    startNextRound(io, room, roomManager, botManager);
   }
 }
 
@@ -82,10 +82,10 @@ export function checkRoundContinueComplete(
   io: TypedServer,
   room: Room,
   botManager: BotManager,
-  roomManager?: RoomManager,
+  roomManager: RoomManager,
 ): void {
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   if (room.isRoundContinueComplete) {
-    startNextRound(io, room, roomManager!, botManager);
+    startNextRound(io, room, roomManager, botManager);
   }
 }
