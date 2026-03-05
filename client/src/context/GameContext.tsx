@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay } from '@bull-em/shared';
+import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 /** Presence state (online player count/names) is split into a separate context
@@ -59,6 +60,8 @@ export interface GameContextValue {
   setGameSettings?: (s: GameSettings) => void;
   isPaused?: boolean;
   togglePause?: () => void;
+  /** Most recent game replay (populated at game over). */
+  lastReplay: GameReplay | null;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -99,6 +102,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
+  const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -160,6 +164,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setRoundTransition(false);
       setWinnerId(null);
       setGameStats(null);
+      setLastReplay(null);
       setDisconnectDeadlines(new Map());
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
@@ -223,9 +228,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
     socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
+    socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
       setGameStats(null);
+      setLastReplay(null);
       setRoundResult(null);
       setRoundTransition(false);
       setRoundTransitionDeadline(null);
@@ -264,6 +271,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:newRound');
       socket.off('game:roundResult');
       socket.off('game:over');
+      socket.off('game:replay');
       socket.off('game:rematchStarting');
       socket.off('room:error');
       socket.off('room:deleted');
@@ -312,6 +320,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setRoundTransition(false);
     setWinnerId(null);
     setGameStats(null);
+    setLastReplay(null);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -326,6 +335,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setRoundTransition(false);
     setWinnerId(null);
     setGameStats(null);
+    setLastReplay(null);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -466,10 +476,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     removeBot,
     kickPlayer,
     requestRematch,
+    lastReplay,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
-    onlinePlayerCount, onlinePlayerNames,
+    onlinePlayerCount, onlinePlayerNames, lastReplay,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,

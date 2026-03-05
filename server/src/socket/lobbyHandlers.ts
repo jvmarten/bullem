@@ -4,7 +4,7 @@ import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChan
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
-import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
+import { broadcastGameState, broadcastRoomState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
@@ -129,6 +129,7 @@ export function registerLobbyHandlers(
         case 'game_over':
           room.gamePhase = GamePhase.GAME_OVER;
           room.cancelRoundContinueWindow();
+          broadcastGameReplay(io, room, result.winnerId);
           io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
           break;
         case 'resolve':
@@ -151,6 +152,7 @@ export function registerLobbyHandlers(
       if (result.type === 'game_over') {
         room.gamePhase = GamePhase.GAME_OVER;
         room.cancelRoundContinueWindow();
+        broadcastGameReplay(io, room, result.winnerId);
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
       } else {
         // The leaving player may have been the last one who hadn't pressed Continue.

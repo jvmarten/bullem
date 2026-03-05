@@ -7,7 +7,7 @@ import { useGameContext } from '../context/GameContext.js';
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay } = useGameContext();
 
   // When winnerId is cleared (rematch started), navigate back to the game page
   useEffect(() => {
@@ -62,6 +62,14 @@ export function ResultsPage() {
             <p className="text-[var(--gold-dim)] text-sm">
               Waiting for host to start rematch...
             </p>
+          )}
+          {lastReplay && (
+            <button
+              onClick={() => navigate('/replay')}
+              className="text-[var(--gold)] hover:text-[var(--gold-light)] text-sm font-medium transition-colors"
+            >
+              Watch Replay
+            </button>
           )}
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}

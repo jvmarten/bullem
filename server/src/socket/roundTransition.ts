@@ -4,7 +4,7 @@ import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId 
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
-import { broadcastGameState, broadcastNewRound } from './broadcast.js';
+import { broadcastGameState, broadcastNewRound, broadcastGameReplay } from './broadcast.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const ROUND_CONTINUE_TIMEOUT_MS = 30_000;
@@ -18,6 +18,7 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   const nextResult = room.game!.startNextRound();
   if (nextResult.type === 'game_over') {
     room.gamePhase = GamePhase.GAME_OVER;
+    broadcastGameReplay(io, room, nextResult.winnerId);
     io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
     roomManager.persistRoom(room);
     return;

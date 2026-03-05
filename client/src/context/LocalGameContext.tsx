@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
+  saveReplay,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
@@ -101,6 +102,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [roundTransition, setRoundTransition] = useState(false);
   const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
+  const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(
     initialRestore?.save.botDifficulty ?? (DEFAULT_BOT_DIFFICULTY as BotDifficulty),
@@ -294,6 +296,23 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }, timerSeconds * 1000);
   }, [executeAutoAction]);
 
+  const buildAndSaveReplay = useCallback((winId: PlayerId) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const snapshots = engine.getRoundSnapshots();
+    if (snapshots.length === 0) return;
+    const replay: GameReplay = {
+      id: `LOCAL-${Date.now()}`,
+      players: playersRef.current.map(p => ({ id: p.id, name: p.name })),
+      settings: { ...gameSettingsRef.current },
+      rounds: snapshots,
+      winnerId: winId,
+      completedAt: new Date().toISOString(),
+    };
+    setLastReplay(replay);
+    saveReplay(replay);
+  }, []);
+
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -323,6 +342,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       case 'game_over':
         engine.setTurnDeadline(null);
         clearLocalGameSave();
+        buildAndSaveReplay(result.winnerId);
         if (result.finalRoundResult) {
           // Show the final round result overlay before navigating to results
           setGameState(engine.getClientState(HUMAN_ID));
@@ -334,7 +354,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         }
         break;
     }
-  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame]);
+  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame, buildAndSaveReplay]);
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -459,6 +479,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setRoundTransition(false);
     setWinnerId(null);
     setGameStats(null);
+    setLastReplay(null);
     setIsPaused(false);
     isPausedRef.current = false;
   }, []);
@@ -643,6 +664,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
     setWinnerId(null);
     setGameStats(null);
+    setLastReplay(null);
     setRoundResult(null);
     setRoundTransition(false);
     setIsPaused(false);
@@ -696,6 +718,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setGameSettings,
     isPaused,
     togglePause,
+    lastReplay,
     onlinePlayerCount,
     onlinePlayerNames,
     listRooms: noopListRooms,
@@ -710,7 +733,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
     addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
-    setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
+    setGameSettings, isPaused, togglePause, lastReplay, onlinePlayerCount, onlinePlayerNames,
     noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
   ]);
 
