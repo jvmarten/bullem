@@ -120,11 +120,11 @@ describe('isHigherHand — boundary and regression cases', () => {
     )).toBe(true);
   });
 
-  it('straight flush: suit takes priority over rank', () => {
-    // Spades 5 beats Hearts King (spades > hearts)
+  it('straight flush: rank takes priority over suit', () => {
+    // King-high beats 5-high regardless of suit (rank is primary, suit is tiebreaker)
     expect(isHigherHand(
+      { type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: 'K' },
       { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '5' },
-      { type: HandType.STRAIGHT_FLUSH, suit: 'hearts', highRank: 'K' },
     )).toBe(true);
   });
 

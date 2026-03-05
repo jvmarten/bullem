@@ -157,13 +157,13 @@ export function LobbyPage() {
       addToast(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
       return;
     }
-    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
+    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
   };
 
   const handleTimerChange = (seconds: number) => {
     if (settingsLocked) return;
     play('uiSoft');
-    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
+    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
   };
 
   const handleMaxPlayersChange = (cap: number) => {
@@ -173,7 +173,7 @@ export function LobbyPage() {
       addToast(`Can't set max players to ${cap} with ${roomState.players.length} players`);
       return;
     }
-    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
+    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
   };
 
   // Filter max player options to only show values <= card-based max
@@ -313,7 +313,7 @@ export function LobbyPage() {
                     onClick={() => { play('uiSoft'); updateSettings({
                       maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                       allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                      botSpeed: speed,
+                      botSpeed: speed, lastChanceMode: settings.lastChanceMode,
                     }); }}
                     className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
                       (settings.botSpeed ?? BotSpeed.NORMAL) === speed
@@ -386,7 +386,7 @@ export function LobbyPage() {
                       maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                       allowSpectators: !settings.allowSpectators,
                       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                      botSpeed: settings.botSpeed,
+                      botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
                     }); }}
                     className={`w-11 h-6 rounded-full transition-colors relative border ${
                       settings.allowSpectators
@@ -407,7 +407,7 @@ export function LobbyPage() {
                         maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                         allowSpectators: settings.allowSpectators,
                         spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
-                        botSpeed: settings.botSpeed,
+                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
                       }); }}
                       className={`w-11 h-6 rounded-full transition-colors relative border ${
                         settings.spectatorsCanSeeCards

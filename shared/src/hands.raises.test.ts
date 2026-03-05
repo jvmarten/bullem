@@ -147,8 +147,8 @@ describe('isHigherHand: if A > B then B < A (asymmetric)', () => {
       { type: HandType.FULL_HOUSE, threeRank: '2', twoRank: 'A' },
     ],
     [
-      { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '9' },
       { type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: 'K' },
+      { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '9' },
     ],
   ];
 

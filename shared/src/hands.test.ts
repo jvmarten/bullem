@@ -313,10 +313,10 @@ describe('isHigherHand', () => {
       )).toBe(false);
     });
 
-    it('straight flush: higher suit wins regardless of rank', () => {
+    it('straight flush: higher rank wins regardless of suit', () => {
       expect(isHigherHand(
-        { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '6' },
         { type: HandType.STRAIGHT_FLUSH, suit: 'hearts', highRank: '9' },
+        { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '6' },
       )).toBe(true);
     });
 
