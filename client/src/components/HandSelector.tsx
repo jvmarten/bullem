@@ -227,7 +227,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
 
   useEffect(() => {
     onHandChange?.(hand, isValid);
-    if (hand) playHandPreview(hand.type);
+    if (hand) playHandPreview(hand);
   }, [hand, isValid, onHandChange, playHandPreview]);
 
   const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
