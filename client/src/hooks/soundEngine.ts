@@ -55,7 +55,7 @@ interface ToneConfig {
 // Sounds that use an audio file instead of oscillator tones.
 // Most sounds now use pre-rendered MP3 files for richer quality.
 const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
-  cardDeal:    { url: cardDealUrl, gain: 0.3 },
+  cardDeal:    { url: cardDealUrl, gain: 0.18 },
   cardReveal:  { url: cardRevealUrl, gain: 0.3 },
   deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
   bullCalled:  { url: bullCalledUrl, gain: 0.5 },
@@ -65,7 +65,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   roundLose:   { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
   eliminated:  { url: eliminatedUrl, gain: 0.5 },
   gameOver:    { url: gameOverUrl, gain: 0.45 },
-  yourTurn:    { url: yourTurnUrl, gain: 0.25 },
+  yourTurn:    { url: yourTurnUrl, gain: 0.14 },
   timerTick:   { url: timerTickUrl, gain: 0.5 },
   heartbeat:   { url: heartbeatUrl, gain: 0.55 },
   uiClick:     { url: uiClickUrl, gain: 0.4 },
