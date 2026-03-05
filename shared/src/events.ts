@@ -25,6 +25,7 @@ export interface ClientToServerEvents {
   'room:removeBot': (data: { botId: string }) => void;
   'room:kickPlayer': (data: { playerId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:delete': () => void;
+  'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */

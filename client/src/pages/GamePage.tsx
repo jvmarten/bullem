@@ -61,6 +61,7 @@ export function GamePage() {
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
     isConnected, hasConnected, disconnectDeadlines,
   } = useGameContext();
+  const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
@@ -206,6 +207,11 @@ export function GamePage() {
   const headerRightExtra = (
     <>
       <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">{roomCode}</span>
+      {spectatorCount > 0 && (
+        <span className="text-[var(--gold-dim)] text-xs" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
+          {spectatorCount} watching
+        </span>
+      )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
       <button
         onClick={handleLeave}
@@ -232,6 +238,11 @@ export function GamePage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+            {spectatorCount > 0 && (
+              <span className="text-[var(--gold-dim)]" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
+                {spectatorCount} watching
+              </span>
+            )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
             <button
               onClick={handleLeave}

@@ -89,6 +89,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       hostId: HUMAN_ID,
       gamePhase: GamePhase.PLAYING,
       settings: initialRestore.save.gameSettings,
+      spectatorCount: 0,
     } : null,
   );
   const [gameState, setGameState] = useState<ClientGameState | null>(
@@ -435,6 +436,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       hostId: HUMAN_ID,
       gamePhase: GamePhase.LOBBY,
       settings: { ...DEFAULT_GAME_SETTINGS },
+      spectatorCount: 0,
     });
 
     return 'LOCAL';
@@ -656,6 +658,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const noopListRooms = useCallback(async () => [] as never[], []);
   const noopListLiveGames = useCallback(async () => [] as never[], []);
   const noopSpectate = useCallback(async () => {}, []);
+  const noopWatchRandom = useCallback(async (): Promise<string> => { throw new Error('Not available offline'); }, []);
   const noopUpdateSettings = useCallback(() => {}, []);
   const noopDeleteRoom = useCallback(() => {}, []);
   const noopKickPlayer = useCallback((): Promise<void> => Promise.resolve(), []);
@@ -698,6 +701,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     listRooms: noopListRooms,
     listLiveGames: noopListLiveGames,
     spectateGame: noopSpectate,
+    watchRandomGame: noopWatchRandom,
     updateSettings: noopUpdateSettings,
     deleteRoom: noopDeleteRoom,
     kickPlayer: noopKickPlayer,
@@ -707,7 +711,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
     addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
     setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
-    noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
+    noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
   ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

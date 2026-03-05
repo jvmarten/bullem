@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { BotManager } from './game/BotManager.js';
+import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -36,8 +37,10 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 const roomManager = new RoomManager();
 const botManager = new BotManager();
+const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
 registerHandlers(io, roomManager, botManager);
 roomManager.startCleanup(io);
+backgroundGameManager.start();
 
 // Health check — registered before the SPA catch-all
 app.get('/health', (_req, res) => res.json({
@@ -72,6 +75,7 @@ io.engine.on('close', () => scheduleBroadcastPlayerCount());
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {
   console.log('Shutting down...');
+  backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
   io.close();

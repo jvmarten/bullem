@@ -147,9 +147,22 @@ export class RoomManager {
         hostName: room.hostName,
         roundNumber: state?.roundNumber ?? 0,
         spectatorsCanSeeCards: room.settings.spectatorsCanSeeCards ?? false,
+        spectatorCount: room.spectatorSockets.size,
       });
     }
     return listings;
+  }
+
+  /** Return the room code of a random spectatable live game, or undefined if none exist. */
+  getRandomLiveGame(): string | undefined {
+    const candidates: string[] = [];
+    for (const room of this.rooms.values()) {
+      if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT) continue;
+      if (!room.settings.allowSpectators) continue;
+      candidates.push(room.roomCode);
+    }
+    if (candidates.length === 0) return undefined;
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   effectiveMaxPlayers(room: Room): number {
@@ -205,6 +218,7 @@ export class RoomManager {
     // Collect codes first to avoid mutating the map during iteration
     const staleCodes: string[] = [];
     for (const [code, room] of this.rooms) {
+      if (room.isBackgroundGame) continue;
       if (room.isEmpty || now - room.lastActivity > ROOM_MAX_INACTIVE_MS) {
         staleCodes.push(code);
       }

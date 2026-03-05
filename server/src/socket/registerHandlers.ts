@@ -139,6 +139,8 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
       if (spectatorRoom && spectatorRoom.spectatorSockets.has(socket.id)) {
         spectatorRoom.spectatorSockets.delete(socket.id);
         roomManager.removeSocketMapping(socket.id);
+        // Notify players that spectator count changed
+        broadcastRoomState(io, spectatorRoom);
         // Don't continue with the normal disconnect logic for spectators
         broadcastPlayerNames(io, roomManager);
         return;
