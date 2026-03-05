@@ -1,3 +1,5 @@
+import { RANK_VALUES, HandType } from '@bull-em/shared';
+import type { HandCall, Rank } from '@bull-em/shared';
 import fahSoundUrl from '../assets/sounds/fah.mp3';
 
 type SoundName =
@@ -251,12 +253,39 @@ function playTones(tones: ToneConfig[], volume: number): void {
   }
 }
 
+/** Normalize a single rank (2–14) to 0–1 */
+function normalizeRank(rank: Rank): number {
+  return (RANK_VALUES[rank] - 2) / 12;
+}
+
+/** Compute a 0–1 sub-rank offset within a HandType band */
+function computeSubRank(hand: HandCall): number {
+  switch (hand.type) {
+    case HandType.HIGH_CARD:
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      return normalizeRank(hand.rank);
+    case HandType.TWO_PAIR:
+      return ((RANK_VALUES[hand.highRank] - 2) * 13 + (RANK_VALUES[hand.lowRank] - 2)) / (12 * 13);
+    case HandType.FLUSH:
+      return 0.5;
+    case HandType.STRAIGHT:
+    case HandType.STRAIGHT_FLUSH:
+      return (RANK_VALUES[hand.highRank] - 5) / 9;
+    case HandType.FULL_HOUSE:
+      return ((RANK_VALUES[hand.threeRank] - 2) * 13 + (RANK_VALUES[hand.twoRank] - 2)) / (12 * 13);
+    case HandType.ROYAL_FLUSH:
+      return 1.0;
+  }
+}
+
 const MUTE_KEY = 'bull-em-muted';
 const VOLUME_KEY = 'bull-em-volume';
 
 export interface SoundController {
   play: (name: SoundName) => void;
-  playHandPreview: (handType: number) => void;
+  playHandPreview: (hand: HandCall) => void;
   muted: boolean;
   toggleMute: () => void;
   volume: number;
@@ -285,21 +314,19 @@ export function createSoundController(): SoundController {
       if (tones) playTones(tones, volume);
     },
 
-    playHandPreview(handType: number) {
+    playHandPreview(hand: HandCall) {
       if (muted) return;
 
-      // Map HandType (0–9) to frequency: ~400 Hz (HIGH_CARD) up to ~1400 Hz (ROYAL_FLUSH)
-      const baseFreq = 400 + (handType / 9) * 1000;
+      const subRank = computeSubRank(hand);
+      const freq = 400 + (hand.type * 100) + (subRank * 80);
 
       const tones: ToneConfig[] = [
-        // Primary sine tone
-        { frequency: baseFreq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
-        // Quieter triangle harmonic at 1.5x frequency
-        { frequency: baseFreq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
+        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
+        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
       ];
 
-      // ROYAL_FLUSH (9): add a shimmer sparkle tone
-      if (handType === 9) {
+      // ROYAL_FLUSH: add a shimmer sparkle tone
+      if (hand.type === HandType.ROYAL_FLUSH) {
         tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 });
       }
 

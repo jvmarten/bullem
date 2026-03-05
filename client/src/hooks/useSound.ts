@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { TurnAction } from '@bull-em/shared';
-import type { ClientGameState, RoundResult, PlayerId, TurnEntry } from '@bull-em/shared';
+import type { ClientGameState, RoundResult, PlayerId, TurnEntry, HandCall } from '@bull-em/shared';
 import { createSoundController } from './soundEngine.js';
 import type { SoundName } from './soundEngine.js';
 
@@ -28,8 +28,8 @@ export function useSound() {
     sound.play(name);
   }, []);
 
-  const playHandPreview = useCallback((handType: number) => {
-    sound.playHandPreview(handType);
+  const playHandPreview = useCallback((hand: HandCall) => {
+    sound.playHandPreview(hand);
   }, []);
 
   const toggleMute = useCallback(() => {
