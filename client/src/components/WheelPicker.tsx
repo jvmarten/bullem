@@ -32,11 +32,47 @@ function WheelPickerInner<T>({
   const isProgrammaticRef = useRef(false);
   const mountedRef = useRef(false);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
-  const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
+  // Store scrollTop in a ref instead of React state — the 3D transforms for
+  // each item are applied via direct DOM manipulation in updateItemTransforms(),
+  // avoiding a full React re-render on every scroll pixel. Previously, storing
+  // scrollTop as state caused 60fps React reconciliation of all items (9+ hand
+  // types or 13 ranks) during touch scrolling, which was the biggest source of
+  // jank in the HandSelector.
+  const scrollTopRef = useRef(selectedIndex * itemHeight);
+  /** Refs to each item wrapper for direct DOM transform updates. */
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const padCount = Math.floor(visibleCount / 2);
   const viewportHeight = visibleCount * itemHeight;
   const centerOffset = padCount * itemHeight;
+
+  /** Apply 3D perspective transforms to all items based on current scroll position.
+   *  Uses direct DOM manipulation — no React state, no re-renders. */
+  const updateItemTransforms = useCallback(() => {
+    const currentScrollTop = scrollTopRef.current;
+    const maxDist = padCount * itemHeight;
+    for (let i = 0; i < itemRefs.current.length; i++) {
+      const el = itemRefs.current[i];
+      if (!el) continue;
+      const pixelDist = i * itemHeight - currentScrollTop;
+      const distance = Math.min(Math.abs(pixelDist) / maxDist, 1);
+      const direction = pixelDist < 0 ? -1 : 1;
+
+      const scale = 1 - distance * 0.2;
+      const opacity = 1 - distance * 0.55;
+      const rotateX = direction * distance * 12;
+
+      el.style.transform = `perspective(600px) rotateX(${rotateX}deg) scale(${scale})`;
+      el.style.opacity = String(opacity);
+
+      const isSnapped = distance < 0.05;
+      if (isSnapped) {
+        el.classList.add('wheel-item-snapped');
+      } else {
+        el.classList.remove('wheel-item-snapped');
+      }
+    }
+  }, [padCount, itemHeight]);
 
   // Sync scroll position when selectedIndex changes (including mount).
   // Flag as programmatic so scroll-triggered sounds are suppressed.
@@ -57,13 +93,19 @@ function WheelPickerInner<T>({
     lastReportedRef.current = selectedIndex;
     lastTickIndexRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
-    setScrollTop(targetTop);
+    scrollTopRef.current = targetTop;
+    updateItemTransforms();
     // Keep programmatic flag set long enough to cover smooth-scroll duration
     // (~300ms). Using requestAnimationFrame alone (~16ms) cleared too early,
     // causing scroll events from the ongoing animation to play tick sounds.
     const timer = window.setTimeout(() => { isProgrammaticRef.current = false; }, 400);
     return () => clearTimeout(timer);
-  }, [selectedIndex, itemHeight]);
+  }, [selectedIndex, itemHeight, updateItemTransforms]);
+
+  // Apply transforms after mount and whenever items change
+  useEffect(() => {
+    updateItemTransforms();
+  }, [items.length, updateItemTransforms]);
 
   // Track which item is visually centered during scroll
   const handleScroll = useCallback(() => {
@@ -82,8 +124,10 @@ function WheelPickerInner<T>({
     }
     lastTickIndexRef.current = clamped;
     setVisualIndex(clamped);
-    setScrollTop(el.scrollTop);
-  }, [itemHeight, items.length, onTickSound]);
+    // Update scrollTop ref and apply transforms directly — no React state update
+    scrollTopRef.current = el.scrollTop;
+    updateItemTransforms();
+  }, [itemHeight, items.length, onTickSound, updateItemTransforms]);
 
   // Commit selection when scrolling stops (debounce — shorter for less friction)
   useEffect(() => {
@@ -162,43 +206,26 @@ function WheelPickerInner<T>({
         }}
       >
         <div style={{ height: padCount * itemHeight }} />
-        {items.map((item, i) => {
-          // Fractional distance from center: 0 = centered, 1 = edge
-          // Items start at padCount * itemHeight in scroll space; when
-          // scrollTop = i * itemHeight, item i is centered in the viewport.
-          const pixelDist = i * itemHeight - scrollTop;
-          const maxDist = padCount * itemHeight;
-          const distance = Math.min(Math.abs(pixelDist) / maxDist, 1);
-          const direction = pixelDist < 0 ? -1 : 1; // -1 = above center, 1 = below
-
-          const scale = 1 - distance * 0.2;
-          const opacity = 1 - distance * 0.55;
-          const rotateX = direction * distance * 12;
-          const isSnapped = distance < 0.05;
-
-          return (
-            <div
-              key={i}
-              onClick={() => handleItemClick(i)}
-              data-wheel-item={i}
-              className={isSnapped ? 'wheel-item-snapped' : ''}
-              style={{
-                height: itemHeight,
-                scrollSnapAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transform: `perspective(600px) rotateX(${rotateX}deg) scale(${scale})`,
-                opacity,
-                transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
-                willChange: 'transform, opacity',
-              }}
-            >
-              {renderItem(item, i === visualIndex)}
-            </div>
-          );
-        })}
+        {items.map((item, i) => (
+          <div
+            key={i}
+            ref={el => { itemRefs.current[i] = el; }}
+            onClick={() => handleItemClick(i)}
+            data-wheel-item={i}
+            style={{
+              height: itemHeight,
+              scrollSnapAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
+              willChange: 'transform, opacity',
+            }}
+          >
+            {renderItem(item, i === visualIndex)}
+          </div>
+        ))}
         <div style={{ height: padCount * itemHeight }} />
       </div>
     </div>

@@ -440,6 +440,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     onlinePlayerNames,
   }), [onlinePlayerCount, onlinePlayerNames]);
 
+  // onlinePlayerCount and onlinePlayerNames are deliberately excluded from the
+  // GameContext value — they live only in PresenceContext. Including them here
+  // caused every game component (GamePage, HandSelector, ActionButtons, etc.)
+  // to re-render on every server-wide connect/disconnect event, which happens
+  // frequently and has nothing to do with game state.
   const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,
@@ -480,7 +485,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
-    onlinePlayerCount, onlinePlayerNames, lastReplay,
+    lastReplay,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,

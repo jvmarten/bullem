@@ -164,7 +164,11 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   );
 });
 
-export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible }: Props) {
+// Memoized: during gameplay the parent (GamePage/LocalGamePage) re-renders on
+// every game state broadcast (timer ticks, other players' actions), but the
+// PlayerList props are often the same. Without memo, buildLastActionMap and
+// the collapsed-view player lookup run on every parent render.
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -257,4 +261,4 @@ export function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5,
       </div>
     </div>
   );
-}
+});
