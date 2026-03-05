@@ -6,6 +6,7 @@ import {
 } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
+import type { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
 import { broadcastGameState } from '../socket/broadcast.js';
@@ -25,6 +26,12 @@ export class BotManager {
    *  Tracked separately so clearTurnTimer cancels them alongside the main turn timer. */
   private roomDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
+  private roomManager: RoomManager | null = null;
+
+  /** Attach a RoomManager reference for Redis persistence after bot actions. */
+  setRoomManager(rm: RoomManager): void {
+    this.roomManager = rm;
+  }
 
   clearTurnTimer(roomCode: string): void {
     const existing = this.roomTurnTimers.get(roomCode);
@@ -263,7 +270,7 @@ export class BotManager {
         break;
 
       case 'resolve': {
-        beginRoundResultPhase(io, room, this, result.result);
+        beginRoundResultPhase(io, room, this, result.result, this.roomManager ?? undefined);
         break;
       }
 
@@ -278,6 +285,10 @@ export class BotManager {
         room.cancelRoundContinueWindow();
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
         break;
+    }
+    // Persist after every bot action that mutated game state
+    if (result.type !== 'error' && this.roomManager) {
+      this.roomManager.persistRoom(room);
     }
   }
 

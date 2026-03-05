@@ -48,6 +48,7 @@ export function registerLobbyHandlers(
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
+    roomManager.persistRoom(room);
     callback({ roomCode: room.roomCode, reconnectToken });
   });
 
@@ -71,6 +72,7 @@ export function registerLobbyHandlers(
         if (room.game) broadcastGameState(io, room);
         io.to(room.roomCode).emit('player:reconnected', data.playerId);
         broadcastPlayerNames(io, roomManager);
+        roomManager.persistRoom(room);
         // Return the rotated reconnect token so the client stores it for future reconnects
         return callback({ playerId: data.playerId, reconnectToken: newToken });
       }
@@ -92,6 +94,7 @@ export function registerLobbyHandlers(
     socket.join(room.roomCode);
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
+    roomManager.persistRoom(room);
     callback({ playerId, reconnectToken });
   });
 
@@ -129,7 +132,7 @@ export function registerLobbyHandlers(
           io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
           break;
         case 'resolve':
-          beginRoundResultPhase(io, room, botManager, result.result);
+          beginRoundResultPhase(io, room, botManager, result.result, roomManager);
           break;
         case 'last_chance':
         case 'continue':
@@ -152,7 +155,7 @@ export function registerLobbyHandlers(
       } else {
         // The leaving player may have been the last one who hadn't pressed Continue.
         // Re-check so the remaining players aren't stuck waiting.
-        checkRoundContinueComplete(io, room, botManager);
+        checkRoundContinueComplete(io, room, botManager, roomManager);
         broadcastGameState(io, room);
       }
     } else {
@@ -167,6 +170,7 @@ export function registerLobbyHandlers(
       roomManager.deleteRoom(room.roomCode);
     } else {
       broadcastRoomState(io, room);
+      roomManager.persistRoom(room);
     }
     broadcastPlayerNames(io, roomManager);
   });
@@ -300,6 +304,7 @@ export function registerLobbyHandlers(
 
     room.updateSettings(validated);
     broadcastRoomState(io, room);
+    roomManager.persistRoom(room);
   });
 
   socket.on('room:addBot', (data, callback) => {
@@ -326,6 +331,7 @@ export function registerLobbyHandlers(
       const botId = botManager.addBot(room, data.botName);
       roomManager.assignPlayerToRoom(botId, room.roomCode);
       broadcastRoomState(io, room);
+      roomManager.persistRoom(room);
       callback({ botId });
     } catch (e) {
       callback({ error: e instanceof Error ? e.message : 'Failed to add bot' });
@@ -378,6 +384,7 @@ export function registerLobbyHandlers(
 
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
+    roomManager.persistRoom(room);
     callback({ ok: true });
   });
 
@@ -394,6 +401,7 @@ export function registerLobbyHandlers(
     botManager.removeBot(room, data.botId);
     roomManager.removePlayerMapping(data.botId);
     broadcastRoomState(io, room);
+    roomManager.persistRoom(room);
   });
 
   socket.on('game:start', () => {
@@ -415,6 +423,7 @@ export function registerLobbyHandlers(
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);
     broadcastGameState(io, room);
+    roomManager.persistRoom(room);
   });
 
   socket.on('game:rematch', () => {
@@ -443,5 +452,6 @@ export function registerLobbyHandlers(
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);
     broadcastGameState(io, room);
+    roomManager.persistRoom(room);
   });
 }

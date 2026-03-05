@@ -23,7 +23,7 @@ export function registerGameHandlers(
     if (handError) { socket.emit('room:error', handError); return; }
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
-    handleResult(io, ctx.room, result, socket, botManager);
+    handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:bull', () => {
@@ -31,7 +31,7 @@ export function registerGameHandlers(
     if (!ctx) return;
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleBull(ctx.playerId);
-    handleResult(io, ctx.room, result, socket, botManager);
+    handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:true', () => {
@@ -39,7 +39,7 @@ export function registerGameHandlers(
     if (!ctx) return;
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleTrue(ctx.playerId);
-    handleResult(io, ctx.room, result, socket, botManager);
+    handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:lastChanceRaise', (data) => {
@@ -49,7 +49,7 @@ export function registerGameHandlers(
     if (handError) { socket.emit('room:error', handError); return; }
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
-    handleResult(io, ctx.room, result, socket, botManager);
+    handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:lastChancePass', () => {
@@ -57,7 +57,7 @@ export function registerGameHandlers(
     if (!ctx) return;
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChancePass(ctx.playerId);
-    handleResult(io, ctx.room, result, socket, botManager);
+    handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:continue', () => {
@@ -65,7 +65,7 @@ export function registerGameHandlers(
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
     if (!playerId) return;
-    markContinueReady(io, room, botManager, playerId);
+    markContinueReady(io, room, botManager, playerId, roomManager);
   });
 }
 
@@ -88,6 +88,7 @@ function handleResult(
   room: ReturnType<RoomManager['getRoom']> & {},
   result: TurnResult,
   socket: TypedSocket,
+  roomManager: RoomManager,
   botManager: BotManager,
 ): void {
   switch (result.type) {
@@ -104,7 +105,7 @@ function handleResult(
       break;
 
     case 'resolve':
-      beginRoundResultPhase(io, room, botManager, result.result);
+      beginRoundResultPhase(io, room, botManager, result.result, roomManager);
       break;
 
     case 'game_over':
@@ -119,4 +120,5 @@ function handleResult(
       break;
   }
   room.touch();
+  roomManager.persistRoom(room);
 }
