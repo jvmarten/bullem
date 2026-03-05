@@ -103,7 +103,6 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
       <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-6 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
-          <AuthLink />
           {isConnected && (
             <div ref={popupRef} className="relative">
               <button
@@ -141,6 +140,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
+          <AuthLink />
           {headerLeftExtra && (
             <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
           )}
@@ -168,12 +168,12 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.3.2
+              v0.3.3
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.3.2 &middot; 05.03.26
+                  v0.3.3 &middot; 05.03.26
                 </p>
               </div>
             )}
