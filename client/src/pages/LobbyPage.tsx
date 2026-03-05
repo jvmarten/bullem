@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
+import { ShareButton } from '../components/ShareButton.js';
 import { useGameContext } from '../context/GameContext.js';
 import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
@@ -9,7 +10,6 @@ export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, error, updateSettings } = useGameContext();
-  const [copied, setCopied] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
   const [localError, setLocalError] = useState('');
@@ -65,28 +65,6 @@ export function LobbyPage() {
     if (!ok) return;
     deleteRoom();
     navigate('/');
-  };
-
-  const copyInviteLink = async () => {
-    if (!roomState) return;
-    const url = `${window.location.origin}/room/${roomState.roomCode}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers / non-HTTPS contexts
-      const textarea = document.createElement('textarea');
-      textarea.value = url;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   const displayError = localError || error;
@@ -202,27 +180,16 @@ export function LobbyPage() {
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
             Room Code
           </p>
-          <button
-            onClick={copyInviteLink}
-            className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)] hover:text-[var(--gold-light)] transition-colors cursor-pointer"
-            title="Click to copy"
-          >
+          <p className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)]">
             {roomState.roomCode}
-          </button>
+          </p>
           <p className="text-sm text-[var(--gold-dim)] mt-1.5">
-            {copied ? (
-              <span className="text-[var(--gold-light)] animate-fade-in">Invite link copied!</span>
-            ) : (
-              <>
-                {roomState.players.length}/{effectiveMaxPlayers} players in lobby
-                {' \u00b7 '}
-                <span className="cursor-pointer hover:text-[var(--gold)] transition-colors" onClick={copyInviteLink}>
-                  tap to copy invite link
-                </span>
-              </>
-            )}
+            {roomState.players.length}/{effectiveMaxPlayers} players in lobby
           </p>
         </div>
+
+        {/* Share invite link — prominent one-tap share */}
+        <ShareButton roomCode={roomState.roomCode} />
 
         {displayError && (
           <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
