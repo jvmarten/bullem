@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" width="250" height="350">
+  <defs>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#faf6ed"/>
+      <stop offset="100%" stop-color="#f0e8d8"/>
+    </linearGradient>
+    <linearGradient id="hatGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9b2c8f"/>
+      <stop offset="100%" stop-color="#7a1f6e"/>
+    </linearGradient>
+    <linearGradient id="collarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4a843"/>
+      <stop offset="100%" stop-color="#b8922e"/>
+    </linearGradient>
+    <linearGradient id="faceGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe4c9"/>
+      <stop offset="100%" stop-color="#f5d0a9"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c0392b"/>
+      <stop offset="40%" stop-color="#9b2c8f"/>
+      <stop offset="100%" stop-color="#2c3e80"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <!-- Card body -->
+  <rect x="2" y="2" width="246" height="346" rx="14" fill="url(#cardBg)" stroke="#c9bfa8" stroke-width="2"/>
+  <rect x="8" y="8" width="234" height="334" rx="10" fill="none" stroke="#e0d6c4" stroke-width="0.5"/>
+
+  <!-- Top-left corner -->
+  <text x="16" y="32" font-family="Georgia, serif" font-weight="bold" font-size="18" fill="#c0392b">J</text>
+  <text x="16" y="47" font-family="Georgia, serif" font-size="13" fill="#c0392b">&#9830;</text>
+
+  <!-- Bottom-right corner (rotated) -->
+  <g transform="translate(234, 318) rotate(180)">
+    <text x="0" y="14" font-family="Georgia, serif" font-weight="bold" font-size="18" fill="#c0392b">J</text>
+    <text x="0" y="29" font-family="Georgia, serif" font-size="13" fill="#c0392b">&#9830;</text>
+  </g>
+
+  <!-- Jester figure (centered) -->
+  <g transform="translate(125, 165)" filter="url(#shadow)">
+    <!-- Hat - three pointed jester cap -->
+    <path d="M-8,-72 C-10,-90 -30,-95 -35,-82 C-38,-73 -32,-68 -28,-65 L-8,-55" fill="url(#hatGrad)"/>
+    <path d="M8,-72 C10,-90 30,-95 35,-82 C38,-73 32,-68 28,-65 L8,-55" fill="#c0392b"/>
+    <path d="M0,-78 C-3,-98 3,-98 0,-78" fill="url(#hatGrad)"/>
+    <path d="M-5,-70 L5,-70 L3,-55 L-3,-55 Z" fill="url(#hatGrad)"/>
+    <ellipse cx="0" cy="-78" rx="3" ry="3" fill="#d4a843"/>
+    <!-- Hat bells -->
+    <circle cx="-35" cy="-80" r="4" fill="#d4a843"/>
+    <circle cx="35" cy="-80" r="4" fill="#d4a843"/>
+    <circle cx="0" cy="-98" r="4" fill="#d4a843"/>
+    <!-- Bell shines -->
+    <circle cx="-34" cy="-81" r="1.2" fill="#f0dc8a"/>
+    <circle cx="36" cy="-81" r="1.2" fill="#f0dc8a"/>
+    <circle cx="1" cy="-99" r="1.2" fill="#f0dc8a"/>
+
+    <!-- Face -->
+    <circle cx="0" cy="-42" r="22" fill="url(#faceGrad)" stroke="#d4a843" stroke-width="1.5"/>
+    <!-- Eyes -->
+    <ellipse cx="-8" cy="-47" rx="3" ry="3.5" fill="#2c3e50"/>
+    <ellipse cx="8" cy="-47" rx="3" ry="3.5" fill="#2c3e50"/>
+    <circle cx="-7" cy="-48" r="1" fill="#fff"/>
+    <circle cx="9" cy="-48" r="1" fill="#fff"/>
+    <!-- Eyebrows -->
+    <path d="M-13,-53 Q-8,-57 -4,-53" fill="none" stroke="#5a3e28" stroke-width="1.2"/>
+    <path d="M4,-53 Q8,-57 13,-53" fill="none" stroke="#5a3e28" stroke-width="1.2"/>
+    <!-- Nose -->
+    <ellipse cx="0" cy="-40" rx="2.5" ry="2" fill="#e8b88a"/>
+    <!-- Mouth -->
+    <path d="M-10,-34 Q-5,-26 0,-34 Q5,-26 10,-34" fill="#c0392b" stroke="#a02020" stroke-width="0.5"/>
+    <!-- Cheeks -->
+    <circle cx="-14" cy="-38" r="4" fill="#f0a0a0" opacity="0.4"/>
+    <circle cx="14" cy="-38" r="4" fill="#f0a0a0" opacity="0.4"/>
+
+    <!-- Collar / ruff -->
+    <path d="M-22,-20 L-15,-8 L-8,-20 L0,-6 L8,-20 L15,-8 L22,-20" fill="url(#collarGrad)" stroke="#b8922e" stroke-width="0.8"/>
+    <path d="M-22,-20 L-15,-8 L-8,-20 L0,-6 L8,-20 L15,-8 L22,-20" fill="none" stroke="#fff" stroke-width="0.3" opacity="0.5"/>
+
+    <!-- Body - diamond pattern tunic -->
+    <path d="M-20,-8 L-25,55 Q0,65 25,55 L20,-8 Z" fill="url(#bodyGrad)"/>
+    <!-- Diamond pattern on body -->
+    <path d="M-10,5 L0,15 L10,5 L0,-5 Z" fill="#d4a843" opacity="0.5"/>
+    <path d="M-10,25 L0,35 L10,25 L0,15 Z" fill="#c0392b" opacity="0.4"/>
+    <path d="M-10,45 L0,55 L10,45 L0,35 Z" fill="#d4a843" opacity="0.5"/>
+    <!-- Buttons -->
+    <circle cx="0" cy="5" r="2.5" fill="#d4a843" stroke="#b8922e" stroke-width="0.5"/>
+    <circle cx="0" cy="25" r="2.5" fill="#d4a843" stroke="#b8922e" stroke-width="0.5"/>
+
+    <!-- Arms -->
+    <path d="M-20,-5 Q-40,10 -35,30 Q-33,35 -28,33" fill="none" stroke="url(#bodyGrad)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M20,-5 Q40,10 35,30 Q33,35 28,33" fill="none" stroke="url(#bodyGrad)" stroke-width="8" stroke-linecap="round"/>
+    <!-- Hands -->
+    <circle cx="-28" cy="33" r="5" fill="url(#faceGrad)"/>
+    <circle cx="28" cy="33" r="5" fill="url(#faceGrad)"/>
+
+    <!-- Scepter in right hand -->
+    <line x1="28" y1="33" x2="38" y2="-10" stroke="#8B7355" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="39" cy="-13" r="5" fill="#d4a843" stroke="#b8922e" stroke-width="1"/>
+    <text x="39" y="-10" text-anchor="middle" font-size="7" fill="#9b2c8f">&#9830;</text>
+  </g>
+
+  <!-- JOKER text -->
+  <text x="125" y="310" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="20" letter-spacing="4" fill="#9b2c8f">JOKER</text>
+  <!-- Decorative line -->
+  <line x1="70" y1="316" x2="180" y2="316" stroke="#d4a843" stroke-width="0.8"/>
+</svg>
