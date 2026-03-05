@@ -12,6 +12,7 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
 
 import { useGameContext } from '../context/GameContext.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
@@ -54,8 +55,9 @@ export function GamePage() {
   const {
     gameState, roomState, roundResult, roundTransition, roundTransitionDeadline, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult, leaveRoom, joinRoom,
+    clearRoundResult, leaveRoom, joinRoom, error, clearError,
   } = useGameContext();
+  useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 

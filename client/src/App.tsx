@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
+import { ToastProvider } from './context/ToastContext.js';
+import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 
@@ -49,7 +51,9 @@ function RouteLoadingFallback() {
 export default function App() {
   return (
     <ErrorBoundary>
+    <ToastProvider>
     <BrowserRouter>
+      <ToastContainer />
       <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
@@ -76,6 +80,7 @@ export default function App() {
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </ToastProvider>
     </ErrorBoundary>
   );
 }

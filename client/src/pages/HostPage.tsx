@@ -2,31 +2,31 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useToast } from '../context/ToastContext.js';
 import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS } from '@bull-em/shared';
 
 export function HostPage() {
   const navigate = useNavigate();
   const { isConnected, createRoom, updateSettings } = useGameContext();
+  const { addToast } = useToast();
   const [maxCards, setMaxCards] = useState(5);
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [turnTimer, setTurnTimer] = useState(30);
   const [allowSpectators, setAllowSpectators] = useState(false);
   const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleCreate = async () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     const playerName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (!playerName) return navigate('/');
     setLoading(true);
-    setError('');
     try {
       const roomCode = await createRoom(playerName);
       updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create room — check your connection');
+      addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,6 @@ export function HostPage() {
     <Layout>
       <div className="space-y-4 max-w-md mx-auto pt-4">
         <h2 className="font-display text-2xl text-[var(--gold)] text-center">Host Game</h2>
-        {error && <div className="glass px-4 py-2 text-sm text-[var(--danger)] border-[var(--danger)]">{error}</div>}
 
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Max Cards</p>

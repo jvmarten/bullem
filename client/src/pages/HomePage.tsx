@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useToast } from '../context/ToastContext.js';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
@@ -184,7 +185,7 @@ export function HomePage() {
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
   );
   const [roomCode, setRoomCode] = useState('');
-  const [error, setError] = useState('');
+  const { addToast } = useToast();
   const [isHovered, setIsHovered] = useState(false);
   const [dealtCards, setDealtCards] = useState<DealCard[] | null>(null);
   const [handCall, setHandCall] = useState<HandCall | null>(null);
@@ -244,37 +245,37 @@ export function HomePage() {
 
 
   const handleQuickStart = async () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
-      setError('Failed to quick start — check your connection');
+      addToast('Failed to quick start — check your connection');
     }
   };
 
   const handleHost = () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate('/host');
   };
 
   const handleJoin = () => {
-    if (!roomCode.trim()) return setError('Enter a room code');
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!roomCode.trim()) return addToast('Enter a room code');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     getOnlinePlayerName();
     navigate(`/room/${roomCode.trim().toUpperCase()}`);
   };
 
   const handleBrowse = async () => {
-    if (!isConnected) return setError('Not connected to server — please wait and try again');
+    if (!isConnected) return addToast('Not connected to server — please wait and try again');
     setLoadingRooms(true);
     try {
       const [roomResult, liveResult] = await Promise.all([listRooms(), listLiveGames()]);
       setRooms(roomResult);
       setLiveGames(liveResult);
     } catch {
-      setError('Failed to load rooms — check your connection');
+      addToast('Failed to load rooms — check your connection');
     } finally {
       setLoadingRooms(false);
     }
@@ -291,7 +292,7 @@ export function HomePage() {
       await spectateGame(code);
       navigate(`/game/${code}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to spectate');
+      addToast(e instanceof Error ? e.message : 'Failed to spectate');
     }
   };
 
@@ -513,12 +514,6 @@ export function HomePage() {
           </div>
         </div>
 
-        {error && (
-          <div className="w-full glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
-            {error}
-          </div>
-        )}
-
         {/* Player name display — tap to edit */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
@@ -602,7 +597,7 @@ export function HomePage() {
               </>
             )}
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('menu');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -628,7 +623,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -715,7 +710,7 @@ export function HomePage() {
               Refresh
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online'); setError(''); }}
+              onClick={() => { play('uiSoft'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back

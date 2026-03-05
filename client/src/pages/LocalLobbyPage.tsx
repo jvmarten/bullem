@@ -4,15 +4,18 @@ import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
 import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
+import { useToast } from '../context/ToastContext.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
   const {
     roomState, gameState, playerId, startGame, createRoom, leaveRoom,
-    addBot, removeBot, error, botDifficulty, setBotDifficulty,
+    addBot, removeBot, error, clearError, botDifficulty, setBotDifficulty,
     gameSettings, setGameSettings,
   } = useGameContext();
-  const [localError, setLocalError] = useState('');
+  const { addToast } = useToast();
+  useErrorToast(error, clearError);
   const initializedRef = useRef(false);
   // Guard against ghost taps: on mobile, the "Play Offline" tap can pass through
   // to "Start Game" if it occupies the same screen position after navigation
@@ -35,7 +38,7 @@ export function LocalLobbyPage() {
       // Auto-add 5 bots for a quick start
       return Promise.all([addBot(), addBot(), addBot(), addBot(), addBot()]);
     }).catch(e => {
-      setLocalError(e instanceof Error ? e.message : 'Failed to set up game');
+      addToast(e instanceof Error ? e.message : 'Failed to set up game');
     });
   }, [roomState, createRoom, addBot]);
 
@@ -51,14 +54,12 @@ export function LocalLobbyPage() {
     const newDynamic = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax));
     // If reducing max cards would make current player count invalid, block
     if (playerCount > newDynamic) {
-      setLocalError(`Can't set max cards to ${newMax} with ${playerCount} players (max ${newDynamic} players at ${newMax} cards)`);
+      addToast(`Can't set max cards to ${newMax} with ${playerCount} players (max ${newDynamic} players at ${newMax} cards)`);
       return;
     }
-    setLocalError('');
     setGameSettings({ ...gameSettings, maxCards: newMax });
   };
 
-  const displayError = localError || error;
   const canStart = roomState && playerCount >= MIN_PLAYERS;
   const canAddBot = playerCount < dynamicMaxPlayers;
 
@@ -90,12 +91,6 @@ export function LocalLobbyPage() {
           </p>
         </div>
 
-        {displayError && (
-          <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
-            {displayError}
-          </div>
-        )}
-
         <PlayerList
           players={roomState.players}
           myPlayerId={playerId}
@@ -105,7 +100,7 @@ export function LocalLobbyPage() {
         />
 
         <button
-          onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+          onClick={() => addBot().catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'))}
           disabled={!canAddBot}
           className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
         >
