@@ -221,7 +221,7 @@ export function GamePage() {
 
   const headerRightExtra = (
     <>
-      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">{roomCode}</span>
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs mr-1">{roomCode}</span>
       {spectatorCount > 0 && (
         <span className="text-[var(--gold-dim)] text-xs" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
           {spectatorCount} watching
@@ -235,6 +235,7 @@ export function GamePage() {
       >
         Leave
       </button>
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">ONLINE</span>
     </>
   );
 
@@ -251,7 +252,7 @@ export function GamePage() {
               {cardStats.total}/52 cards ({cardStats.pct}%)
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
             {spectatorCount > 0 && (
               <span className="text-[var(--gold-dim)]" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
@@ -266,6 +267,7 @@ export function GamePage() {
             >
               Leave
             </button>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">ONLINE</span>
           </div>
         </div>
 
