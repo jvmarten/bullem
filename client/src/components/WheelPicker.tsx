@@ -111,6 +111,22 @@ function WheelPickerInner<T>({
     };
   }, [itemHeight, items.length, onSelect, onSelectSound]);
 
+  // Normalize mouse wheel to scroll exactly one item per tick on desktop.
+  // Without this, a single wheel notch scrolls more than itemHeight, skipping items.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const currentIdx = Math.round(el.scrollTop / itemHeight);
+      const targetIdx = Math.max(0, Math.min(items.length - 1, currentIdx + direction));
+      el.scrollTo({ top: targetIdx * itemHeight, behavior: 'smooth' });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [itemHeight, items.length]);
+
   const handleItemClick = useCallback((index: number) => {
     const el = scrollRef.current;
     if (!el) return;
