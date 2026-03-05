@@ -595,7 +595,7 @@ export function HomePage() {
             </button>
             <Link
               to="/tutorial"
-              className="w-full btn-ghost py-4 text-lg text-center block"
+              className="w-full btn-info py-4 text-lg text-center block"
             >
               Interactive Tutorial
             </Link>
