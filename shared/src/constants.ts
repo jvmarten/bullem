@@ -1,4 +1,4 @@
-import type { Rank, Suit } from './types.js';
+import type { Rank, Suit, BotSpeed } from './types.js';
 
 export const RANK_VALUES: Record<Rank, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
@@ -46,6 +46,14 @@ export const ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 export const ROOM_MAX_INACTIVE_MS = 10 * 60 * 1000; // 10 minutes
 
 export const DEFAULT_BOT_DIFFICULTY = 'hard' as const;
+export const DEFAULT_BOT_SPEED = 'normal' as const;
+
+/** Delay multipliers for bot playing speed. Applied to both think and bull delays. */
+export const BOT_SPEED_MULTIPLIERS: Record<BotSpeed, number> = {
+  slow: 1.6,
+  normal: 1.0,
+  fast: 0.4,
+};
 export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
   'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',

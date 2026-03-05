@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 
 export function LocalLobbyPage() {
@@ -185,6 +185,29 @@ export function LocalLobbyPage() {
               >
                 Impossible
               </button>
+            </div>
+          </div>
+        )}
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Bot Speed
+            </p>
+            <div className="flex gap-1.5">
+              {([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
+                <button
+                  key={speed}
+                  onClick={() => setGameSettings({ ...gameSettings, botSpeed: speed })}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                    (gameSettings.botSpeed ?? BotSpeed.NORMAL) === speed
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {speed}
+                </button>
+              ))}
             </div>
           </div>
         )}

@@ -7,6 +7,9 @@ interface WheelPickerProps<T> {
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   itemHeight?: number;
   visibleCount?: number;
+  highlightHeight?: number;
+  onTickSound?: () => void;
+  onSelectSound?: () => void;
 }
 
 // Memoized to prevent re-renders when parent state changes but picker
@@ -18,24 +21,48 @@ function WheelPickerInner<T>({
   renderItem,
   itemHeight = 48,
   visibleCount = 5,
+  highlightHeight,
+  onTickSound,
+  onSelectSound,
 }: WheelPickerProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastReportedRef = useRef(selectedIndex);
+  const lastTickIndexRef = useRef(selectedIndex);
+  const lastTickTimeRef = useRef(0);
+  const isProgrammaticRef = useRef(false);
+  const mountedRef = useRef(false);
   const [visualIndex, setVisualIndex] = useState(selectedIndex);
+  const [scrollTop, setScrollTop] = useState(selectedIndex * itemHeight);
 
   const padCount = Math.floor(visibleCount / 2);
   const viewportHeight = visibleCount * itemHeight;
+  const centerOffset = padCount * itemHeight;
 
-  // Sync scroll position when selectedIndex changes (including mount)
+  // Sync scroll position when selectedIndex changes (including mount).
+  // Flag as programmatic so scroll-triggered sounds are suppressed.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const targetTop = selectedIndex * itemHeight;
+    isProgrammaticRef.current = true;
     if (Math.abs(el.scrollTop - targetTop) > 1) {
-      el.scrollTop = targetTop;
+      // Smooth-scroll on programmatic repositions; instant on first mount
+      if (mountedRef.current && el.scrollTo) {
+        el.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else {
+        el.scrollTop = targetTop;
+      }
     }
+    mountedRef.current = true;
     lastReportedRef.current = selectedIndex;
+    lastTickIndexRef.current = selectedIndex;
     setVisualIndex(selectedIndex);
+    setScrollTop(targetTop);
+    // Keep programmatic flag set long enough to cover smooth-scroll duration
+    // (~300ms). Using requestAnimationFrame alone (~16ms) cleared too early,
+    // causing scroll events from the ongoing animation to play tick sounds.
+    const timer = window.setTimeout(() => { isProgrammaticRef.current = false; }, 400);
+    return () => clearTimeout(timer);
   }, [selectedIndex, itemHeight]);
 
   // Track which item is visually centered during scroll
@@ -44,8 +71,19 @@ function WheelPickerInner<T>({
     if (!el) return;
     const idx = Math.round(el.scrollTop / itemHeight);
     const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    // Play tick when a new item crosses the center, throttled to ~60ms.
+    // Skip if scroll was triggered programmatically (e.g. selectedIndex prop change).
+    if (clamped !== lastTickIndexRef.current && onTickSound && !isProgrammaticRef.current) {
+      const now = performance.now();
+      if (now - lastTickTimeRef.current >= 60) {
+        lastTickTimeRef.current = now;
+        onTickSound();
+      }
+    }
+    lastTickIndexRef.current = clamped;
     setVisualIndex(clamped);
-  }, [itemHeight, items.length]);
+    setScrollTop(el.scrollTop);
+  }, [itemHeight, items.length, onTickSound]);
 
   // Commit selection when scrolling stops (debounce — shorter for less friction)
   useEffect(() => {
@@ -53,11 +91,13 @@ function WheelPickerInner<T>({
     if (!el) return;
     let timer: number;
     const commitSelection = () => {
+      if (isProgrammaticRef.current) return;
       const idx = Math.round(el.scrollTop / itemHeight);
       const clamped = Math.max(0, Math.min(items.length - 1, idx));
       if (clamped !== lastReportedRef.current) {
         lastReportedRef.current = clamped;
         onSelect(clamped);
+        onSelectSound?.();
       }
     };
     const onScrollEnd = () => {
@@ -69,7 +109,23 @@ function WheelPickerInner<T>({
       el.removeEventListener('scroll', onScrollEnd);
       clearTimeout(timer);
     };
-  }, [itemHeight, items.length, onSelect]);
+  }, [itemHeight, items.length, onSelect, onSelectSound]);
+
+  // Normalize mouse wheel to scroll exactly one item per tick on desktop.
+  // Without this, a single wheel notch scrolls more than itemHeight, skipping items.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const currentIdx = Math.round(el.scrollTop / itemHeight);
+      const targetIdx = Math.max(0, Math.min(items.length - 1, currentIdx + direction));
+      el.scrollTo({ top: targetIdx * itemHeight, behavior: 'smooth' });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [itemHeight, items.length]);
 
   const handleItemClick = useCallback((index: number) => {
     const el = scrollRef.current;
@@ -83,10 +139,16 @@ function WheelPickerInner<T>({
     lastReportedRef.current = index;
     setVisualIndex(index);
     onSelect(index);
-  }, [itemHeight, onSelect]);
+    onSelectSound?.();
+  }, [itemHeight, onSelect, onSelectSound]);
 
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>
+      {/* Center slot highlight indicator */}
+      <div className="wheel-picker-center-highlight" style={{
+        height: highlightHeight ?? itemHeight,
+        top: centerOffset + (itemHeight - (highlightHeight ?? itemHeight)) / 2,
+      }} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -96,26 +158,47 @@ function WheelPickerInner<T>({
           overflowY: 'auto',
           scrollSnapType: 'y proximity',
           overscrollBehavior: 'contain',
+          perspective: '600px',
         }}
       >
         <div style={{ height: padCount * itemHeight }} />
-        {items.map((item, i) => (
-          <div
-            key={i}
-            onClick={() => handleItemClick(i)}
-            data-wheel-item={i}
-            style={{
-              height: itemHeight,
-              scrollSnapAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            {renderItem(item, i === visualIndex)}
-          </div>
-        ))}
+        {items.map((item, i) => {
+          // Fractional distance from center: 0 = centered, 1 = edge
+          // Items start at padCount * itemHeight in scroll space; when
+          // scrollTop = i * itemHeight, item i is centered in the viewport.
+          const pixelDist = i * itemHeight - scrollTop;
+          const maxDist = padCount * itemHeight;
+          const distance = Math.min(Math.abs(pixelDist) / maxDist, 1);
+          const direction = pixelDist < 0 ? -1 : 1; // -1 = above center, 1 = below
+
+          const scale = 1 - distance * 0.2;
+          const opacity = 1 - distance * 0.55;
+          const rotateX = direction * distance * 12;
+          const isSnapped = distance < 0.05;
+
+          return (
+            <div
+              key={i}
+              onClick={() => handleItemClick(i)}
+              data-wheel-item={i}
+              className={isSnapped ? 'wheel-item-snapped' : ''}
+              style={{
+                height: itemHeight,
+                scrollSnapAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transform: `perspective(600px) rotateX(${rotateX}deg) scale(${scale})`,
+                opacity,
+                transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
+                willChange: 'transform, opacity',
+              }}
+            >
+              {renderItem(item, i === visualIndex)}
+            </div>
+          );
+        })}
         <div style={{ height: padCount * itemHeight }} />
       </div>
     </div>

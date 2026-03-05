@@ -1,3 +1,5 @@
+import { RANK_VALUES, HandType } from '@bull-em/shared';
+import type { HandCall, Rank } from '@bull-em/shared';
 import fahSoundUrl from '../assets/sounds/fah.mp3';
 
 type SoundName =
@@ -16,7 +18,10 @@ type SoundName =
   | 'uiSoft'
   | 'deckShuffle'
   | 'cardReveal'
-  | 'fanfare';
+  | 'fanfare'
+  | 'wheelTick'
+  | 'wheelTickLow'
+  | 'wheelSelect';
 
 interface ToneConfig {
   frequency: number;
@@ -98,6 +103,19 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
     // Satisfying card flip — crisp snap with resonance
     { frequency: 600, duration: 0.1, type: 'sine', gain: 0.14, ramp: 0.08 },
     { frequency: 1200, duration: 0.06, type: 'triangle', gain: 0.08, delay: 0.03 },
+  ],
+  wheelTick: [
+    // Soft roulette-wheel notch tick — very short, high-pitched, barely audible
+    { frequency: 1300, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
+  ],
+  wheelTickLow: [
+    // Lower-pitched tick for hand type wheel — ~75% frequency of wheelTick
+    { frequency: 950, duration: 0.035, type: 'sine', gain: 0.035, ramp: 0.03 },
+  ],
+  wheelSelect: [
+    // Gentle two-tone marimba tap — barely audible confirmation ping
+    { frequency: 600, duration: 0.05, type: 'sine', gain: 0.045, ramp: 0.04 },
+    { frequency: 900, duration: 0.05, type: 'sine', gain: 0.04, delay: 0.04 },
   ],
   fanfare: [
     // Celebratory trumpet fanfare for royal flush easter egg
@@ -235,11 +253,39 @@ function playTones(tones: ToneConfig[], volume: number): void {
   }
 }
 
+/** Normalize a single rank (2–14) to 0–1 */
+function normalizeRank(rank: Rank): number {
+  return (RANK_VALUES[rank] - 2) / 12;
+}
+
+/** Compute a 0–1 sub-rank offset within a HandType band */
+function computeSubRank(hand: HandCall): number {
+  switch (hand.type) {
+    case HandType.HIGH_CARD:
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      return normalizeRank(hand.rank);
+    case HandType.TWO_PAIR:
+      return ((RANK_VALUES[hand.highRank] - 2) * 3 + (RANK_VALUES[hand.lowRank] - 2)) / (12 * 3 + 12);
+    case HandType.FLUSH:
+      return 0.5;
+    case HandType.STRAIGHT:
+    case HandType.STRAIGHT_FLUSH:
+      return (RANK_VALUES[hand.highRank] - 5) / 9;
+    case HandType.FULL_HOUSE:
+      return ((RANK_VALUES[hand.threeRank] - 2) * 3 + (RANK_VALUES[hand.twoRank] - 2)) / (12 * 3 + 12);
+    case HandType.ROYAL_FLUSH:
+      return 1.0;
+  }
+}
+
 const MUTE_KEY = 'bull-em-muted';
 const VOLUME_KEY = 'bull-em-volume';
 
 export interface SoundController {
   play: (name: SoundName) => void;
+  playHandPreview: (hand: HandCall) => void;
   muted: boolean;
   toggleMute: () => void;
   volume: number;
@@ -266,6 +312,25 @@ export function createSoundController(): SoundController {
 
       const tones = SOUND_DEFS[name];
       if (tones) playTones(tones, volume);
+    },
+
+    playHandPreview(hand: HandCall) {
+      if (muted) return;
+
+      const subRank = computeSubRank(hand);
+      const freq = 400 + (hand.type * 100) + (subRank * 80);
+
+      const tones: ToneConfig[] = [
+        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
+        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
+      ];
+
+      // ROYAL_FLUSH: add a shimmer sparkle tone
+      if (hand.type === HandType.ROYAL_FLUSH) {
+        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 });
+      }
+
+      playTones(tones, volume);
     },
 
     toggleMute() {

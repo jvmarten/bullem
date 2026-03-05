@@ -141,7 +141,47 @@ describe('createSoundController', () => {
     // Should NOT create oscillators for audio-file-backed sounds
     expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
   });
+
+  it('playHandPreview exists and does not throw for all HandType values', () => {
+    const ctrl = createSoundController();
+    expect(typeof ctrl.playHandPreview).toBe('function');
+
+    const testHands: HandCall[] = [
+      { type: HandType.HIGH_CARD, rank: '2' },
+      { type: HandType.PAIR, rank: '7' },
+      { type: HandType.TWO_PAIR, highRank: 'J', lowRank: '4' },
+      { type: HandType.FLUSH, suit: 'hearts' },
+      { type: HandType.THREE_OF_A_KIND, rank: '9' },
+      { type: HandType.STRAIGHT, highRank: '9' },
+      { type: HandType.FULL_HOUSE, threeRank: 'Q', twoRank: '3' },
+      { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
+      { type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '9' },
+      { type: HandType.ROYAL_FLUSH, suit: 'diamonds' },
+    ];
+    for (const hand of testHands) {
+      expect(() => ctrl.playHandPreview(hand)).not.toThrow();
+    }
+  });
+
+  it('playHandPreview creates oscillators with pitch scaling', () => {
+    const ctrl = createSoundController();
+    ctrl.playHandPreview({ type: HandType.HIGH_CARD, rank: '2' }); // 2 tones
+    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(2);
+
+    vi.clearAllMocks();
+    ctrl.playHandPreview({ type: HandType.ROYAL_FLUSH, suit: 'spades' }); // 3 tones (+ shimmer)
+    expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(3);
+  });
+
+  it('playHandPreview does nothing when muted', () => {
+    const ctrl = createSoundController();
+    ctrl.toggleMute();
+    ctrl.playHandPreview({ type: HandType.STRAIGHT, highRank: '9' });
+    expect(mockAudioContext.createOscillator).not.toHaveBeenCalled();
+  });
 });
 
 // Import after mocks are set up
 import { createSoundController } from './soundEngine.js';
+import { HandType } from '@bull-em/shared';
+import type { HandCall } from '@bull-em/shared';

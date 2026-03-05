@@ -6,6 +6,7 @@ import {
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 import { WheelPicker } from './WheelPicker.js';
+import { useSound } from '../hooks/useSound.js';
 
 interface Props {
   currentHand: HandCall | null;
@@ -22,16 +23,27 @@ const ALL_HAND_TYPES: HandType[] = Object.values(HandType)
 /* ── Mini card illustrations for hand type picker ──────── */
 
 function HandIllustration({ type, isSelected }: { type: HandType; isSelected: boolean }) {
-  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[var(--card-face)] border-[#b8ae9e]';
   const borderW = isSelected ? 'border-2' : 'border-[1.5px]';
-  const mini = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }} />
-  );
-  const heart = (key: number, style?: React.CSSProperties) => (
-    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.12)', ...style }}>
-      <span className="text-[15px] leading-none text-red-600">♥</span>
+  const shadowStyle = isSelected
+    ? '0 1px 3px rgba(0,0,0,0.15), 0 0 4px rgba(212,168,67,0.15)'
+    : '0 1px 2px rgba(0,0,0,0.12)';
+
+  // Card back — red-backed mini card matching the game's deck-card-back style
+  const backBorder = isSelected ? 'border-[var(--gold)]' : 'border-[#d44]';
+  const back = (key: number, style?: React.CSSProperties) => (
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${backBorder} flex-shrink-0 relative`} style={{ background: 'linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%)', boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }}>
+      <div className="absolute rounded-[2px]" style={{ inset: '3px', border: '0.5px solid rgba(255,255,255,0.15)' }} />
     </div>
   );
+
+  // Card face with suit symbol — used only for Flush and Straight Flush
+  const cardColor = isSelected ? 'bg-[var(--card-face)] border-[var(--gold)]' : 'bg-[#ddd5c8] border-[#b8ae9e]';
+  const heart = (key: number, style?: React.CSSProperties) => (
+    <div key={key} className={`w-[36px] h-[48px] rounded-[4px] ${borderW} ${cardColor} flex-shrink-0 flex items-center justify-center`} style={{ boxShadow: shadowStyle, transition: 'all 0.2s ease', ...style }}>
+      <span className={`text-[15px] leading-none ${isSelected ? 'text-red-600' : 'text-red-400'}`}>♥</span>
+    </div>
+  );
+
   const overlap = (i: number): React.CSSProperties => (i > 0 ? { marginLeft: '-16px' } : {});
   const stair = (i: number): React.CSSProperties => ({
     marginLeft: i > 0 ? '-12px' : undefined,
@@ -40,31 +52,31 @@ function HandIllustration({ type, isSelected }: { type: HandType; isSelected: bo
 
   switch (type) {
     case HandType.HIGH_CARD:
-      return <div className="flex justify-center">{mini(0)}</div>;
+      return <div className="flex justify-center">{back(0)}</div>;
     case HandType.PAIR:
-      return <div className="flex justify-center">{[0, 1].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1].map(i => back(i, overlap(i)))}</div>;
     case HandType.TWO_PAIR:
       return (
         <div className="flex justify-center gap-0.5">
-          <div className="flex">{[0, 1].map(i => mini(i, overlap(i)))}</div>
-          <div className="flex">{[2, 3].map(i => mini(i, overlap(i > 2 ? 1 : 0)))}</div>
+          <div className="flex">{[0, 1].map(i => back(i, overlap(i)))}</div>
+          <div className="flex">{[2, 3].map(i => back(i, overlap(i > 2 ? 1 : 0)))}</div>
         </div>
       );
     case HandType.THREE_OF_A_KIND:
-      return <div className="flex justify-center">{[0, 1, 2].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1, 2].map(i => back(i, overlap(i)))}</div>;
     case HandType.FLUSH:
       return <div className="flex justify-center">{[0, 1, 2].map(i => heart(i, overlap(i)))}</div>;
     case HandType.STRAIGHT:
-      return <div className="flex justify-center items-end">{[0, 1, 2].map(i => mini(i, stair(i)))}</div>;
+      return <div className="flex justify-center items-end">{[0, 1, 2].map(i => back(i, stair(i)))}</div>;
     case HandType.FULL_HOUSE:
       return (
         <div className="flex justify-center gap-0.5">
-          <div className="flex">{[0, 1, 2].map(i => mini(i, overlap(i)))}</div>
-          <div className="flex">{[3, 4].map(i => mini(i, overlap(i > 3 ? 1 : 0)))}</div>
+          <div className="flex">{[0, 1, 2].map(i => back(i, overlap(i)))}</div>
+          <div className="flex">{[3, 4].map(i => back(i, overlap(i > 3 ? 1 : 0)))}</div>
         </div>
       );
     case HandType.FOUR_OF_A_KIND:
-      return <div className="flex justify-center">{[0, 1, 2, 3].map(i => mini(i, overlap(i)))}</div>;
+      return <div className="flex justify-center">{[0, 1, 2, 3].map(i => back(i, overlap(i)))}</div>;
     case HandType.STRAIGHT_FLUSH:
       return <div className="flex justify-center items-end">{[0, 1, 2].map(i => heart(i, stair(i)))}</div>;
     default:
@@ -159,6 +171,11 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
 
+  const { play, playHandPreview } = useSound();
+  const handleTickSound = useCallback(() => play('wheelTick'), [play]);
+  const handleTickSoundLow = useCallback(() => play('wheelTickLow'), [play]);
+  const handleSelectSound = useCallback(() => play('wheelSelect'), [play]);
+
   const handleTypeChange = useCallback((ht: HandType) => {
     setHandType(ht);
     if ((ht === HandType.STRAIGHT || ht === HandType.STRAIGHT_FLUSH) && RANK_VALUES[rank] < 5) {
@@ -210,7 +227,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
 
   useEffect(() => {
     onHandChange?.(hand, isValid);
-  }, [hand, isValid, onHandChange]);
+    if (hand) playHandPreview(hand);
+  }, [hand, isValid, onHandChange, playHandPreview]);
 
   const needsRank = [HandType.HIGH_CARD, HandType.PAIR, HandType.THREE_OF_A_KIND, HandType.FOUR_OF_A_KIND].includes(handType);
   const needsStraightRank = [HandType.STRAIGHT, HandType.STRAIGHT_FLUSH].includes(handType);
@@ -260,30 +278,23 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
     const isDimmed = currentHand !== null && ht < currentHand.type && !isSelected;
     return (
-      <div className={`flex items-center justify-center transition-all duration-150 ${
-        isDimmed ? 'opacity-20' : ''
-      } ${isSelected ? 'scale-125' : 'opacity-40'}`}>
+      <div className={`hs-type-wheel-item ${isSelected ? 'hs-type-wheel-item-selected' : ''} ${isDimmed ? 'hs-type-wheel-item-dimmed' : ''}`}>
         <HandIllustration type={ht} isSelected={isSelected} />
       </div>
     );
   }, [currentHand]);
 
   const renderRank = useCallback((r: string, isSelected: boolean) => (
-    <div className={`hs-rank-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-      style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
-    >
-      <span className={`font-bold ${isSelected ? 'text-base text-[#1a1a1a]' : 'text-sm text-[#666]'}`}>{r}</span>
+    <div className={`hs-rank-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`}>
+      <span className={`hs-rank-wheel-label ${isSelected ? 'hs-rank-wheel-label-selected' : ''}`}>{r}</span>
     </div>
   ), []);
 
   const renderSuit = useCallback((s: string, isSelected: boolean) => {
     const isRed = s === 'hearts' || s === 'diamonds';
     return (
-      <div className={`hs-rank-card hs-suit-card ${isSelected ? 'hs-rank-card-selected' : ''}`}
-        data-suit-card
-        style={{ margin: 0, width: isSelected ? 44 : 38, height: isSelected ? 58 : 50, transition: 'width 0.2s ease, height 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' }}
-      >
-        <span className={`leading-none ${isSelected ? 'text-2xl' : 'text-xl'} ${isRed ? 'text-red-600' : 'text-gray-800'}`}>
+      <div className={`hs-rank-wheel-card hs-suit-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`} data-suit-card>
+        <span className={`hs-suit-wheel-symbol ${isSelected ? 'hs-suit-wheel-symbol-selected' : ''} ${isRed ? 'hs-suit-red' : 'hs-suit-black'}`}>
           {SUIT_SYMBOLS[s as Suit]}
         </span>
       </div>
@@ -295,11 +306,14 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const suitsArray = useMemo(() => [...ALL_SUITS], []);
 
   const handleSubmit = useCallback(() => {
-    if (hand && isValid) onSubmit(hand);
-  }, [hand, isValid, onSubmit]);
+    if (hand && isValid) {
+      play('callMade');
+      onSubmit(hand);
+    }
+  }, [hand, isValid, onSubmit, play]);
 
   return (
-    <div className="animate-slide-up" data-testid="hand-selector">
+    <div className="animate-slide-up hs-backdrop" data-testid="hand-selector">
       {/* Top: Hand name */}
       <div className="text-center py-0.5">
         {hand ? (
@@ -338,6 +352,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             renderItem={renderHandType}
             itemHeight={70}
             visibleCount={3}
+            onTickSound={handleTickSoundLow}
+            onSelectSound={handleSelectSound}
           />
         </div>
 
@@ -354,6 +370,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
               <div
@@ -372,6 +391,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
             </div>
@@ -386,6 +408,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderRank}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
               <div className="flex-1">
@@ -396,6 +421,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   renderItem={renderSuit}
                   itemHeight={42}
                   visibleCount={5}
+                  highlightHeight={70}
+                  onTickSound={handleTickSound}
+                  onSelectSound={handleSelectSound}
                 />
               </div>
             </div>
@@ -409,6 +437,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 renderItem={renderSuit}
                 itemHeight={42}
                 visibleCount={5}
+                highlightHeight={70}
+                onTickSound={handleTickSound}
+                onSelectSound={handleSelectSound}
               />
             ) : (
               <WheelPicker
@@ -418,6 +449,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 renderItem={renderRank}
                 itemHeight={42}
                 visibleCount={5}
+                highlightHeight={70}
+                onTickSound={handleTickSound}
+                onSelectSound={handleSelectSound}
               />
             )
           )}
