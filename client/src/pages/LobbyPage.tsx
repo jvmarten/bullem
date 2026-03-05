@@ -7,6 +7,7 @@ import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_T
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
+import { useSound } from '../hooks/useSound.js';
 import { socket } from '../socket.js';
 
 export function LobbyPage() {
@@ -14,6 +15,7 @@ export function LobbyPage() {
   const navigate = useNavigate();
   const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
   const { addToast } = useToast();
+  const { play } = useSound();
   useErrorToast(error, clearError);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -147,6 +149,7 @@ export function LobbyPage() {
 
   const handleMaxCardsChange = (newMax: number) => {
     if (settingsLocked) return;
+    play('uiSoft');
     const newCardMax = maxPlayersForMaxCards(newMax);
     const cap = Math.min(MAX_PLAYERS, newCardMax, maxPlayersSetting);
     if (roomState.players.length > cap) {
@@ -158,11 +161,13 @@ export function LobbyPage() {
 
   const handleTimerChange = (seconds: number) => {
     if (settingsLocked) return;
+    play('uiSoft');
     updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
   const handleMaxPlayersChange = (cap: number) => {
     if (settingsLocked) return;
+    play('uiSoft');
     if (roomState.players.length > cap) {
       addToast(`Can't set max players to ${cap} with ${roomState.players.length} players`);
       return;
@@ -295,11 +300,11 @@ export function LobbyPage() {
                 {([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
                   <button
                     key={speed}
-                    onClick={() => updateSettings({
+                    onClick={() => { play('uiSoft'); updateSettings({
                       maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                       allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
                       botSpeed: speed,
-                    })}
+                    }); }}
                     className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
                       (settings.botSpeed ?? BotSpeed.NORMAL) === speed
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -321,12 +326,12 @@ export function LobbyPage() {
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-sm text-[var(--gold-dim)]">Allow spectators</span>
                   <button
-                    onClick={() => updateSettings({
+                    onClick={() => { play('uiSoft'); updateSettings({
                       maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                       allowSpectators: !settings.allowSpectators,
                       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
                       botSpeed: settings.botSpeed,
-                    })}
+                    }); }}
                     className={`w-11 h-6 rounded-full transition-colors relative border ${
                       settings.allowSpectators
                         ? 'bg-[var(--gold)] border-[var(--gold)]'
@@ -342,12 +347,12 @@ export function LobbyPage() {
                   <label className="flex items-center justify-between cursor-pointer">
                     <span className="text-sm text-[var(--gold-dim)]">Spectators see cards</span>
                     <button
-                      onClick={() => updateSettings({
+                      onClick={() => { play('uiSoft'); updateSettings({
                         maxCards, turnTimer, maxPlayers: maxPlayersSetting,
                         allowSpectators: settings.allowSpectators,
                         spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
                         botSpeed: settings.botSpeed,
-                      })}
+                      }); }}
                       className={`w-11 h-6 rounded-full transition-colors relative border ${
                         settings.spectatorsCanSeeCards
                           ? 'bg-[var(--gold)] border-[var(--gold)]'

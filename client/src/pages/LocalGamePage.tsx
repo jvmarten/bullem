@@ -163,7 +163,7 @@ export function LocalGamePage() {
         )}
 
         <div className="game-content">
-          {/* Sidebar — player list & call history (side column in landscape) */}
+          {/* Sidebar — player list (side column in landscape) */}
           <div className="game-sidebar">
             <PlayerList
               players={gameState.players}
@@ -174,8 +174,6 @@ export function LocalGamePage() {
               turnHistory={gameState.turnHistory}
               collapsible
             />
-
-            <CallHistory history={gameState.turnHistory} />
           </div>
 
           {/* Main area — cards, actions, hand selector */}
@@ -220,6 +218,8 @@ export function LocalGamePage() {
               <SpectatorView spectatorCards={gameState.spectatorCards} />
             )}
 
+            <CallHistory history={gameState.turnHistory} />
+
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && (
@@ -236,15 +236,6 @@ export function LocalGamePage() {
                 />
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto gap-2">
-                    {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-                      <button
-                        onClick={handleQuickRaise}
-                        className="btn-ghost border-[var(--gold-dim)] px-4 py-2 text-sm font-semibold"
-                        title="Auto-raise to the minimum valid hand"
-                      >
-                        Min Raise
-                      </button>
-                    )}
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                       className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
@@ -254,15 +245,26 @@ export function LocalGamePage() {
                   </div>
                 )}
                 {canRaise && handSelectorOpen && (
-                  <div className="flex flex-col items-center ml-auto">
-                    <button
-                      onClick={handleHandSubmit}
-                      disabled={!pendingValid}
-                      className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
-                    >
-                      {gameState.currentHand ? 'Raise' : 'Call'}
-                    </button>
-                    <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                  <div className="flex gap-2 items-start ml-auto">
+                    {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                      <button
+                        onClick={handleQuickRaise}
+                        className="btn-amber px-4 py-2 text-sm font-semibold"
+                        title="Auto-raise to the minimum valid hand"
+                      >
+                        Min Raise
+                      </button>
+                    )}
+                    <div className="flex flex-col items-center">
+                      <button
+                        onClick={handleHandSubmit}
+                        disabled={!pendingValid}
+                        className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                      >
+                        {gameState.currentHand ? 'Raise' : 'Call'}
+                      </button>
+                      <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                    </div>
                   </div>
                 )}
               </div>

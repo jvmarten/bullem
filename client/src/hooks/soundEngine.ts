@@ -55,8 +55,8 @@ interface ToneConfig {
 // Sounds that use an audio file instead of oscillator tones.
 // Most sounds now use pre-rendered MP3 files for richer quality.
 const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
-  cardDeal:    { url: cardDealUrl, gain: 0.5 },
-  cardReveal:  { url: cardRevealUrl, gain: 0.45 },
+  cardDeal:    { url: cardDealUrl, gain: 0.3 },
+  cardReveal:  { url: cardRevealUrl, gain: 0.3 },
   deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
   bullCalled:  { url: bullCalledUrl, gain: 0.5 },
   trueCalled:  { url: trueCalledUrl, gain: 0.45 },
@@ -65,7 +65,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   roundLose:   { url: fahSoundUrl, gain: 0.45, fadeOut: 0.4 },
   eliminated:  { url: eliminatedUrl, gain: 0.5 },
   gameOver:    { url: gameOverUrl, gain: 0.45 },
-  yourTurn:    { url: yourTurnUrl, gain: 0.45 },
+  yourTurn:    { url: yourTurnUrl, gain: 0.25 },
   timerTick:   { url: timerTickUrl, gain: 0.5 },
   heartbeat:   { url: heartbeatUrl, gain: 0.55 },
   uiClick:     { url: uiClickUrl, gain: 0.4 },
@@ -323,13 +323,13 @@ export function createSoundController(): SoundController {
       const freq = 400 + (hand.type * 100) + (subRank * 80);
 
       const tones: ToneConfig[] = [
-        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.1, ramp: 0.06 },
-        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.05, ramp: 0.04 },
+        { frequency: freq, duration: 0.07, type: 'sine', gain: 0.04, ramp: 0.06 },
+        { frequency: freq * 1.5, duration: 0.05, type: 'triangle', gain: 0.02, ramp: 0.04 },
       ];
 
       // ROYAL_FLUSH: add a shimmer sparkle tone
       if (hand.type === HandType.ROYAL_FLUSH) {
-        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.03, ramp: 0.025 });
+        tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.015, ramp: 0.025 });
       }
 
       playTones(tones, volume);
