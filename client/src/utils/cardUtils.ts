@@ -35,5 +35,5 @@ export function playerInitial(name: string): string {
 }
 
 export function playerColor(index: number): string {
-  return AVATAR_COLORS[index % AVATAR_COLORS.length];
+  return AVATAR_COLORS[index % AVATAR_COLORS.length]!;
 }

@@ -351,9 +351,9 @@ export class BotPlayer {
       // Just add a few two-pair combos (low ones for opening)
       for (let i = 0; i < Math.min(pairRanks.length, 3); i++) {
         for (let j = i + 1; j < Math.min(pairRanks.length, 4); j++) {
-          const [hi, lo] = RANK_VALUES[pairRanks[j]] > RANK_VALUES[pairRanks[i]]
-            ? [pairRanks[j], pairRanks[i]]
-            : [pairRanks[i], pairRanks[j]];
+          const [hi, lo] = RANK_VALUES[pairRanks[j]!] > RANK_VALUES[pairRanks[i]!]
+            ? [pairRanks[j]!, pairRanks[i]!]
+            : [pairRanks[i]!, pairRanks[j]!];
           existingHands.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
         }
       }
@@ -371,7 +371,7 @@ export class BotPlayer {
     // Pick from the lower third of existing hands — strategic, leaves room to raise
     const maxIdx = Math.max(1, Math.floor(existingHands.length * 0.4));
     const idx = Math.floor(Math.random() * maxIdx);
-    return { action: 'call', hand: existingHands[idx] };
+    return { action: 'call', hand: existingHands[idx]! };
   }
 
   /**
@@ -445,7 +445,7 @@ export class BotPlayer {
 
     // Pick from the lower few options to be strategic (not always the absolute minimum)
     const pick = Math.min(Math.floor(Math.random() * 3), valid.length - 1);
-    return valid[pick];
+    return valid[pick]!;
   }
 
   /**
@@ -461,7 +461,7 @@ export class BotPlayer {
       return this.getHandPrimaryRank(b) - this.getHandPrimaryRank(a);
     });
 
-    return valid[0];
+    return valid[0]!;
   }
 
   /**
@@ -485,9 +485,9 @@ export class BotPlayer {
     // Two pairs
     for (let i = 0; i < ALL_RANKS.length; i++) {
       for (let j = i + 1; j < ALL_RANKS.length; j++) {
-        const [hi, lo] = RANK_VALUES[ALL_RANKS[j]] > RANK_VALUES[ALL_RANKS[i]]
-          ? [ALL_RANKS[j], ALL_RANKS[i]]
-          : [ALL_RANKS[i], ALL_RANKS[j]];
+        const [hi, lo] = RANK_VALUES[ALL_RANKS[j]!] > RANK_VALUES[ALL_RANKS[i]!]
+          ? [ALL_RANKS[j]!, ALL_RANKS[i]!]
+          : [ALL_RANKS[i]!, ALL_RANKS[j]!];
         candidates.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
       }
     }
@@ -631,7 +631,7 @@ export class BotPlayer {
       pairRanks.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
       for (let i = 0; i < pairRanks.length; i++) {
         for (let j = i + 1; j < pairRanks.length; j++) {
-          candidates.push({ type: HandType.TWO_PAIR, highRank: pairRanks[i], lowRank: pairRanks[j] });
+          candidates.push({ type: HandType.TWO_PAIR, highRank: pairRanks[i]!, lowRank: pairRanks[j]! });
         }
       }
     }
@@ -665,12 +665,12 @@ export class BotPlayer {
       // Many cards: open with upper half of truthful candidates (mid-range)
       const upperStart = Math.floor(candidates.length / 2);
       const idx = upperStart + Math.floor(Math.random() * (candidates.length - upperStart));
-      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)] };
+      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)]! };
     }
 
     if (totalCards < 6) {
       // Few cards: open conservatively with the lowest truthful hand
-      return { action: 'call', hand: candidates[0] };
+      return { action: 'call', hand: candidates[0]! };
     }
 
     // Medium card count: weighted random biased toward lower half
@@ -678,7 +678,7 @@ export class BotPlayer {
       Math.floor(Math.random() * Math.random() * candidates.length),
       candidates.length - 1,
     );
-    return { action: 'call', hand: candidates[idx] };
+    return { action: 'call', hand: candidates[idx]! };
   }
 
   /**
@@ -952,9 +952,9 @@ export class BotPlayer {
       const heldRanks = [...rankCounts.keys()];
       for (let i = 0; i < heldRanks.length; i++) {
         for (let j = i + 1; j < heldRanks.length; j++) {
-          const [a, b] = RANK_VALUES[heldRanks[i]] > RANK_VALUES[heldRanks[j]]
-            ? [heldRanks[i], heldRanks[j]]
-            : [heldRanks[j], heldRanks[i]];
+          const [a, b] = RANK_VALUES[heldRanks[i]!] > RANK_VALUES[heldRanks[j]!]
+            ? [heldRanks[i]!, heldRanks[j]!]
+            : [heldRanks[j]!, heldRanks[i]!];
           const hand: HandCall = { type: HandType.TWO_PAIR, highRank: a, lowRank: b };
           if (isHigherHand(hand, currentHand)) {
             candidates.push({ hand, semiBluff: true }); // Always semi since we hold 1+ of each
@@ -1072,7 +1072,7 @@ export class BotPlayer {
     if (bestPairRank) return { type: HandType.PAIR, rank: bestPairRank };
 
     if (cards.length > 0) {
-      let bestRank: Rank = cards[0].rank;
+      let bestRank: Rank = cards[0]!.rank;
       for (const c of cards) {
         if (RANK_VALUES[c.rank] > RANK_VALUES[bestRank]) {
           bestRank = c.rank;
@@ -1126,16 +1126,16 @@ export class BotPlayer {
       else if (count >= 2) pairs.push(rank);
     }
     if (triples.length > 0 && (pairs.length > 0 || triples.length > 1)) {
-      const threeRank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      const threeRank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]!;
       const twoRank = pairs.length > 0
-        ? pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]
+        ? pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]!
         : triples.filter(r => r !== threeRank)[0];
       if (twoRank) return { type: HandType.FULL_HOUSE, threeRank, twoRank };
     }
 
     // Three of a kind
     if (triples.length > 0) {
-      const rank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      const rank = triples.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]!;
       return { type: HandType.THREE_OF_A_KIND, rank };
     }
 
@@ -1147,18 +1147,18 @@ export class BotPlayer {
     // Two pair
     if (pairs.length >= 2 || (pairs.length >= 1 && triples.length >= 1)) {
       const allPairs = [...pairs, ...triples].sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
-      return { type: HandType.TWO_PAIR, highRank: allPairs[0], lowRank: allPairs[1] };
+      return { type: HandType.TWO_PAIR, highRank: allPairs[0]!, lowRank: allPairs[1]! };
     }
 
     // Pair
     if (pairs.length > 0) {
-      const rank = pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0];
+      const rank = pairs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a])[0]!;
       return { type: HandType.PAIR, rank };
     }
 
     // High card
     if (cards.length > 0) {
-      let bestRank: Rank = cards[0].rank;
+      let bestRank: Rank = cards[0]!.rank;
       for (const c of cards) {
         if (RANK_VALUES[c.rank] > RANK_VALUES[bestRank]) {
           bestRank = c.rank;
@@ -1207,8 +1207,8 @@ export class BotPlayer {
         for (let j = i + 1; j < pairRanks.length; j++) {
           candidates.push({
             type: HandType.TWO_PAIR,
-            highRank: pairRanks[i],
-            lowRank: pairRanks[j],
+            highRank: pairRanks[i]!,
+            lowRank: pairRanks[j]!,
           });
         }
       }
@@ -1482,7 +1482,7 @@ export class BotPlayer {
 
   private static makeBluffHandEasy(currentHand: HandCall | null): HandCall {
     if (!currentHand) {
-      const rank = ALL_RANKS[Math.floor(Math.random() * 8) + 5]; // 7 through A
+      const rank = ALL_RANKS[Math.floor(Math.random() * 8) + 5]!; // 7 through A
       return { type: HandType.HIGH_CARD, rank };
     }
 
@@ -1499,7 +1499,7 @@ export class BotPlayer {
       const nextRankVal = RANK_VALUES[cr.rank] + 1;
       const nextRank = ALL_RANKS.find(r => RANK_VALUES[r] === nextRankVal);
       if (nextRank) return { type: HandType.PAIR, rank: nextRank };
-      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)]! };
     }
 
     if (currentHand.type < HandType.THREE_OF_A_KIND) {
@@ -1527,10 +1527,10 @@ export class BotPlayer {
       if (totalCards >= 8) {
         // With many total cards, open with a pair (likely to exist)
         const midRanks: Rank[] = ['7', '8', '9', '10', 'J'];
-        const rank = midRanks[Math.floor(Math.random() * midRanks.length)];
+        const rank = midRanks[Math.floor(Math.random() * midRanks.length)]!;
         return { type: HandType.PAIR, rank };
       }
-      const rank = ALL_RANKS[Math.floor(Math.random() * 6) + 7]; // 9 through A
+      const rank = ALL_RANKS[Math.floor(Math.random() * 6) + 7]!; // 9 through A
       return { type: HandType.HIGH_CARD, rank };
     }
 
@@ -1552,11 +1552,11 @@ export class BotPlayer {
       if (totalCards >= 6) {
         return { type: HandType.TWO_PAIR, highRank: 'A', lowRank: '2' };
       }
-      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)]! };
     }
 
     if (currentHand.type === HandType.TWO_PAIR) {
-      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)] };
+      return { type: HandType.FLUSH, suit: ALL_SUITS[Math.floor(Math.random() * 4)]! };
     }
 
     if (currentHand.type === HandType.FLUSH) {
@@ -1752,7 +1752,7 @@ export class BotPlayer {
       const bRank = this.getHandPrimaryRank(b);
       return aRank - bRank;
     });
-    return valid[0];
+    return valid[0] ?? null;
   }
 
   private static getHandPrimaryRank(hand: HandCall): number {

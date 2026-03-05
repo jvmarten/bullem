@@ -97,7 +97,7 @@ function getPreviewCards(hand: HandCall | null): Card[] {
       let r: Rank;
       if (val === 1) r = 'A';
       else r = ALL_RANKS.find(x => RANK_VALUES[x] === val) ?? highRank;
-      return { rank: r, suit: suitOverride ?? suits[i % 4] };
+      return { rank: r, suit: suitOverride ?? suits[i % 4]! };
     });
   }
 
@@ -251,23 +251,23 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const rank2List = useMemo(() => ALL_RANKS.filter(r => r !== rank), [rank]);
 
   const handTypeIndex = ALL_HAND_TYPES.indexOf(handType);
-  const handleTypeWheel = useCallback((idx: number) => handleTypeChange(ALL_HAND_TYPES[idx]), [handleTypeChange]);
+  const handleTypeWheel = useCallback((idx: number) => handleTypeChange(ALL_HAND_TYPES[idx]!), [handleTypeChange]);
 
   const handlePrimaryWheel = useCallback((idx: number) => {
     if (needsSuit && !needsRank && !needsStraightRank && !needsRank2) {
-      setSuit(ALL_SUITS[idx]);
+      setSuit(ALL_SUITS[idx]!);
     } else if (needsRank2) {
-      handleRank1Change(rankList[idx]);
+      handleRank1Change(rankList[idx]!);
     } else {
-      setRank(rankList[idx]);
+      setRank(rankList[idx]!);
     }
   }, [needsSuit, needsRank, needsStraightRank, needsRank2, rankList, handleRank1Change]);
 
   const rank2Index = rank2List.indexOf(rank2);
-  const handleRank2Wheel = useCallback((idx: number) => setRank2(rank2List[idx]), [rank2List]);
+  const handleRank2Wheel = useCallback((idx: number) => setRank2(rank2List[idx]!), [rank2List]);
 
   const suitIndex = ALL_SUITS.indexOf(suit);
-  const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]), []);
+  const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]!), []);
 
   const isSuitOnly = needsSuit && !needsRank && !needsStraightRank && !needsRank2;
   const hasSuitBelow = needsStraightRank && needsSuit;

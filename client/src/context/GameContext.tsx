@@ -205,7 +205,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('room:state', (state) => {
       setRoomState(state);
       if (!sessionStorage.getItem(PLAYER_ID_KEY) && state.players.length === 1) {
-        const id = state.players[0].id;
+        const id = state.players[0]!.id;
         setPlayerId(id);
         sessionStorage.setItem(PLAYER_ID_KEY, id);
       }

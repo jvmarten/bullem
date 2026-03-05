@@ -67,7 +67,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
       if (!grouped[card.playerId]) {
         grouped[card.playerId] = { name: card.playerName, cards: [] };
       }
-      grouped[card.playerId].cards.push(card);
+      grouped[card.playerId]!.cards.push(card);
     }
     let idx = 0;
     return Object.entries(grouped).map(([playerId, { name, cards }]) => {
@@ -142,7 +142,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
           </p>
           {players.filter(p => result.penalties[p.id] !== undefined).map((p) => {
             const newCardCount = result.penalties[p.id];
-            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount > p.cardCount;
+            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount! > p.cardCount;
             const isEliminated = result.eliminatedPlayerIds.includes(p.id);
             return (
               <div key={p.id} className={`flex justify-between items-center text-sm px-3 py-1.5 rounded-lg ${
