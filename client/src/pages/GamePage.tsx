@@ -221,7 +221,11 @@ export function GamePage() {
 
   const headerRightExtra = (
     <>
-      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs mr-1">{roomCode}</span>
+      <span
+        className="font-mono tracking-wider text-[var(--gold-dim)] text-xs mr-1 cursor-pointer active:scale-95 transition-transform"
+        onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+        title="Tap to copy"
+      >{roomCode}</span>
       {spectatorCount > 0 && (
         <span className="text-[var(--gold-dim)] text-xs" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
           {spectatorCount} watching
@@ -249,11 +253,15 @@ export function GamePage() {
               Round {gameState.roundNumber}
             </span>
             <span className="text-[var(--gold-dim)] font-mono" title={`${cardStats.total} of 52 cards in play`}>
-              {cardStats.total}/52 cards ({cardStats.pct}%)
+              {cardStats.total}/52 ({cardStats.pct}%)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-mono tracking-wider text-[var(--gold-dim)]">{roomCode}</span>
+            <span
+              className="font-mono tracking-wider text-[var(--gold-dim)] cursor-pointer active:scale-95 transition-transform"
+              onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+              title="Tap to copy"
+            >{roomCode}</span>
             {spectatorCount > 0 && (
               <span className="text-[var(--gold-dim)]" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
                 {spectatorCount} watching

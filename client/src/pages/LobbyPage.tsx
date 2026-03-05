@@ -189,7 +189,11 @@ export function LobbyPage() {
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
             Room Code
           </p>
-          <p className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)]">
+          <p
+            className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)] cursor-pointer active:scale-95 transition-transform"
+            onClick={() => { navigator.clipboard.writeText(roomState.roomCode); addToast('Room code copied!'); }}
+            title="Tap to copy"
+          >
             {roomState.roomCode}
           </p>
           <p className="text-sm text-[var(--gold-dim)] mt-1.5">
