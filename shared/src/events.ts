@@ -20,6 +20,7 @@ export interface ClientToServerEvents {
   'game:lastChanceRaise': (data: { hand: HandCall }) => void;
   'game:lastChancePass': () => void;
   'game:continue': () => void;
+  'game:rematch': () => void;
   'room:addBot': (data: { botName?: string }, callback: (response: { botId: string } | { error: string }) => void) => void;
   'room:removeBot': (data: { botId: string }) => void;
   'room:delete': () => void;
@@ -33,6 +34,7 @@ export interface ServerToClientEvents {
   'game:roundResult': (result: RoundResult) => void;
   'game:newRound': (state: ClientGameState) => void;
   'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
+  'game:rematchStarting': () => void;
   'player:disconnected': (playerId: PlayerId) => void;
   'player:reconnected': (playerId: PlayerId) => void;
   'server:playerCount': (count: number) => void;

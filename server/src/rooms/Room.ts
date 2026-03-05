@@ -242,6 +242,49 @@ export class Room {
     return this.game;
   }
 
+  /** Reset the room for a rematch: keep players and settings, create a fresh GameEngine.
+   *  All players are un-eliminated and reset to starting card count. */
+  resetForRematch(): GameEngine {
+    // Reset all players to starting state
+    for (const player of this.players.values()) {
+      player.cardCount = STARTING_CARDS;
+      player.isEliminated = false;
+      player.cards = [];
+    }
+
+    // Remove disconnected players (they missed the rematch)
+    const disconnected: PlayerId[] = [];
+    for (const [id, player] of this.players) {
+      if (!player.isConnected && !player.isBot) {
+        disconnected.push(id);
+      }
+    }
+    for (const id of disconnected) {
+      this.players.delete(id);
+      this.reconnectTokens.delete(id);
+      this.playerToSocket.delete(id);
+    }
+
+    // Reassign host if the current host was disconnected
+    if (!this.players.has(this.hostId) && this.players.size > 0) {
+      for (const p of this.players.values()) {
+        if (!p.isBot) {
+          p.isHost = true;
+          this.hostId = p.id;
+          break;
+        }
+      }
+      // If only bots remain, pick the first one
+      if (!this.players.has(this.hostId)) {
+        const first = this.players.values().next().value!;
+        first.isHost = true;
+        this.hostId = first.id;
+      }
+    }
+
+    return this.startGame();
+  }
+
   updateSettings(settings: GameSettings): void {
     if (this.gamePhase !== GamePhase.LOBBY) return;
     this.settings = { ...settings };

@@ -6,7 +6,7 @@ import { useGameContext } from '../context/GameContext.js';
 
 export function LocalResultsPage() {
   const navigate = useNavigate();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch } = useGameContext();
 
   // If state is gone (page refresh), redirect to lobby
   useEffect(() => {
@@ -42,10 +42,16 @@ export function LocalResultsPage() {
 
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <button
-            onClick={() => { leaveRoom(); navigate('/local'); }}
+            onClick={() => { requestRematch(); navigate('/local/game'); }}
             className="btn-gold px-10 py-3 text-lg"
           >
-            Play Again
+            Rematch
+          </button>
+          <button
+            onClick={() => { leaveRoom(); navigate('/local'); }}
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+          >
+            New Game
           </button>
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}

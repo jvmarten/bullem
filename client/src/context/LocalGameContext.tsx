@@ -609,6 +609,45 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const requestRematch = useCallback(() => {
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    clearHumanTimer();
+    clearLocalGameSave();
+
+    // Reset all players to starting state
+    for (const p of playersRef.current) {
+      p.cardCount = STARTING_CARDS;
+      p.isEliminated = false;
+      p.cards = [];
+    }
+
+    // Shuffle seating order
+    const shuffled = [...playersRef.current];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const settings = gameSettingsRef.current;
+    const engine = new GameEngine(shuffled, settings);
+    engineRef.current = engine;
+    engine.startRound();
+    BotPlayer.resetMemory('local');
+
+    setWinnerId(null);
+    setGameStats(null);
+    setRoundResult(null);
+    setRoundTransition(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+
+    setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING, players: playersRef.current.map(toPublicPlayer) } : null);
+    scheduleBotTurn();
+    scheduleHumanTimer();
+    broadcastState();
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer]);
+
   const clearErrorAction = useCallback(() => setError(null), []);
   const noopListRooms = useCallback(async () => [] as never[], []);
   const noopListLiveGames = useCallback(async () => [] as never[], []);
@@ -641,6 +680,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     clearRoundResult,
     addBot,
     removeBot,
+    requestRematch,
     botDifficulty,
     setBotDifficulty,
     gameSettings,
@@ -658,7 +698,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
-    addBot, removeBot, botDifficulty, setBotDifficulty, gameSettings,
+    addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
     setGameSettings, isPaused, togglePause, onlinePlayerCount, onlinePlayerNames,
     noopListRooms, noopListLiveGames, noopSpectate, noopUpdateSettings, noopDeleteRoom,
   ]);
