@@ -244,6 +244,34 @@ export function LocalLobbyPage() {
             </div>
           </div>
         )}
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Last Chance Rules
+            </p>
+            <div className="flex gap-1.5">
+              {(['classic', 'strict'] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, lastChanceMode: mode }); }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                    (gameSettings.lastChanceMode ?? 'classic') === mode
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {(gameSettings.lastChanceMode ?? 'classic') === 'classic'
+                ? 'After a last chance raise, all players can bull, true, or raise'
+                : 'After a last chance raise, next player must bull or raise. True unlocks after a bull is called'}
+            </p>
+          </div>
+        )}
         </div>{/* end lobby-right */}
       </div>
     </Layout>

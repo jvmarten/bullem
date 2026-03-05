@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -253,6 +253,14 @@ export function registerLobbyHandlers(
       return;
     }
 
+    // Validate lastChanceMode if provided
+    const VALID_LAST_CHANCE_MODES: LastChanceMode[] = ['classic', 'strict'];
+    const lastChanceMode = data.settings.lastChanceMode;
+    if (lastChanceMode !== undefined && !VALID_LAST_CHANCE_MODES.includes(lastChanceMode as LastChanceMode)) {
+      socket.emit('room:error', 'Invalid last chance mode setting');
+      return;
+    }
+
     // Sanitize boolean settings — coerce to boolean or strip non-boolean values
     const validated: GameSettings = {
       maxCards,
@@ -261,6 +269,7 @@ export function registerLobbyHandlers(
       allowSpectators: data.settings.allowSpectators === true,
       spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
       botSpeed: botSpeed as BotSpeed | undefined,
+      lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
     };
 
     room.updateSettings(validated);

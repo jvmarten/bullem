@@ -252,7 +252,14 @@ export class GameEngine {
     this.lastChanceUsed = true;
     this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
     this.gameStats.playerStats[playerId]!.callsMade++;
-    this.roundPhase = RoundPhase.BULL_PHASE;
+
+    // In strict mode, re-enter CALLING so the first responder can only bull/raise
+    // (true is unavailable until someone calls bull, which transitions to BULL_PHASE).
+    // In classic mode (default), go straight to BULL_PHASE where true is always available.
+    this.roundPhase = this.settings.lastChanceMode === 'strict'
+      ? RoundPhase.CALLING
+      : RoundPhase.BULL_PHASE;
+
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
     this.advanceTurn();

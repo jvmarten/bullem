@@ -30,6 +30,7 @@ export const DEFAULT_TURN_TIMER = 0;
 export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const; // online requires a timer
 export const DEFAULT_ONLINE_TURN_TIMER = 30;
 export const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12] as const;
+export const DEFAULT_LAST_CHANCE_MODE = 'classic' as const;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS };
 export const DISCONNECT_TIMEOUT_MS = 30_000;
