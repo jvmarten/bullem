@@ -71,7 +71,7 @@ export class BackgroundGameManager {
       turnTimer: 0,
       allowSpectators: true,
       spectatorsCanSeeCards: true,
-      botSpeed: BotSpeed.NORMAL,
+      botSpeed: BotSpeed.SLOW,
       lastChanceMode: 'classic',
     });
 

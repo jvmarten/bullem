@@ -20,6 +20,8 @@ import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
+import { useToast } from '../context/ToastContext.js';
+import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
@@ -67,6 +69,9 @@ export function GamePage() {
   useGameSounds(gameState, roundResult, winnerId, playerId);
 
   const rejoinAttemptedRef = useRef(false);
+
+  // Prevent accidental tab close / refresh during an active game
+  useNavigationGuard(!!gameState && !winnerId);
 
   // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
@@ -135,6 +140,16 @@ export function GamePage() {
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isSpectator = !myPlayer;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
+
+  // Show a one-time prominent notification when the player gets eliminated
+  const { addToast } = useToast();
+  const wasEliminatedRef = useRef(isEliminated);
+  useEffect(() => {
+    if (isEliminated && !wasEliminatedRef.current) {
+      addToast("You've been eliminated! You're now spectating.", 'info');
+    }
+    wasEliminatedRef.current = isEliminated;
+  }, [isEliminated, addToast]);
 
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
@@ -258,7 +273,7 @@ export function GamePage() {
         {(isEliminated || isSpectator) && (
           <div className="text-center glass p-2 animate-fade-in">
             <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
-              Spectating
+              {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
             </p>
           </div>
         )}

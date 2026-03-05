@@ -11,9 +11,11 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 
 import { useGameContext } from '../context/GameContext.js';
+import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 
@@ -32,6 +34,9 @@ export function LocalGamePage() {
   useEffect(() => {
     if (winnerId && !roundResult) navigate('/local/results');
   }, [winnerId, roundResult, navigate]);
+
+  // Prevent accidental tab close / refresh during an active game
+  useNavigationGuard(!!gameState && !winnerId);
 
   const handleLeave = () => {
     if (window.confirm('Leave this game?')) {
@@ -52,6 +57,16 @@ export function LocalGamePage() {
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
+
+  // Show a one-time prominent notification when the player gets eliminated
+  const { addToast } = useToast();
+  const wasEliminatedRef = useRef(isEliminated);
+  useEffect(() => {
+    if (isEliminated && !wasEliminatedRef.current) {
+      addToast("You've been eliminated! You're now spectating.", 'info');
+    }
+    wasEliminatedRef.current = isEliminated;
+  }, [isEliminated, addToast]);
 
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
@@ -185,7 +200,7 @@ export function LocalGamePage() {
         {isEliminated && (
           <div className="text-center glass p-2 animate-fade-in">
             <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
-              Spectating
+              Eliminated — Spectating
             </p>
           </div>
         )}

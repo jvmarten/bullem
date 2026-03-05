@@ -161,8 +161,17 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
         </div>
 
         <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-[var(--surface-raised)] to-transparent">
-          <button onClick={onDismiss} className="w-full btn-gold py-3">
-            {countdown > 0 ? `Continue (${countdown}s)` : 'Continue'}
+          <button onClick={onDismiss} className={`w-full btn-gold py-3 transition-all ${countdown > 0 && countdown <= 5 ? 'animate-pulse-glow' : ''}`}>
+            {countdown > 0 ? (
+              <>
+                Continue{' '}
+                <span className={`inline-block transition-all ${
+                  countdown <= 5 ? 'text-[var(--danger)] font-bold text-lg' : ''
+                }`}>
+                  ({countdown}s)
+                </span>
+              </>
+            ) : 'Continue'}
           </button>
         </div>
       </div>

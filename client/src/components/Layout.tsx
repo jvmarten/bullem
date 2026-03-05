@@ -123,12 +123,12 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               onClick={() => setShowVersionPopup(v => !v)}
               className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
-              v0.2.8
+              v0.2.9
             </button>
             {showVersionPopup && (
               <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
                 <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.2.8 &middot; 05.03.26
+                  v0.2.9 &middot; 05.03.26
                 </p>
               </div>
             )}
