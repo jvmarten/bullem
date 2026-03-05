@@ -11,6 +11,7 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 
 import { useGameContext } from '../context/GameContext.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
@@ -20,8 +21,9 @@ export function LocalGamePage() {
   const {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
-    clearRoundResult, leaveRoom, isPaused, togglePause,
+    clearRoundResult, leaveRoom, isPaused, togglePause, error, clearError,
   } = useGameContext();
+  useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
 

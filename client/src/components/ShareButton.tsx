@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useToast } from '../context/ToastContext.js';
 
 interface ShareButtonProps {
   /** The room code to share */
@@ -13,7 +14,7 @@ interface ShareButtonProps {
  * falls back to clipboard copy otherwise.
  */
 export function ShareButton({ roomCode, variant = 'prominent' }: ShareButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const { addToast } = useToast();
 
   const inviteUrl = `${window.location.origin}/room/${roomCode}`;
 
@@ -47,9 +48,8 @@ export function ShareButton({ roomCode, variant = 'prominent' }: ShareButtonProp
       document.execCommand('copy');
       document.body.removeChild(textarea);
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [roomCode, inviteUrl]);
+    addToast('Invite link copied!', 'success');
+  }, [roomCode, inviteUrl, addToast]);
 
   if (variant === 'compact') {
     return (
@@ -58,7 +58,7 @@ export function ShareButton({ roomCode, variant = 'prominent' }: ShareButtonProp
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
         title="Share invite link"
       >
-        {copied ? 'Copied!' : 'Share'}
+        Share
       </button>
     );
   }
@@ -68,14 +68,8 @@ export function ShareButton({ roomCode, variant = 'prominent' }: ShareButtonProp
       onClick={handleShare}
       className="w-full glass px-4 py-3 text-sm font-semibold text-[var(--gold)] hover:text-[var(--gold-light)] transition-colors flex items-center justify-center gap-2 min-h-[44px]"
     >
-      {copied ? (
-        <span className="animate-fade-in">Invite link copied!</span>
-      ) : (
-        <>
-          <ShareIcon />
-          <span>Share Invite Link</span>
-        </>
-      )}
+      <ShareIcon />
+      <span>Share Invite Link</span>
     </button>
   );
 }

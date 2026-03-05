@@ -5,14 +5,17 @@ import { ShareButton } from '../components/ShareButton.js';
 import { useGameContext } from '../context/GameContext.js';
 import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
+import { useToast } from '../context/ToastContext.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, error, updateSettings } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, error, clearError, updateSettings } = useGameContext();
+  const { addToast } = useToast();
+  useErrorToast(error, clearError);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
-  const [localError, setLocalError] = useState('');
   const joinAttemptedRef = useRef(false);
 
   // Navigate to game when it starts
@@ -31,7 +34,7 @@ export function LobbyPage() {
       setJoining(true);
       joinRoom(roomCode, storedName)
         .catch((e) => {
-          setLocalError(e instanceof Error ? e.message : 'Failed to join room');
+          addToast(e instanceof Error ? e.message : 'Failed to join room');
           setTimeout(() => navigate('/'), 3000);
         })
         .finally(() => setJoining(false));
@@ -41,11 +44,10 @@ export function LobbyPage() {
   const handleManualJoin = async () => {
     if (!joinName.trim() || !roomCode) return;
     setJoining(true);
-    setLocalError('');
     try {
       await joinRoom(roomCode, joinName.trim());
     } catch (e) {
-      setLocalError(e instanceof Error ? e.message : 'Failed to join room');
+      addToast(e instanceof Error ? e.message : 'Failed to join room');
     } finally {
       setJoining(false);
     }
@@ -54,7 +56,7 @@ export function LobbyPage() {
   const handleStartGame = () => {
     if (!roomState) return;
     if (roomState.players.length < MIN_PLAYERS) {
-      setLocalError(`Need at least ${MIN_PLAYERS} players to start the game`);
+      addToast(`Need at least ${MIN_PLAYERS} players to start the game`);
       return;
     }
     startGame();
@@ -67,8 +69,6 @@ export function LobbyPage() {
     navigate('/');
   };
 
-  const displayError = localError || error;
-
   // Show name input for direct URL visitors who have no stored name
   if (!roomState && !joining && !joinAttemptedRef.current && !sessionStorage.getItem('bull-em-player-name') && !localStorage.getItem('bull-em-player-name')) {
     return (
@@ -78,11 +78,6 @@ export function LobbyPage() {
             <h2 className="font-display text-2xl font-bold text-[var(--gold)]">
               Join Room {roomCode}
             </h2>
-            {displayError && (
-              <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
-                {displayError}
-              </div>
-            )}
             <input
               type="text"
               value={joinName}
@@ -121,9 +116,6 @@ export function LobbyPage() {
             <p className="text-[var(--gold-dim)]">
               {joining ? 'Joining room\u2026' : `Connecting to room ${roomCode}\u2026`}
             </p>
-            {displayError && (
-              <p className="text-[var(--danger)] text-sm">{displayError}</p>
-            )}
           </div>
         </div>
       </Layout>
@@ -147,10 +139,9 @@ export function LobbyPage() {
     const newCardMax = maxPlayersForMaxCards(newMax);
     const cap = Math.min(MAX_PLAYERS, newCardMax, maxPlayersSetting);
     if (roomState.players.length > cap) {
-      setLocalError(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
+      addToast(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
       return;
     }
-    setLocalError('');
     updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
@@ -162,10 +153,9 @@ export function LobbyPage() {
   const handleMaxPlayersChange = (cap: number) => {
     if (settingsLocked) return;
     if (roomState.players.length > cap) {
-      setLocalError(`Can't set max players to ${cap} with ${roomState.players.length} players`);
+      addToast(`Can't set max players to ${cap} with ${roomState.players.length} players`);
       return;
     }
-    setLocalError('');
     updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed });
   };
 
@@ -191,12 +181,6 @@ export function LobbyPage() {
         {/* Share invite link — prominent one-tap share */}
         <ShareButton roomCode={roomState.roomCode} />
 
-        {displayError && (
-          <div className="glass px-4 py-2.5 text-sm text-[var(--danger)] border-[var(--danger)] animate-shake">
-            {displayError}
-          </div>
-        )}
-
         <PlayerList
           players={roomState.players}
           myPlayerId={playerId}
@@ -207,7 +191,7 @@ export function LobbyPage() {
 
         {isHost && (
           <button
-            onClick={() => addBot().catch(e => setLocalError(e instanceof Error ? e.message : 'Failed to add bot'))}
+            onClick={() => addBot().catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'))}
             disabled={roomState.players.length >= effectiveMaxPlayers}
             className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
           >
