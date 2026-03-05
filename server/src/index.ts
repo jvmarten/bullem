@@ -1,6 +1,9 @@
+import './instrument.js';
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import * as Sentry from '@sentry/node';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
@@ -8,6 +11,7 @@ import { RoomManager } from './rooms/RoomManager.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
+import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +53,9 @@ app.get('/health', (_req, res) => res.json({
   players: io.engine.clientsCount,
 }));
 
+// Sentry Express error handler — must be registered after all routes/middleware
+Sentry.setupExpressErrorHandler(app);
+
 // In production, serve built client
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '../../client/dist');
@@ -74,7 +81,7 @@ io.engine.on('close', () => scheduleBroadcastPlayerCount());
 
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {
-  console.log('Shutting down...');
+  logger.info('Shutting down...');
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
@@ -88,5 +95,5 @@ process.on('SIGINT', shutdown);
 
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {
-  console.log(`Bull 'Em server running on port ${PORT}`);
+  logger.info({ port: PORT }, `Bull 'Em server running on port ${PORT}`);
 });

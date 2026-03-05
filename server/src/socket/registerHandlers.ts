@@ -1,4 +1,5 @@
 import type { Server } from 'socket.io';
+import * as Sentry from '@sentry/node';
 import { GamePhase, DISCONNECT_TIMEOUT_MS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
@@ -7,6 +8,7 @@ import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
+import { createChildLogger } from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -81,7 +83,8 @@ function attachRateLimiter(
 
 export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager): void {
   io.on('connection', (socket) => {
-    console.log(`Connected: ${socket.id}`);
+    const socketLog = createChildLogger({ playerId: socket.id });
+    socketLog.info('Socket connected');
     // Pass a getter so the rate limiter can resolve the player ID after
     // the socket has joined a room (not available at connection time).
     attachRateLimiter(socket, () => {
@@ -92,8 +95,18 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager);
 
+    socket.on('error', (err) => {
+      const room = roomManager.getRoomForSocket(socket.id);
+      const playerId = room?.getPlayerId(socket.id);
+      const childLog = createChildLogger({ roomCode: room?.roomCode, playerId });
+      childLog.error({ err }, 'Socket error');
+      Sentry.captureException(err, {
+        extra: { roomCode: room?.roomCode, playerId, socketId: socket.id },
+      });
+    });
+
     socket.on('disconnect', () => {
-      console.log(`Disconnected: ${socket.id}`);
+      socketLog.info('Socket disconnected');
 
       // Callback fired when the 30s disconnect timer expires and the player
       // hasn't reconnected. Properly eliminates the player through the game
