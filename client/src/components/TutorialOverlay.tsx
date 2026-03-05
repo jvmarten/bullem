@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useRef, useCallback, useLayoutEffect, type ReactNode } from 'react';
 
 export type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
 
@@ -68,38 +68,87 @@ export function TutorialOverlay({
       )`
     : undefined;
 
-  // Tooltip positioning
-  const tooltipStyle: React.CSSProperties = {};
-  if (rect) {
+  // Clamp tooltip position so it stays within viewport
+  const [clampedStyle, setClampedStyle] = useState<React.CSSProperties>({});
+
+  useLayoutEffect(() => {
+    if (!visible) return;
+
+    const style: React.CSSProperties = {};
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 8; // minimum distance from viewport edge
     const gap = 12;
-    switch (position) {
-      case 'bottom':
-        tooltipStyle.top = rect.bottom + pad + gap;
-        tooltipStyle.left = rect.left + rect.width / 2;
-        tooltipStyle.transform = 'translateX(-50%)';
-        break;
-      case 'top':
-        tooltipStyle.bottom = window.innerHeight - rect.top + pad + gap;
-        tooltipStyle.left = rect.left + rect.width / 2;
-        tooltipStyle.transform = 'translateX(-50%)';
-        break;
-      case 'left':
-        tooltipStyle.top = rect.top + rect.height / 2;
-        tooltipStyle.right = window.innerWidth - rect.left + pad + gap;
-        tooltipStyle.transform = 'translateY(-50%)';
-        break;
-      case 'right':
-        tooltipStyle.top = rect.top + rect.height / 2;
-        tooltipStyle.left = rect.right + pad + gap;
-        tooltipStyle.transform = 'translateY(-50%)';
-        break;
+
+    if (rect) {
+      switch (position) {
+        case 'bottom':
+          style.top = rect.bottom + pad + gap;
+          style.left = rect.left + rect.width / 2;
+          style.transform = 'translateX(-50%)';
+          break;
+        case 'top':
+          style.bottom = vh - rect.top + pad + gap;
+          style.left = rect.left + rect.width / 2;
+          style.transform = 'translateX(-50%)';
+          break;
+        case 'left':
+          style.top = rect.top + rect.height / 2;
+          style.right = vw - rect.left + pad + gap;
+          style.transform = 'translateY(-50%)';
+          break;
+        case 'right':
+          style.top = rect.top + rect.height / 2;
+          style.left = rect.right + pad + gap;
+          style.transform = 'translateY(-50%)';
+          break;
+      }
+    } else {
+      style.top = '50%';
+      style.left = '50%';
+      style.transform = 'translate(-50%, -50%)';
     }
-  } else {
-    // Centered on screen
-    tooltipStyle.top = '50%';
-    tooltipStyle.left = '50%';
-    tooltipStyle.transform = 'translate(-50%, -50%)';
-  }
+
+    setClampedStyle(style);
+
+    // After paint, check if tooltip overflows and clamp
+    requestAnimationFrame(() => {
+      const el = tooltipRef.current;
+      if (!el) return;
+      const tr = el.getBoundingClientRect();
+      const fixes: React.CSSProperties = {};
+      let needsFix = false;
+
+      // Horizontal clamping
+      if (tr.left < margin) {
+        fixes.left = margin;
+        fixes.transform = (style.transform as string)?.replace('translateX(-50%)', '') || 'none';
+        needsFix = true;
+      } else if (tr.right > vw - margin) {
+        fixes.left = undefined;
+        fixes.right = margin;
+        fixes.transform = (style.transform as string)?.replace('translateX(-50%)', '') || 'none';
+        needsFix = true;
+      }
+
+      // Vertical clamping
+      if (tr.top < margin) {
+        fixes.top = margin;
+        fixes.bottom = undefined;
+        fixes.transform = fixes.transform ?? ((style.transform as string)?.replace('translateY(-50%)', '') || 'none');
+        needsFix = true;
+      } else if (tr.bottom > vh - margin) {
+        fixes.bottom = margin;
+        fixes.top = undefined;
+        fixes.transform = fixes.transform ?? ((style.transform as string)?.replace('translateY(-50%)', '') || 'none');
+        needsFix = true;
+      }
+
+      if (needsFix) {
+        setClampedStyle(prev => ({ ...prev, ...fixes }));
+      }
+    });
+  }, [visible, rect, position, pad]);
 
   return (
     <div className="fixed inset-0 z-[100]" aria-live="polite">
@@ -133,7 +182,7 @@ export function TutorialOverlay({
         ref={tooltipRef}
         className="absolute glass-raised p-4 rounded-xl max-w-[min(85vw,360px)] animate-fade-in"
         style={{
-          ...tooltipStyle,
+          ...clampedStyle,
           border: '1px solid var(--gold-dim)',
           boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
         }}
