@@ -15,6 +15,7 @@ import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 import logger from './logger.js';
+import { pool, closePool, migrate } from './db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +75,15 @@ registerHandlers(io, roomManager, botManager);
 // restored in the background. This is safe because Socket.io buffers events
 // until handlers are registered, and the restore typically completes in <100ms.
 (async () => {
+  // Run database migrations if PostgreSQL is available
+  if (pool) {
+    try {
+      await migrate(pool);
+    } catch (err) {
+      logger.error({ err }, 'Database migration failed — continuing without persistence');
+    }
+  }
+
   if (redisStore) {
     try {
       const count = await roomManager.restoreFromRedis();
@@ -89,11 +99,23 @@ registerHandlers(io, roomManager, botManager);
 })();
 
 // Health check — registered before the SPA catch-all
-app.get('/health', (_req, res) => res.json({
-  status: 'ok',
-  rooms: roomManager.roomCount,
-  players: io.engine.clientsCount,
-}));
+app.get('/health', async (_req, res) => {
+  let db: 'ok' | 'unavailable' = 'unavailable';
+  if (pool) {
+    try {
+      await pool.query('SELECT 1');
+      db = 'ok';
+    } catch {
+      db = 'unavailable';
+    }
+  }
+  res.json({
+    status: 'ok',
+    db,
+    rooms: roomManager.roomCount,
+    players: io.engine.clientsCount,
+  });
+});
 
 // Sentry Express error handler — must be registered after all routes/middleware
 Sentry.setupExpressErrorHandler(app);
@@ -128,6 +150,10 @@ function shutdown(): void {
   botManager.clearTimers();
   roomManager.stopCleanup();
   io.close();
+  // Close the database pool before exiting
+  closePool().catch((err) => {
+    logger.error({ err }, 'Error closing database pool during shutdown');
+  });
   httpServer.close(() => process.exit(0));
   // Force exit after 5s if connections don't close cleanly
   setTimeout(() => process.exit(1), 5000);
