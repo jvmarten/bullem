@@ -109,11 +109,57 @@ export function LocalGamePage() {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
+  /* Landscape/desktop: merge game info into the Layout header bar */
+  const pauseButton = togglePause ? (
+    <button
+      onClick={togglePause}
+      className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
+      title={isPaused ? 'Resume game' : 'Pause game'}
+      aria-label={isPaused ? 'Resume game' : 'Pause game'}
+    >
+      {isPaused ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" />
+          <rect x="14" y="4" width="4" height="16" />
+        </svg>
+      )}
+    </button>
+  ) : null;
+
+  const headerLeftExtra = (
+    <>
+      <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
+        Round {gameState.roundNumber}
+      </span>
+      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
+        {cardStats.total}/52 ({cardStats.pct}%)
+      </span>
+    </>
+  );
+
+  const headerRightExtra = (
+    <>
+      {pauseButton}
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">LOCAL</span>
+      <button
+        onClick={handleLeave}
+        className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
+        title="Leave game"
+      >
+        Leave
+      </button>
+    </>
+  );
+
   return (
-    <Layout>
+    <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
       <div className={`game-layout ${isEliminated ? 'spectating' : ''}`}>
-        {/* Top bar */}
-        <div className="game-top-bar flex justify-between items-center text-xs">
+        {/* Top bar — portrait only (merged into header in landscape) */}
+        <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
@@ -123,25 +169,7 @@ export function LocalGamePage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {togglePause && (
-              <button
-                onClick={togglePause}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
-                title={isPaused ? 'Resume game' : 'Pause game'}
-                aria-label={isPaused ? 'Resume game' : 'Pause game'}
-              >
-                {isPaused ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="4" width="4" height="16" />
-                    <rect x="14" y="4" width="4" height="16" />
-                  </svg>
-                )}
-              </button>
-            )}
+            {pauseButton}
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
             <button
               onClick={handleLeave}
@@ -163,7 +191,7 @@ export function LocalGamePage() {
         )}
 
         <div className="game-content">
-          {/* Sidebar — player list (side column in landscape) */}
+          {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
             <PlayerList
               players={gameState.players}
@@ -174,6 +202,10 @@ export function LocalGamePage() {
               turnHistory={gameState.turnHistory}
               collapsible
             />
+            {/* Call history in sidebar — landscape only */}
+            <div className="landscape-only flex-col">
+              <CallHistory history={gameState.turnHistory} />
+            </div>
           </div>
 
           {/* Main area — cards, actions, hand selector */}
@@ -218,7 +250,10 @@ export function LocalGamePage() {
               <SpectatorView spectatorCards={gameState.spectatorCards} />
             )}
 
-            <CallHistory history={gameState.turnHistory} />
+            {/* Call history — portrait only (in sidebar for landscape) */}
+            <div className="portrait-only">
+              <CallHistory history={gameState.turnHistory} />
+            </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}

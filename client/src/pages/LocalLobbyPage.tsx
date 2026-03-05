@@ -82,7 +82,8 @@ export function LocalLobbyPage() {
 
   return (
     <Layout>
-      <div className="space-y-6 pt-4 animate-fade-in">
+      <div className="lobby-content space-y-6 pt-4 animate-fade-in">
+        <div className="lobby-left">
         <div className="text-center">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
             Local Game
@@ -111,7 +112,7 @@ export function LocalLobbyPage() {
           + Add Bot
         </button>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lobby-start-actions">
           <button
             onClick={startGame}
             disabled={!canStart || !interactionReady}
@@ -127,7 +128,9 @@ export function LocalLobbyPage() {
             Back to Home
           </button>
         </div>
+        </div>{/* end lobby-left */}
 
+        <div className="lobby-right">
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -241,6 +244,7 @@ export function LocalLobbyPage() {
             </div>
           </div>
         )}
+        </div>{/* end lobby-right */}
       </div>
     </Layout>
   );

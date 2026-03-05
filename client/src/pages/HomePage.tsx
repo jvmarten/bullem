@@ -366,7 +366,9 @@ export function HomePage() {
 
   return (
     <Layout largeTitle>
-      <div className="flex flex-col items-center gap-8 pt-8">
+      <div className="home-content flex flex-col items-center gap-8 pt-8">
+        {/* Left panel in landscape: deck demo */}
+        <div className="home-left">
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">
           <div
@@ -513,7 +515,10 @@ export function HomePage() {
             )}
           </div>
         </div>
+        </div>{/* end home-left */}
 
+        {/* Right panel in landscape: name + menu buttons */}
+        <div className="home-right">
         {/* Player name display — tap to edit */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
@@ -717,6 +722,7 @@ export function HomePage() {
             </button>
           </div>
         )}
+        </div>{/* end home-right */}
       </div>
     </Layout>
   );

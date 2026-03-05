@@ -180,7 +180,9 @@ export function LobbyPage() {
 
   return (
     <Layout>
-      <div className="space-y-6 pt-4 animate-fade-in">
+      <div className="lobby-content space-y-6 pt-4 animate-fade-in">
+        {/* Left panel in landscape: room info + players */}
+        <div className="lobby-left">
         {/* Room code display */}
         <div className="text-center">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
@@ -216,7 +218,10 @@ export function LobbyPage() {
             + Add Bot
           </button>
         )}
+        </div>{/* end lobby-left */}
 
+        {/* Right panel in landscape: settings + actions */}
+        <div className="lobby-right">
         {/* Settings — host can edit until other humans join */}
         {isHost && !settingsLocked && (
           <>
@@ -432,6 +437,7 @@ export function LobbyPage() {
             </button>
           )}
         </div>
+        </div>{/* end lobby-right */}
       </div>
     </Layout>
   );

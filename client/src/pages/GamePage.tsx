@@ -191,11 +191,37 @@ export function GamePage() {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
+  /* Landscape/desktop: merge game info into the Layout header bar */
+  const headerLeftExtra = (
+    <>
+      <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
+        Round {gameState.roundNumber}
+      </span>
+      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
+        {cardStats.total}/52 ({cardStats.pct}%)
+      </span>
+    </>
+  );
+
+  const headerRightExtra = (
+    <>
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">{roomCode}</span>
+      {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
+      <button
+        onClick={handleLeave}
+        className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
+        title="Leave game"
+      >
+        Leave
+      </button>
+    </>
+  );
+
   return (
-    <Layout>
+    <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
       <div className={`game-layout ${isEliminated || isSpectator ? 'spectating' : ''}`}>
-        {/* Top bar */}
-        <div className="game-top-bar flex justify-between items-center text-xs">
+        {/* Top bar — portrait only (merged into header in landscape) */}
+        <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
@@ -227,7 +253,7 @@ export function GamePage() {
         )}
 
         <div className="game-content">
-          {/* Sidebar — player list (side column in landscape) */}
+          {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
             <PlayerList
               players={gameState.players}
@@ -238,6 +264,10 @@ export function GamePage() {
               turnHistory={gameState.turnHistory}
               collapsible
             />
+            {/* Call history in sidebar — landscape only */}
+            <div className="landscape-only flex-col">
+              <CallHistory history={gameState.turnHistory} />
+            </div>
           </div>
 
           {/* Main area — cards, actions, hand selector */}
@@ -288,7 +318,10 @@ export function GamePage() {
               <SpectatorView spectatorCards={gameState.spectatorCards} />
             )}
 
-            <CallHistory history={gameState.turnHistory} />
+            {/* Call history — portrait only (in sidebar for landscape) */}
+            <div className="portrait-only">
+              <CallHistory history={gameState.turnHistory} />
+            </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
