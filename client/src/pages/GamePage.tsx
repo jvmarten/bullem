@@ -352,10 +352,11 @@ export function GamePage() {
                     {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
                       <button
                         onClick={handleQuickRaise}
-                        className="btn-amber px-4 py-2 text-sm font-semibold"
+                        className="btn-amber px-2 py-1 font-semibold leading-tight self-center"
+                        style={{ fontSize: '10px' }}
                         title="Auto-raise to the minimum valid hand"
                       >
-                        Min Raise
+                        min<br />raise
                       </button>
                     )}
                     <div className="flex flex-col items-center">
