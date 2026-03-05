@@ -72,7 +72,7 @@ export function useGameSounds(
     if (history.length > prevLen) {
       // Play sound for each new entry
       for (let i = prevLen; i < history.length; i++) {
-        const entry: TurnEntry = history[i];
+        const entry: TurnEntry = history[i]!;
         switch (entry.action) {
           case TurnAction.CALL:
           case TurnAction.LAST_CHANCE_RAISE:

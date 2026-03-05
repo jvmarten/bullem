@@ -61,7 +61,7 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
   const map = new Map<PlayerId, string>();
   if (!history) return map;
   for (let i = history.length - 1; i >= 0; i--) {
-    const e = history[i];
+    const e = history[i]!;
     if (!map.has(e.playerId)) {
       map.set(e.playerId, formatAction(e));
     }

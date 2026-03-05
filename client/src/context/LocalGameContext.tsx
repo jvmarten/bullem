@@ -475,7 +475,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
     }
     const engine = new GameEngine(shuffled, settings);
     engineRef.current = engine;
@@ -626,7 +628,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
     }
 
     const settings = gameSettingsRef.current;
