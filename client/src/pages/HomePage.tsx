@@ -582,12 +582,20 @@ export function HomePage() {
             <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
               Play Offline
             </button>
-            <Link
-              to="/how-to-play"
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-            >
-              How to Play
-            </Link>
+            <div className="flex justify-center gap-4">
+              <Link
+                to="/tutorial"
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+              >
+                Interactive Tutorial
+              </Link>
+              <Link
+                to="/how-to-play"
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+              >
+                How to Play
+              </Link>
+            </div>
           </div>
         )}
 
