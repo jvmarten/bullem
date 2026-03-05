@@ -13,6 +13,10 @@ import { socket } from '../socket.js';
 
 const HUMAN_ID = 'human-1';
 const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
+/** Stable empty map — avoids allocating a new Map() inside useMemo on every
+ *  render, which would break referential equality and cause downstream
+ *  re-renders for all context consumers. */
+const EMPTY_DISCONNECT_DEADLINES: ReadonlyMap<string, number> = new Map();
 
 interface LocalGameSave {
   engineSnapshot: GameEngineSnapshot;
@@ -697,7 +701,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     error,
     isConnected: true as const,
     hasConnected: true as const,
-    disconnectDeadlines: new Map() as ReadonlyMap<string, number>,
+    disconnectDeadlines: EMPTY_DISCONNECT_DEADLINES,
     createRoom,
     joinRoom,
     leaveRoom,

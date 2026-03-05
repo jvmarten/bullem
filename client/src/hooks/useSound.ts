@@ -74,11 +74,20 @@ export function useGameSounds(
   const prevRoundResultRef = useRef<RoundResult | null>(null);
   const prevWinnerRef = useRef<PlayerId | null>(null);
 
-  // React to turn history changes (new calls/bulls/trues)
-  useEffect(() => {
-    if (!gameState) return;
+  // Stable ref so effects below can access gameState without depending on it.
+  // Previously, including `gameState` as a dependency caused every effect to
+  // re-fire on every server broadcast (any player action, timer tick, etc.)
+  // even when the specific field the effect watched hadn't changed.
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
 
-    const history = gameState.turnHistory;
+  // React to turn history changes (new calls/bulls/trues)
+  const historyLen = gameState?.turnHistory.length ?? 0;
+  useEffect(() => {
+    const gs = gameStateRef.current;
+    if (!gs) return;
+
+    const history = gs.turnHistory;
     const prevLen = prevHistoryLenRef.current;
 
     if (history.length > prevLen) {
@@ -102,24 +111,21 @@ export function useGameSounds(
     }
 
     prevHistoryLenRef.current = history.length;
-  }, [gameState?.turnHistory.length, play, gameState]);
+  }, [historyLen, play, playerId]);
 
   // React to new round starting (card deal)
+  const roundNumber = gameState?.roundNumber ?? 0;
   useEffect(() => {
-    if (!gameState) return;
-    const roundNum = gameState.roundNumber;
-
-    if (roundNum > prevRoundNumberRef.current) {
+    if (roundNumber > prevRoundNumberRef.current) {
       play('cardDeal');
     }
-
-    prevRoundNumberRef.current = roundNum;
-  }, [gameState?.roundNumber, play, gameState]);
+    prevRoundNumberRef.current = roundNumber;
+  }, [roundNumber, play]);
 
   // React to it becoming your turn
+  const currentPlayer = gameState?.currentPlayerId ?? null;
   useEffect(() => {
-    if (!gameState || !playerId) return;
-    const currentPlayer = gameState.currentPlayerId;
+    if (!currentPlayer || !playerId) return;
 
     if (
       currentPlayer === playerId
@@ -130,7 +136,7 @@ export function useGameSounds(
     }
 
     prevCurrentPlayerRef.current = currentPlayer;
-  }, [gameState?.currentPlayerId, playerId, play, gameState]);
+  }, [currentPlayer, playerId, play]);
 
   // React to round result
   useEffect(() => {
@@ -145,7 +151,7 @@ export function useGameSounds(
       const wasPenalized = roundResult.penalizedPlayerIds?.includes(playerId) ?? false;
       play(wasPenalized ? 'roundLose' : 'roundWin');
     }
-  }, [roundResult, playerId, play, gameState]);
+  }, [roundResult, playerId, play]);
 
   // React to game over
   useEffect(() => {
