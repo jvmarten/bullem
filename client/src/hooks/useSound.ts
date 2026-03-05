@@ -42,7 +42,19 @@ export function useSound() {
     notifyListeners();
   }, []);
 
-  return { play, playHandPreview, muted, toggleMute, volume, setVolume };
+  const startLoop = useCallback((name: SoundName) => {
+    sound.startLoop(name);
+  }, []);
+
+  const stopLoop = useCallback((name: SoundName) => {
+    sound.stopLoop(name);
+  }, []);
+
+  const stopAllLoops = useCallback(() => {
+    sound.stopAllLoops();
+  }, []);
+
+  return { play, playHandPreview, muted, toggleMute, volume, setVolume, startLoop, stopLoop, stopAllLoops };
 }
 
 /**

@@ -204,7 +204,7 @@ export function HomePage() {
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
-  const { play } = useSound();
+  const { play, startLoop, stopLoop, stopAllLoops } = useSound();
   const { isConnected, listRooms, listLiveGames, spectateGame, roomState, createRoom } = useGameContext();
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
@@ -227,6 +227,25 @@ export function HomePage() {
       if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current);
     };
   }, [isShuffling]);
+
+  // Play looping shuffle sound while the deck is shuffling
+  useEffect(() => {
+    if (isShuffling) {
+      startLoop('deckShuffleLoop');
+    } else {
+      stopLoop('deckShuffleLoop');
+    }
+    return () => {
+      stopLoop('deckShuffleLoop');
+    };
+  }, [isShuffling, startLoop, stopLoop]);
+
+  // Stop all looping sounds on unmount (e.g. navigating to another page)
+  useEffect(() => {
+    return () => {
+      stopAllLoops();
+    };
+  }, [stopAllLoops]);
 
   const getPlayerName = (): string => {
     const current = name.trim() || getOrCreatePlayerName();

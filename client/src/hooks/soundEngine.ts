@@ -19,6 +19,7 @@ import fanfareUrl from '../assets/sounds/fanfare.mp3';
 import wheelTickUrl from '../assets/sounds/wheel-tick.mp3';
 import wheelTickLowUrl from '../assets/sounds/wheel-tick-low.mp3';
 import wheelSelectUrl from '../assets/sounds/wheel-select.mp3';
+import tuplausUrl from '../assets/sounds/tuplaus.mp3';
 
 type SoundName =
   | 'cardDeal'
@@ -40,7 +41,8 @@ type SoundName =
   | 'fanfare'
   | 'wheelTick'
   | 'wheelTickLow'
-  | 'wheelSelect';
+  | 'wheelSelect'
+  | 'deckShuffleLoop';
 
 interface ToneConfig {
   frequency: number;
@@ -74,6 +76,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   wheelTick:   { url: wheelTickUrl, gain: 0.35 },
   wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
   wheelSelect: { url: wheelSelectUrl, gain: 0.35 },
+  deckShuffleLoop: { url: tuplausUrl, gain: 0.4 },
 };
 
 // Oscillator fallbacks — used only for sounds without an audio file (uiHover)
@@ -102,6 +105,7 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   wheelTickLow: [],
   wheelSelect: [],
   fanfare: [],
+  deckShuffleLoop: [],
 };
 
 // Haptic vibration patterns (in ms) for key game events.
@@ -285,16 +289,30 @@ const VOLUME_KEY = 'bull-em-volume';
 export interface SoundController {
   play: (name: SoundName) => void;
   playHandPreview: (hand: HandCall) => void;
+  /** Start a looping sound. Restarts from the beginning each time. */
+  startLoop: (name: SoundName) => void;
+  /** Stop a currently looping sound with a short fade-out. */
+  stopLoop: (name: SoundName) => void;
+  /** Stop all active loops — useful for cleanup on navigation. */
+  stopAllLoops: () => void;
   muted: boolean;
   toggleMute: () => void;
   volume: number;
   setVolume: (v: number) => void;
 }
 
+// Tracks active looping audio sources so they can be stopped
+interface ActiveLoop {
+  source: AudioBufferSourceNode;
+  gainNode: GainNode;
+}
+
 export function createSoundController(): SoundController {
   let muted = localStorage.getItem(MUTE_KEY) === 'true';
   let volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
   if (isNaN(volume) || volume < 0 || volume > 1) volume = 1;
+
+  const activeLoops = new Map<SoundName, ActiveLoop>();
 
   const controller: SoundController = {
     get muted() { return muted; },
@@ -333,6 +351,78 @@ export function createSoundController(): SoundController {
       }
 
       playTones(tones, volume);
+    },
+
+    startLoop(name: SoundName) {
+      // Stop any existing loop for this sound first
+      controller.stopLoop(name);
+
+      if (muted) return;
+
+      const audioEntry = AUDIO_FILE_SOUNDS[name];
+      if (!audioEntry) return;
+
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const startPlayback = (buf: AudioBuffer) => {
+        const source = ctx.createBufferSource();
+        const gainNode = ctx.createGain();
+        source.buffer = buf;
+        source.loop = true;
+        const effectiveGain = volume * audioEntry.gain;
+        gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime);
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        source.start(0);
+        activeLoops.set(name, { source, gainNode });
+      };
+
+      const cached = audioBufferCache.get(audioEntry.url);
+      if (cached) {
+        startPlayback(cached);
+        return;
+      }
+
+      loadAudioBuffer(audioEntry.url).then(buf => {
+        if (!buf) return;
+        // Check we haven't been stopped while loading
+        if (!activeLoops.has(name)) return;
+        startPlayback(buf);
+      });
+      // Set a placeholder so stopLoop knows a load is pending
+      // (will be overwritten by startPlayback or cleaned up by stopLoop)
+    },
+
+    stopLoop(name: SoundName) {
+      const loop = activeLoops.get(name);
+      if (!loop) {
+        activeLoops.delete(name);
+        return;
+      }
+
+      const ctx = getAudioContext();
+      if (ctx) {
+        // Short fade-out to avoid click
+        const now = ctx.currentTime;
+        loop.gainNode.gain.setValueAtTime(loop.gainNode.gain.value, now);
+        loop.gainNode.gain.linearRampToValueAtTime(0, now + 0.05);
+        try { loop.source.stop(now + 0.06); } catch { /* already stopped */ }
+      } else {
+        try { loop.source.stop(); } catch { /* already stopped */ }
+      }
+
+      activeLoops.delete(name);
+    },
+
+    stopAllLoops() {
+      for (const name of [...activeLoops.keys()]) {
+        controller.stopLoop(name);
+      }
     },
 
     toggleMute() {
