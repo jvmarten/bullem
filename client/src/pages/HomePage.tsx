@@ -489,11 +489,12 @@ export function HomePage() {
                           boxShadow: isHighlighted
                             ? '0 4px 12px rgba(212, 168, 67, 0.5), 0 0 8px rgba(212, 168, 67, 0.3)'
                             : '0 2px 6px rgba(0,0,0,0.3)',
+                          opacity: showHighlight && !isHighlighted ? 0.45 : 1,
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          transition: 'border 0.3s, box-shadow 0.3s',
+                          transition: 'border 0.3s, box-shadow 0.3s, opacity 0.4s',
                         }}
                       >
                         {card && (
@@ -594,7 +595,7 @@ export function HomePage() {
             </button>
             <Link
               to="/tutorial"
-              className="w-full btn-gold py-4 text-lg text-center block"
+              className="w-full btn-ghost py-4 text-lg text-center block"
             >
               Interactive Tutorial
             </Link>
