@@ -121,7 +121,7 @@ registerHandlers(io, roomManager, botManager);
       logger.error({ err }, 'Failed to restore rooms from Redis on startup');
     }
   }
-  roomManager.startCleanup(io);
+  roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
   backgroundGameManager.start();
 })();
 
@@ -172,7 +172,16 @@ Sentry.setupExpressErrorHandler(app);
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  // SPA catch-all: only serve index.html for non-API paths. Without this guard,
+  // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
+  // HTML with a 200 instead of a proper 404, confusing API clients.
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/health')) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
 }
 
 // Broadcast online player count and names on connect/disconnect.

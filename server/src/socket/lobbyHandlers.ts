@@ -321,14 +321,17 @@ export function registerLobbyHandlers(
       return callback({ error: 'Room is full' });
     }
 
-    // Validate bot name if provided
+    // Validate and sanitize bot name if provided — use the cleaned value,
+    // not the raw input, to prevent bypassing the name pattern check.
+    let sanitizedBotName: string | undefined;
     if (data.botName !== undefined) {
       const botNameClean = sanitizeName(data.botName);
       if (!botNameClean) return callback({ error: 'Invalid bot name' });
+      sanitizedBotName = botNameClean;
     }
 
     try {
-      const botId = botManager.addBot(room, data.botName);
+      const botId = botManager.addBot(room, sanitizedBotName);
       roomManager.assignPlayerToRoom(botId, room.roomCode);
       broadcastRoomState(io, room);
       roomManager.persistRoom(room);

@@ -267,10 +267,10 @@ describe('getMinimumRaise', () => {
     expect(result).toEqual({ type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: '5' });
   });
 
-  it('raises straight flush king-high to next suit', () => {
-    // King-high straight flush is the highest in a suit (A would be royal flush)
+  it('raises straight flush king-high clubs to king-high diamonds (suit tiebreaker)', () => {
+    // King-high straight flush in clubs → king-high in diamonds (suit tiebreaker increment)
     const result = getMinimumRaise({ type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: 'K' });
-    expect(result).toEqual({ type: HandType.STRAIGHT_FLUSH, suit: 'diamonds', highRank: '5' });
+    expect(result).toEqual({ type: HandType.STRAIGHT_FLUSH, suit: 'diamonds', highRank: 'K' });
   });
 
   it('raises highest straight flush (spades K-high) to royal flush', () => {
@@ -322,8 +322,9 @@ describe('getMinimumRaise', () => {
     expect(result).toEqual({ type: HandType.FULL_HOUSE, threeRank: '3', twoRank: '2' });
   });
 
-  it('straight flush within same suit advances rank', () => {
-    const result = getMinimumRaise({ type: HandType.STRAIGHT_FLUSH, suit: 'hearts', highRank: '7' });
-    expect(result).toEqual({ type: HandType.STRAIGHT_FLUSH, suit: 'hearts', highRank: '8' });
+  it('straight flush at max suit advances to next rank lowest suit', () => {
+    // Spades is the highest suit, so 7-high spades → 8-high clubs (next rank, lowest suit)
+    const result = getMinimumRaise({ type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: '7' });
+    expect(result).toEqual({ type: HandType.STRAIGHT_FLUSH, suit: 'clubs', highRank: '8' });
   });
 });
