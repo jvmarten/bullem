@@ -177,14 +177,13 @@ function getOrCreatePlayerName(): string {
   return name;
 }
 
-const RANKED_RIBBON_MAX_SCALE = 1.35;
-const RANKED_RIBBON_GROW_STEP = 0.06;
+// Hue offsets for the "coming soon" wallpaper background on each press
+const RANKED_HUE_OFFSETS = [0, 30, 60, 120, 180, 210, 270, 330];
 
 export function HomePage() {
   const [name, setName] = useState(() => getOrCreatePlayerName());
   const [isEditingName, setIsEditingName] = useState(false);
-  const [rankedRibbonScale, setRankedRibbonScale] = useState(1);
-  const [rankedPressed, setRankedPressed] = useState(false);
+  const [rankedPressCount, setRankedPressCount] = useState(0);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
@@ -651,33 +650,24 @@ export function HomePage() {
             <button
               onClick={() => {
                 play('uiClick');
-                if (!rankedPressed) {
-                  setRankedPressed(true);
-                } else {
-                  setRankedRibbonScale(prev =>
-                    Math.min(prev + RANKED_RIBBON_GROW_STEP, RANKED_RIBBON_MAX_SCALE),
-                  );
-                }
+                setRankedPressCount(prev => prev + 1);
               }}
               className="w-full btn-gold py-4 text-lg relative overflow-hidden"
-              style={{ cursor: 'default' }}
+              style={{
+                cursor: 'default',
+                ...(rankedPressCount > 0 ? {
+                  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+                    `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='40'><text x='4' y='14' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text><text x='84' y='34' font-family='sans-serif' font-size='10' font-weight='700' fill='hsl(${RANKED_HUE_OFFSETS[rankedPressCount % RANKED_HUE_OFFSETS.length]}, 60%, 70%)' opacity='0.35' transform='rotate(-12, 80, 20)' letter-spacing='1'>COMING SOON</text></svg>`,
+                  )}")`,
+                  backgroundSize: '160px 40px',
+                  transition: 'background-image 0.3s ease',
+                } : {}),
+              }}
             >
-              Ranked Play
-              {/* "Coming Soon" ribbon — only visible after first press */}
-              {rankedPressed && (
-                <span
-                  className="ranked-ribbon"
-                  style={{
-                    transform: `rotate(35deg) scale(${rankedRibbonScale})`,
-                    transition: 'transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1)',
-                  }}
-                >
-                  Coming Soon
-                </span>
-              )}
+              <span className="relative z-10">Ranked Play</span>
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); setRankedRibbonScale(1); setRankedPressed(false); }}
+              onClick={() => { play('uiSoft'); setMode('menu'); setRankedPressCount(0); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back

@@ -981,24 +981,6 @@ body {
   transform: scale(0.95);
 }
 
-/* ── Ranked Play "Coming Soon" Ribbon ──────────────── */
-.ranked-ribbon {
-  position: absolute;
-  top: 8px;
-  right: -32px;
-  background: linear-gradient(180deg, #e04555 0%, #c0392b 100%);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 3px 36px;
-  line-height: 1.4;
-  white-space: nowrap;
-  pointer-events: none;
-  transform-origin: center center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-}
 
 /* ── Home Page Deck ─────────────────────────────────── */
 .deck-card-back {

@@ -76,7 +76,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   wheelTick:   { url: wheelTickUrl, gain: 0.35 },
   wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
   wheelSelect: { url: wheelSelectUrl, gain: 0.35 },
-  deckShuffleLoop: { url: tuplausUrl, gain: 0.4 },
+  deckShuffleLoop: { url: tuplausUrl, gain: 0.2 },
 };
 
 // Oscillator fallbacks — used only for sounds without an audio file (uiHover)
