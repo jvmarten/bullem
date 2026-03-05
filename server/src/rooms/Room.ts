@@ -233,7 +233,9 @@ export class Room {
     // Shuffle seating order — positions stay fixed for the entire game
     for (let i = activePlayers.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [activePlayers[i], activePlayers[j]] = [activePlayers[j], activePlayers[i]];
+      const temp = activePlayers[i]!;
+      activePlayers[i] = activePlayers[j]!;
+      activePlayers[j] = temp;
     }
     this.cancelRoundContinueWindow();
     this.game = new GameEngine(activePlayers, this.settings);
