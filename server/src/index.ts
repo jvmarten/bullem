@@ -3,6 +3,8 @@ import './instrument.js';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { Redis } from 'ioredis';
 import * as Sentry from '@sentry/node';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -38,6 +40,17 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     methods: ['GET', 'POST'],
   },
 });
+
+// Attach Redis adapter for multi-instance pub/sub when REDIS_URL is set.
+// Falls back to the default in-memory adapter for local development.
+if (process.env.REDIS_URL) {
+  const pubClient = new Redis(process.env.REDIS_URL);
+  const subClient = pubClient.duplicate();
+  io.adapter(createAdapter(pubClient, subClient));
+  pubClient.on('connect', () => {
+    logger.info('Redis adapter connected — Socket.io pub/sub is active');
+  });
+}
 
 const roomManager = new RoomManager();
 const botManager = new BotManager();
