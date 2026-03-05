@@ -13,9 +13,9 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
-import { getMinimumRaise, HandType } from '@bull-em/shared';
+import { getMinimumRaise } from '@bull-em/shared';
 
 export function LocalGamePage() {
   const navigate = useNavigate();
@@ -69,13 +69,10 @@ export function LocalGamePage() {
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
-  // Remember the player's last-selected hand type across turns
-  const lastHandTypeRef = useRef<HandType | undefined>(undefined);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
     setPendingValid(valid);
-    if (hand) lastHandTypeRef.current = hand.type;
   }, []);
 
   const handleHandSubmit = useCallback(() => {
@@ -273,7 +270,7 @@ export function LocalGamePage() {
               onSubmit={handleHandSubmit}
               onHandChange={handleHandChange}
               showSubmit={false}
-              preferredHandType={lastHandTypeRef.current}
+
             />
           </div>
         )}
