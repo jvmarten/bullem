@@ -14,7 +14,7 @@ export const SUIT_CSS: Record<Suit, string> = {
   clubs: 'suit-black',
 };
 
-export const AVATAR_COLORS = [
+const AVATAR_COLORS = [
   'bg-amber-700',
   'bg-emerald-700',
   'bg-sky-700',
