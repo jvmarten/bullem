@@ -15,6 +15,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
+import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
@@ -137,6 +138,27 @@ export function LocalGamePage() {
   useEffect(() => {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
+
+  // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
+  const showBull = isMyTurn && gameState.currentHand !== null
+    && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showPass = isMyTurn && isLastChanceCaller;
+  const overlayActive = !!roundResult || !!roundTransition;
+
+  useGameKeyboardShortcuts({
+    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
+    onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
+    onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
+    onPass: showPass ? () => { play('uiClick'); lastChancePass(); } : null,
+    onEscape: roundResult
+      ? clearRoundResult
+      : handSelectorOpen
+        ? closeHandSelector
+        : null,
+    overlayActive,
+  });
 
   /* Landscape/desktop: merge game info into the Layout header bar */
   const pauseButton = togglePause ? (
@@ -302,7 +324,8 @@ export function LocalGamePage() {
                   <div className="flex justify-end animate-slide-up ml-auto gap-2">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
