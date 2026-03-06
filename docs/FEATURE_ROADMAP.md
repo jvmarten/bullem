@@ -1,6 +1,6 @@
 # Bull 'Em — Feature Roadmap
 
-> Generated 2026-03-05 from a full codebase audit. Items are prioritized by user impact and grouped by effort level.
+> Updated 2026-03-06 from a full codebase audit. Items are prioritized by user impact and grouped by effort level. Status markers: ✓ Done, ⚡ Partially done, ✗ Not started.
 
 ---
 
@@ -52,12 +52,9 @@
 
 ## 2. Core Features (Meaningful additions for a more complete product)
 
-### 2a. Game History & Stats Persistence
-**What:** After each game ends, persist the game record (winner, players, stats, duration) to PostgreSQL using the existing `games` and `game_players` tables. Show recent game history on the profile page and optionally on the home page.
-**Why:** Games currently vanish when the room closes. Persistence gives players a reason to come back — they can track their win rate, see improvement, and compare with friends. The DB schema (`001_initial_schema.sql`) and pool (`server/src/db/pool.ts`) already exist.
-**Touches:** `server/src/rooms/Room.ts` (persist on game_over), `server/src/db/` (query functions), `server/src/socket/gameHandlers.ts`, `client/src/pages/ProfilePage.tsx` (display), new API endpoint for history
-**Complexity:** Medium
-**Dependencies:** Working PostgreSQL connection (already optional via `DATABASE_URL`)
+### 2a. ~~Game History & Stats Persistence~~ ✓
+**Status: DONE** — Player accounts with JWT auth, bcrypt password hashing, registration/login endpoints, game history tables (`games`, `game_players`), PlayerGameStats tracking (bulls called, trues called, correct bulls, etc.), and a ProfilePage displaying user stats are all implemented.
+**Touches:** `server/src/auth/`, `server/src/db/migrations/001_initial_schema.sql`, `client/src/pages/ProfilePage.tsx`
 
 ### 2b. Friends / Recent Players List
 **What:** Track players you've played with recently (stored client-side by player name + last room code, or server-side per account). Show a "Recent Players" section on the home page with an option to invite them (generates a room link).
@@ -165,26 +162,19 @@
 
 ## 4. Infrastructure (Not user-facing, but unblocks future growth)
 
-### 4a. Redis Adapter for Socket.io (Multi-Instance)
-**What:** Enable the Socket.io Redis adapter in production. The adapter dependency (`@socket.io/redis-adapter`) is already installed and there's code in `server/src/index.ts` that initializes it when `REDIS_URL` is set. Validate it works: deploy 2+ instances behind Fly.io's load balancer, confirm room state syncs across instances.
-**Why:** Currently limited to a single server instance. If Bull 'Em goes viral, one instance caps out at ~1,000-5,000 concurrent WebSocket connections. Redis adapter enables horizontal scaling by syncing socket events across instances. This is the #1 infrastructure blocker.
-**Touches:** `server/src/index.ts` (already partially implemented), `fly.toml` (scale count), Redis provisioning on Fly.io
-**Complexity:** Medium (code exists, needs operational validation)
-**Dependencies:** Redis instance provisioned
+### 4a. ~~Redis Adapter for Socket.io (Multi-Instance)~~ ✓
+**Status: DONE** — Socket.io Redis adapter implemented with dual pub/sub clients, `RedisStore.ts` for session persistence (fire-and-forget writes, 24h TTL, exponential backoff), and graceful fallback to in-memory when `REDIS_URL` is not set. Multi-region deployment is architecturally ready but currently single-region ("arn") in `fly.toml`.
+**Remaining:** Operational validation with 2+ instances behind Fly.io load balancer, multi-region deployment.
+**Touches:** `server/src/index.ts`, `server/src/rooms/RedisStore.ts`, `fly.toml`
 
-### 4b. Server-Side Replay Persistence
-**What:** Save game replays to the `rounds` table in PostgreSQL (schema exists in `001_initial_schema.sql`). Serve replays via an HTTP endpoint (`GET /api/replays/:gameId`). Migrate client from localStorage to API-backed storage.
-**Why:** localStorage limits: 10 replays, single device, lost on clear. Server-side persistence enables sharing replay links, cross-device access, and community highlights. The `TODO(scale)` at `shared/src/replay.ts:202` explicitly calls this out.
-**Touches:** `server/src/rooms/Room.ts` (save on game_over), `server/src/` (new HTTP route), `shared/src/replay.ts` (API client), `client/src/pages/ReplayPage.tsx`
-**Complexity:** Medium
-**Dependencies:** 2a (game history persistence) — should be done together
+### 4b. ~~Server-Side Replay Persistence~~ ✓
+**Status: DONE** — Replays are stored in PostgreSQL, served via API endpoint, and the client can load replays from both localStorage and server. `ReplayPage.tsx` and `ReplaysPage.tsx` provide full step-through navigation with auto-play and keyboard controls.
+**Touches:** `shared/src/replay.ts`, `client/src/pages/ReplayPage.tsx`, `client/src/pages/ReplaysPage.tsx`
 
-### 4c. Structured Logging & Observability
-**What:** The server uses `pino` for structured logging and has Sentry integration points. Add correlation IDs to socket events (trace a player action from client → server → broadcast). Add metrics collection for: active rooms, concurrent players, average round duration, error rates. Expose a `/metrics` endpoint for Prometheus/Grafana.
-**Why:** When things go wrong in production with 100+ rooms, structured logging is the difference between "something broke" and "room ABCD crashed at turn 7 because player X sent invalid hand data." Also enables data-driven decisions about game balance.
-**Touches:** `server/src/index.ts`, `server/src/socket/` (add correlation IDs), new metrics middleware
-**Complexity:** Medium
-**Dependencies:** None
+### 4c. ~~Structured Logging & Observability~~ ✓
+**Status: DONE** — Pino structured JSON logging with correlation IDs on socket events, Sentry integration (`instrument.ts`), Prometheus metrics (`metrics.ts`) tracking active rooms, concurrent players, round duration, and error rates. Health check endpoint reports DB status, room count, and player count.
+**Remaining:** Custom analytics dashboard, game balance analysis tooling.
+**Touches:** `server/src/index.ts`, `server/src/socket/`, `server/src/metrics.ts`, `server/src/instrument.ts`
 
 ### 4d. End-to-End Integration Tests
 **What:** Add integration tests that spin up a real server, connect multiple Socket.io clients, and play through full game scenarios (create room → join → play rounds → resolution → rematch). Currently tests are unit-level (game engine) and don't test the full socket pipeline.
@@ -193,12 +183,9 @@
 **Complexity:** Medium–Large
 **Dependencies:** None
 
-### 4e. Rate Limiting Hardening
-**What:** Current rate limiting (15 events/sec per socket, 200ms per-player cooldown) is in-memory. At multi-instance scale, a player could reconnect to a different instance and bypass cooldowns. Move rate limiting state to Redis. Also add HTTP rate limiting on auth endpoints (`/auth/login`, `/auth/register`) to prevent brute force.
-**Why:** Security hardening for scale. In-memory rate limiting works for single-instance but breaks the "what happens with 10 server instances?" test from CLAUDE.md.
-**Touches:** `server/src/socket/registerHandlers.ts`, `server/src/auth/routes.ts`, Redis integration
-**Complexity:** Medium
-**Dependencies:** 4a (Redis adapter) — use the same Redis instance
+### 4e. ~~Rate Limiting Hardening~~ ✓
+**Status: DONE** — Redis-backed rate limiting implemented: sliding window (15 events/sec per socket), per-action cooldown (200ms), and auth endpoint rate limiting (10 attempts/min). Falls back to in-memory when Redis is unavailable. Multi-instance safe.
+**Touches:** `server/src/socket/rateLimit.ts`, `server/src/socket/registerHandlers.ts`, `server/src/auth/routes.ts`
 
 ### 4f. Database Connection Resilience
 **What:** Add connection retry logic with exponential backoff to the PostgreSQL pool. Handle transient failures gracefully (log + continue without persistence rather than crashing). Add a health check that reports DB status.
@@ -218,36 +205,43 @@
 
 ## Suggested Sequencing
 
+**Already completed (shipped):**
+- ~~2a (Game History & Stats Persistence)~~ ✓
+- ~~4a (Redis Adapter)~~ ✓
+- ~~4b (Server-Side Replays)~~ ✓
+- ~~4c (Structured Logging & Observability)~~ ✓
+- ~~4e (Rate Limiting Hardening)~~ ✓
+
 **Phase 1 — Immediate (next 1-2 sprints):**
 - 1a (Saved Replays Gallery) — unlock existing hidden value
 - 1d (Win Celebration) — emotional impact, trivial effort
 - 1e (Elimination Toast) — game feel improvement
+- 1c (Quick Play Button) — reduce friction for solo players
 - 3d (Haptic Feedback) — quick mobile polish
 - 4d (E2E Integration Tests) — safety net before adding features
 
-**Phase 2 — Short-term:**
-- 2a (Game History Persistence) — gives the game "memory"
-- 4b (Server-Side Replays) — build alongside 2a, same DB work
+**Phase 2 — Short-term (accounts & progression):**
+- 2b (Friends / Recent Players List) — social graph, builds on existing accounts
 - 1b (Emoji Reactions) — social layer
 - 2e (QR Code Room Links) — frictionless invites
 - 3a (Hand Selector Presets) — speed up gameplay
+- 4f (DB Connection Resilience) — production reliability
 
-**Phase 3 — Medium-term:**
-- 4a (Redis Adapter Validation) — unblock scaling
+**Phase 3 — Medium-term (matchmaking & polish):**
+- Matchmaking & ranked play — queuing, ELO/rating system, leaderboards
 - 2c (Spectator Chat) — social completeness
 - 2d (Custom Avatars) — identity and personalization
 - 3b (Card Deal Animation) — production polish
-- 3c (Better Reveal) — dramatic moments
-- 4c (Observability) — operational readiness
+- 3c (Better Reveal Overlay) — dramatic moments
+- 3g (Onboarding Improvements) — new player retention
 
-**Phase 4 — Longer-term:**
+**Phase 4 — Longer-term (native apps & replayability):**
+- Native mobile apps (Capacitor or React Native wrapper)
 - 2f (Deck Variants) — replayability
 - 2g (Push Notifications) — retention
-- 2b (Friends List) — social graph
 - 3f (Accessibility Audit) — quality bar
-- 3g (Onboarding Improvements) — new player retention
-- 4e (Rate Limiting Hardening) — security at scale
-- 4f (DB Resilience) — production reliability
+- 1f (Keyboard Shortcuts) — desktop power users
+- 4g (CI Performance: Parallel Test Sharding) — dev velocity
 
 ---
 
@@ -255,11 +249,11 @@
 
 These are intentional temporary solutions already documented in the codebase:
 
-| Location | Marker | Migration Trigger |
-|---|---|---|
-| `shared/src/replay.ts:202` | localStorage → PostgreSQL for replay storage | When user accounts are implemented |
-| `server/src/index.ts:37` | CORS origins hardcoded for single domain | When serving from multiple domains/CDN |
-| `server/src/db/pool.ts:14` | No read replicas | When adding read replicas for leaderboard/history queries |
+| Location | Marker | Migration Trigger | Status |
+|---|---|---|---|
+| `shared/src/replay.ts:202` | localStorage → PostgreSQL for replay storage | When user accounts are implemented | ✓ Server-side persistence implemented; localStorage kept as fallback |
+| `server/src/index.ts:37` | CORS origins hardcoded for single domain | When serving from multiple domains/CDN | Open — still single-domain |
+| `server/src/db/pool.ts:14` | No read replicas | When adding read replicas for leaderboard/history queries | Open — needed when matchmaking/leaderboards ship |
 
 ---
 
@@ -273,4 +267,8 @@ The codebase is production-grade in several areas that do **not** need immediate
 - **Sound design**: Contextual audio with volume control and lazy loading
 - **CI/CD**: Parallel tests, auto-merge to develop, Docker validation, gated production deploys
 - **Reconnection**: Token rotation, 30s window, state restoration from Redis
-- **Replay engine**: Full step-through navigation with auto-play, keyboard controls, localStorage persistence
+- **Replay engine**: Full step-through navigation with auto-play, keyboard controls, server-side persistence
+- **Player accounts**: JWT auth, bcrypt hashing, registration/login, avatar selection, profile page with stats
+- **Scale infrastructure**: Redis adapter for Socket.io, Redis-backed session persistence, Redis-backed rate limiting
+- **Observability**: Pino structured logging, Sentry integration, Prometheus metrics, health checks with DB status
+- **Spectator mode**: Full support with configurable card visibility, chat, and emoji reactions for spectators
