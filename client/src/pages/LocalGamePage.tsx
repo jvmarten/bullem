@@ -9,6 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { GameTooltips } from '../components/GameTooltips.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
@@ -244,15 +245,17 @@ export function LocalGamePage() {
         <div className="game-content">
           {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
-            <PlayerList
-              players={gameState.players}
-              currentPlayerId={gameState.currentPlayerId}
-              myPlayerId={playerId}
-              maxCards={gameState.maxCards}
-              roundNumber={gameState.roundNumber}
-              turnHistory={gameState.turnHistory}
-              collapsible
-            />
+            <div data-tooltip="players">
+              <PlayerList
+                players={gameState.players}
+                currentPlayerId={gameState.currentPlayerId}
+                myPlayerId={playerId}
+                maxCards={gameState.maxCards}
+                roundNumber={gameState.roundNumber}
+                turnHistory={gameState.turnHistory}
+                collapsible
+              />
+            </div>
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
               <CallHistory history={gameState.turnHistory} />
@@ -261,14 +264,16 @@ export function LocalGamePage() {
 
           {/* Main area — cards, actions, hand selector */}
           <div className="game-main">
-            <TurnIndicator
-              currentPlayerId={gameState.currentPlayerId}
-              roundPhase={gameState.roundPhase}
-              players={gameState.players}
-              myPlayerId={playerId}
-              turnDeadline={gameState.turnDeadline}
-              hasCurrentHand={gameState.currentHand !== null}
-            />
+            <div data-tooltip="turn-indicator">
+              <TurnIndicator
+                currentPlayerId={gameState.currentPlayerId}
+                roundPhase={gameState.roundPhase}
+                players={gameState.players}
+                myPlayerId={playerId}
+                turnDeadline={gameState.turnDeadline}
+                hasCurrentHand={gameState.currentHand !== null}
+              />
+            </div>
 
             {/* Current call display */}
             {gameState.currentHand && (
@@ -294,7 +299,7 @@ export function LocalGamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && <HandDisplay cards={gameState.myCards} large />}
+            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
 
             {/* Spectator view — eliminated players see all cards */}
             {isEliminated && gameState.spectatorCards && (
@@ -302,14 +307,14 @@ export function LocalGamePage() {
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only">
+            <div className="portrait-only" data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && (
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -360,7 +365,7 @@ export function LocalGamePage() {
 
             {/* Hand selector — appears below the action buttons so buttons stay put */}
             {canRaise && handSelectorOpen && (
-              <div className="-mt-2">
+              <div className="-mt-2" data-tooltip="hand-selector">
                 <HandSelector
                   currentHand={gameState.currentHand}
                   onSubmit={handleHandSubmit}
@@ -371,6 +376,9 @@ export function LocalGamePage() {
             )}
           </div>
         </div>
+
+        {/* First-game contextual tooltips */}
+        <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (

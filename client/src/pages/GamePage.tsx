@@ -14,6 +14,7 @@ import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
 import { DisconnectBanner } from '../components/DisconnectBanner.js';
 import { EmojiReactionBar } from '../components/EmojiReactionBar.js';
 import { ChatPanel } from '../components/ChatPanel.js';
+import { GameTooltips } from '../components/GameTooltips.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -332,16 +333,18 @@ export function GamePage() {
         <div className="game-content">
           {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
-            <PlayerList
-              players={gameState.players}
-              currentPlayerId={gameState.currentPlayerId}
-              myPlayerId={playerId}
-              maxCards={gameState.maxCards}
-              roundNumber={gameState.roundNumber}
-              turnHistory={gameState.turnHistory}
-              collapsible
-              reactions={reactions}
-            />
+            <div data-tooltip="players">
+              <PlayerList
+                players={gameState.players}
+                currentPlayerId={gameState.currentPlayerId}
+                myPlayerId={playerId}
+                maxCards={gameState.maxCards}
+                roundNumber={gameState.roundNumber}
+                turnHistory={gameState.turnHistory}
+                collapsible
+                reactions={reactions}
+              />
+            </div>
             {!isEliminated && !isSpectator && (
               <EmojiReactionBar onReaction={sendReaction} />
             )}
@@ -353,14 +356,16 @@ export function GamePage() {
 
           {/* Main area — cards, actions, hand selector */}
           <div className="game-main">
-            <TurnIndicator
-              currentPlayerId={gameState.currentPlayerId}
-              roundPhase={gameState.roundPhase}
-              players={gameState.players}
-              myPlayerId={playerId}
-              turnDeadline={gameState.turnDeadline}
-              hasCurrentHand={gameState.currentHand !== null}
-            />
+            <div data-tooltip="turn-indicator">
+              <TurnIndicator
+                currentPlayerId={gameState.currentPlayerId}
+                roundPhase={gameState.roundPhase}
+                players={gameState.players}
+                myPlayerId={playerId}
+                turnDeadline={gameState.turnDeadline}
+                hasCurrentHand={gameState.currentHand !== null}
+              />
+            </div>
 
             {/* Disconnect countdown banners for other players */}
             <DisconnectBanner
@@ -392,7 +397,7 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <HandDisplay cards={gameState.myCards} large />}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
@@ -400,14 +405,14 @@ export function GamePage() {
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only">
+            <div className="portrait-only" data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && !isSpectator && (
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -458,7 +463,7 @@ export function GamePage() {
 
             {/* Hand selector — appears below the action buttons so buttons stay put */}
             {canRaise && handSelectorOpen && (
-              <div className="-mt-2">
+              <div className="-mt-2" data-tooltip="hand-selector">
                 <HandSelector
                   currentHand={gameState.currentHand}
                   onSubmit={handleHandSubmit}
@@ -469,6 +474,9 @@ export function GamePage() {
             )}
           </div>
         </div>
+
+        {/* First-game contextual tooltips */}
+        <GameTooltips gameActive={!roundResult && !roundTransition} />
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
