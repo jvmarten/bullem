@@ -287,6 +287,7 @@ export function HomePage() {
 
 
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [showVersion, setShowVersion] = useState(false);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -836,9 +837,35 @@ export function HomePage() {
         </div>{/* end home-right */}
       </div>
       {/* Version — bottom right corner, home page only */}
-      <p className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60">
-        v1.0.1
-      </p>
+      <button
+        onClick={() => { play('uiSoft'); setShowVersion(true); }}
+        className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-0"
+      >
+        v1.0.2
+      </button>
+
+      {/* Version info modal */}
+      {showVersion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setShowVersion(false)}
+        >
+          <div
+            className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.2</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
+            {/* TODO(scale): Add link to patch notes page once changelog route exists */}
+            <button
+              onClick={() => setShowVersion(false)}
+              className="glass px-4 py-1.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
