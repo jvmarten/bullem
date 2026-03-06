@@ -159,8 +159,9 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
   backgroundGameManager.start();
 })();
 
-// Parse JSON bodies and cookies for auth routes
+// Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 // CORS for HTTP routes (auth API). In dev, allow localhost; in prod, same-origin handles it.
