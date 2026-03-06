@@ -3,6 +3,8 @@ import { RANK_VALUES, ALL_RANKS, ALL_SUITS, SUIT_ORDER } from '../constants.js';
 import { isHigherHand } from '../hands.js';
 import { HandChecker } from './HandChecker.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId } from '../types.js';
+import type { BotProfileConfig } from '../botProfiles.js';
+import { DEFAULT_BOT_PROFILE_CONFIG } from '../botProfiles.js';
 
 /** The action a bot decides to take on its turn. */
 export type BotAction =
@@ -160,12 +162,17 @@ export class BotPlayer {
     difficulty: BotDifficulty = BotDifficulty.NORMAL,
     allCards?: Card[],
     scope?: string,
+    profileConfig?: BotProfileConfig,
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
     }
     if (difficulty === BotDifficulty.HARD) {
-      return this.decideHard(state, botId, botCards, scope);
+      // Merge provided profile config with defaults so every field is guaranteed present
+      const cfg: BotProfileConfig = profileConfig
+        ? { ...DEFAULT_BOT_PROFILE_CONFIG, ...profileConfig }
+        : DEFAULT_BOT_PROFILE_CONFIG;
+      return this.decideHard(state, botId, botCards, scope, cfg);
     }
     return this.decideNormal(state, botId, botCards);
   }
@@ -551,7 +558,7 @@ export class BotPlayer {
 
   // ─── HARD MODE (Probability-Driven + GTO Bluffing) ──────────────────
 
-  private static decideHard(state: ClientGameState, botId: string, botCards: Card[], scope?: string): BotAction {
+  private static decideHard(state: ClientGameState, botId: string, botCards: Card[], scope?: string, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
     const totalCards = this.getTotalCards(state);
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
@@ -571,8 +578,10 @@ export class BotPlayer {
           return { action: 'lastChancePass' };
         }
 
-        // Moderate plausibility — still favor passing but occasionally raise
-        if (adjustedP > 0.35 && Math.random() < 0.6) {
+        // Moderate plausibility — still favor passing but occasionally raise.
+        // lastChanceBluffRate controls willingness to raise: higher = less likely to pass here.
+        const passChance = 1.0 - cfg.lastChanceBluffRate;
+        if (adjustedP > 0.35 && Math.random() < passChance) {
           return { action: 'lastChancePass' };
         }
 
@@ -594,17 +603,17 @@ export class BotPlayer {
 
     // Opening call — card-pool-aware strategy
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
-      return this.handleHardOpening(botCards, totalCards);
+      return this.handleHardOpening(botCards, totalCards, cfg);
     }
 
     // Calling phase — EV-driven raise vs bull with GTO bluff frequency
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId, mem);
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId, mem, cfg);
     }
 
     // Bull phase — probability threshold with position-aware adjustment
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId, mem);
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId, mem, cfg);
     }
 
     // Fallback
@@ -620,7 +629,7 @@ export class BotPlayer {
    * - Few cards in play (<6): Open conservatively with the lowest truthful hand.
    * - Bluff frequency: 8% (down from 15%). Only bluff hands with P > 0.3.
    */
-  private static handleHardOpening(botCards: Card[], totalCards: number): BotAction {
+  private static handleHardOpening(botCards: Card[], totalCards: number, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG): BotAction {
     const candidates: HandCall[] = [];
     const rankCounts = this.getRankCounts(botCards);
 
@@ -663,11 +672,11 @@ export class BotPlayer {
       return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
     }
 
-    // 8% strategic bluff opening — only if the bluff is plausible (P > 0.3)
-    if (Math.random() < 0.08) {
+    // Strategic bluff opening — only if the bluff is plausible
+    if (Math.random() < cfg.openingBluffRate) {
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
-      if (bluffP > 0.3) {
+      if (bluffP > cfg.bluffPlausibilityGate) {
         return { action: 'call', hand: bluff };
       }
       // Bluff not plausible enough — fall through to truthful opening
@@ -715,6 +724,7 @@ export class BotPlayer {
     botId: string,
     lastCallerId: string | null,
     mem: Map<string, OpponentProfile>,
+    cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG,
   ): BotAction {
     const desperate = cardCount >= 4;
 
@@ -725,28 +735,33 @@ export class BotPlayer {
 
     // Truthfulness prior: callers usually hold cards related to their call.
     // Adjust by how much we trust this specific caller based on memory.
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem);
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem) * cfg.trustMultiplier;
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
     const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
 
+    // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
+    const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2;
+
     // Confident bull: hand is very unlikely to exist
-    if (adjustedP < 0.20 && !desperate) {
+    if (adjustedP < confidentBullThreshold && !desperate) {
       return { action: 'bull' };
     }
 
     // We have a legitimate higher hand — value raise
     if (higher) {
       // Even with a legitimate hand, sometimes call bull on very implausible hands
-      if (adjustedP < 0.12 && Math.random() < 0.4) {
+      // aggressionBias > 0.5 makes this less likely (prefers raising)
+      const bullOnImplausibleChance = 0.4 * (1.0 - cfg.aggressionBias);
+      if (adjustedP < 0.12 && Math.random() < bullOnImplausibleChance) {
         return { action: 'bull' };
       }
       return { action: 'call', hand: higher };
     }
 
     // No legitimate hand — decide whether to bluff raise or call bull.
-    const bluffFreq = this.getOptimalBluffFrequency(numOpponents, desperate);
+    const bluffFreq = this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency;
 
     if (adjustedP > 0.45) {
       // Hand is probably real — bluff raise to avoid a bull penalty
@@ -762,7 +777,7 @@ export class BotPlayer {
       return { action: 'bull' };
     }
 
-    // adjustedP 0.20-0.45 — uncertain zone
+    // adjustedP in uncertain zone
     if (desperate) {
       // When desperate, bluff more aggressively to avoid elimination
       if (Math.random() < bluffFreq * 2.0) {
@@ -799,13 +814,14 @@ export class BotPlayer {
     botId: string,
     lastCallerId: string | null,
     mem: Map<string, OpponentProfile>,
+    cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG,
   ): BotAction {
     // Infer cards from call history
     const inferred = this.inferCardsFromHistory(turnHistory, botId);
     const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
 
-    // Truthfulness prior, adjusted by memory-based trust
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem);
+    // Truthfulness prior, adjusted by memory-based trust and profile trust multiplier
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem) * cfg.trustMultiplier;
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
@@ -822,16 +838,21 @@ export class BotPlayer {
     if (higher) {
       // Only raise if the current hand is suspicious (plausibility < 0.5)
       if (adjustedP < 0.5) {
-        const raiseChance = cardCount >= 4 ? 0.25 : 0.15;
+        // Profile bullPhaseRaiseRate controls raise frequency; desperate bots raise more
+        const raiseChance = cardCount >= 4
+          ? cfg.bullPhaseRaiseRate * 1.67 // ~25% at default 0.15
+          : cfg.bullPhaseRaiseRate;
         if (Math.random() < raiseChance) {
           return { action: 'call', hand: higher };
         }
       }
     }
 
-    // Asymmetric cost-aware threshold based on card count
-    const threshold = this.getDynamicBullThreshold(cardCount);
-    const noise = 0.05;
+    // Asymmetric cost-aware threshold based on card count, shifted by profile bullThreshold
+    const baseThreshold = this.getDynamicBullThreshold(cardCount);
+    // bullThreshold > 0.5 shifts threshold up (calls bull less), < 0.5 shifts down (calls bull more)
+    const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15;
+    const noise = cfg.noiseBand;
 
     if (adjustedP > threshold + noise) {
       return { action: 'true' };
