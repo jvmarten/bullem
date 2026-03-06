@@ -281,6 +281,22 @@ export interface AuthResponse {
   user: Omit<User, 'email'> & { email: string };
 }
 
+/** A completed game in a user's game history. */
+export interface GameHistoryEntry {
+  id: string;
+  roomCode: string;
+  winnerName: string;
+  playerCount: number;
+  settings: GameSettings;
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  finishPosition: number;
+  playerName: string;
+  finalCardCount: number;
+  stats: PlayerGameStats;
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;

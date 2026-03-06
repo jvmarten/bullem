@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword } from './password.js';
 import { signToken } from './jwt.js';
 import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
 import { query } from '../db/index.js';
+import { getGameHistory } from '../db/games.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -331,6 +332,27 @@ router.patch('/avatar', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to update avatar');
     res.status(500).json({ error: 'Failed to update avatar' });
+  }
+});
+
+// ── GET /auth/games ──────────────────────────────────────────────────
+
+router.get('/games', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+
+    const result = await getGameHistory(userId, limit, offset);
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch game history');
+    res.status(500).json({ error: 'Failed to fetch game history' });
   }
 });
 

@@ -6,6 +6,7 @@ import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
+import { persistCompletedGame } from './persistGame.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -43,6 +44,8 @@ export function registerLobbyHandlers(
     const room = roomManager.createRoom();
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    // Track authenticated user ID for game history persistence
+    if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
@@ -89,6 +92,8 @@ export function registerLobbyHandlers(
 
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    // Track authenticated user ID for game history persistence
+    if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
@@ -131,6 +136,7 @@ export function registerLobbyHandlers(
           room.cancelRoundContinueWindow();
           broadcastGameReplay(io, room, result.winnerId);
           io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+          persistCompletedGame(room, result.winnerId);
           break;
         case 'resolve':
           beginRoundResultPhase(io, room, botManager, result.result, roomManager);
@@ -154,6 +160,7 @@ export function registerLobbyHandlers(
         room.cancelRoundContinueWindow();
         broadcastGameReplay(io, room, result.winnerId);
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+        persistCompletedGame(room, result.winnerId);
       } else {
         // The leaving player may have been the last one who hadn't pressed Continue.
         // Re-check so the remaining players aren't stuck waiting.

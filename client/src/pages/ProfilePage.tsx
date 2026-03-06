@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { AVATAR_OPTIONS } from '@bull-em/shared';
-import type { AvatarId } from '@bull-em/shared';
+import type { AvatarId, GameHistoryEntry } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 
 /** Emoji icons for each avatar template. */
@@ -28,6 +28,9 @@ export function avatarDisplay(avatar: AvatarId | null | undefined, fallbackName:
   return fallbackName.charAt(0).toUpperCase();
 }
 
+const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
+const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="glass px-4 py-3 text-center">
@@ -39,11 +42,104 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 24) {
+    if (diffHours < 1) {
+      const mins = Math.floor(diffMs / (1000 * 60));
+      return mins <= 1 ? 'Just now' : `${mins}m ago`;
+    }
+    return `${Math.floor(diffHours)}h ago`;
+  }
+  if (diffHours < 48) return 'Yesterday';
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function positionLabel(position: number): string {
+  if (position === 1) return '1st';
+  if (position === 2) return '2nd';
+  if (position === 3) return '3rd';
+  return `${position}th`;
+}
+
+function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
+  const isWin = game.finishPosition === 1;
+  return (
+    <div className="glass px-4 py-3 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+          isWin
+            ? 'bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]'
+            : 'bg-white/5 text-[var(--gold-dim)] border border-white/10'
+        }`}>
+          {positionLabel(game.finishPosition)}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm text-[var(--gold)] truncate">
+            {isWin ? 'Victory' : `Won by ${game.winnerName}`}
+          </p>
+          <p className="text-[10px] text-[var(--gold-dim)]">
+            {game.playerCount} players &middot; {formatDuration(game.durationSeconds)}
+          </p>
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-[10px] text-[var(--gold-dim)]">{formatDate(game.endedAt)}</p>
+      </div>
+    </div>
+  );
+}
+
 export function ProfilePage() {
   const { user, profile, loading, logout, updateAvatar } = useAuth();
   const { addToast } = useToast();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  const fetchGameHistory = useCallback(async (offset = 0) => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/games?limit=10&offset=${offset}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { games: GameHistoryEntry[]; total: number };
+      if (offset === 0) {
+        setGameHistory(data.games);
+      } else {
+        setGameHistory(prev => [...prev, ...data.games]);
+      }
+      setHistoryTotal(data.total);
+      setHistoryLoaded(true);
+    } catch {
+      addToast('Failed to load game history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [addToast]);
+
+  // Fetch game history when profile loads
+  useEffect(() => {
+    if (profile && !historyLoaded) {
+      fetchGameHistory();
+    }
+  }, [profile, historyLoaded, fetchGameHistory]);
 
   if (loading) {
     return (
@@ -87,6 +183,7 @@ export function ProfilePage() {
 
   const currentDisplay = avatarDisplay(profile.avatar, profile.displayName);
   const isEmoji = profile.avatar !== null;
+  const hasMore = gameHistory.length < historyTotal;
 
   return (
     <Layout>
@@ -159,6 +256,37 @@ export function ProfilePage() {
             label="Bluff Success"
             value={profile.bluffSuccessRate !== null ? `${profile.bluffSuccessRate}%` : '\u2014'}
           />
+        </div>
+
+        {/* Game History */}
+        <div className="w-full mb-6">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
+            Recent Games {historyTotal > 0 && `(${historyTotal})`}
+          </p>
+          {historyLoading && gameHistory.length === 0 ? (
+            <div className="flex justify-center py-4">
+              <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : gameHistory.length === 0 ? (
+            <div className="glass px-4 py-4 text-center">
+              <p className="text-[var(--gold-dim)] text-xs">No games played yet</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {gameHistory.map(game => (
+                <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
+              ))}
+              {hasMore && (
+                <button
+                  onClick={() => fetchGameHistory(gameHistory.length)}
+                  disabled={historyLoading}
+                  className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+                >
+                  {historyLoading ? 'Loading...' : 'Load More'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Actions */}

@@ -8,6 +8,7 @@ import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
+import { persistCompletedGame } from './persistGame.js';
 import { createChildLogger } from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -125,6 +126,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
               room.cancelRoundContinueWindow();
               broadcastGameReplay(io, room, elimResult.winnerId);
               io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
+              persistCompletedGame(room, elimResult.winnerId);
             }
             break;
           case 'resolve':
