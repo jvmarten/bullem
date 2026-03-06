@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from './password.js';
 import { signToken } from './jwt.js';
 import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
 import { query } from '../db/index.js';
+import { pool } from '../db/index.js';
 import { getGameHistory } from '../db/games.js';
 import logger from '../logger.js';
 import type { RateLimiter } from '../rateLimit.js';
@@ -124,7 +125,16 @@ router.post('/register', authRateLimit, async (req, res) => {
 
     const passwordHash = await hashPassword(password);
 
-    const result = await query<{
+    // Use pool.query() directly (not the query() wrapper) so that constraint
+    // violation errors (e.g., duplicate username/email — code 23505) propagate
+    // to the catch block below. The query() wrapper catches all errors and
+    // returns null, which would mask the violation as "Database unavailable."
+    if (!pool) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    const result = await pool.query<{
       id: string;
       username: string;
       display_name: string;
@@ -140,7 +150,7 @@ router.post('/register', authRateLimit, async (req, res) => {
       [trimmedUsername, trimmedUsername, trimmedEmail, passwordHash],
     );
 
-    if (!result || result.rows.length === 0) {
+    if (result.rows.length === 0) {
       res.status(503).json({ error: 'Database unavailable' });
       return;
     }

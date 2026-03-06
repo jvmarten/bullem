@@ -27,6 +27,19 @@ export function registerPushHandlers(
       return;
     }
 
+    // Validate the endpoint is a well-formed HTTPS URL to prevent SSRF.
+    // Web Push endpoints are always HTTPS URLs from browser push services.
+    try {
+      const url = new URL(subscription.endpoint);
+      if (url.protocol !== 'https:') {
+        callback({ error: 'Push endpoint must use HTTPS' });
+        return;
+      }
+    } catch {
+      callback({ error: 'Invalid push endpoint URL' });
+      return;
+    }
+
     pushManager.subscribe(playerId, subscription);
     log.info({ playerId }, 'Player subscribed to push notifications');
     callback({ ok: true });
