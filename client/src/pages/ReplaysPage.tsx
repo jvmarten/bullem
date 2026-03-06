@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadAllReplays, deleteReplay } from '@bull-em/shared';
-import type { GameReplay } from '@bull-em/shared';
+import type { GameReplay, ReplayListEntry } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
+import { fetchReplayList } from '../api/replays.js';
 
 function formatDate(iso: string): string {
   try {
@@ -19,18 +20,80 @@ function formatDate(iso: string): string {
   }
 }
 
+/** Unified replay item that works for both API and localStorage sources. */
+interface ReplayItem {
+  id: string;
+  winnerName: string;
+  playerCount: number;
+  roundCount: number;
+  completedAt: string;
+  /** 'api' replays are server-persisted; 'local' replays are localStorage-only. */
+  source: 'api' | 'local';
+}
+
+function localReplayToItem(replay: GameReplay): ReplayItem {
+  return {
+    id: replay.id,
+    winnerName: replay.players.find(p => p.id === replay.winnerId)?.name ?? 'Unknown',
+    playerCount: replay.players.length,
+    roundCount: replay.rounds.length,
+    completedAt: replay.completedAt,
+    source: 'local',
+  };
+}
+
+function apiReplayToItem(entry: ReplayListEntry): ReplayItem {
+  return {
+    id: entry.id,
+    winnerName: entry.winnerName,
+    playerCount: entry.playerCount,
+    roundCount: entry.roundCount,
+    completedAt: entry.completedAt,
+    source: 'api',
+  };
+}
+
 export function ReplaysPage() {
   const navigate = useNavigate();
-  const [replays, setReplays] = useState<GameReplay[]>([]);
+  const [replays, setReplays] = useState<ReplayItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
-    setReplays(loadAllReplays());
+    let cancelled = false;
+
+    async function load(): Promise<void> {
+      // Start with localStorage replays as immediate fallback
+      const localReplays = loadAllReplays().map(localReplayToItem);
+
+      try {
+        const result = await fetchReplayList(50, 0);
+        if (cancelled) return;
+
+        const apiReplays = result.replays.map(apiReplayToItem);
+
+        // Merge: API replays first, then any localStorage replays not already in API results
+        const apiIds = new Set(apiReplays.map(r => r.id));
+        const uniqueLocal = localReplays.filter(r => !apiIds.has(r.id));
+        setReplays([...apiReplays, ...uniqueLocal]);
+      } catch {
+        // API unavailable — fall back to localStorage only
+        if (!cancelled) {
+          setReplays(localReplays);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   const handleDelete = useCallback((id: string) => {
+    // Only localStorage replays can be deleted from the client
     deleteReplay(id);
-    setReplays(loadAllReplays());
+    setReplays(prev => prev.filter(r => r.id !== id));
     setConfirmDeleteId(null);
   }, []);
 
@@ -47,14 +110,16 @@ export function ReplaysPage() {
             My Replays
           </h2>
           <p className="text-[var(--gold-dim)] text-xs mt-0.5">
-            {replays.length === 0
-              ? 'No saved replays yet'
-              : `${replays.length} saved replay${replays.length === 1 ? '' : 's'}`}
+            {loading
+              ? 'Loading replays...'
+              : replays.length === 0
+                ? 'No saved replays yet'
+                : `${replays.length} saved replay${replays.length === 1 ? '' : 's'}`}
           </p>
         </div>
 
         {/* Replay list */}
-        {replays.length === 0 ? (
+        {!loading && replays.length === 0 ? (
           <div className="glass px-4 py-8 text-center animate-fade-in">
             <p className="text-[var(--gold-dim)] text-sm mb-1">No replays found</p>
             <p className="text-[var(--gold-dim)] text-xs opacity-70">
@@ -64,7 +129,6 @@ export function ReplaysPage() {
         ) : (
           <div className="space-y-2 animate-fade-in">
             {replays.map((replay) => {
-              const winnerName = replay.players.find(p => p.id === replay.winnerId)?.name ?? 'Unknown';
               const isConfirming = confirmDeleteId === replay.id;
 
               return (
@@ -76,14 +140,14 @@ export function ReplaysPage() {
                       className="flex-1 text-left min-w-0"
                     >
                       <p className="text-sm font-semibold text-[var(--gold)] truncate">
-                        {winnerName} wins
+                        {replay.winnerName} wins
                       </p>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                         <span className="text-xs text-[var(--gold-dim)]">
-                          {replay.players.length} player{replay.players.length === 1 ? '' : 's'}
+                          {replay.playerCount} player{replay.playerCount === 1 ? '' : 's'}
                         </span>
                         <span className="text-xs text-[var(--gold-dim)]">
-                          {replay.rounds.length} round{replay.rounds.length === 1 ? '' : 's'}
+                          {replay.roundCount} round{replay.roundCount === 1 ? '' : 's'}
                         </span>
                       </div>
                       <p className="text-[10px] text-[var(--gold-dim)] opacity-60 mt-0.5">
@@ -91,36 +155,38 @@ export function ReplaysPage() {
                       </p>
                     </button>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {isConfirming ? (
-                        <>
+                    {/* Actions — only show delete for localStorage replays */}
+                    {replay.source === 'local' && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {isConfirming ? (
+                          <>
+                            <button
+                              onClick={() => handleDelete(replay.id)}
+                              className="text-[var(--danger)] text-xs font-semibold px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-[var(--gold-dim)] text-xs px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            onClick={() => handleDelete(replay.id)}
-                            className="text-[var(--danger)] text-xs font-semibold px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            onClick={() => setConfirmDeleteId(replay.id)}
+                            className="text-[var(--gold-dim)] hover:text-[var(--danger)] transition-colors p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            title="Delete replay"
                           >
-                            Delete
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
                           </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="text-[var(--gold-dim)] text-xs px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDeleteId(replay.id)}
-                          className="text-[var(--gold-dim)] hover:text-[var(--danger)] transition-colors p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          title="Delete replay"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

@@ -161,6 +161,50 @@ app.use(optionalAuth);
 // Auth routes
 app.use('/auth', authRouter);
 
+// Replay routes
+import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
+
+/** GET /api/replays — list replays. Authenticated users see their own; guests see recent public replays. */
+app.get('/api/replays', async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+
+    const result = req.user
+      ? await getUserReplays(req.user.userId, limit, offset)
+      : await getReplayList(limit, offset);
+
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch replay list');
+    res.status(500).json({ error: 'Failed to fetch replays' });
+  }
+});
+
+/** GET /api/replays/:gameId — fetch a full replay by game ID. */
+app.get('/api/replays/:gameId', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    if (!gameId) {
+      res.status(400).json({ error: 'Game ID is required' });
+      return;
+    }
+    const replay = await getReplayByGameId(gameId);
+    if (!replay) {
+      res.status(404).json({ error: 'Replay not found' });
+      return;
+    }
+    res.json({ replay });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch replay');
+    res.status(500).json({ error: 'Failed to fetch replay' });
+  }
+});
+
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
   let db = getDbStatus();
@@ -220,7 +264,7 @@ if (process.env.NODE_ENV === 'production') {
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/auth/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
       return;
     }
