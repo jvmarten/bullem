@@ -207,7 +207,7 @@ export function GamePage() {
 
   // Tapping own cards: toggle Quick Draw chips
   const handleCardTap = useCallback((_card: Card) => {
-    if (!quickDrawEnabled || !canRaise || handSelectorOpen) return;
+    if (!quickDrawEnabled || !canRaise) return;
     play('uiClick');
     // If Quick Draw produces no suggestions, go straight to hand selector
     const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
@@ -216,7 +216,7 @@ export function GamePage() {
     } else {
       setQuickDrawOpen(prev => !prev);
     }
-  }, [quickDrawEnabled, canRaise, handSelectorOpen, play, gameState.myCards, gameState.currentHand]);
+  }, [quickDrawEnabled, canRaise, play, gameState.myCards, gameState.currentHand]);
 
   const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
     play('callMade');
