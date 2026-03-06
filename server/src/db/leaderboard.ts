@@ -1,0 +1,298 @@
+import { query } from './index.js';
+import logger from '../logger.js';
+import type {
+  RankedMode,
+  LeaderboardPeriod,
+  LeaderboardEntry,
+  LeaderboardResponse,
+  LeaderboardNearbyResponse,
+} from '@bull-em/shared';
+import { getRankTier, openSkillDisplayRating } from '@bull-em/shared';
+
+// ── In-memory cache (TTL-based) ─────────────────────────────────────────
+// TODO(scale): Replace with Redis cache when Redis is the primary cache layer.
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const cache = new Map<string, CacheEntry<unknown>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache<T>(key: string, data: T): void {
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+/** Clear all cached leaderboard data. Exported for testing. */
+export function clearLeaderboardCache(): void {
+  cache.clear();
+}
+
+/** Minimum number of ranked games required to appear on the leaderboard. */
+const MIN_GAMES = 5;
+
+// ── Leaderboard queries ─────────────────────────────────────────────────
+
+interface LeaderboardRow {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar: string | null;
+  rating: string;
+  games_played: string;
+  rank: string;
+}
+
+interface CountRow {
+  total: string;
+}
+
+/**
+ * Build a WHERE clause fragment that filters by time period.
+ * For 'all_time', no filter is applied. For 'month'/'week', only ratings
+ * updated within the period are included.
+ */
+function periodFilter(period: LeaderboardPeriod): string {
+  switch (period) {
+    case 'month':
+      return "AND r.last_updated >= NOW() - INTERVAL '30 days'";
+    case 'week':
+      return "AND r.last_updated >= NOW() - INTERVAL '7 days'";
+    case 'all_time':
+    default:
+      return '';
+  }
+}
+
+/**
+ * The rating expression used for ranking. For heads_up, it's Elo.
+ * For multiplayer, we use the display rating (mu * 48) so that rankings
+ * are on the same scale.
+ */
+function ratingExpr(mode: RankedMode): string {
+  return mode === 'heads_up' ? 'r.elo' : '(r.mu * 48)';
+}
+
+/**
+ * Fetch a page of leaderboard entries for the given mode and period.
+ * Returns null if the DB is unavailable.
+ */
+export async function getLeaderboard(
+  mode: RankedMode,
+  period: LeaderboardPeriod,
+  limit: number,
+  offset: number,
+  currentUserId?: string,
+): Promise<LeaderboardResponse | null> {
+  const cacheKey = `lb:${mode}:${period}:${limit}:${offset}`;
+  const cached = getCached<LeaderboardResponse>(cacheKey);
+  if (cached) {
+    // If the cached response has no currentUser but we have a userId, we still
+    // need to fetch the user's rank separately (don't return cached for that).
+    if (!currentUserId || cached.currentUser) return cached;
+  }
+
+  const rating = ratingExpr(mode);
+  const periodWhere = periodFilter(period);
+
+  // Fetch ranked entries with ROW_NUMBER()
+  const entriesResult = await query<LeaderboardRow>(
+    `SELECT
+       u.id AS user_id,
+       u.username,
+       COALESCE(u.display_name, u.username) AS display_name,
+       u.avatar,
+       ${rating} AS rating,
+       r.games_played,
+       ROW_NUMBER() OVER (ORDER BY ${rating} DESC, r.games_played DESC) AS rank
+     FROM ratings r
+     JOIN users u ON u.id = r.user_id
+     WHERE r.mode = $1
+       AND r.games_played >= ${MIN_GAMES}
+       ${periodWhere}
+     ORDER BY ${rating} DESC, r.games_played DESC
+     LIMIT $2 OFFSET $3`,
+    [mode, limit, offset],
+  );
+
+  if (!entriesResult) return null;
+
+  // Total count of qualifying players
+  const countResult = await query<CountRow>(
+    `SELECT COUNT(*) AS total
+     FROM ratings r
+     WHERE r.mode = $1
+       AND r.games_played >= ${MIN_GAMES}
+       ${periodWhere}`,
+    [mode],
+  );
+
+  const totalCount = countResult ? parseInt(countResult.rows[0]?.total ?? '0', 10) : 0;
+
+  const entries: LeaderboardEntry[] = entriesResult.rows.map(row => {
+    const ratingNum = Math.round(parseFloat(row.rating));
+    return {
+      rank: parseInt(row.rank, 10) + offset, // ROW_NUMBER starts at 1, adjust for offset
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar as LeaderboardEntry['avatar'],
+      rating: ratingNum,
+      gamesPlayed: parseInt(row.games_played, 10),
+      tier: getRankTier(ratingNum),
+    };
+  });
+
+  // Fetch current user's rank if logged in
+  let currentUser: LeaderboardEntry | null = null;
+  if (currentUserId) {
+    currentUser = await getUserRank(mode, period, currentUserId);
+  }
+
+  const response: LeaderboardResponse = {
+    mode,
+    period,
+    entries,
+    totalCount,
+    currentUser,
+  };
+
+  // Cache the response (without currentUser for reuse)
+  const cacheResponse = { ...response, currentUser: null };
+  setCache(cacheKey, cacheResponse);
+
+  return response;
+}
+
+/**
+ * Get a specific user's rank on the leaderboard. Returns null if the user
+ * doesn't qualify (not enough games) or DB is unavailable.
+ */
+async function getUserRank(
+  mode: RankedMode,
+  period: LeaderboardPeriod,
+  userId: string,
+): Promise<LeaderboardEntry | null> {
+  const rating = ratingExpr(mode);
+  const periodWhere = periodFilter(period);
+
+  // First check if the user qualifies
+  const userResult = await query<LeaderboardRow>(
+    `SELECT
+       u.id AS user_id,
+       u.username,
+       COALESCE(u.display_name, u.username) AS display_name,
+       u.avatar,
+       ${rating} AS rating,
+       r.games_played,
+       (SELECT COUNT(*) + 1
+        FROM ratings r2
+        WHERE r2.mode = $1
+          AND r2.games_played >= ${MIN_GAMES}
+          ${periodWhere}
+          AND (${rating.replace(/r\./g, 'r2.')} > ${rating}
+               OR (${rating.replace(/r\./g, 'r2.')} = ${rating} AND r2.games_played > r.games_played))
+       ) AS rank
+     FROM ratings r
+     JOIN users u ON u.id = r.user_id
+     WHERE r.user_id = $2
+       AND r.mode = $1
+       AND r.games_played >= ${MIN_GAMES}
+       ${periodWhere}`,
+    [mode, userId],
+  );
+
+  if (!userResult || userResult.rows.length === 0) return null;
+
+  const row = userResult.rows[0]!;
+  const ratingNum = Math.round(parseFloat(row.rating));
+
+  return {
+    rank: parseInt(row.rank, 10),
+    userId: row.user_id,
+    username: row.username,
+    displayName: row.display_name,
+    avatar: row.avatar as LeaderboardEntry['avatar'],
+    rating: ratingNum,
+    gamesPlayed: parseInt(row.games_played, 10),
+    tier: getRankTier(ratingNum),
+  };
+}
+
+/**
+ * Fetch ±5 players around the current user on the leaderboard.
+ * Returns null if the user doesn't qualify or DB is unavailable.
+ */
+export async function getLeaderboardNearby(
+  mode: RankedMode,
+  userId: string,
+): Promise<LeaderboardNearbyResponse | null> {
+  const cacheKey = `lb-nearby:${mode}:${userId}`;
+  const cached = getCached<LeaderboardNearbyResponse>(cacheKey);
+  if (cached) return cached;
+
+  // First, get the user's rank
+  const currentUser = await getUserRank(mode, 'all_time', userId);
+  if (!currentUser) return null;
+
+  const rating = ratingExpr(mode);
+
+  // Fetch players around the user's rating (±5 positions)
+  const userRank = currentUser.rank;
+  const offset = Math.max(0, userRank - 6); // 5 above + user = offset at rank-6
+  const limit = 11; // 5 above + user + 5 below
+
+  const result = await query<LeaderboardRow>(
+    `SELECT
+       u.id AS user_id,
+       u.username,
+       COALESCE(u.display_name, u.username) AS display_name,
+       u.avatar,
+       ${rating} AS rating,
+       r.games_played,
+       ROW_NUMBER() OVER (ORDER BY ${rating} DESC, r.games_played DESC) AS rank
+     FROM ratings r
+     JOIN users u ON u.id = r.user_id
+     WHERE r.mode = $1
+       AND r.games_played >= ${MIN_GAMES}
+     ORDER BY ${rating} DESC, r.games_played DESC
+     LIMIT $2 OFFSET $3`,
+    [mode, limit, offset],
+  );
+
+  if (!result) return null;
+
+  const entries: LeaderboardEntry[] = result.rows.map(row => {
+    const ratingNum = Math.round(parseFloat(row.rating));
+    return {
+      rank: parseInt(row.rank, 10) + offset,
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar as LeaderboardEntry['avatar'],
+      rating: ratingNum,
+      gamesPlayed: parseInt(row.games_played, 10),
+      tier: getRankTier(ratingNum),
+    };
+  });
+
+  const response: LeaderboardNearbyResponse = {
+    mode,
+    entries,
+    currentUser,
+  };
+
+  setCache(cacheKey, response);
+  return response;
+}

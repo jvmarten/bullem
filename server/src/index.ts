@@ -340,6 +340,74 @@ app.get('/api/ratings/:userId', async (req, res) => {
   }
 });
 
+// Leaderboard routes
+import { getLeaderboard, getLeaderboardNearby } from './db/leaderboard.js';
+import type { RankedMode, LeaderboardPeriod } from '@bull-em/shared';
+
+const VALID_MODES: RankedMode[] = ['heads_up', 'multiplayer'];
+const VALID_PERIODS: LeaderboardPeriod[] = ['all_time', 'month', 'week'];
+
+/** GET /api/leaderboard/:mode — fetch ranked leaderboard entries. */
+app.get('/api/leaderboard/:mode', async (req, res) => {
+  try {
+    const { mode } = req.params;
+    if (!mode || !VALID_MODES.includes(mode as RankedMode)) {
+      res.status(400).json({ error: 'Invalid mode. Must be "heads_up" or "multiplayer".' });
+      return;
+    }
+
+    const period = (req.query.period as string) ?? 'all_time';
+    if (!VALID_PERIODS.includes(period as LeaderboardPeriod)) {
+      res.status(400).json({ error: 'Invalid period. Must be "all_time", "month", or "week".' });
+      return;
+    }
+
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+
+    const result = await getLeaderboard(
+      mode as RankedMode,
+      period as LeaderboardPeriod,
+      limit,
+      offset,
+      req.user?.userId,
+    );
+
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch leaderboard');
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+/** GET /api/leaderboard/:mode/nearby — fetch ±5 players around the current user. */
+app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
+  try {
+    const { mode } = req.params;
+    if (!mode || !VALID_MODES.includes(mode as RankedMode)) {
+      res.status(400).json({ error: 'Invalid mode. Must be "heads_up" or "multiplayer".' });
+      return;
+    }
+
+    const result = await getLeaderboardNearby(mode as RankedMode, req.user!.userId);
+
+    if (!result) {
+      res.status(404).json({ error: 'Not ranked or not enough games played' });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch nearby leaderboard');
+    res.status(500).json({ error: 'Failed to fetch nearby leaderboard' });
+  }
+});
+
 // ── Calibration status endpoint ─────────────────────────────────────────
 // TODO: add admin auth — currently unauthenticated for dev/monitoring convenience
 app.get('/api/admin/calibration', (_req, res) => {
