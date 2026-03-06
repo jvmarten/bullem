@@ -265,8 +265,18 @@ app.get('/health', async (_req, res) => {
 });
 
 // Prometheus metrics endpoint — expose counters, gauges, and histograms
-// for scraping by Prometheus/Grafana. Placed before the SPA catch-all.
-app.get('/metrics', (_req, res) => {
+// for scraping by Prometheus/Grafana. Protected by a bearer token when
+// METRICS_TOKEN is set; unauthenticated access is allowed in development
+// when the env var is absent.
+const METRICS_TOKEN = process.env.METRICS_TOKEN;
+app.get('/metrics', (req, res) => {
+  if (METRICS_TOKEN) {
+    const auth = req.headers.authorization;
+    if (auth !== `Bearer ${METRICS_TOKEN}`) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+  }
   httpRequestsTotal.inc('/metrics');
   res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
   res.send(serializeMetrics());
