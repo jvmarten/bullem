@@ -7,6 +7,8 @@ import type { TurnResult } from '../game/GameEngine.js';
 import { broadcastGameState, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
+import { getCorrelatedLogger } from '../logger.js';
+import { gameActionsTotal, gamesCompletedTotal } from '../metrics.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -18,54 +20,72 @@ export function registerGameHandlers(
   botManager: BotManager,
 ): void {
   socket.on('game:call', (data) => {
+    const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
+    gameActionsTotal.inc('call');
+    log.info({ handType: data.hand.type }, 'Player called hand');
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleCall(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:bull', () => {
+    const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    gameActionsTotal.inc('bull');
+    log.info('Player called bull');
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleBull(ctx.playerId);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:true', () => {
+    const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    gameActionsTotal.inc('true');
+    log.info('Player called true');
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleTrue(ctx.playerId);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:lastChanceRaise', (data) => {
+    const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
+    gameActionsTotal.inc('lastChanceRaise');
+    log.info({ handType: data.hand.type }, 'Player raised on last chance');
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:lastChancePass', () => {
+    const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    gameActionsTotal.inc('lastChancePass');
+    log.info('Player passed on last chance');
     botManager.clearTurnTimer(ctx.room.roomCode);
     const result = ctx.game.handleLastChancePass(ctx.playerId);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
   socket.on('game:continue', () => {
+    const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
     if (!playerId) return;
+    gameActionsTotal.inc('continue');
+    log.info('Player continued');
     markContinueReady(io, room, botManager, playerId, roomManager);
   });
 
@@ -109,13 +129,17 @@ function handleResult(
   roomManager: RoomManager,
   botManager: BotManager,
 ): void {
+  const log = getCorrelatedLogger();
+
   switch (result.type) {
     case 'error':
+      log.warn({ message: result.message }, 'Game action error');
       socket.emit('room:error', result.message);
       return;
 
     case 'continue':
     case 'last_chance':
+      log.debug({ resultType: result.type }, 'Turn result — game continues');
       if (room.game) room.game.setTurnDeadline(null);
       // Schedule next turn first (sets deadline for human), then broadcast with correct deadline
       botManager.scheduleBotTurn(room, io);
@@ -123,10 +147,13 @@ function handleResult(
       break;
 
     case 'resolve':
+      log.info('Round resolved');
       beginRoundResultPhase(io, room, botManager, result.result, roomManager);
       break;
 
     case 'game_over':
+      gamesCompletedTotal.inc();
+      log.info({ winnerId: result.winnerId }, 'Game over');
       if (result.finalRoundResult) {
         // Show the final round result before ending the game
         if (room.game) room.game.setTurnDeadline(null);

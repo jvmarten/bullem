@@ -19,6 +19,7 @@ import { authRouter } from './auth/routes.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
+import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,6 +97,12 @@ const roomManager = new RoomManager();
 if (redisStore) {
   roomManager.setRedisStore(redisStore);
 }
+
+// Register gauge callbacks so metrics can read live values at scrape time
+registerGaugeCallbacks(
+  () => roomManager.roomCount,
+  () => io.engine.clientsCount,
+);
 const botManager = new BotManager();
 botManager.setRoomManager(roomManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
@@ -194,6 +201,14 @@ app.get('/health', async (_req, res) => {
   });
 });
 
+// Prometheus metrics endpoint — expose counters, gauges, and histograms
+// for scraping by Prometheus/Grafana. Placed before the SPA catch-all.
+app.get('/metrics', (_req, res) => {
+  httpRequestsTotal.inc('/metrics');
+  res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(serializeMetrics());
+});
+
 // Sentry Express error handler — must be registered after all routes/middleware
 Sentry.setupExpressErrorHandler(app);
 
@@ -205,7 +220,7 @@ if (process.env.NODE_ENV === 'production') {
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/auth/') || req.path.startsWith('/health')) {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
       return;
     }

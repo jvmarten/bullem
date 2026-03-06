@@ -10,6 +10,8 @@ import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcast
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
 import { createChildLogger } from '../logger.js';
+import { runWithCorrelation, generateCorrelationId } from '../correlationContext.js';
+import { socketEventsTotal, socketErrorsTotal, rateLimitRejectsTotal } from '../metrics.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -61,6 +63,7 @@ function attachRateLimiter(
     }
     eventCount++;
     if (eventCount > RATE_LIMIT_MAX_EVENTS) {
+      rateLimitRejectsTotal.inc();
       next(new Error('Rate limit exceeded'));
       return;
     }
@@ -73,6 +76,7 @@ function attachRateLimiter(
       const key = playerId ?? `socket:${(socket as unknown as { id: string }).id}`;
       const lastTime = playerActionTimestamps.get(key) ?? 0;
       if (now - lastTime < GAME_ACTION_COOLDOWN_MS) {
+        rateLimitRejectsTotal.inc();
         next(new Error('Too fast — please wait'));
         return;
       }
@@ -83,10 +87,47 @@ function attachRateLimiter(
   });
 }
 
+/**
+ * Attach correlation context middleware. Wraps each incoming socket event
+ * in an AsyncLocalStorage context so that any code downstream (handlers,
+ * engine calls, broadcasts, logging) can access the correlation ID without
+ * needing it threaded through function parameters.
+ */
+function attachCorrelationMiddleware(
+  socket: { id: string; use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
+  roomManager: RoomManager,
+): void {
+  socket.use((event, next) => {
+    const eventName = typeof event[0] === 'string' ? event[0] : 'unknown';
+
+    // Track every socket event for metrics
+    socketEventsTotal.inc(eventName);
+
+    // Resolve room/player context for correlation
+    const room = roomManager.getRoomForSocket(socket.id);
+    const playerId = room?.getPlayerId(socket.id);
+
+    runWithCorrelation(
+      {
+        correlationId: generateCorrelationId(),
+        event: eventName,
+        roomCode: room?.roomCode,
+        playerId,
+        socketId: socket.id,
+      },
+      () => next(),
+    );
+  });
+}
+
 export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');
+    // Attach correlation context first so downstream middleware/handlers
+    // can access it via AsyncLocalStorage.
+    attachCorrelationMiddleware(socket, roomManager);
+
     // Pass a getter so the rate limiter can resolve the player ID after
     // the socket has joined a room (not available at connection time).
     attachRateLimiter(socket, () => {
@@ -98,6 +139,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     registerGameHandlers(io, socket, roomManager, botManager);
 
     socket.on('error', (err) => {
+      socketErrorsTotal.inc();
       const room = roomManager.getRoomForSocket(socket.id);
       const playerId = room?.getPlayerId(socket.id);
       const childLog = createChildLogger({ roomCode: room?.roomCode, playerId });
