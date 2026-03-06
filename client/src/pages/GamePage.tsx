@@ -3,7 +3,7 @@ import { RoundPhase } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { HandDisplay } from '../components/HandDisplay.js';
-import { HandSelector, type HandSuggestion } from '../components/HandSelector.js';
+import { HandSelector } from '../components/HandSelector.js';
 import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
@@ -22,7 +22,6 @@ import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall, Card } from '@bull-em/shared';
-import { HandType } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -199,7 +198,6 @@ export function GamePage() {
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
-  const [cardSuggestion, setCardSuggestion] = useState<HandSuggestion | null>(null);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
 
   const quickDrawSuggestions = useMemo(() => {
@@ -207,23 +205,17 @@ export function GamePage() {
     return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
   }, [quickDrawOpen, canRaise, gameState.myCards, gameState.currentHand]);
 
-  // Tapping own cards: if Quick Draw enabled, show chips; otherwise open hand selector
-  const handleCardTap = useCallback((card: Card) => {
-    if (quickDrawEnabled && canRaise && !handSelectorOpen) {
-      play('uiClick');
-      // If Quick Draw produces no suggestions, go straight to hand selector
-      const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
-      if (suggestions.length === 0) {
-        setHandSelectorOpen(true);
-      } else {
-        setQuickDrawOpen(prev => !prev);
-      }
-      return;
-    }
-    if (!handSelectorOpen) return;
+  // Tapping own cards: toggle Quick Draw chips
+  const handleCardTap = useCallback((_card: Card) => {
+    if (!quickDrawEnabled || !canRaise || handSelectorOpen) return;
     play('uiClick');
-    // Legacy behavior: suggest a pair of the tapped card's rank
-    setCardSuggestion({ handType: HandType.PAIR, rank: card.rank, suit: card.suit });
+    // If Quick Draw produces no suggestions, go straight to hand selector
+    const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+    if (suggestions.length === 0) {
+      setHandSelectorOpen(true);
+    } else {
+      setQuickDrawOpen(prev => !prev);
+    }
   }, [quickDrawEnabled, canRaise, handSelectorOpen, play, gameState.myCards, gameState.currentHand]);
 
   const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
@@ -235,12 +227,6 @@ export function GamePage() {
     }
     setQuickDrawOpen(false);
   }, [play, isLastChanceCaller, lastChanceRaise, callHand]);
-
-  const handleQuickDrawMore = useCallback(() => {
-    play('uiClick');
-    setQuickDrawOpen(false);
-    setHandSelectorOpen(true);
-  }, [play]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
@@ -281,7 +267,7 @@ export function GamePage() {
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
       // Keep open if tapping inside the hand selector, action area, or own cards
-      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]')) return;
       setHandSelectorOpen(false);
     };
     document.addEventListener('mousedown', handleOutside);
@@ -436,7 +422,7 @@ export function GamePage() {
               />
             </div>
             {/* Call history in sidebar — landscape only */}
-            <div className="landscape-only flex-col">
+            <div className="landscape-only flex-col" data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
           </div>
@@ -484,14 +470,13 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={(canRaise && quickDrawEnabled) || handSelectorOpen ? handleCardTap : undefined} /></div>}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
 
             {/* Quick Draw suggestion chips */}
             {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}
-                onMore={handleQuickDrawMore}
                 onDismiss={() => setQuickDrawOpen(false)}
               />
             )}
@@ -563,7 +548,6 @@ export function GamePage() {
                   onSubmit={handleHandSubmit}
                   onHandChange={handleHandChange}
                   showSubmit={false}
-                  suggestion={cardSuggestion}
                 />
               </div>
             )}

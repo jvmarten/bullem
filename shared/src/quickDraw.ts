@@ -111,10 +111,20 @@ function isValidRaise(candidate: HandCall, currentHand: HandCall | null): boolea
   return isHigherHand(candidate, currentHand);
 }
 
+/** Compare two HandCalls: returns negative if a < b, positive if a > b, 0 if equal. */
+function compareHands(a: HandCall, b: HandCall): number {
+  if (a.type !== b.type) return a.type - b.type;
+  // Within same type, compare by primary rank value
+  const aRank = 'rank' in a ? RANK_VALUES[a.rank] : 'highRank' in a ? RANK_VALUES[a.highRank] : 'threeRank' in a ? RANK_VALUES[a.threeRank] : 0;
+  const bRank = 'rank' in b ? RANK_VALUES[b.rank] : 'highRank' in b ? RANK_VALUES[b.highRank] : 'threeRank' in b ? RANK_VALUES[b.threeRank] : 0;
+  return aRank - bRank;
+}
+
 /**
  * Generate Quick Draw suggestions based on the player's actual cards and the current call.
  *
- * Returns 0–3 suggestions in order: safe, ambitious, bold.
+ * Returns exactly 3 suggestions sorted weakest to strongest (left to right), except in
+ * rare late-game situations where fewer than 3 valid higher hands exist.
  * Every returned suggestion is guaranteed to pass `isHigherHand()` against `currentHand`.
  */
 export function getQuickDrawSuggestions(
@@ -126,19 +136,15 @@ export function getQuickDrawSuggestions(
   const analysis = analyzeCards(myCards);
   const candidates: { hand: HandCall; tier: 'safe' | 'ambitious' | 'bold' }[] = [];
 
-  // Generate safe candidates (what the player actually holds)
+  // Generate candidates across all aggression tiers
   generateSafeCandidates(analysis, candidates);
-
-  // Generate ambitious candidates (one step up from truth)
   generateAmbitiousCandidates(analysis, candidates);
-
-  // Generate bold candidates (bigger bluff leaps)
   generateBoldCandidates(analysis, candidates);
 
   // Filter: all must be valid raises above currentHand
   const valid = candidates.filter(c => isValidRaise(c.hand, currentHand));
 
-  // Deduplicate by hand string representation
+  // Deduplicate by hand string and sort weakest to strongest
   const seen = new Set<string>();
   const deduped: typeof valid = [];
   for (const c of valid) {
@@ -148,30 +154,25 @@ export function getQuickDrawSuggestions(
       deduped.push(c);
     }
   }
+  deduped.sort((a, b) => compareHands(a.hand, b.hand));
 
-  // Pick best from each tier
-  const safe = deduped.find(c => c.tier === 'safe');
-  const ambitious = deduped.find(c => c.tier === 'ambitious');
-  const bold = deduped.find(c => c.tier === 'bold');
-
-  const result: QuickDrawSuggestion[] = [];
-  if (safe) result.push({ hand: safe.hand, label: handToString(safe.hand), tier: 'safe' });
-  if (ambitious) {
-    // Don't duplicate the safe suggestion
-    const ambLabel = handToString(ambitious.hand);
-    if (!safe || handToString(safe.hand) !== ambLabel) {
-      result.push({ hand: ambitious.hand, label: ambLabel, tier: 'ambitious' });
-    }
-  }
-  if (bold) {
-    const boldLabel = handToString(bold.hand);
-    const isDuplicate = result.some(r => r.label === boldLabel);
-    if (!isDuplicate) {
-      result.push({ hand: bold.hand, label: boldLabel, tier: 'bold' });
-    }
+  // If 3 or fewer unique hands, return all (sorted weakest to strongest)
+  if (deduped.length <= 3) {
+    return deduped.map(c => ({ hand: c.hand, label: handToString(c.hand), tier: c.tier }));
   }
 
-  return result;
+  // Pick 3 well-distributed options: weakest, middle, strongest
+  const first = deduped[0]!;
+  const last = deduped[deduped.length - 1]!;
+  const midIdx = Math.floor(deduped.length / 2);
+  const mid = deduped[midIdx]!;
+
+  // Assign tiers based on position: weakest=safe, middle=ambitious, strongest=bold
+  return [
+    { hand: first.hand, label: handToString(first.hand), tier: 'safe' as const },
+    { hand: mid.hand, label: handToString(mid.hand), tier: 'ambitious' as const },
+    { hand: last.hand, label: handToString(last.hand), tier: 'bold' as const },
+  ];
 }
 
 function generateSafeCandidates(

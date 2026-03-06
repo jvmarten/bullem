@@ -36,13 +36,12 @@ describe('getQuickDrawSuggestions', () => {
     expect(suggestions.length).toBeLessThanOrEqual(3);
   });
 
-  it('safe suggestion matches actual holdings (pair)', () => {
+  it('suggestions are sorted weakest to strongest', () => {
     const cards = [card('J', 'hearts'), card('J', 'spades')];
     const suggestions = getQuickDrawSuggestions(cards, null);
-    const safe = suggestions.find(s => s.tier === 'safe');
-    expect(safe).toBeDefined();
-    // With two Jacks, safe should be Pair of Jacks (or higher held hand)
-    expect(safe!.hand.type).toBeGreaterThanOrEqual(HandType.PAIR);
+    for (let i = 1; i < suggestions.length; i++) {
+      expect(isHigherHand(suggestions[i]!.hand, suggestions[i - 1]!.hand)).toBe(true);
+    }
   });
 
   it('filters out suggestions that do not beat a high current hand', () => {
@@ -63,15 +62,13 @@ describe('getQuickDrawSuggestions', () => {
     expect(suggestions).toEqual([]);
   });
 
-  it('generates three-of-a-kind as ambitious when holding a pair', () => {
+  it('includes three-of-a-kind when holding a pair', () => {
     const cards = [card('9', 'hearts'), card('9', 'clubs')];
     const suggestions = getQuickDrawSuggestions(cards, null);
-    const ambitious = suggestions.find(s => s.tier === 'ambitious');
-    expect(ambitious).toBeDefined();
-    // Should suggest three 9s (bump from pair)
-    if (ambitious && ambitious.hand.type === HandType.THREE_OF_A_KIND) {
-      expect((ambitious.hand as { rank: string }).rank).toBe('9');
-    }
+    const hasThreeOfAKind = suggestions.some(
+      s => s.hand.type === HandType.THREE_OF_A_KIND && (s.hand as { rank: string }).rank === '9'
+    );
+    expect(hasThreeOfAKind).toBe(true);
   });
 
   it('no duplicate labels across suggestions', () => {
@@ -85,7 +82,6 @@ describe('getQuickDrawSuggestions', () => {
     const cards = [card('A', 'hearts')];
     const suggestions = getQuickDrawSuggestions(cards, null);
     expect(suggestions.length).toBeGreaterThan(0);
-    // Safe should be high card Ace or pair of Aces
     for (const s of suggestions) {
       expect(isHigherHand(s.hand, { type: HandType.HIGH_CARD, rank: '2' })).toBe(true);
     }
@@ -94,9 +90,8 @@ describe('getQuickDrawSuggestions', () => {
   it('handles trips in hand', () => {
     const cards = [card('Q', 'hearts'), card('Q', 'spades'), card('Q', 'diamonds')];
     const suggestions = getQuickDrawSuggestions(cards, null);
-    const safe = suggestions.find(s => s.tier === 'safe');
-    expect(safe).toBeDefined();
-    expect(safe!.hand.type).toBe(HandType.THREE_OF_A_KIND);
+    const hasTrips = suggestions.some(s => s.hand.type === HandType.THREE_OF_A_KIND);
+    expect(hasTrips).toBe(true);
   });
 
   it('suggests flush when holding suited cards', () => {
@@ -125,5 +120,11 @@ describe('getQuickDrawSuggestions', () => {
     for (let i = 1; i < suggestions.length; i++) {
       expect(tierOrder[suggestions[i]!.tier]).toBeGreaterThan(tierOrder[suggestions[i - 1]!.tier]);
     }
+  });
+
+  it('returns exactly 3 suggestions with enough room to suggest', () => {
+    const cards = [card('7', 'hearts'), card('7', 'clubs'), card('K', 'spades')];
+    const suggestions = getQuickDrawSuggestions(cards, null);
+    expect(suggestions.length).toBe(3);
   });
 });

@@ -8,22 +8,12 @@ import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 import { WheelPicker } from './WheelPicker.js';
 import { useSound } from '../hooks/useSound.js';
 
-/** External suggestion to adjust pickers (e.g. when user taps a card). */
-export interface HandSuggestion {
-  handType: HandType;
-  rank: Rank;
-  rank2?: Rank;
-  suit?: Suit;
-}
-
 interface Props {
   currentHand: HandCall | null;
   onSubmit: (hand: HandCall) => void;
   onHandChange?: (hand: HandCall | null, isValid: boolean) => void;
   submitLabel?: string;
   showSubmit?: boolean;
-  /** When this object reference changes, pickers snap to the suggested values. */
-  suggestion?: HandSuggestion | null;
 }
 
 const STRAIGHT_RANKS = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
@@ -175,7 +165,7 @@ function getInitialState(currentHand: HandCall | null): { handType: HandType; ra
 // when the current hand changes or the turn changes. This is a heavy component with
 // multiple WheelPickers and internal state — skipping needless re-renders avoids
 // expensive reconciliation of the picker DOM trees.
-export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true, suggestion }: Props) {
+export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, onHandChange, submitLabel, showSubmit = true }: Props) {
   const label = submitLabel ?? (currentHand ? 'Raise' : 'Call');
   const initial = getInitialState(currentHand);
   const [handType, setHandType] = useState<HandType>(initial.handType);
@@ -187,15 +177,6 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const handleTickSound = useCallback(() => play('wheelTick'), [play]);
   const handleTickSoundLow = useCallback(() => play('wheelTickLow'), [play]);
   const handleSelectSound = useCallback(() => play('wheelSelect'), [play]);
-
-  // Apply external suggestion — snap pickers to suggested values
-  useEffect(() => {
-    if (!suggestion) return;
-    setHandType(suggestion.handType);
-    setRank(suggestion.rank);
-    if (suggestion.rank2) setRank2(suggestion.rank2);
-    if (suggestion.suit) setSuit(suggestion.suit);
-  }, [suggestion]);
 
   const handleTypeChange = useCallback((ht: HandType) => {
     setHandType(ht);
