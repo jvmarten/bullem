@@ -122,14 +122,13 @@ export function LocalGamePage() {
     if (!current) return;
     const minRaise = getMinimumRaise(current);
     if (!minRaise) return;
-    play('callMade');
     if (isLastChanceCaller) {
       lastChanceRaise(minRaise);
     } else {
       callHand(minRaise);
     }
     setHandSelectorOpen(false);
-  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand, play]);
+  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
 
   // Stable callback reference so ActionButtons' React.memo isn't broken by
   // an inline arrow function creating a new reference on every render.

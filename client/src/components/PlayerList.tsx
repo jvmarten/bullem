@@ -108,6 +108,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">
             {p.name}
+            {p.isAdmin && <span className="text-[var(--gold)] ml-0.5 text-[10px]" title="Admin">{'\u2B50'}</span>}
             {rankInfo && <RankBadge rating={rankInfo.rating} tier={rankInfo.tier} />}
             {isMe && <span className="text-[var(--gold)] ml-1 text-[10px]">(you)</span>}
             {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">[BOT]</span>}

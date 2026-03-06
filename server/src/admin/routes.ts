@@ -260,6 +260,51 @@ export function createAdminRouter(
     }
   });
 
+  // ── POST /admin/set-photo ─────────────────────────────────────────────
+  router.post('/set-photo', async (req, res) => {
+    try {
+      const { userId, photoUrl } = req.body as { userId?: string; photoUrl?: string | null };
+
+      if (!userId || !UUID_REGEX.test(userId)) {
+        res.status(400).json({ error: 'Invalid userId' });
+        return;
+      }
+
+      // Allow null/empty to clear photo, otherwise validate URL format
+      const url = photoUrl && photoUrl.trim().length > 0 ? photoUrl.trim() : null;
+      if (url && !url.startsWith('https://')) {
+        res.status(400).json({ error: 'Photo URL must use HTTPS' });
+        return;
+      }
+
+      const result = await query<{ id: string; username: string; photo_url: string | null }>(
+        'UPDATE users SET photo_url = $1 WHERE id = $2 RETURNING id, username, photo_url',
+        [url, userId],
+      );
+
+      if (!result) {
+        res.status(503).json({ error: 'Database unavailable' });
+        return;
+      }
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const row = result.rows[0]!;
+      logger.info(
+        { adminUserId: req.user!.userId, targetUserId: userId, photoUrl: url },
+        'Admin: photo URL updated',
+      );
+
+      res.json({ id: row.id, username: row.username, photoUrl: row.photo_url });
+    } catch (err) {
+      logger.error({ err }, 'Admin: failed to set photo');
+      res.status(500).json({ error: 'Failed to set photo' });
+    }
+  });
+
   // ── POST /admin/close-room ────────────────────────────────────────────
   router.post('/close-room', (req, res) => {
     try {

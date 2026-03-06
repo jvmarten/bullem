@@ -51,9 +51,10 @@ export function registerLobbyHandlers(
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
-    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name);
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
+    if (socket.data.role === 'admin') player.isAdmin = true;
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
@@ -103,9 +104,10 @@ export function registerLobbyHandlers(
     if (nameExists) return callback({ error: 'Name already taken in this room' });
 
     const playerId = randomUUID();
-    const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name);
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
+    if (socket.data.role === 'admin') player.isAdmin = true;
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);

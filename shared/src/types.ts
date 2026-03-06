@@ -59,6 +59,7 @@ export interface Player {
   isEliminated: boolean;
   isHost: boolean;
   isBot?: boolean;
+  isAdmin?: boolean;
 }
 
 /** Server-side player with actual cards. Never sent to other players' clients. */
@@ -262,6 +263,8 @@ export interface User {
   role: 'user' | 'admin';
   authProvider: 'email' | 'google' | 'apple' | 'email+google' | 'email+apple';
   avatar: AvatarId | null;
+  /** Optional custom profile photo URL (set by admin). */
+  photoUrl?: string | null;
   createdAt: string;
   lastSeenAt: string;
   /** True for bot accounts seeded in the database. */
@@ -276,6 +279,8 @@ export interface PublicProfile {
   username: string;
   displayName: string;
   avatar: AvatarId | null;
+  /** Optional custom profile photo URL (set by admin). */
+  photoUrl?: string | null;
   createdAt: string;
   gamesPlayed: number;
   gamesWon: number;

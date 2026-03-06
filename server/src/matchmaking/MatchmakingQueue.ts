@@ -449,15 +449,16 @@ export class MatchmakingQueue {
     for (const entry of players) {
       const playerId = randomUUID();
       playerIds.push(playerId);
-      const { reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
 
-      // Join the socket to the room
+      // Join the socket to the room and propagate admin status
       const socket = this.io.sockets.sockets.get(entry.socketId);
       if (socket) {
         socket.join(room.roomCode);
+        if (socket.data.role === 'admin') player.isAdmin = true;
       }
 
       // Build the opponent list for this player
@@ -523,7 +524,7 @@ export class MatchmakingQueue {
 
     // Add the human player
     const playerId = randomUUID();
-    const { reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName);
+    const { player: addedPlayer, reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName);
     room.setPlayerUserId(playerId, player.userId);
     this.roomManager.assignSocketToRoom(player.socketId, room.roomCode);
     this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -531,6 +532,7 @@ export class MatchmakingQueue {
     const socket = this.io.sockets.sockets.get(player.socketId);
     if (socket) {
       socket.join(room.roomCode);
+      if (socket.data.role === 'admin') addedPlayer.isAdmin = true;
     }
 
     // Add a ranked bot with a persistent profile if available, fallback to anonymous bot
@@ -609,7 +611,7 @@ export class MatchmakingQueue {
 
     for (const entry of humanPlayers) {
       const playerId = randomUUID();
-      const { reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
+      const { player: addedPlayer, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -617,6 +619,7 @@ export class MatchmakingQueue {
       const socket = this.io.sockets.sockets.get(entry.socketId);
       if (socket) {
         socket.join(room.roomCode);
+        if (socket.data.role === 'admin') addedPlayer.isAdmin = true;
       }
 
       allPlayerInfo.push({ entry, playerId, reconnectToken });
