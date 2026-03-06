@@ -5,6 +5,7 @@ import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
+import { RecentPlayers } from '../components/RecentPlayers.js';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
@@ -645,6 +646,10 @@ export function HomePage() {
               Rules
             </Link>
           </div>
+        )}
+
+        {mode === 'menu' && (
+          <RecentPlayers />
         )}
 
         {mode === 'online' && (

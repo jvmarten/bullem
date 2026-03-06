@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, us
 import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
+import { recordRecentPlayers } from '../utils/recentPlayers.js';
 
 /** Presence state (online player count/names) is split into a separate context
  *  so that server-wide connect/disconnect events don't re-render game components.
@@ -117,12 +118,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
+  /** Tracks the latest game state for use in the game:over handler (which
+   *  runs inside a static useEffect and can't read React state directly). */
+  const gameStateRef = useRef<ClientGameState | null>(null);
 
   // Keep roundResultRef in sync with roundResult state
   useEffect(() => {
     roundResultRef.current = roundResult;
     if (roundResult) roundResultReceivedAtRef.current = Date.now();
   }, [roundResult]);
+
+  // Keep gameStateRef in sync so the game:over handler can read player names
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {
@@ -238,7 +245,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:state', handleNewGameState);
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
-    socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
+    socket.on('game:over', (wId, stats) => {
+      setWinnerId(wId);
+      setGameStats(stats);
+      // Record other human players for the "Recent Players" list
+      const gs = gameStateRef.current;
+      const myName = sessionStorage.getItem(PLAYER_NAME_KEY);
+      const roomCode = sessionStorage.getItem(ROOM_CODE_KEY);
+      if (gs && myName && roomCode) {
+        const humanNames = gs.players
+          .filter(p => !p.isBot)
+          .map(p => p.name);
+        recordRecentPlayers(humanNames, myName, roomCode);
+      }
+    });
     socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
