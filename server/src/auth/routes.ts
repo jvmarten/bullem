@@ -1,12 +1,60 @@
 import { Router } from 'express';
-import type { User, AuthResponse, PublicProfile } from '@bull-em/shared';
+import type { Request, Response, NextFunction } from 'express';
+import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
+import { AVATAR_OPTIONS } from '@bull-em/shared';
 import { hashPassword, verifyPassword } from './password.js';
 import { signToken } from './jwt.js';
 import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
 import { query } from '../db/index.js';
+import { pool } from '../db/index.js';
+import { getGameHistory } from '../db/games.js';
 import logger from '../logger.js';
+import type { RateLimiter } from '../rateLimit.js';
+import { httpRequestsTotal } from '../metrics.js';
 
 const router = Router();
+
+/** Singleton RateLimiter instance, set via setAuthRateLimiter(). */
+let rateLimiter: RateLimiter | null = null;
+
+/** Configure the rate limiter for auth endpoints. Called once during startup. */
+export function setAuthRateLimiter(limiter: RateLimiter): void {
+  rateLimiter = limiter;
+}
+
+/** Rate limit config for auth endpoints. */
+const AUTH_RATE_LIMIT_MAX = 10;        // max attempts per window
+const AUTH_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+
+/**
+ * Express middleware: rate-limit by IP for brute-force protection.
+ * Uses the shared RateLimiter (Redis-backed when available).
+ */
+function authRateLimit(req: Request, res: Response, next: NextFunction): void {
+  if (!rateLimiter) {
+    // No rate limiter configured — allow through (dev/test without Redis)
+    next();
+    return;
+  }
+
+  // Use X-Forwarded-For (Fly.io / reverse proxy) or fall back to socket address
+  const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  const key = `auth:${ip}`;
+
+  void rateLimiter.checkWindow(key, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS).then((allowed) => {
+    if (!allowed) {
+      httpRequestsTotal.inc('auth_rate_limited');
+      logger.warn({ ip, path: req.path }, 'Auth rate limit exceeded');
+      res.status(429).json({ error: 'Too many requests — please try again later' });
+      return;
+    }
+    next();
+  }).catch((err) => {
+    // Fail-open: if rate limit check fails, allow the request
+    logger.warn({ err, ip }, 'Auth rate limit check failed — allowing request');
+    next();
+  });
+}
 
 /** Max length constraints for user input. */
 const MAX_USERNAME_LENGTH = 20;
@@ -21,7 +69,7 @@ const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{1,19}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Cookie options for the auth JWT. */
-function cookieOptions(): {
+export function cookieOptions(): {
   httpOnly: boolean;
   secure: boolean;
   sameSite: 'lax';
@@ -39,7 +87,7 @@ function cookieOptions(): {
 
 // ── POST /auth/register ─────────────────────────────────────────────────
 
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimit, async (req, res) => {
   try {
     const { username, email, password } = req.body as {
       username?: string;
@@ -77,22 +125,32 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await hashPassword(password);
 
-    const result = await query<{
+    // Use pool.query() directly (not the query() wrapper) so that constraint
+    // violation errors (e.g., duplicate username/email — code 23505) propagate
+    // to the catch block below. The query() wrapper catches all errors and
+    // returns null, which would mask the violation as "Database unavailable."
+    if (!pool) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    const result = await pool.query<{
       id: string;
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       `INSERT INTO users (username, display_name, email, password_hash, auth_provider)
        VALUES ($1, $2, $3, $4, 'email')
-       RETURNING id, username, display_name, email, auth_provider, created_at, last_seen_at`,
+       RETURNING id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at`,
       [trimmedUsername, trimmedUsername, trimmedEmail, passwordHash],
     );
 
-    if (!result || result.rows.length === 0) {
+    if (result.rows.length === 0) {
       res.status(503).json({ error: 'Database unavailable' });
       return;
     }
@@ -104,6 +162,7 @@ router.post('/register', async (req, res) => {
       displayName: row.display_name,
       email: row.email,
       authProvider: 'email',
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -133,32 +192,40 @@ router.post('/register', async (req, res) => {
 
 // ── POST /auth/login ────────────────────────────────────────────────────
 
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, async (req, res) => {
   try {
-    const { email, password } = req.body as {
+    const { identifier, email: legacyEmail, password } = req.body as {
+      identifier?: string;
       email?: string;
       password?: string;
     };
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
+    // Support both 'identifier' (new) and 'email' (legacy) fields
+    const loginId = identifier ?? legacyEmail;
+
+    if (!loginId || !password) {
+      res.status(400).json({ error: 'Username/email and password are required' });
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedId = loginId.trim().toLowerCase();
+    const isEmail = trimmedId.includes('@');
 
     const result = await query<{
       id: string;
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
       password_hash: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1',
-      [trimmedEmail],
+      isEmail
+        ? 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
+        : 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
+      [trimmedId],
     );
 
     if (!result || result.rows.length === 0) {
@@ -169,7 +236,8 @@ router.post('/login', async (req, res) => {
     const row = result.rows[0]!;
 
     if (!row.password_hash) {
-      res.status(401).json({ error: 'This account uses a different sign-in method' });
+      const providerName = row.auth_provider === 'apple' ? 'Apple' : 'Google';
+      res.status(401).json({ error: `This account uses ${providerName} sign-in. Use the 'Continue with ${providerName}' button to log in.` });
       return;
     }
 
@@ -187,7 +255,8 @@ router.post('/login', async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
-      authProvider: 'email',
+      authProvider: row.auth_provider as User['authProvider'],
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: new Date().toISOString(),
     };
@@ -222,10 +291,12 @@ router.get('/me', requireAuth, async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
+      auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -267,6 +338,7 @@ router.get('/me', requireAuth, async (req, res) => {
       id: row.id,
       username: row.username,
       displayName: row.display_name,
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
       gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
@@ -280,7 +352,8 @@ router.get('/me', requireAuth, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
-      authProvider: 'email',
+      authProvider: row.auth_provider as User['authProvider'],
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -289,6 +362,54 @@ router.get('/me', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch profile');
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// ── PATCH /auth/avatar ──────────────────────────────────────────────────
+
+router.patch('/avatar', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { avatar } = req.body as { avatar?: string | null };
+
+    // Allow null to clear avatar, otherwise validate against known options
+    if (avatar !== null && avatar !== undefined) {
+      if (!(AVATAR_OPTIONS as readonly string[]).includes(avatar)) {
+        res.status(400).json({ error: 'Invalid avatar option' });
+        return;
+      }
+    }
+
+    await query(
+      'UPDATE users SET avatar = $1 WHERE id = $2',
+      [avatar ?? null, userId],
+    );
+
+    res.json({ ok: true, avatar: avatar ?? null });
+  } catch (err) {
+    logger.error({ err }, 'Failed to update avatar');
+    res.status(500).json({ error: 'Failed to update avatar' });
+  }
+});
+
+// ── GET /auth/games ──────────────────────────────────────────────────
+
+router.get('/games', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+
+    const result = await getGameHistory(userId, limit, offset);
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch game history');
+    res.status(500).json({ error: 'Failed to fetch game history' });
   }
 });
 

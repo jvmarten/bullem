@@ -194,14 +194,24 @@ export class ReplayEngine {
   }
 }
 
+/** Summary info for replay list items returned by the API. */
+export interface ReplayListEntry {
+  id: string;
+  roomCode: string;
+  winnerName: string;
+  playerCount: number;
+  roundCount: number;
+  completedAt: string;
+}
+
 // ── localStorage persistence for replays ──────────────────────────────
 
 const REPLAY_STORAGE_KEY = 'bull-em-replays';
 const MAX_STORED_REPLAYS = 10;
 
-// TODO(scale): Replace localStorage with PostgreSQL for persistent cross-device replay storage.
-// Migration trigger: when user accounts are implemented (priority 9 in dev priorities).
-// Schema: replays table with (id, user_id, replay_json, completed_at, winner_id) + index on user_id.
+// Server-side replay persistence is implemented via the rounds table in PostgreSQL.
+// Replays are saved on game_over and served via GET /api/replays/:gameId.
+// localStorage below is kept as an offline fallback for guests without accounts.
 
 /** Save a replay to localStorage, evicting the oldest if at capacity. */
 export function saveReplay(replay: GameReplay): void {

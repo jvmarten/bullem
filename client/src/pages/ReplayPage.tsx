@@ -6,6 +6,7 @@ import { ReplayEngine, loadReplay } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { HandDisplay } from '../components/HandDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
+import { fetchReplay } from '../api/replays.js';
 
 function actionLabel(entry: TurnEntry): string {
   switch (entry.action) {
@@ -68,11 +69,46 @@ export function ReplayPage() {
   const [searchParams] = useSearchParams();
   const { lastReplay } = useGameContext();
 
-  // Load replay from context (just finished game) or localStorage (by ID)
-  const replay = useMemo((): GameReplay | null => {
+  const [replay, setReplay] = useState<GameReplay | null>(null);
+  const [loadingReplay, setLoadingReplay] = useState(true);
+
+  // Load replay from context (just finished game), API (by game ID), or localStorage fallback
+  useEffect(() => {
     const replayId = searchParams.get('id');
-    if (replayId) return loadReplay(replayId);
-    return lastReplay;
+
+    if (!replayId) {
+      // No ID param — use the in-memory replay from the game that just ended
+      setReplay(lastReplay);
+      setLoadingReplay(false);
+      return;
+    }
+
+    // Try localStorage first (instant), then API
+    const localReplay = loadReplay(replayId);
+    if (localReplay) {
+      setReplay(localReplay);
+      setLoadingReplay(false);
+      return;
+    }
+
+    // Fetch from API (the ID might be a database game UUID)
+    let cancelled = false;
+    setLoadingReplay(true);
+    fetchReplay(replayId)
+      .then(apiReplay => {
+        if (!cancelled) {
+          setReplay(apiReplay);
+          setLoadingReplay(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setReplay(null);
+          setLoadingReplay(false);
+        }
+      });
+
+    return () => { cancelled = true; };
   }, [searchParams, lastReplay]);
 
   const engine = useMemo(() => {
@@ -136,6 +172,16 @@ export function ReplayPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [engine, rerender]);
+
+  if (loadingReplay) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center gap-4 pt-12 text-center">
+          <p className="text-[var(--gold-dim)]">Loading replay...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!replay || !engine) {
     return (

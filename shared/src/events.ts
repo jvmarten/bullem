@@ -1,5 +1,31 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON } from './types.js';
 import type { GameReplay } from './replay.js';
+
+/** Curated set of emoji reactions available during gameplay. */
+export const ALLOWED_EMOJIS = ['\u{1F602}', '\u{1F624}', '\u{1F525}', '\u{1F5FF}', '\u{1F44F}'] as const;
+export type GameEmoji = typeof ALLOWED_EMOJIS[number];
+
+/** Data broadcast when a player sends an emoji reaction. */
+export interface EmojiReaction {
+  playerId: PlayerId;
+  emoji: GameEmoji;
+  timestamp: number;
+}
+
+/** Chat channel — players and spectators have separate chats to prevent cheating. */
+export type ChatChannel = 'player' | 'spectator';
+
+/** A chat message sent by a player or spectator. */
+export interface ChatMessage {
+  id: string;
+  senderName: string;
+  message: string;
+  timestamp: number;
+  /** True when the message was sent by a spectator (not an active player). */
+  isSpectator: boolean;
+  /** Which chat channel this message belongs to. */
+  channel: ChatChannel;
+}
 
 /**
  * Socket.io events emitted by the client.
@@ -27,6 +53,10 @@ export interface ClientToServerEvents {
   'room:kickPlayer': (data: { playerId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:delete': () => void;
   'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
+  'game:reaction': (data: { emoji: GameEmoji }) => void;
+  'chat:send': (data: { message: string }) => void;
+  'push:subscribe': (subscription: PushSubscriptionJSON, callback: (response: { ok: true } | { error: string }) => void) => void;
+  'push:unsubscribe': (callback: (response: { ok: true } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -45,4 +75,6 @@ export interface ServerToClientEvents {
   'server:playerNames': (names: string[]) => void;
   'room:deleted': () => void;
   'room:kicked': () => void;
+  'game:reaction': (reaction: EmojiReaction) => void;
+  'chat:message': (message: ChatMessage) => void;
 }

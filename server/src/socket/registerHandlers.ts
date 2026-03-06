@@ -6,9 +6,15 @@ import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
+import { registerPushHandlers } from './pushHandlers.js';
+import type { PushManager } from '../push/PushManager.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
+import { persistCompletedGame } from './persistGame.js';
 import { createChildLogger } from '../logger.js';
+import { runWithCorrelation, generateCorrelationId } from '../correlationContext.js';
+import { socketEventsTotal, socketErrorsTotal, rateLimitRejectsTotal } from '../metrics.js';
+import type { RateLimiter } from '../rateLimit.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -23,79 +29,103 @@ const GAME_ACTION_COOLDOWN_MS = 200;
 const GAME_ACTION_EVENTS = new Set([
   'game:call', 'game:bull', 'game:true',
   'game:lastChanceRaise', 'game:lastChancePass', 'game:continue',
+  'game:reaction', 'chat:send',
 ]);
-
-/** Per-player-ID game action cooldown. Survives socket reconnects so a
- *  malicious client can't bypass the cooldown by rapidly reconnecting.
- *  Entries are cleaned up when rooms are deleted (stale entries expire
- *  naturally since they only store a timestamp). */
-const playerActionTimestamps = new Map<string, number>();
-
-/** Clean up stale player action timestamps older than 60s. Called periodically
- *  to prevent the map from growing if players disconnect without cleanup. */
-function pruneStaleTimestamps(): void {
-  const cutoff = Date.now() - 60_000;
-  for (const [id, ts] of playerActionTimestamps) {
-    if (ts < cutoff) playerActionTimestamps.delete(id);
-  }
-}
-// Prune every 60s
-setInterval(pruneStaleTimestamps, 60_000).unref();
 
 function attachRateLimiter(
   socket: { use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
   getPlayerId: () => string | undefined,
+  rateLimiter: RateLimiter,
 ): void {
-  let eventCount = 0;
-  let windowStart = Date.now();
+  const socketId = (socket as unknown as { id: string }).id;
 
   socket.use((event, next) => {
-    const now = Date.now();
-
-    // Connection-level rate limit
-    if (now - windowStart > RATE_LIMIT_WINDOW_MS) {
-      eventCount = 0;
-      windowStart = now;
-    }
-    eventCount++;
-    if (eventCount > RATE_LIMIT_MAX_EVENTS) {
-      next(new Error('Rate limit exceeded'));
-      return;
-    }
-
-    // Per-event cooldown for game actions — keyed by player ID so it
-    // survives reconnects. Falls back to per-socket if no player ID yet.
-    const eventName = event[0];
-    if (typeof eventName === 'string' && GAME_ACTION_EVENTS.has(eventName)) {
-      const playerId = getPlayerId();
-      const key = playerId ?? `socket:${(socket as unknown as { id: string }).id}`;
-      const lastTime = playerActionTimestamps.get(key) ?? 0;
-      if (now - lastTime < GAME_ACTION_COOLDOWN_MS) {
-        next(new Error('Too fast — please wait'));
+    // Connection-level sliding window rate limit
+    const windowKey = `socket:${socketId}`;
+    void rateLimiter.checkWindow(windowKey, RATE_LIMIT_MAX_EVENTS, RATE_LIMIT_WINDOW_MS).then((allowed) => {
+      if (!allowed) {
+        rateLimitRejectsTotal.inc();
+        next(new Error('Rate limit exceeded'));
         return;
       }
-      playerActionTimestamps.set(key, now);
-    }
 
-    next();
+      // Per-event cooldown for game actions — keyed by player ID so it
+      // survives reconnects across instances. Falls back to socket ID
+      // if no player ID is assigned yet.
+      const eventName = event[0];
+      if (typeof eventName === 'string' && GAME_ACTION_EVENTS.has(eventName)) {
+        const playerId = getPlayerId();
+        const key = `action:${playerId ?? `socket:${socketId}`}`;
+        void rateLimiter.checkCooldown(key, GAME_ACTION_COOLDOWN_MS).then((actionAllowed) => {
+          if (!actionAllowed) {
+            rateLimitRejectsTotal.inc();
+            next(new Error('Too fast — please wait'));
+            return;
+          }
+          next();
+        }).catch(() => next()); // On error, allow the action (fail-open)
+        return;
+      }
+
+      next();
+    }).catch(() => next()); // On error, allow the event (fail-open)
   });
 }
 
-export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager): void {
+/**
+ * Attach correlation context middleware. Wraps each incoming socket event
+ * in an AsyncLocalStorage context so that any code downstream (handlers,
+ * engine calls, broadcasts, logging) can access the correlation ID without
+ * needing it threaded through function parameters.
+ */
+function attachCorrelationMiddleware(
+  socket: { id: string; use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
+  roomManager: RoomManager,
+): void {
+  socket.use((event, next) => {
+    const eventName = typeof event[0] === 'string' ? event[0] : 'unknown';
+
+    // Track every socket event for metrics
+    socketEventsTotal.inc(eventName);
+
+    // Resolve room/player context for correlation
+    const room = roomManager.getRoomForSocket(socket.id);
+    const playerId = room?.getPlayerId(socket.id);
+
+    runWithCorrelation(
+      {
+        correlationId: generateCorrelationId(),
+        event: eventName,
+        roomCode: room?.roomCode,
+        playerId,
+        socketId: socket.id,
+      },
+      () => next(),
+    );
+  });
+}
+
+export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');
+    // Attach correlation context first so downstream middleware/handlers
+    // can access it via AsyncLocalStorage.
+    attachCorrelationMiddleware(socket, roomManager);
+
     // Pass a getter so the rate limiter can resolve the player ID after
     // the socket has joined a room (not available at connection time).
     attachRateLimiter(socket, () => {
       const room = roomManager.getRoomForSocket(socket.id);
       return room?.getPlayerId(socket.id);
-    });
+    }, rateLimiter);
 
     registerLobbyHandlers(io, socket, roomManager, botManager);
-    registerGameHandlers(io, socket, roomManager, botManager);
+    registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
+    registerPushHandlers(io, socket, roomManager, pushManager);
 
     socket.on('error', (err) => {
+      socketErrorsTotal.inc();
       const room = roomManager.getRoomForSocket(socket.id);
       const playerId = room?.getPlayerId(socket.id);
       const childLog = createChildLogger({ roomCode: room?.roomCode, playerId });
@@ -116,6 +146,8 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         if (!room || !room.game) return;
 
         botManager.clearTurnTimer(room.roomCode);
+        // Record this player's elimination for finish position tracking
+        room.recordEliminations([playerId]);
         const elimResult = room.game.eliminatePlayer(playerId);
 
         switch (elimResult.type) {
@@ -125,6 +157,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
               room.cancelRoundContinueWindow();
               broadcastGameReplay(io, room, elimResult.winnerId);
               io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
+              persistCompletedGame(room, elimResult.winnerId);
             }
             break;
           case 'resolve':
@@ -153,6 +186,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
       const spectatorRoom = roomManager.getRoomForSocket(socket.id);
       if (spectatorRoom && spectatorRoom.spectatorSockets.has(socket.id)) {
         spectatorRoom.spectatorSockets.delete(socket.id);
+        spectatorRoom.spectatorNames.delete(socket.id);
         roomManager.removeSocketMapping(socket.id);
         // Notify players that spectator count changed
         broadcastRoomState(io, spectatorRoom);

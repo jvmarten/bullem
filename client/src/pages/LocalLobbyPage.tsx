@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
@@ -10,6 +10,8 @@ import { useSound } from '../hooks/useSound.js';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isQuickPlay = (location.state as { quickPlay?: boolean } | null)?.quickPlay === true;
   const {
     roomState, gameState, playerId, startGame, createRoom, leaveRoom,
     addBot, removeBot, error, clearError, botDifficulty, setBotDifficulty,
@@ -19,6 +21,7 @@ export function LocalLobbyPage() {
   const { play } = useSound();
   useErrorToast(error, clearError);
   const initializedRef = useRef(false);
+  const quickPlayStartedRef = useRef(false);
   // Guard against ghost taps: on mobile, the "Play Offline" tap can pass through
   // to "Start Game" if it occupies the same screen position after navigation.
   // 500ms covers slow devices; pointer-events:none on the button provides an
@@ -46,6 +49,14 @@ export function LocalLobbyPage() {
       addToast(e instanceof Error ? e.message : 'Failed to set up game');
     });
   }, [roomState, createRoom, addBot]);
+
+  // Quick Play: auto-start the game once bots have been added
+  useEffect(() => {
+    if (!isQuickPlay || quickPlayStartedRef.current) return;
+    if (!roomState || roomState.players.length < 2) return;
+    quickPlayStartedRef.current = true;
+    startGame();
+  }, [isQuickPlay, roomState, startGame]);
 
   // Navigate to game when it starts
   useEffect(() => {

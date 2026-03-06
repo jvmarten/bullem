@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useWinConfetti } from '../hooks/useWinConfetti.js';
 
 export function LocalResultsPage() {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ export function LocalResultsPage() {
 
   const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
   const isWinner = winnerId === playerId;
+
+  useWinConfetti(isWinner);
 
   if (!winnerId && !gameState) return null;
 

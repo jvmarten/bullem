@@ -4,11 +4,33 @@ import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId 
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
-import { broadcastGameState, broadcastNewRound, broadcastGameReplay } from './broadcast.js';
+import { broadcastGameState, broadcastNewRound, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
+import { persistCompletedGame } from './persistGame.js';
+import { roundDurationSeconds } from '../metrics.js';
+import { getCorrelatedLogger } from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const ROUND_CONTINUE_TIMEOUT_MS = 30_000;
 const POST_RESOLVE_GRACE_MS = 5_000;
+
+/** Track when each room's current round started, for duration metrics. */
+const roundStartTimes = new Map<string, number>();
+
+/** Record the start time of a new round for a room. Called from lobbyHandlers
+ *  when a game starts and from startNextRound when a new round begins. */
+export function recordRoundStart(roomCode: string): void {
+  roundStartTimes.set(roomCode, Date.now());
+}
+
+/** Observe the round duration for metrics and clean up the start time entry. */
+function observeRoundDuration(roomCode: string): void {
+  const startTime = roundStartTimes.get(roomCode);
+  if (startTime !== undefined) {
+    const durationSeconds = (Date.now() - startTime) / 1000;
+    roundDurationSeconds.observe(durationSeconds);
+    roundStartTimes.delete(roomCode);
+  }
+}
 
 function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, botManager: BotManager): void {
   // Guard against double execution — the timeout and the last player's
@@ -20,16 +42,19 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
     room.gamePhase = GamePhase.GAME_OVER;
     broadcastGameReplay(io, room, nextResult.winnerId);
     io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
+    persistCompletedGame(room, nextResult.winnerId);
     roomManager.persistRoom(room);
     return;
   }
 
   room.gamePhase = GamePhase.PLAYING;
+  recordRoundStart(room.roomCode);
   // broadcastNewRound already sends per-player game state — no need to also
   // call broadcastGameState which would duplicate the same data to every socket.
   // Schedule the bot turn first so the human turn deadline is set before broadcast.
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
   broadcastNewRound(io, room);
+  sendTurnPushNotification(io, room);
   roomManager.persistRoom(room);
 }
 
@@ -42,10 +67,15 @@ export function beginRoundResultPhase(
 ): void {
   if (!room.game) return;
 
+  const log = getCorrelatedLogger();
+  observeRoundDuration(room.roomCode);
+  log.info({ roomCode: room.roomCode }, 'Round resolved — entering result phase');
+
   room.game.setTurnDeadline(null);
   broadcastGameState(io, room);
 
   room.gamePhase = GamePhase.ROUND_RESULT;
+  room.recordEliminations(result.eliminatedPlayerIds);
   io.to(room.roomCode).emit('game:roundResult', result);
 
   // Update cross-round bot memory with round outcome, scoped to this room

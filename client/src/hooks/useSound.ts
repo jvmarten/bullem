@@ -15,6 +15,7 @@ function subscribeSoundState(cb: () => void) {
 }
 function getMuted() { return sound.muted; }
 function getVolume() { return sound.volume; }
+function getHapticsEnabled() { return sound.hapticsEnabled; }
 
 function notifyListeners() {
   soundListeners.forEach(cb => cb());
@@ -23,6 +24,7 @@ function notifyListeners() {
 export function useSound() {
   const muted = useSyncExternalStore(subscribeSoundState, getMuted);
   const volume = useSyncExternalStore(subscribeSoundState, getVolume);
+  const hapticsEnabled = useSyncExternalStore(subscribeSoundState, getHapticsEnabled);
 
   const play = useCallback((name: SoundName) => {
     sound.play(name);
@@ -54,7 +56,12 @@ export function useSound() {
     sound.stopAllLoops();
   }, []);
 
-  return { play, playHandPreview, muted, toggleMute, volume, setVolume, startLoop, stopLoop, stopAllLoops };
+  const toggleHaptics = useCallback(() => {
+    sound.toggleHaptics();
+    notifyListeners();
+  }, []);
+
+  return { play, playHandPreview, muted, toggleMute, volume, setVolume, startLoop, stopLoop, stopAllLoops, hapticsEnabled, toggleHaptics };
 }
 
 /**

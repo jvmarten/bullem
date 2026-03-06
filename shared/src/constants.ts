@@ -65,3 +65,12 @@ export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
   'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',
 ];
+
+// ── Chat constants ──────────────────────────────────────────────────────────
+
+/** Maximum length of a chat message (characters). */
+export const CHAT_MESSAGE_MAX_LENGTH = 200;
+/** Minimum interval between chat messages per sender (ms). */
+export const CHAT_RATE_LIMIT_MS = 2000;
+/** Allowed characters in chat messages (printable ASCII + common punctuation). */
+export const CHAT_MESSAGE_PATTERN = /^[a-zA-Z0-9 _\-'.!?,;:()@#&+="/<>*\[\]{}|\\~`$%^]+$/;

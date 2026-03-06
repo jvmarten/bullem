@@ -30,8 +30,16 @@ export class Room {
   private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
   /** Socket IDs of spectators watching this game */
   spectatorSockets = new Set<string>();
+  /** Display names for spectator sockets (set when spectating or chatting). */
+  spectatorNames = new Map<string, string>();
   /** When true, the room is exempt from stale-room cleanup (e.g., background bot game). */
   isBackgroundGame = false;
+  /** Maps in-game player IDs to authenticated user IDs (null for guests). */
+  playerUserIds = new Map<PlayerId, string>();
+  /** Timestamp when the current game started (set by startGame/resetForRematch). */
+  gameStartedAt: Date | null = null;
+  /** Tracks elimination order for finish position calculation. First eliminated = last place. */
+  eliminationOrder: PlayerId[] = [];
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -243,6 +251,9 @@ export class Room {
       isBackgroundGame: this.isBackgroundGame,
       reconnectTokens: Object.fromEntries(this.reconnectTokens),
       gameSnapshot: this.game ? this.game.serialize() : null,
+      playerUserIds: Object.fromEntries(this.playerUserIds),
+      gameStartedAt: this.gameStartedAt?.toISOString() ?? null,
+      eliminationOrder: [...this.eliminationOrder],
     };
   }
 
@@ -271,6 +282,15 @@ export class Room {
       room.reconnectTokens.set(playerId, token);
     }
 
+    // Restore player-to-user mappings
+    if (snapshot.playerUserIds) {
+      for (const [playerId, userId] of Object.entries(snapshot.playerUserIds)) {
+        room.playerUserIds.set(playerId, userId);
+      }
+    }
+    room.gameStartedAt = snapshot.gameStartedAt ? new Date(snapshot.gameStartedAt) : null;
+    room.eliminationOrder = snapshot.eliminationOrder ? [...snapshot.eliminationOrder] : [];
+
     // Restore game engine if a game was in progress
     if (snapshot.gameSnapshot) {
       try {
@@ -296,6 +316,8 @@ export class Room {
 
   startGame(): GameEngine {
     this.gamePhase = GamePhase.PLAYING;
+    this.gameStartedAt = new Date();
+    this.eliminationOrder = [];
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     // Shuffle seating order — positions stay fixed for the entire game
     for (let i = activePlayers.length - 1; i > 0; i--) {
@@ -329,9 +351,18 @@ export class Room {
       }
     }
     for (const id of disconnected) {
+      // Clean up both sides of the socket↔player mapping
+      const socketId = this.playerToSocket.get(id);
+      if (socketId) this.socketToPlayer.delete(socketId);
+      this.playerToSocket.delete(id);
       this.players.delete(id);
       this.reconnectTokens.delete(id);
-      this.playerToSocket.delete(id);
+      // Clear any pending disconnect timer for the removed player
+      const timer = this.disconnectTimers.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        this.disconnectTimers.delete(id);
+      }
     }
 
     // Reassign host if the current host was disconnected
@@ -390,6 +421,21 @@ export class Room {
     }
     state.myCards = [];
     return state;
+  }
+
+  /** Record players as eliminated for finish position tracking.
+   *  Called from socket handlers when a round result includes eliminations. */
+  recordEliminations(playerIds: PlayerId[]): void {
+    for (const id of playerIds) {
+      if (!this.eliminationOrder.includes(id)) {
+        this.eliminationOrder.push(id);
+      }
+    }
+  }
+
+  /** Associate an in-game player ID with an authenticated user ID. */
+  setPlayerUserId(playerId: PlayerId, userId: string): void {
+    this.playerUserIds.set(playerId, userId);
   }
 
   get playerCount(): number {

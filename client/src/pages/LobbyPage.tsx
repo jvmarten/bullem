@@ -2,12 +2,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { ShareButton } from '../components/ShareButton.js';
+import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
 import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
+import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
 
 export function LobbyPage() {
@@ -16,6 +18,7 @@ export function LobbyPage() {
   const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
   const { addToast } = useToast();
   const { play } = useSound();
+  const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications();
   useErrorToast(error, clearError);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -191,7 +194,7 @@ export function LobbyPage() {
           </p>
           <p
             className="font-display text-5xl font-bold tracking-[0.3em] text-[var(--gold)] cursor-pointer active:scale-95 transition-transform"
-            onClick={() => { navigator.clipboard.writeText(roomState.roomCode); addToast('Room code copied!'); }}
+            onClick={() => { navigator.clipboard.writeText(roomState.roomCode); addToast('Room code copied!', 'info'); }}
             title="Tap to copy"
           >
             {roomState.roomCode}
@@ -203,6 +206,9 @@ export function LobbyPage() {
 
         {/* Share invite link — prominent one-tap share */}
         <ShareButton roomCode={roomState.roomCode} />
+
+        {/* QR code — togglable, great for in-person "scan to join" */}
+        <RoomQRCode roomCode={roomState.roomCode} />
 
         <PlayerList
           players={roomState.players}
@@ -266,10 +272,8 @@ export function LobbyPage() {
                     key={n}
                     onClick={() => handleMaxPlayersChange(n)}
                     className={`flex-1 min-w-[2.5rem] px-2 py-2 text-sm rounded transition-colors ${
-                      maxPlayersSetting === n || (n === Math.min(MAX_PLAYERS, cardBasedMax) && maxPlayersSetting >= n)
-                        ? maxPlayersSetting === n
-                          ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                          : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                      maxPlayersSetting === n
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                     }`}
                   >
@@ -450,6 +454,42 @@ export function LobbyPage() {
                 <p className="text-[var(--gold-dim)]">True in LCR</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Push notification toggle — available to all players, not a game setting */}
+        {pushState !== 'unsupported' && (
+          <div className="glass px-4 py-3">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <span className="text-sm text-[var(--gold-dim)]">Turn notifications</span>
+                {pushState === 'denied' && (
+                  <p className="text-[10px] text-[var(--danger)]">Blocked by browser</p>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  play('uiSoft');
+                  if (pushState === 'subscribed') {
+                    await pushUnsubscribe();
+                    addToast('Notifications disabled');
+                  } else if (pushState !== 'denied') {
+                    const ok = await pushSubscribe();
+                    addToast(ok ? 'Notifications enabled' : 'Could not enable notifications');
+                  }
+                }}
+                disabled={pushState === 'denied' || pushState === 'loading'}
+                className={`w-11 h-6 rounded-full transition-colors relative border ${
+                  pushState === 'subscribed'
+                    ? 'bg-[var(--gold)] border-[var(--gold)]'
+                    : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
+                } ${pushState === 'denied' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                  pushState === 'subscribed' ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                }`} />
+              </button>
+            </label>
           </div>
         )}
 

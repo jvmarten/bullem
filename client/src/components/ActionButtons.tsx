@@ -75,7 +75,7 @@ export const ActionButtons = memo(function ActionButtons({
     }
     return (
       <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
-        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-6 py-2 text-base font-bold min-w-[9rem]">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-6 py-2 text-base font-bold min-w-[9rem] kbd-shortcut" data-kbd="P">
           Pass
         </button>
       </div>
@@ -103,12 +103,12 @@ export const ActionButtons = memo(function ActionButtons({
   return (
     <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
       {showBull && (
-        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger px-4 py-2 text-base font-bold min-w-[7rem]">
+        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger px-4 py-2 text-base font-bold min-w-[7rem] kbd-shortcut" data-kbd="B">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button onClick={() => handleClick(onTrue)} className="btn-info px-4 py-2 text-base font-bold min-w-[7rem]">
+        <button onClick={() => handleClick(onTrue)} className="btn-info px-4 py-2 text-base font-bold min-w-[7rem] kbd-shortcut" data-kbd="T">
           TRUE
         </button>
       )}

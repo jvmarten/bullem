@@ -241,13 +241,22 @@ export interface RoomListing {
 
 // ── Auth types ──────────────────────────────────────────────────────────
 
+/** Pre-defined avatar template identifiers users can choose from. */
+export const AVATAR_OPTIONS = [
+  'bull', 'ace', 'crown', 'diamond', 'flame', 'skull',
+  'star', 'wolf', 'eagle', 'lion', 'fox', 'bear',
+] as const;
+
+export type AvatarId = typeof AVATAR_OPTIONS[number];
+
 /** Authenticated user stored in the database. Never send password_hash to clients. */
 export interface User {
   id: string;
   username: string;
   displayName: string;
   email: string;
-  authProvider: 'email';
+  authProvider: 'email' | 'google' | 'apple' | 'email+google' | 'email+apple';
+  avatar: AvatarId | null;
   createdAt: string;
   lastSeenAt: string;
 }
@@ -257,6 +266,7 @@ export interface PublicProfile {
   id: string;
   username: string;
   displayName: string;
+  avatar: AvatarId | null;
   createdAt: string;
   gamesPlayed: number;
   gamesWon: number;
@@ -269,6 +279,31 @@ export interface PublicProfile {
 /** Response body for POST /auth/register and POST /auth/login. */
 export interface AuthResponse {
   user: Omit<User, 'email'> & { email: string };
+}
+
+/** A completed game in a user's game history. */
+export interface GameHistoryEntry {
+  id: string;
+  roomCode: string;
+  winnerName: string;
+  playerCount: number;
+  settings: GameSettings;
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  finishPosition: number;
+  playerName: string;
+  finalCardCount: number;
+  stats: PlayerGameStats;
+}
+
+/**
+ * Serializable push subscription matching the browser's PushSubscription.toJSON().
+ * Defined here so both client and server can use it without DOM types.
+ */
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys?: { p256dh: string; auth: string };
 }
 
 /** Summary of an in-progress game available for spectating. */

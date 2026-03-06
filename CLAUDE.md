@@ -294,10 +294,12 @@ fly deploy
 4. ~~Basic playable UI~~ ✓
 5. ~~Polish (animations, sounds, mobile optimization)~~ ✓
 6. ~~Deployment (so friends can actually play)~~ ✓
-7. Scale infrastructure (Redis adapter, session persistence, multi-region)
-8. Native mobile apps (Capacitor or React Native wrapper)
-9. Matchmaking, ranked play, player accounts
-10. Analytics, replay system, spectator improvements
+7. ~~Scale infrastructure (Redis adapter, session persistence)~~ ✓ (multi-region architecture ready, single-region deployed)
+8. ~~Player accounts, auth, and game history persistence~~ ✓
+9. ~~Replay system and spectator mode~~ ✓
+10. ~~Observability (structured logging, Sentry, Prometheus metrics)~~ ✓
+11. Matchmaking, ranked play, leaderboards
+12. Native mobile apps (Capacitor or React Native wrapper)
 
 ## Agent PR Policy
 

@@ -12,6 +12,9 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
 import { DisconnectBanner } from '../components/DisconnectBanner.js';
+import { EmojiReactionBar } from '../components/EmojiReactionBar.js';
+import { ChatPanel } from '../components/ChatPanel.js';
+import { GameTooltips } from '../components/GameTooltips.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -22,6 +25,7 @@ import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
+import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
@@ -62,6 +66,8 @@ export function GamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
     isConnected, hasConnected, disconnectDeadlines,
+    reactions, sendReaction,
+    chatMessages, sendChatMessage,
   } = useGameContext();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
@@ -141,15 +147,30 @@ export function GamePage() {
   const isSpectator = !myPlayer;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
 
-  // Show a one-time prominent notification when the player gets eliminated
+  // Show a one-time prominent notification when the player gets eliminated,
+  // but only if the game is still in progress (no winner yet).
   const { addToast } = useToast();
   const wasEliminatedRef = useRef(isEliminated);
   useEffect(() => {
-    if (isEliminated && !wasEliminatedRef.current) {
+    if (isEliminated && !wasEliminatedRef.current && !winnerId) {
       addToast("You've been eliminated! You're now spectating.", 'info');
     }
     wasEliminatedRef.current = isEliminated;
-  }, [isEliminated, addToast]);
+  }, [isEliminated, winnerId, addToast]);
+
+  // Show a toast for every player eliminated this round (including other players).
+  // Fires when roundResult arrives so the notification coincides with the reveal overlay.
+  const lastResultRef = useRef(roundResult);
+  useEffect(() => {
+    if (roundResult && roundResult !== lastResultRef.current) {
+      for (const eliminatedId of roundResult.eliminatedPlayerIds) {
+        if (eliminatedId === playerId) continue; // already handled above
+        const name = gameState.players.find(p => p.id === eliminatedId)?.name ?? 'A player';
+        addToast(`${name} has been eliminated!`, 'info');
+      }
+    }
+    lastResultRef.current = roundResult;
+  }, [roundResult, playerId, gameState.players, addToast]);
 
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
@@ -207,6 +228,27 @@ export function GamePage() {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
+  // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
+  const showBull = isMyTurn && gameState.currentHand !== null
+    && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showPass = isMyTurn && isLastChanceCaller;
+  const overlayActive = !!roundResult || !!roundTransition;
+
+  useGameKeyboardShortcuts({
+    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
+    onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
+    onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
+    onPass: showPass ? () => { play('uiClick'); lastChancePass(); } : null,
+    onEscape: roundResult
+      ? clearRoundResult
+      : handSelectorOpen
+        ? closeHandSelector
+        : null,
+    overlayActive,
+  });
+
   /* Landscape/desktop: merge game info into the Layout header bar */
   const headerLeftExtra = (
     <>
@@ -223,7 +265,7 @@ export function GamePage() {
     <>
       <span
         className="font-mono tracking-wider text-[var(--gold-dim)] text-xs mr-1 cursor-pointer active:scale-95 transition-transform"
-        onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+        onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!', 'info'); } }}
         title="Tap to copy"
       >{roomCode}</span>
       {spectatorCount > 0 && (
@@ -259,7 +301,7 @@ export function GamePage() {
           <div className="flex items-center gap-2">
             <span
               className="font-mono tracking-wider text-[var(--gold-dim)] cursor-pointer active:scale-95 transition-transform"
-              onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+              onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!', 'info'); } }}
               title="Tap to copy"
             >{roomCode}</span>
             {spectatorCount > 0 && (
@@ -291,15 +333,21 @@ export function GamePage() {
         <div className="game-content">
           {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
-            <PlayerList
-              players={gameState.players}
-              currentPlayerId={gameState.currentPlayerId}
-              myPlayerId={playerId}
-              maxCards={gameState.maxCards}
-              roundNumber={gameState.roundNumber}
-              turnHistory={gameState.turnHistory}
-              collapsible
-            />
+            <div data-tooltip="players">
+              <PlayerList
+                players={gameState.players}
+                currentPlayerId={gameState.currentPlayerId}
+                myPlayerId={playerId}
+                maxCards={gameState.maxCards}
+                roundNumber={gameState.roundNumber}
+                turnHistory={gameState.turnHistory}
+                collapsible
+                reactions={reactions}
+              />
+            </div>
+            {!isEliminated && !isSpectator && (
+              <EmojiReactionBar onReaction={sendReaction} />
+            )}
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
               <CallHistory history={gameState.turnHistory} />
@@ -308,14 +356,16 @@ export function GamePage() {
 
           {/* Main area — cards, actions, hand selector */}
           <div className="game-main">
-            <TurnIndicator
-              currentPlayerId={gameState.currentPlayerId}
-              roundPhase={gameState.roundPhase}
-              players={gameState.players}
-              myPlayerId={playerId}
-              turnDeadline={gameState.turnDeadline}
-              hasCurrentHand={gameState.currentHand !== null}
-            />
+            <div data-tooltip="turn-indicator">
+              <TurnIndicator
+                currentPlayerId={gameState.currentPlayerId}
+                roundPhase={gameState.roundPhase}
+                players={gameState.players}
+                myPlayerId={playerId}
+                turnDeadline={gameState.turnDeadline}
+                hasCurrentHand={gameState.currentHand !== null}
+              />
+            </div>
 
             {/* Disconnect countdown banners for other players */}
             <DisconnectBanner
@@ -347,7 +397,7 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <HandDisplay cards={gameState.myCards} large />}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
@@ -355,14 +405,14 @@ export function GamePage() {
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only">
+            <div className="portrait-only" data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && !isSpectator && (
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -377,7 +427,8 @@ export function GamePage() {
                   <div className="flex justify-end animate-slide-up ml-auto gap-2">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
@@ -412,7 +463,7 @@ export function GamePage() {
 
             {/* Hand selector — appears below the action buttons so buttons stay put */}
             {canRaise && handSelectorOpen && (
-              <div className="-mt-2">
+              <div className="-mt-2" data-tooltip="hand-selector">
                 <HandSelector
                   currentHand={gameState.currentHand}
                   onSubmit={handleHandSubmit}
@@ -423,6 +474,9 @@ export function GamePage() {
             )}
           </div>
         </div>
+
+        {/* First-game contextual tooltips */}
+        <GameTooltips gameActive={!roundResult && !roundTransition} />
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
@@ -437,6 +491,14 @@ export function GamePage() {
             onDismiss={clearRoundResult}
           />
         )}
+
+        {/* Chat panel — spectators can always chat; players only between rounds/after game */}
+        <ChatPanel
+          messages={chatMessages}
+          onSend={sendChatMessage}
+          disabled={!isEliminated && !isSpectator && !roundResult && !winnerId}
+          label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
+        />
 
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}

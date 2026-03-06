@@ -5,7 +5,10 @@ import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
-import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
+import { beginRoundResultPhase, checkRoundContinueComplete, recordRoundStart } from './roundTransition.js';
+import { persistCompletedGame } from './persistGame.js';
+import { getCorrelatedLogger } from '../logger.js';
+import { roomsCreatedTotal, playersJoinedTotal } from '../metrics.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -37,15 +40,24 @@ export function registerLobbyHandlers(
   botManager: BotManager,
 ): void {
   socket.on('room:create', (data, callback) => {
+    const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
+
+    // Prevent creating a room when already in one
+    const existingRoom = roomManager.getRoomForSocket(socket.id);
+    if (existingRoom) return callback({ error: 'Already in a room — leave or close it first' });
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    // Track authenticated user ID for game history persistence
+    if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
+    roomsCreatedTotal.inc();
+    log.info({ roomCode: room.roomCode, playerName: name }, 'Room created');
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
     roomManager.persistRoom(room);
@@ -53,6 +65,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:join', (data, callback) => {
+    const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
 
@@ -68,6 +81,7 @@ export function registerLobbyHandlers(
       if (newToken) {
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
         socket.join(room.roomCode);
+        log.info({ roomCode, playerId: data.playerId }, 'Player reconnected');
         broadcastRoomState(io, room);
         if (room.game) broadcastGameState(io, room);
         io.to(room.roomCode).emit('player:reconnected', data.playerId);
@@ -89,9 +103,13 @@ export function registerLobbyHandlers(
 
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    // Track authenticated user ID for game history persistence
+    if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     roomManager.assignPlayerToRoom(playerId, room.roomCode);
     socket.join(room.roomCode);
+    playersJoinedTotal.inc();
+    log.info({ roomCode, playerName: name }, 'Player joined room');
     broadcastRoomState(io, room);
     broadcastPlayerNames(io, roomManager);
     roomManager.persistRoom(room);
@@ -99,12 +117,14 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:leave', () => {
+    const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
 
     // If this socket is a spectator, clean up and exit early
     if (room.spectatorSockets.has(socket.id)) {
       room.spectatorSockets.delete(socket.id);
+      room.spectatorNames.delete(socket.id);
       roomManager.removeSocketMapping(socket.id);
       socket.leave(room.roomCode);
       // Notify players that spectator count changed
@@ -113,10 +133,12 @@ export function registerLobbyHandlers(
     }
 
     const playerId = room.getPlayerId(socket.id);
+    log.info({ roomCode: room.roomCode }, 'Player left room');
     botManager.clearTurnTimer(room.roomCode);
 
     // If a game is in progress, eliminate the player in the engine first
     if (playerId && room.game && room.gamePhase === GamePhase.PLAYING) {
+      room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
 
       // Remove from room after engine elimination (engine keeps its own player list)
@@ -131,6 +153,7 @@ export function registerLobbyHandlers(
           room.cancelRoundContinueWindow();
           broadcastGameReplay(io, room, result.winnerId);
           io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+          persistCompletedGame(room, result.winnerId);
           break;
         case 'resolve':
           beginRoundResultPhase(io, room, botManager, result.result, roomManager);
@@ -143,6 +166,7 @@ export function registerLobbyHandlers(
       }
     } else if (playerId && room.game && room.gamePhase === GamePhase.ROUND_RESULT) {
       // Leaving during round result — eliminate in engine, check for game over
+      room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
@@ -154,6 +178,7 @@ export function registerLobbyHandlers(
         room.cancelRoundContinueWindow();
         broadcastGameReplay(io, room, result.winnerId);
         io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
+        persistCompletedGame(room, result.winnerId);
       } else {
         // The leaving player may have been the last one who hadn't pressed Continue.
         // Re-check so the remaining players aren't stuck waiting.
@@ -178,6 +203,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:delete', () => {
+    const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
@@ -185,6 +211,7 @@ export function registerLobbyHandlers(
       socket.emit('room:error', 'Only the host can close the room');
       return;
     }
+    log.info({ roomCode: room.roomCode }, 'Room deleted by host');
     botManager.clearTurnTimer(room.roomCode);
     // Notify all clients in the room
     io.to(room.roomCode).emit('room:deleted');
@@ -213,6 +240,10 @@ export function registerLobbyHandlers(
     }
 
     room.spectatorSockets.add(socket.id);
+    // Store spectator display name for chat (from auth or fallback)
+    if (socket.data.username) {
+      room.spectatorNames.set(socket.id, socket.data.username);
+    }
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
 
@@ -234,6 +265,10 @@ export function registerLobbyHandlers(
     if (!room) return callback({ error: 'No live games available' });
 
     room.spectatorSockets.add(socket.id);
+    // Store spectator display name for chat (from auth or fallback)
+    if (socket.data.username) {
+      room.spectatorNames.set(socket.id, socket.data.username);
+    }
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
 
@@ -424,6 +459,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('game:start', () => {
+    const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
@@ -436,6 +472,8 @@ export function registerLobbyHandlers(
       return;
     }
     room.startGame();
+    recordRoundStart(room.roomCode);
+    log.info({ roomCode: room.roomCode, playerCount: room.playerCount }, 'Game started');
     // Clear cross-round bot memory for this room's scope
     BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
@@ -446,6 +484,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('game:rematch', () => {
+    const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
@@ -467,6 +506,8 @@ export function registerLobbyHandlers(
     io.to(room.roomCode).emit('game:rematchStarting');
 
     room.resetForRematch();
+    recordRoundStart(room.roomCode);
+    log.info({ roomCode: room.roomCode }, 'Rematch started');
     BotPlayer.resetMemory(room.roomCode);
     botManager.scheduleBotTurn(room, io);
     broadcastRoomState(io, room);

@@ -37,6 +37,10 @@ jobs:
   test-shared:
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +60,7 @@ jobs:
             client/node_modules
           key: build-${{ github.sha }}
 
-      - run: npm test -w shared
+      - run: npm test -w shared -- --shard=${{ matrix.shard }}/3
 
   test-server:
     runs-on: ubuntu-latest

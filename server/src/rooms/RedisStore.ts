@@ -29,6 +29,12 @@ export interface RoomSnapshot {
   /** Socket↔Player mappings are NOT persisted — sockets are ephemeral.
    *  After restore, players must reconnect via the normal reconnect flow. */
   gameSnapshot: GameEngineSnapshot | null;
+  /** Maps in-game player IDs to authenticated user IDs. */
+  playerUserIds?: Record<PlayerId, string>;
+  /** Timestamp when the current game started. */
+  gameStartedAt?: string | null;
+  /** Elimination order for finish position calculation. */
+  eliminationOrder?: PlayerId[];
 }
 
 function roomKey(roomCode: string): string {

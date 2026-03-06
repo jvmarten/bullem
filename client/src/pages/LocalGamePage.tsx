@@ -9,12 +9,14 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { GameTooltips } from '../components/GameTooltips.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
+import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
@@ -67,6 +69,20 @@ export function LocalGamePage() {
     }
     wasEliminatedRef.current = isEliminated;
   }, [isEliminated, addToast]);
+
+  // Show a toast for every player eliminated this round (including other players).
+  // Fires when roundResult arrives so the notification coincides with the reveal overlay.
+  const lastResultRef = useRef(roundResult);
+  useEffect(() => {
+    if (roundResult && roundResult !== lastResultRef.current) {
+      for (const eliminatedId of roundResult.eliminatedPlayerIds) {
+        if (eliminatedId === playerId) continue; // already handled above
+        const name = gameState.players.find(p => p.id === eliminatedId)?.name ?? 'A player';
+        addToast(`${name} has been eliminated!`, 'info');
+      }
+    }
+    lastResultRef.current = roundResult;
+  }, [roundResult, playerId, gameState.players, addToast]);
 
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
@@ -123,6 +139,27 @@ export function LocalGamePage() {
   useEffect(() => {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
+
+  // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
+  const showBull = isMyTurn && gameState.currentHand !== null
+    && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showPass = isMyTurn && isLastChanceCaller;
+  const overlayActive = !!roundResult || !!roundTransition;
+
+  useGameKeyboardShortcuts({
+    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
+    onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
+    onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
+    onPass: showPass ? () => { play('uiClick'); lastChancePass(); } : null,
+    onEscape: roundResult
+      ? clearRoundResult
+      : handSelectorOpen
+        ? closeHandSelector
+        : null,
+    overlayActive,
+  });
 
   /* Landscape/desktop: merge game info into the Layout header bar */
   const pauseButton = togglePause ? (
@@ -208,15 +245,17 @@ export function LocalGamePage() {
         <div className="game-content">
           {/* Sidebar — player list + call history (side column in landscape) */}
           <div className="game-sidebar">
-            <PlayerList
-              players={gameState.players}
-              currentPlayerId={gameState.currentPlayerId}
-              myPlayerId={playerId}
-              maxCards={gameState.maxCards}
-              roundNumber={gameState.roundNumber}
-              turnHistory={gameState.turnHistory}
-              collapsible
-            />
+            <div data-tooltip="players">
+              <PlayerList
+                players={gameState.players}
+                currentPlayerId={gameState.currentPlayerId}
+                myPlayerId={playerId}
+                maxCards={gameState.maxCards}
+                roundNumber={gameState.roundNumber}
+                turnHistory={gameState.turnHistory}
+                collapsible
+              />
+            </div>
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
               <CallHistory history={gameState.turnHistory} />
@@ -225,14 +264,16 @@ export function LocalGamePage() {
 
           {/* Main area — cards, actions, hand selector */}
           <div className="game-main">
-            <TurnIndicator
-              currentPlayerId={gameState.currentPlayerId}
-              roundPhase={gameState.roundPhase}
-              players={gameState.players}
-              myPlayerId={playerId}
-              turnDeadline={gameState.turnDeadline}
-              hasCurrentHand={gameState.currentHand !== null}
-            />
+            <div data-tooltip="turn-indicator">
+              <TurnIndicator
+                currentPlayerId={gameState.currentPlayerId}
+                roundPhase={gameState.roundPhase}
+                players={gameState.players}
+                myPlayerId={playerId}
+                turnDeadline={gameState.turnDeadline}
+                hasCurrentHand={gameState.currentHand !== null}
+              />
+            </div>
 
             {/* Current call display */}
             {gameState.currentHand && (
@@ -258,7 +299,7 @@ export function LocalGamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && <HandDisplay cards={gameState.myCards} large />}
+            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
 
             {/* Spectator view — eliminated players see all cards */}
             {isEliminated && gameState.spectatorCards && (
@@ -266,14 +307,14 @@ export function LocalGamePage() {
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only">
+            <div className="portrait-only" data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && (
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -288,7 +329,8 @@ export function LocalGamePage() {
                   <div className="flex justify-end animate-slide-up ml-auto gap-2">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
@@ -323,7 +365,7 @@ export function LocalGamePage() {
 
             {/* Hand selector — appears below the action buttons so buttons stay put */}
             {canRaise && handSelectorOpen && (
-              <div className="-mt-2">
+              <div className="-mt-2" data-tooltip="hand-selector">
                 <HandSelector
                   currentHand={gameState.currentHand}
                   onSubmit={handleHandSubmit}
@@ -334,6 +376,9 @@ export function LocalGamePage() {
             )}
           </div>
         </div>
+
+        {/* First-game contextual tooltips */}
+        <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (

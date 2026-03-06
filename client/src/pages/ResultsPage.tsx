@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useWinConfetti } from '../hooks/useWinConfetti.js';
 
 export function ResultsPage() {
   const navigate = useNavigate();
@@ -21,6 +22,8 @@ export function ResultsPage() {
   const isWinner = isPlayerInGame && winnerId === playerId;
   const isSpectator = !isPlayerInGame;
   const isHost = roomState?.hostId === playerId;
+
+  useWinConfetti(isWinner);
 
   return (
     <Layout>

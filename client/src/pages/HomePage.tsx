@@ -4,6 +4,8 @@ import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
+import { useAuth } from '../context/AuthContext.js';
+import { RecentPlayers } from '../components/RecentPlayers.js';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
@@ -180,7 +182,12 @@ function getOrCreatePlayerName(): string {
 // Hue offsets for the "coming soon" wallpaper background on each press
 
 export function HomePage() {
-  const [name, setName] = useState(() => getOrCreatePlayerName());
+  const { user } = useAuth();
+  const [name, setName] = useState(() => {
+    // Prefer the signed-in user's display name over the random Player1234
+    if (user?.displayName) return user.displayName;
+    return getOrCreatePlayerName();
+  });
   const [isEditingName, setIsEditingName] = useState(false);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
@@ -203,7 +210,15 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom } = useGameContext();
+
+  // Sync player name with auth state — when user signs in, use their display name
+  useEffect(() => {
+    if (user?.displayName && !isEditingName) {
+      setName(user.displayName);
+      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, user.displayName);
+    }
+  }, [user?.displayName, isEditingName]);
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -264,14 +279,26 @@ export function HomePage() {
     navigate('/local');
   };
 
+  const handleQuickPlay = () => {
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-local-name', playerName);
+    navigate('/local', { state: { quickPlay: true } });
+  };
 
+
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [showVersion, setShowVersion] = useState(false);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
+    if (creatingRoom) return;
+    setCreatingRoom(true);
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
       addToast('Failed to quick start — check your connection');
+    } finally {
+      setCreatingRoom(false);
     }
   };
 
@@ -398,6 +425,13 @@ export function HomePage() {
   return (
     <Layout largeTitle>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
+        {/* Tagline — orients first-time visitors */}
+        {mode === 'menu' && (
+          <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in -mb-4" style={{ maxWidth: '320px' }}>
+            A multiplayer bluffing card game — call it or call bull.
+          </p>
+        )}
+
         {/* Left panel in landscape: deck demo */}
         <div className="home-left">
         {/* Interactive deck */}
@@ -585,6 +619,9 @@ export function HomePage() {
 
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
+            <button onClick={() => { play('uiSoft'); handleQuickPlay(); }} className="w-full btn-gold py-4 text-lg">
+              Quick Play
+            </button>
             <button onClick={() => { play('uiSoft'); setMode('online'); }} className="w-full btn-gold py-4 text-lg">
               Play Online
             </button>
@@ -612,16 +649,34 @@ export function HomePage() {
           </div>
         )}
 
+        {mode === 'menu' && (
+          <RecentPlayers />
+        )}
+
         {mode === 'online' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
             {roomState ? (
               <>
-                <button
-                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
-                  className="w-full btn-gold py-4 text-lg"
-                >
-                  Return to Room ({roomState.roomCode})
-                </button>
+                <div className="w-full flex gap-0">
+                  <button
+                    onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                    className="flex-1 btn-gold py-4 text-lg rounded-r-none"
+                  >
+                    Return to Room ({roomState.roomCode})
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ok = window.confirm('Close this room? All players will be disconnected.');
+                      if (!ok) return;
+                      play('uiSoft');
+                      deleteRoom();
+                    }}
+                    className="btn-gold py-4 px-3 text-lg rounded-l-none border-l border-[rgba(0,0,0,0.2)] bg-[var(--danger)] hover:bg-red-600 transition-colors"
+                    title="Close room"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
                 </button>
@@ -781,6 +836,36 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
+      {/* Version — bottom right corner, home page only */}
+      <button
+        onClick={() => { play('uiSoft'); setShowVersion(true); }}
+        className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-0"
+      >
+        v1.0.2
+      </button>
+
+      {/* Version info modal */}
+      {showVersion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setShowVersion(false)}
+        >
+          <div
+            className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.2</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
+            {/* TODO(scale): Add link to patch notes page once changelog route exists */}
+            <button
+              onClick={() => setShowVersion(false)}
+              className="glass px-4 py-1.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

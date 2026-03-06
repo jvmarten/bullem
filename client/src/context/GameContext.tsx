@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
+import { recordRecentPlayers } from '../utils/recentPlayers.js';
 
 /** Presence state (online player count/names) is split into a separate context
  *  so that server-wide connect/disconnect events don't re-render game components.
@@ -62,6 +63,14 @@ export interface GameContextValue {
   togglePause?: () => void;
   /** Most recent game replay (populated at game over). */
   lastReplay: GameReplay | null;
+  /** Active emoji reactions (auto-expire after 2s). */
+  reactions: EmojiReaction[];
+  /** Send an emoji reaction to all players in the room. */
+  sendReaction: (emoji: GameEmoji) => void;
+  /** Chat messages received in the current room. */
+  chatMessages: ChatMessage[];
+  /** Send a chat message to the room. */
+  sendChatMessage: (message: string) => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -103,16 +112,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
   const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
+  const [reactions, setReactions] = useState<EmojiReaction[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
+  /** Tracks the latest game state for use in the game:over handler (which
+   *  runs inside a static useEffect and can't read React state directly). */
+  const gameStateRef = useRef<ClientGameState | null>(null);
 
   // Keep roundResultRef in sync with roundResult state
   useEffect(() => {
     roundResultRef.current = roundResult;
     if (roundResult) roundResultReceivedAtRef.current = Date.now();
   }, [roundResult]);
+
+  // Keep gameStateRef in sync so the game:over handler can read player names
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {
@@ -166,6 +183,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameStats(null);
       setLastReplay(null);
       setDisconnectDeadlines(new Map());
+      setChatMessages([]);
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -227,7 +245,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:state', handleNewGameState);
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
-    socket.on('game:over', (wId, stats) => { setWinnerId(wId); setGameStats(stats); });
+    socket.on('game:over', (wId, stats) => {
+      setWinnerId(wId);
+      setGameStats(stats);
+      // Record other human players for the "Recent Players" list
+      const gs = gameStateRef.current;
+      const myName = sessionStorage.getItem(PLAYER_NAME_KEY);
+      const roomCode = sessionStorage.getItem(ROOM_CODE_KEY);
+      if (gs && myName && roomCode) {
+        const humanNames = gs.players
+          .filter(p => !p.isBot)
+          .map(p => p.name);
+        recordRecentPlayers(humanNames, myName, roomCode);
+      }
+    });
     socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
@@ -262,6 +293,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
     socket.on('server:playerCount', setOnlinePlayerCount);
     socket.on('server:playerNames', setOnlinePlayerNames);
+    socket.on('game:reaction', (reaction: EmojiReaction) => {
+      setReactions(prev => [...prev, reaction]);
+      // Auto-remove after 2 seconds
+      setTimeout(() => {
+        setReactions(prev => prev.filter(r => r.timestamp !== reaction.timestamp || r.playerId !== reaction.playerId));
+      }, 2000);
+    });
+    socket.on('chat:message', (message: ChatMessage) => {
+      setChatMessages(prev => {
+        const next = [...prev, message];
+        // Keep only the last 200 messages to prevent unbounded growth
+        return next.length > 200 ? next.slice(-200) : next;
+      });
+    });
 
     return () => {
       socket.off('connect');
@@ -280,6 +325,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('player:reconnected');
       socket.off('server:playerCount');
       socket.off('server:playerNames');
+      socket.off('game:reaction');
+      socket.off('chat:message');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -321,6 +368,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinnerId(null);
     setGameStats(null);
     setLastReplay(null);
+    setChatMessages([]);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -336,6 +384,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinnerId(null);
     setGameStats(null);
     setLastReplay(null);
+    setChatMessages([]);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -423,6 +472,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const sendReaction = useCallback((emoji: GameEmoji) => socket.emit('game:reaction', { emoji }), []);
+  const sendChatMessage = useCallback((message: string) => socket.emit('chat:send', { message }), []);
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
@@ -440,11 +491,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     onlinePlayerNames,
   }), [onlinePlayerCount, onlinePlayerNames]);
 
-  // onlinePlayerCount and onlinePlayerNames are deliberately excluded from the
-  // GameContext value — they live only in PresenceContext. Including them here
-  // caused every game component (GamePage, HandSelector, ActionButtons, etc.)
-  // to re-render on every server-wide connect/disconnect event, which happens
-  // frequently and has nothing to do with game state.
+  // onlinePlayerCount and onlinePlayerNames live in PresenceContext.
+  // They are included here for interface compatibility but intentionally
+  // excluded from the useMemo deps — no game component consumes them from
+  // GameContext (Layout uses PresenceContext instead).
   const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,
@@ -482,14 +532,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     kickPlayer,
     requestRematch,
     lastReplay,
+    reactions,
+    sendReaction,
+    chatMessages,
+    sendChatMessage,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
-    lastReplay,
+    lastReplay, reactions, chatMessages,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
-    addBot, removeBot, kickPlayer, requestRematch,
+    addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
   ]);
 
   return (

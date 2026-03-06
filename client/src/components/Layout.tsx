@@ -49,10 +49,8 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   // components from re-rendering when the global online count changes.
   const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
   const [showPopup, setShowPopup] = useState(false);
-  const [showVersionPopup, setShowVersionPopup] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const versionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -81,13 +79,10 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   }, [showPopup]);
 
   useEffect(() => {
-    if (!showPopup && !showVersionPopup) return;
+    if (!showPopup) return;
     const handler = (e: MouseEvent | TouchEvent) => {
-      if (showPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
-      }
-      if (showVersionPopup && versionRef.current && !versionRef.current.contains(e.target as Node)) {
-        setShowVersionPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -96,11 +91,11 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
     };
-  }, [showPopup, showVersionPopup]);
+  }, [showPopup]);
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-6 layout-header-large' : 'py-1.5'}`}>
+      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           {isConnected && (
@@ -156,30 +151,15 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           {headerRightExtra && (
             <div className="landscape-only items-center gap-3">{headerRightExtra}</div>
           )}
-          {!isConnected && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--gold)]">
-              <span className="dot-disconnected" />
-              {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
-            </div>
-          )}
           <VolumeControl />
-          <div ref={versionRef} className="relative">
-            <button
-              onClick={() => setShowVersionPopup(v => !v)}
-              className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              v0.3.3
-            </button>
-            {showVersionPopup && (
-              <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
-                <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v0.3.3 &middot; 05.03.26
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </header>
+      {!isConnected && (
+        <div className="flex items-center justify-center gap-1.5 text-xs text-[var(--gold)] py-1.5 border-b border-[var(--felt-border)]">
+          <span className="dot-disconnected" />
+          {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
+        </div>
+      )}
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
       <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} />
     </div>

@@ -15,10 +15,15 @@ import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
-import { authRouter } from './auth/routes.js';
+import { setPushManager } from './socket/broadcast.js';
+import { authRouter, setAuthRateLimiter } from './auth/routes.js';
+import { oauthRouter } from './auth/oauth.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
-import { pool, closePool, migrate } from './db/index.js';
+import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
+import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
+import { RateLimiter } from './rateLimit.js';
+import { PushManager } from './push/PushManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,9 +56,14 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 // Falls back to the default in-memory adapter for local development.
 // The same Redis instance is reused for session persistence (RedisStore).
 let redisStore: RedisStore | null = null;
+/** Redis client for rate limiting, if configured. */
+let rateLimitRedis: Redis | null = null;
+/** All Redis clients created by this process, tracked for graceful shutdown. */
+const redisClients: Redis[] = [];
 if (process.env.REDIS_URL) {
   const pubClient = new Redis(process.env.REDIS_URL);
   const subClient = pubClient.duplicate();
+  redisClients.push(pubClient, subClient);
   io.adapter(createAdapter(pubClient, subClient));
   pubClient.on('connect', () => {
     logger.info('Redis adapter connected — Socket.io pub/sub is active');
@@ -62,7 +72,14 @@ if (process.env.REDIS_URL) {
   // Create a dedicated client for session persistence (separate from pub/sub
   // clients to avoid command conflicts on subscribed connections).
   const storeClient = new Redis(process.env.REDIS_URL);
+  redisClients.push(storeClient);
   redisStore = new RedisStore(storeClient);
+
+  // Create a dedicated client for rate limiting — separate from pub/sub and
+  // store clients to avoid contention on the hot path.
+  const rateLimitClient = new Redis(process.env.REDIS_URL);
+  redisClients.push(rateLimitClient);
+  rateLimitRedis = rateLimitClient;
 }
 
 // Attach authenticated user info to socket handshake if JWT cookie is present.
@@ -92,18 +109,35 @@ const roomManager = new RoomManager();
 if (redisStore) {
   roomManager.setRedisStore(redisStore);
 }
+
+// Register gauge callbacks so metrics can read live values at scrape time
+registerGaugeCallbacks(
+  () => roomManager.roomCount,
+  () => io.engine.clientsCount,
+);
+const rateLimiter = new RateLimiter(rateLimitRedis);
+
+// Configure auth endpoint rate limiting with the shared RateLimiter instance
+setAuthRateLimiter(rateLimiter);
+
 const botManager = new BotManager();
 botManager.setRoomManager(roomManager);
+const pushManager = new PushManager();
+setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
-registerHandlers(io, roomManager, botManager);
+registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
 
 // Restore rooms from Redis before accepting connections, then start cleanup.
 // Uses an async IIFE — server starts listening immediately but rooms are
 // restored in the background. This is safe because Socket.io buffers events
 // until handlers are registered, and the restore typically completes in <100ms.
 (async () => {
-  // Run database migrations if PostgreSQL is available
-  if (pool) {
+  // Verify database connectivity with retries before running migrations.
+  // If the DB is unreachable after all retries, the app continues in degraded
+  // mode without persistence rather than crashing.
+  await connectWithRetry();
+
+  if (pool && getDbStatus() === 'ok') {
     try {
       await migrate(pool);
     } catch (err) {
@@ -125,8 +159,9 @@ registerHandlers(io, roomManager, botManager);
   backgroundGameManager.start();
 })();
 
-// Parse JSON bodies and cookies for auth routes
+// Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 // CORS for HTTP routes (auth API). In dev, allow localhost; in prod, same-origin handles it.
@@ -135,7 +170,7 @@ if (process.env.NODE_ENV !== 'production') {
     res.header('Access-Control-Allow-Origin', _req.headers.origin ?? '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
     if (_req.method === 'OPTIONS') { res.sendStatus(204); return; }
     next();
   });
@@ -145,24 +180,109 @@ app.use(optionalAuth);
 
 // Auth routes
 app.use('/auth', authRouter);
+app.use('/auth', oauthRouter);
+
+// Replay routes
+import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
+
+/** GET /api/replays — list replays. Authenticated users see their own; guests see recent public replays. */
+app.get('/api/replays', async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+
+    const result = req.user
+      ? await getUserReplays(req.user.userId, limit, offset)
+      : await getReplayList(limit, offset);
+
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch replay list');
+    res.status(500).json({ error: 'Failed to fetch replays' });
+  }
+});
+
+/** GET /api/replays/:gameId — fetch a full replay by game ID. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+app.get('/api/replays/:gameId', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    if (!gameId || !UUID_REGEX.test(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+    const replay = await getReplayByGameId(gameId);
+    if (!replay) {
+      res.status(404).json({ error: 'Replay not found' });
+      return;
+    }
+    res.json({ replay });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch replay');
+    res.status(500).json({ error: 'Failed to fetch replay' });
+  }
+});
 
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
-  let db: 'ok' | 'unavailable' = 'unavailable';
-  if (pool) {
+  let db = getDbStatus();
+
+  // If the pool exists and we think we're ok, do a live probe to confirm.
+  // If degraded/unavailable, skip the probe to avoid adding latency.
+  if (pool && db === 'ok') {
     try {
       await pool.query('SELECT 1');
-      db = 'ok';
     } catch {
-      db = 'unavailable';
+      db = 'degraded';
     }
   }
-  res.json({
-    status: 'ok',
+
+  // Probe Redis health if adapter is configured
+  let redis: 'ok' | 'unavailable' | 'not_configured' = 'not_configured';
+  if (redisClients.length > 0) {
+    try {
+      // Ping the first (pub) client — if it responds, Redis is reachable
+      await redisClients[0]!.ping();
+      redis = 'ok';
+    } catch {
+      redis = 'unavailable';
+    }
+  }
+
+  const allOk = db === 'ok' && (redis === 'ok' || redis === 'not_configured');
+  const httpStatus = allOk ? 200 : 503;
+  res.status(httpStatus).json({
+    status: allOk ? 'ok' : 'degraded',
     db,
+    redis,
     rooms: roomManager.roomCount,
+    // NOTE: This count is per-instance. With multiple instances behind a load
+    // balancer, each instance reports only its own connected sockets. Aggregate
+    // across instances for the true global count.
     players: io.engine.clientsCount,
   });
+});
+
+// Prometheus metrics endpoint — expose counters, gauges, and histograms
+// for scraping by Prometheus/Grafana. Protected by a bearer token when
+// METRICS_TOKEN is set; unauthenticated access is allowed in development
+// when the env var is absent.
+const METRICS_TOKEN = process.env.METRICS_TOKEN;
+app.get('/metrics', (req, res) => {
+  if (METRICS_TOKEN) {
+    const auth = req.headers.authorization;
+    if (auth !== `Bearer ${METRICS_TOKEN}`) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+  }
+  httpRequestsTotal.inc('/metrics');
+  res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(serializeMetrics());
 });
 
 // Sentry Express error handler — must be registered after all routes/middleware
@@ -176,7 +296,7 @@ if (process.env.NODE_ENV === 'production') {
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/auth/') || req.path.startsWith('/health')) {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
       return;
     }
@@ -187,14 +307,31 @@ if (process.env.NODE_ENV === 'production') {
 // Broadcast online player count and names on connect/disconnect.
 // Debounced: rapid connect/disconnect bursts (e.g. 20 players joining at once)
 // collapse into a single broadcast instead of one per event.
+//
+// With the Redis adapter, io.fetchSockets() returns sockets across ALL
+// instances, giving us a true global count. We fall back to the local
+// io.engine.clientsCount when Redis isn't configured (single-instance dev).
 let broadcastPending: ReturnType<typeof setTimeout> | null = null;
 function scheduleBroadcastPlayerCount(): void {
   if (broadcastPending) return;
   broadcastPending = setTimeout(() => {
     broadcastPending = null;
-    const count = io.engine.clientsCount;
-    io.emit('server:playerCount', count);
-    io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+    void (async () => {
+      let count: number;
+      if (redisClients.length > 0) {
+        // fetchSockets() queries all instances via the Redis adapter
+        const allSockets = await io.fetchSockets();
+        count = allSockets.length;
+      } else {
+        count = io.engine.clientsCount;
+      }
+      io.emit('server:playerCount', count);
+      // TODO(scale): getOnlinePlayerNames() only returns names from this
+      // instance's in-memory RoomManager. At multi-instance scale, aggregate
+      // names via Redis or a shared store. Low priority — player names in the
+      // lobby are a nice-to-have, not a correctness requirement.
+      io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+    })();
   }, 100);
 }
 io.on('connection', () => scheduleBroadcastPlayerCount());
@@ -203,10 +340,19 @@ io.engine.on('close', () => scheduleBroadcastPlayerCount());
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {
   logger.info('Shutting down...');
+  // Clear debounced broadcast timer to prevent firing after teardown
+  if (broadcastPending) {
+    clearTimeout(broadcastPending);
+    broadcastPending = null;
+  }
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
   io.close();
+  // Close all Redis connections (pub, sub, store clients)
+  for (const client of redisClients) {
+    client.disconnect();
+  }
   // Close the database pool before exiting
   closePool().catch((err) => {
     logger.error({ err }, 'Error closing database pool during shutdown');
