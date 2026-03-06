@@ -14,6 +14,7 @@ import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
+import { CalibrationManager } from './game/CalibrationManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
 import { setPushManager } from './socket/broadcast.js';
@@ -127,6 +128,7 @@ botManager.setRoomManager(roomManager);
 const pushManager = new PushManager();
 setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
+const calibrationManager = new CalibrationManager(io, roomManager, botManager);
 
 // Create matchmaking queue when Redis is available — matchmaking requires
 // Redis for queue state. Without Redis, ranked matchmaking is disabled.
@@ -179,6 +181,17 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
     logger.info('Ranked matchmaking enabled (Redis available)');
   } else {
     logger.info('Ranked matchmaking disabled (no Redis configured)');
+  }
+
+  // Start bot calibration if enabled via environment variable.
+  // Disabled by default — you don't want calibration running in local dev.
+  if (process.env.ENABLE_BOT_CALIBRATION === 'true') {
+    calibrationManager.start().catch((err) => {
+      logger.error({ err }, 'CalibrationManager failed to start');
+    });
+    logger.info('Bot calibration enabled');
+  } else {
+    logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
   }
 })();
 
@@ -326,6 +339,12 @@ app.get('/api/ratings/:userId', async (req, res) => {
   }
 });
 
+// ── Calibration status endpoint ─────────────────────────────────────────
+// TODO: add admin auth — currently unauthenticated for dev/monitoring convenience
+app.get('/api/admin/calibration', (_req, res) => {
+  res.json(calibrationManager.getStatus());
+});
+
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
   let db = getDbStatus();
@@ -445,6 +464,7 @@ function shutdown(): void {
     broadcastPending = null;
   }
   if (matchmakingQueue) matchmakingQueue.stop();
+  calibrationManager.stop();
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
