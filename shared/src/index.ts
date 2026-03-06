@@ -4,3 +4,4 @@ export * from './hands.js';
 export * from './events.js';
 export * from './engine/index.js';
 export * from './replay.js';
+export * from './rating.js';

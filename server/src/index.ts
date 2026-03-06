@@ -231,6 +231,29 @@ app.get('/api/replays/:gameId', async (req, res) => {
   }
 });
 
+// Rating routes
+import { getUserRatings as fetchUserRatings } from './db/ratings.js';
+
+/** GET /api/ratings/:userId — fetch both ratings for a user. */
+app.get('/api/ratings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const ratings = await fetchUserRatings(userId);
+    if (!ratings) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(ratings);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch user ratings');
+    res.status(500).json({ error: 'Failed to fetch ratings' });
+  }
+});
+
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
   let db = getDbStatus();

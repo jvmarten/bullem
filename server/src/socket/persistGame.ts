@@ -1,8 +1,9 @@
-import type { PlayerId } from '@bull-em/shared';
+import type { PlayerId, RankedMode } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import { persistGameResult } from '../db/games.js';
 import type { GameRecord } from '../db/games.js';
 import { persistReplayRounds } from '../db/replays.js';
+import { updateRatingsAfterGame } from '../db/ratings.js';
 
 /**
  * Build a GameRecord from room state and persist it to the database.
@@ -75,4 +76,19 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
     .catch(() => {
       // Error already logged inside persistGameResult / persistReplayRounds
     });
+
+  // Update ranked ratings if this was a ranked game with authenticated players
+  if (room.settings.ranked && room.settings.rankedMode) {
+    const rankedMode: RankedMode = room.settings.rankedMode;
+    // Only include authenticated (non-guest) players in rating updates
+    const rankedPlayers = record.players
+      .filter(p => p.userId !== null)
+      .map(p => ({ userId: p.userId!, finishPosition: p.finishPosition }));
+
+    if (rankedPlayers.length >= 2) {
+      updateRatingsAfterGame(rankedMode, rankedPlayers).catch(() => {
+        // Error already logged inside updateRatingsAfterGame
+      });
+    }
+  }
 }

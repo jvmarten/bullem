@@ -186,6 +186,10 @@ export interface GameSettings {
   botSpeed?: BotSpeed;
   /** Last chance raise rules. Defaults to 'classic'. */
   lastChanceMode?: LastChanceMode;
+  /** Whether this game is a ranked match. */
+  ranked?: boolean;
+  /** Which ranked queue this game belongs to (set server-side based on player count). */
+  rankedMode?: RankedMode;
 }
 
 export interface PlayerGameStats {
@@ -305,6 +309,39 @@ export interface GameHistoryEntry {
 export interface PushSubscriptionJSON {
   endpoint: string;
   keys?: { p256dh: string; auth: string };
+}
+
+// ── Rating types ────────────────────────────────────────────────────────
+
+/** Which ranked queue a game belongs to. */
+export type RankedMode = 'heads_up' | 'multiplayer';
+
+/** Elo rating for heads-up (1v1) games. */
+export interface EloRating {
+  mode: 'heads_up';
+  elo: number;
+  gamesPlayed: number;
+  peakRating: number;
+  lastUpdated: string;
+}
+
+/** OpenSkill (mu/sigma) rating for multiplayer (3-9 player) games. */
+export interface OpenSkillRating {
+  mode: 'multiplayer';
+  mu: number;
+  sigma: number;
+  gamesPlayed: number;
+  peakRating: number;
+  lastUpdated: string;
+}
+
+export type PlayerRating = EloRating | OpenSkillRating;
+
+/** Response body for GET /api/ratings/:userId. */
+export interface UserRatings {
+  userId: string;
+  headsUp: EloRating | null;
+  multiplayer: OpenSkillRating | null;
 }
 
 /** Summary of an in-progress game available for spectating. */
