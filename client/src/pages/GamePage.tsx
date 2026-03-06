@@ -377,14 +377,14 @@ export function GamePage() {
 
             {/* Current call display */}
             {gameState.currentHand && (
-              <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+              <div className="glass-raised py-1.5 animate-slide-up flex items-baseline" style={{ padding: '0.375rem clamp(0.5rem, 2.9vw, 0.75rem)' }}>
                 <div className="w-1/4 min-w-0 shrink-0">
                   <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
                     Current Call
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 text-center">
-                  <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                  <span className="font-display font-bold text-[var(--gold)] whitespace-nowrap" style={{ fontSize: 'clamp(0.85rem, 3.86vw, 1rem)' }}>
                     {handToString(gameState.currentHand)}
                   </span>
                 </div>
@@ -426,10 +426,10 @@ export function GamePage() {
                   onExpand={closeHandSelector}
                 />
                 {canRaise && !handSelectorOpen && (
-                  <div className="flex justify-end animate-slide-up ml-auto gap-2">
+                  <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      className="btn-ghost border-[var(--gold-dim)] py-2 font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
@@ -437,12 +437,12 @@ export function GamePage() {
                   </div>
                 )}
                 {canRaise && handSelectorOpen && (
-                  <div className="flex gap-2 items-start ml-auto">
+                  <div className="flex items-start ml-auto action-btn-gap">
                     {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
                       <button
                         onClick={handleQuickRaise}
-                        className="btn-amber px-2 py-1 font-semibold leading-tight self-center"
-                        style={{ fontSize: '10px' }}
+                        className="btn-amber font-semibold leading-tight self-center text-center"
+                        style={{ fontSize: 'clamp(9px, 2.4vw, 10px)', padding: 'clamp(3px, 0.8vw, 4px) clamp(6px, 1.6vw, 8px)' }}
                         title="Auto-raise to the minimum valid hand"
                       >
                         min<br />raise
@@ -452,11 +452,11 @@ export function GamePage() {
                       <button
                         onClick={handleHandSubmit}
                         disabled={!pendingValid}
-                        className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
+                        className={`btn-gold py-2 font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
                       >
                         {gameState.currentHand ? 'Raise' : 'Call'}
                       </button>
-                      <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                      <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
                     </div>
                   </div>
                 )}

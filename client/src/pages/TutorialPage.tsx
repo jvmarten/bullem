@@ -518,7 +518,7 @@ export function TutorialPage() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 text-center">
-                  <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                  <span className="font-display font-bold text-[var(--gold)] whitespace-nowrap" style={{ fontSize: 'clamp(0.85rem, 3.86vw, 1rem)' }}>
                     {handToString(step.gameState.currentHand)}
                   </span>
                 </div>
