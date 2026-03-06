@@ -269,6 +269,7 @@ app.get('/api/replays/:gameId', async (req, res) => {
 
 // Stats routes
 import { getPlayerStats } from './db/stats.js';
+import { getAdvancedStats } from './db/advancedStats.js';
 
 /** GET /api/stats/me — convenience endpoint using the authenticated user's ID. */
 app.get('/api/stats/me', requireAuth, async (req, res) => {
@@ -314,6 +315,26 @@ app.get('/api/stats/:userId', async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch player stats');
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/** GET /api/stats/:userId/advanced — fetch advanced stats for any user. */
+app.get('/api/stats/:userId/advanced', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const stats = await getAdvancedStats(userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch advanced stats');
+    res.status(500).json({ error: 'Failed to fetch advanced stats' });
   }
 });
 

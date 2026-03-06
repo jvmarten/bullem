@@ -5,7 +5,7 @@ import {
 } from '../types.js';
 import type {
   Card, HandCall, OwnedCard, PlayerId, ServerPlayer, ClientGameState, Player, TurnEntry, RoundResult,
-  GameSettings, GameStats, PlayerGameStats, SpectatorPlayerCards, GameEngineSnapshot,
+  GameSettings, GameStats, PlayerGameStats, HandTypeBreakdownEntry, SpectatorPlayerCards, GameEngineSnapshot,
 } from '../types.js';
 import type { RoundSnapshot } from '../replay.js';
 import { Deck } from './Deck.js';
@@ -64,6 +64,7 @@ export class GameEngine {
         correctTrues: 0,
         bluffsSuccessful: 0,
         roundsSurvived: 0,
+        handBreakdown: [],
       };
     }
     this.gameStats = { totalRounds: 0, playerStats };
@@ -193,6 +194,7 @@ export class GameEngine {
     this.lastCallerId = playerId;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
     this.gameStats.playerStats[playerId]!.callsMade++;
+    this.trackHandCall(playerId, hand.type);
 
     // A raise resets the bull phase
     this.roundPhase = RoundPhase.CALLING;
@@ -275,6 +277,7 @@ export class GameEngine {
     this.lastChanceUsed = true;
     this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
     this.gameStats.playerStats[playerId]!.callsMade++;
+    this.trackHandCall(playerId, hand.type);
 
     // In strict mode, re-enter CALLING so the first responder can only bull/raise
     // (true is unavailable until someone calls bull, which transitions to BULL_PHASE).
@@ -509,6 +512,11 @@ export class GameEngine {
     const handExists = HandChecker.exists(allCards, this.currentHand!);
     const revealedCards = HandChecker.findAllRelevantCards(allCardsOwned, this.currentHand!);
 
+    // Track whether the final called hand existed for the caller's hand breakdown
+    if (this.lastCallerId && handExists) {
+      this.trackHandExisted(this.lastCallerId, this.currentHand!.type);
+    }
+
     // Determine who was right and wrong
     const penalties: Record<PlayerId, number> = {};
     const penalizedPlayerIds: PlayerId[] = [];
@@ -549,6 +557,7 @@ export class GameEngine {
         stats = {
           bullsCalled: 0, truesCalled: 0, callsMade: 0,
           correctBulls: 0, correctTrues: 0, bluffsSuccessful: 0, roundsSurvived: 0,
+          handBreakdown: [],
         };
         this.gameStats.playerStats[p.id] = stats;
       }
@@ -714,6 +723,33 @@ export class GameEngine {
       hand,
       timestamp: Date.now(),
     });
+  }
+
+  /** Record that a player called a specific hand type. */
+  private trackHandCall(playerId: PlayerId, handType: number): void {
+    const stats = this.gameStats.playerStats[playerId];
+    if (!stats) return;
+    if (!stats.handBreakdown) stats.handBreakdown = [];
+    const entry = stats.handBreakdown.find(e => e.handType === handType);
+    if (entry) {
+      entry.called++;
+    } else {
+      stats.handBreakdown.push({ handType, called: 1, existed: 0 });
+    }
+  }
+
+  /** Record that the called hand actually existed for a player's hand type breakdown. */
+  private trackHandExisted(playerId: PlayerId, handType: number): void {
+    const stats = this.gameStats.playerStats[playerId];
+    if (!stats) return;
+    if (!stats.handBreakdown) stats.handBreakdown = [];
+    const entry = stats.handBreakdown.find(e => e.handType === handType);
+    if (entry) {
+      entry.existed++;
+    } else {
+      // Edge case: hand existed but wasn't tracked as called (shouldn't happen normally)
+      stats.handBreakdown.push({ handType, called: 0, existed: 1 });
+    }
   }
 
   /** Serialize the engine to a JSON-safe snapshot for persistence. */

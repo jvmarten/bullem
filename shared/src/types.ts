@@ -201,6 +201,18 @@ export interface PlayerGameStats {
   correctTrues: number;
   bluffsSuccessful: number;
   roundsSurvived: number;
+  /** Per-hand-type breakdown. Optional for backwards compatibility with old game records. */
+  handBreakdown?: HandTypeBreakdownEntry[];
+}
+
+/** Per-hand-type stats recorded per game per player. */
+export interface HandTypeBreakdownEntry {
+  /** HandType enum value (0–9). */
+  handType: number;
+  /** Times this player called this hand type. */
+  called: number;
+  /** Of those calls, how many times the hand actually existed across all cards. */
+  existed: number;
 }
 
 export interface GameStats {
@@ -499,6 +511,69 @@ export interface RatingChange {
   before: number;
   after: number;
   delta: number;
+}
+
+// ── Advanced stats types ────────────────────────────────────────────────
+
+/** Per-hand-type breakdown: how often this hand type was called and how often it existed. */
+export interface HandTypeBreakdown {
+  /** HandType enum value (0–9). */
+  handType: number;
+  /** How many times this player called this hand type. */
+  timesCalled: number;
+  /** Of those calls, how many times the hand actually existed. */
+  timesExisted: number;
+  /** Times opponent called bull on this hand type and it existed (opponent was wrong). */
+  bullsAgainstCorrect: number;
+  /** Times opponent called bull on this hand type total. */
+  bullsAgainstTotal: number;
+}
+
+/** A single entry in the rating history timeline. */
+export interface RatingHistoryEntry {
+  gameId: string;
+  mode: RankedMode;
+  ratingBefore: number;
+  ratingAfter: number;
+  delta: number;
+  createdAt: string;
+}
+
+/** Win rate and average finish grouped by player count. */
+export interface PerformanceByPlayerCount {
+  playerCount: number;
+  gamesPlayed: number;
+  wins: number;
+  winRate: number;
+  avgFinish: number;
+}
+
+/** Today's session summary. */
+export interface TodaySession {
+  gamesPlayed: number;
+  wins: number;
+  netRatingChange: number;
+  bullAccuracy: number | null;
+}
+
+/** Record against a specific opponent. */
+export interface OpponentRecord {
+  opponentId: string;
+  opponentName: string;
+  opponentAvatar: AvatarId | null;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+}
+
+/** Response body for GET /api/stats/:userId/advanced. */
+export interface AdvancedStatsResponse {
+  userId: string;
+  handBreakdown: HandTypeBreakdown[];
+  ratingHistory: RatingHistoryEntry[];
+  performanceByPlayerCount: PerformanceByPlayerCount[];
+  todaySession: TodaySession | null;
+  opponentRecords: OpponentRecord[];
 }
 
 /** Summary of an in-progress game available for spectating. */
