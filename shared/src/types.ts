@@ -264,6 +264,10 @@ export interface User {
   avatar: AvatarId | null;
   createdAt: string;
   lastSeenAt: string;
+  /** True for bot accounts seeded in the database. */
+  isBot?: boolean;
+  /** Profile key referencing a BotProfileDefinition (only set for bot accounts). */
+  botProfile?: string | null;
 }
 
 /** Public-facing profile (safe to send to any client). */

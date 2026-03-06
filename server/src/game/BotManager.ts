@@ -4,7 +4,7 @@ import {
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
   maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
 } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, PlayerId, BotProfileConfig } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from './GameEngine.js';
@@ -33,6 +33,11 @@ export class BotManager {
   private roomTimerGeneration = new Map<string, number>();
   private difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY as BotDifficulty;
   private roomManager!: RoomManager;
+  /** Profile configs for ranked bots, keyed by in-game player ID.
+   *  Only populated for bots added via addRankedBot. */
+  private botProfileConfigs = new Map<string, BotProfileConfig>();
+  /** Database user IDs for ranked bots, keyed by in-game player ID. */
+  private botUserIds = new Map<string, string>();
 
   /** Attach a RoomManager reference for Redis persistence after bot actions.
    *  Must be called before any bot actions are processed. */
@@ -87,8 +92,39 @@ export class BotManager {
     return botId;
   }
 
+  /**
+   * Add a ranked bot with a persistent database identity and profile config.
+   * Used by matchmaking to fill slots with rated bot profiles.
+   *
+   * @param room - The room to add the bot to
+   * @param userId - The bot's database user ID (from the users table)
+   * @param botName - Display name for the bot
+   * @param profileConfig - Profile config that tunes BotPlayer decision logic
+   * @returns The in-game player ID assigned to the bot
+   */
+  addRankedBot(room: Room, userId: string, botName: string, profileConfig: BotProfileConfig): string {
+    const botId = this.addBot(room, botName);
+    this.botProfileConfigs.set(botId, profileConfig);
+    this.botUserIds.set(botId, userId);
+    // Link the bot's in-game ID to its database user ID for rating updates
+    room.setPlayerUserId(botId, userId);
+    return botId;
+  }
+
+  /** Get the profile config for a ranked bot, if one was set. */
+  getBotProfileConfig(botId: string): BotProfileConfig | undefined {
+    return this.botProfileConfigs.get(botId);
+  }
+
+  /** Get the database user ID for a ranked bot, if one was set. */
+  getBotUserId(botId: string): string | undefined {
+    return this.botUserIds.get(botId);
+  }
+
   removeBot(room: Room, botId: string): void {
     room.removeBot(botId);
+    this.botProfileConfigs.delete(botId);
+    this.botUserIds.delete(botId);
   }
 
   /**
@@ -225,6 +261,8 @@ export class BotManager {
     this.roomTurnTimers.clear();
     this.roomDisconnectTimers.clear();
     this.roomTimerGeneration.clear();
+    this.botProfileConfigs.clear();
+    this.botUserIds.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {
@@ -243,7 +281,9 @@ export class BotManager {
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards, room.roomCode);
+    // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)
+    const profileConfig = this.botProfileConfigs.get(botId);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards, room.roomCode, profileConfig);
 
     let result: TurnResult;
     switch (decision.action) {

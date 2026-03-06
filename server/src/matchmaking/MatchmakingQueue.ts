@@ -31,6 +31,8 @@ import type {
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { getRating } from '../db/ratings.js';
+import { getRankedBotPool, pickClosestRatedBot } from '../db/botPool.js';
+import type { RankedBotEntry } from '../db/botPool.js';
 import { broadcastRoomState, broadcastGameState } from '../socket/broadcast.js';
 import { recordRoundStart } from '../socket/roundTransition.js';
 import logger from '../logger.js';
@@ -531,22 +533,38 @@ export class MatchmakingQueue {
       socket.join(room.roomCode);
     }
 
-    // Add a bot at a similar rating
-    const botId = this.botManager.addBot(room, this.pickBotName(player.rating));
+    // Add a ranked bot with a persistent profile if available, fallback to anonymous bot
+    const botPool = await getRankedBotPool('heads_up');
+    const rankedBot = pickClosestRatedBot(botPool, player.rating);
+
+    let botId: string;
+    let botDisplayName: string;
+    let botRating: number;
+
+    if (rankedBot) {
+      botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig);
+      botDisplayName = rankedBot.displayName;
+      botRating = rankedBot.rating;
+    } else {
+      // Fallback: anonymous bot (no profile, no persistent identity)
+      botId = this.botManager.addBot(room, this.pickBotName(player.rating));
+      botDisplayName = room.players.get(botId)!.name;
+      botRating = player.rating;
+    }
     this.roomManager.assignPlayerToRoom(botId, room.roomCode);
 
     // Notify the player
     if (socket) {
       socket.emit('matchmaking:found', {
         roomCode: room.roomCode,
-        opponents: [{ name: room.players.get(botId)!.name, rating: player.rating, tier: getRankTier(player.rating) }],
+        opponents: [{ name: botDisplayName, rating: botRating, tier: getRankTier(botRating) }],
         reconnectToken,
         playerId,
       });
     }
 
     logger.info(
-      { roomCode: room.roomCode, mode: 'heads_up', botBackfill: true, playerRating: player.rating },
+      { roomCode: room.roomCode, mode: 'heads_up', botBackfill: true, playerRating: player.rating, botProfile: rankedBot?.botProfile },
       'Bot backfill match created for heads-up',
     );
 
@@ -604,19 +622,33 @@ export class MatchmakingQueue {
       allPlayerInfo.push({ entry, playerId, reconnectToken });
     }
 
-    // Fill remaining slots with bots to reach target
+    // Fill remaining slots with ranked bots, falling back to anonymous bots
     const botsNeeded = Math.max(0, MATCHMAKING_MULTIPLAYER_TARGET - humanPlayers.length);
     const avgRating = humanPlayers.reduce((sum, p) => sum + p.rating, 0) / humanPlayers.length;
     const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] = [];
 
+    const botPool = await getRankedBotPool('multiplayer');
+    const usedBotUserIds = new Set<string>();
+
     for (let i = 0; i < botsNeeded; i++) {
-      const botId = this.botManager.addBot(room, this.pickBotName(avgRating));
-      this.roomManager.assignPlayerToRoom(botId, room.roomCode);
-      const bot = room.players.get(botId);
-      if (bot) {
-        const botRating = Math.round(avgRating);
-        botEntries.push({ name: bot.name, rating: botRating, tier: getRankTier(botRating) });
+      const rankedBot = pickClosestRatedBot(botPool, avgRating, usedBotUserIds);
+
+      let botId: string;
+      let botDisplayName: string;
+      let botRating: number;
+
+      if (rankedBot) {
+        botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig);
+        usedBotUserIds.add(rankedBot.userId);
+        botDisplayName = rankedBot.displayName;
+        botRating = rankedBot.rating;
+      } else {
+        botId = this.botManager.addBot(room, this.pickBotName(avgRating));
+        botDisplayName = room.players.get(botId)!.name;
+        botRating = Math.round(avgRating);
       }
+      this.roomManager.assignPlayerToRoom(botId, room.roomCode);
+      botEntries.push({ name: botDisplayName, rating: botRating, tier: getRankTier(botRating) });
     }
 
     // Notify all human players
