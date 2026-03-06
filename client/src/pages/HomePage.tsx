@@ -588,7 +588,10 @@ export function HomePage() {
         {/* Player name display — tap to edit */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
-            {isEditingName ? (
+            {user ? (
+              /* Signed-in users cannot edit their display name from the home page */
+              <span className="text-sm text-[var(--gold-dim)]">{name}</span>
+            ) : isEditingName ? (
               <div className="flex items-center gap-2">
                 <input
                   ref={nameInputRef}
@@ -711,7 +714,7 @@ export function HomePage() {
               </span>
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); }}
+              onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -737,7 +740,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online');}}
+              onClick={() => { play('uiBack'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -827,7 +830,7 @@ export function HomePage() {
               Refresh
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online');}}
+              onClick={() => { play('uiBack'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -839,9 +842,9 @@ export function HomePage() {
       {/* Version — bottom right corner, home page only */}
       <button
         onClick={() => { play('uiSoft'); setShowVersion(true); }}
-        className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-0"
+        className="fixed bottom-6 right-6 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
-        v1.0.2
+        v1.0.3
       </button>
 
       {/* Version info modal */}
@@ -854,7 +857,7 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.2</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.3</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
             <button

@@ -78,9 +78,9 @@ function randomWaypoint(): Waypoint {
     x: padding + Math.random() * (w - 2 * padding) - w / 2,
     y: padding + Math.random() * (h - 2 * padding) - h / 2,
     z: -300 + Math.random() * 400, // -300 to 100 (less extreme depth)
-    rx: Math.random() * 180 - 90,  // gentler rotation range
-    ry: Math.random() * 180 - 90,
-    rz: Math.random() * 120 - 60,
+    rx: Math.random() * 720 - 360,  // full rotation range so both faces show
+    ry: Math.random() * 720 - 360,  // freely rotates to show front and back
+    rz: Math.random() * 360 - 180,
     // Much slower: 3000-8000ms, with varied pacing
     duration: 3000 + Math.random() * 5000,
   };
@@ -100,6 +100,10 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   const waypointsRef = useRef<Waypoint[]>([]);
   const segmentStartRef = useRef(0);
   const segmentDurationRef = useRef(0);
+  // Spin state: when the card is clicked, it does a quick random spin before resuming flight
+  const spinRef = useRef<{ active: boolean; startTime: number; duration: number; rx: number; ry: number; rz: number; baseRx: number; baseRy: number; baseRz: number }>({
+    active: false, startTime: 0, duration: 0, rx: 0, ry: 0, rz: 0, baseRx: 0, baseRy: 0, baseRz: 0,
+  });
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {
@@ -148,7 +152,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
       x: window.innerWidth * 0.4,
       y: -window.innerHeight * 0.4,
       z: -400,
-      rx: 20, ry: 30, rz: 15,
+      rx: 20, ry: 180, rz: 15, // Start with front face visible (180° shows front due to backface-visibility)
       duration: 4000,
     };
     const wp1 = randomWaypoint();
@@ -178,10 +182,28 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
       const ry = catmullRom(p0.ry, p1.ry, p2.ry, p3.ry, t);
       const rz = catmullRom(p0.rz, p1.rz, p2.rz, p3.rz, t);
 
+      // Apply spin overlay if active (triggered by clicking the card)
+      let finalRx = rx;
+      let finalRy = ry;
+      let finalRz = rz;
+      const spin = spinRef.current;
+      if (spin.active) {
+        const spinElapsed = now - spin.startTime;
+        const spinT = Math.min(spinElapsed / spin.duration, 1);
+        // Ease-out cubic for a natural deceleration
+        const eased = 1 - Math.pow(1 - spinT, 3);
+        finalRx += spin.rx * eased;
+        finalRy += spin.ry * eased;
+        finalRz += spin.rz * eased;
+        if (spinT >= 1) {
+          spin.active = false;
+        }
+      }
+
       if (cardRef.current) {
         cardRef.current.style.transform =
           `translate3d(${x}px, ${y}px, ${z}px) ` +
-          `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
+          `rotateX(${finalRx}deg) rotateY(${finalRy}deg) rotateZ(${finalRz}deg)`;
       }
 
       // Advance to next segment when current one completes
@@ -218,11 +240,33 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     return () => clearTimeout(t);
   }, [phase, setPhase, audioRef]);
 
-  const handleDismiss = useCallback(() => {
+  const handleCardClick = useCallback(() => {
     if (phase === 'flying') {
-      setPhase('dismiss');
+      // Spin the card in a random direction instead of dismissing
+      const directions = [
+        { rx: 720, ry: 0, rz: 0 },
+        { rx: -720, ry: 0, rz: 0 },
+        { rx: 0, ry: 720, rz: 0 },
+        { rx: 0, ry: -720, rz: 0 },
+        { rx: 0, ry: 0, rz: 720 },
+        { rx: 0, ry: 0, rz: -720 },
+        { rx: 360, ry: 360, rz: 0 },
+        { rx: -360, ry: 0, rz: 360 },
+      ];
+      const dir = directions[Math.floor(Math.random() * directions.length)]!;
+      spinRef.current = {
+        active: true,
+        startTime: performance.now(),
+        duration: 800 + Math.random() * 400,
+        rx: dir.rx,
+        ry: dir.ry,
+        rz: dir.rz,
+        baseRx: 0,
+        baseRy: 0,
+        baseRz: 0,
+      };
     }
-  }, [phase, setPhase]);
+  }, [phase]);
 
   if (phase === 'idle') return null;
 
@@ -236,7 +280,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
         ref={cardRef}
         className={`joker-card-container ${phase === 'dismiss' ? 'joker-dismiss' : ''} pointer-events-auto cursor-pointer`}
         style={{ transformStyle: 'preserve-3d' }}
-        onClick={handleDismiss}
+        onClick={handleCardClick}
       >
         {/* Card Back (default visible face) */}
         <div className="joker-card-face joker-card-back">
