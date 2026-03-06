@@ -12,6 +12,7 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
 import { DisconnectBanner } from '../components/DisconnectBanner.js';
+import { EmojiReactionBar } from '../components/EmojiReactionBar.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -62,6 +63,7 @@ export function GamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
     isConnected, hasConnected, disconnectDeadlines,
+    reactions, sendReaction,
   } = useGameContext();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
@@ -314,7 +316,11 @@ export function GamePage() {
               roundNumber={gameState.roundNumber}
               turnHistory={gameState.turnHistory}
               collapsible
+              reactions={reactions}
             />
+            {!isEliminated && !isSpectator && (
+              <EmojiReactionBar onReaction={sendReaction} />
+            )}
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
               <CallHistory history={gameState.turnHistory} />

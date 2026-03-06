@@ -511,6 +511,58 @@ body {
 .reveal-delay-3 { animation-delay: 450ms; }
 .reveal-delay-4 { animation-delay: 600ms; }
 
+/* ── Emoji Reactions ─────────────────────────────────── */
+@keyframes emoji-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.8);
+  }
+}
+
+.emoji-bubble-container {
+  position: absolute;
+  top: -4px;
+  left: 8px;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  gap: 2px;
+}
+
+.emoji-bubble {
+  font-size: 18px;
+  line-height: 1;
+  animation: emoji-float 2s ease-out forwards;
+}
+
+.emoji-reaction-btn {
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(212, 168, 67, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoji-reaction-btn:active {
+  transform: scale(0.9);
+  background: rgba(212, 168, 67, 0.15);
+}
+
 /* ── Scrollbar ───────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

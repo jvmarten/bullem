@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
@@ -62,6 +62,10 @@ export interface GameContextValue {
   togglePause?: () => void;
   /** Most recent game replay (populated at game over). */
   lastReplay: GameReplay | null;
+  /** Active emoji reactions (auto-expire after 2s). */
+  reactions: EmojiReaction[];
+  /** Send an emoji reaction to all players in the room. */
+  sendReaction: (emoji: GameEmoji) => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -103,6 +107,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
   const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
   const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
+  const [reactions, setReactions] = useState<EmojiReaction[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -262,6 +267,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
     socket.on('server:playerCount', setOnlinePlayerCount);
     socket.on('server:playerNames', setOnlinePlayerNames);
+    socket.on('game:reaction', (reaction: EmojiReaction) => {
+      setReactions(prev => [...prev, reaction]);
+      // Auto-remove after 2 seconds
+      setTimeout(() => {
+        setReactions(prev => prev.filter(r => r.timestamp !== reaction.timestamp || r.playerId !== reaction.playerId));
+      }, 2000);
+    });
 
     return () => {
       socket.off('connect');
@@ -280,6 +292,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('player:reconnected');
       socket.off('server:playerCount');
       socket.off('server:playerNames');
+      socket.off('game:reaction');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -423,6 +436,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const sendReaction = useCallback((emoji: GameEmoji) => socket.emit('game:reaction', { emoji }), []);
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
@@ -482,14 +496,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     kickPlayer,
     requestRematch,
     lastReplay,
+    reactions,
+    sendReaction,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
-    lastReplay,
+    lastReplay, reactions,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
-    addBot, removeBot, kickPlayer, requestRematch,
+    addBot, removeBot, kickPlayer, requestRematch, sendReaction,
   ]);
 
   return (

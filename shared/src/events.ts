@@ -1,6 +1,17 @@
 import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
 import type { GameReplay } from './replay.js';
 
+/** Curated set of emoji reactions available during gameplay. */
+export const ALLOWED_EMOJIS = ['\u{1F602}', '\u{1F624}', '\u{1F525}', '\u{1F5FF}', '\u{1F44F}'] as const;
+export type GameEmoji = typeof ALLOWED_EMOJIS[number];
+
+/** Data broadcast when a player sends an emoji reaction. */
+export interface EmojiReaction {
+  playerId: PlayerId;
+  emoji: GameEmoji;
+  timestamp: number;
+}
+
 /**
  * Socket.io events emitted by the client.
  * Used as the type parameter for Socket.io Server/Socket generics to get
@@ -27,6 +38,7 @@ export interface ClientToServerEvents {
   'room:kickPlayer': (data: { playerId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:delete': () => void;
   'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
+  'game:reaction': (data: { emoji: GameEmoji }) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -45,4 +57,5 @@ export interface ServerToClientEvents {
   'server:playerNames': (names: string[]) => void;
   'room:deleted': () => void;
   'room:kicked': () => void;
+  'game:reaction': (reaction: EmojiReaction) => void;
 }

@@ -23,6 +23,7 @@ const GAME_ACTION_COOLDOWN_MS = 200;
 const GAME_ACTION_EVENTS = new Set([
   'game:call', 'game:bull', 'game:true',
   'game:lastChanceRaise', 'game:lastChancePass', 'game:continue',
+  'game:reaction',
 ]);
 
 /** Per-player-ID game action cooldown. Survives socket reconnects so a
