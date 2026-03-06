@@ -120,7 +120,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
         {/* Left group */}
         <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start gap-0.5' : 'items-center gap-2'} min-w-0`}>
           {isConnected && (
-            <div ref={popupRef} className="relative">
+            <div ref={popupRef} className="relative flex-shrink-0">
               <button
                 onClick={() => setShowPopup(prev => !prev)}
                 className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
@@ -156,7 +156,9 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
-          <AuthLink />
+          <div className={largeTitle ? 'mt-auto' : ''}>
+            <AuthLink />
+          </div>
           {headerLeftExtra && (
             <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
           )}

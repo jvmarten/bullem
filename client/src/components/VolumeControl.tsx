@@ -1,8 +1,53 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { useSound } from '../hooks/useSound.js';
+
+/* ── Persistent toggle settings (chat / emoji visibility) ──────── */
+
+const CHAT_KEY = 'bull-em-chat-enabled';
+const EMOJI_KEY = 'bull-em-emoji-enabled';
+
+let settingsListeners = new Set<() => void>();
+function notifySettings() { settingsListeners.forEach(cb => cb()); }
+function subscribeSettings(cb: () => void) {
+  settingsListeners.add(cb);
+  return () => { settingsListeners.delete(cb); };
+}
+
+function readBool(key: string, fallback: boolean): boolean {
+  const v = localStorage.getItem(key);
+  if (v === null) return fallback;
+  return v === '1';
+}
+
+let chatEnabled = readBool(CHAT_KEY, true);
+let emojiEnabled = readBool(EMOJI_KEY, true);
+
+function getChatEnabled() { return chatEnabled; }
+function getEmojiEnabled() { return emojiEnabled; }
+
+function toggleChatEnabled() {
+  chatEnabled = !chatEnabled;
+  localStorage.setItem(CHAT_KEY, chatEnabled ? '1' : '0');
+  notifySettings();
+}
+
+function toggleEmojiEnabled() {
+  emojiEnabled = !emojiEnabled;
+  localStorage.setItem(EMOJI_KEY, emojiEnabled ? '1' : '0');
+  notifySettings();
+}
+
+/** Hook to read chat/emoji visibility settings. */
+export function useUISettings() {
+  const chat = useSyncExternalStore(subscribeSettings, getChatEnabled);
+  const emoji = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
+  return { chatEnabled: chat, emojiEnabled: emoji };
+}
 
 export function VolumeControl() {
   const { muted, toggleMute, volume, setVolume, hapticsEnabled, toggleHaptics } = useSound();
+  const chatOn = useSyncExternalStore(subscribeSettings, getChatEnabled);
+  const emojiOn = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -23,8 +68,8 @@ export function VolumeControl() {
       <button
         onClick={() => setOpen(o => !o)}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-1"
-        title="Sound settings"
-        aria-label="Sound settings"
+        title="Settings"
+        aria-label="Settings"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />
@@ -33,7 +78,7 @@ export function VolumeControl() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[160px] animate-fade-in">
+        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Volume
@@ -57,27 +102,40 @@ export function VolumeControl() {
               )}
             </button>
           </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={muted ? 0 : volume}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              setVolume(v);
-              if (v > 0 && muted) toggleMute();
-              if (v === 0 && !muted) toggleMute();
-            }}
-            className="volume-slider w-full"
-          />
-          <div className="flex justify-between text-[9px] text-[var(--gold-dim)] mt-0.5">
-            <span>0%</span>
-            <span>{muted ? '0' : Math.round(volume * 100)}%</span>
-            <span>100%</span>
+          <div className="flex items-center gap-2">
+            {/* Speaker icon with dynamic soundwaves based on volume */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              {!muted && volume > 0 && (
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              )}
+              {!muted && volume > 0.5 && (
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              )}
+              {(muted || volume === 0) && (
+                <>
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </>
+              )}
+            </svg>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={muted ? 0 : volume}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setVolume(v);
+                if (v > 0 && muted) toggleMute();
+                if (v === 0 && !muted) toggleMute();
+              }}
+              className="volume-slider flex-1"
+            />
           </div>
 
-          {/* Haptics toggle — separate from sound mute */}
+          {/* Haptics toggle */}
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20">
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Haptics
@@ -100,6 +158,43 @@ export function VolumeControl() {
                   <line x1="2" y1="2" x2="22" y2="22" />
                 </svg>
               )}
+            </button>
+          </div>
+
+          {/* Chat toggle */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              Chat
+            </span>
+            <button
+              onClick={toggleChatEnabled}
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!chatOn ? 'opacity-40' : ''}`}
+              title={chatOn ? 'Hide chat button' : 'Show chat button'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                {!chatOn && <line x1="2" y1="2" x2="22" y2="22" />}
+              </svg>
+            </button>
+          </div>
+
+          {/* Emoji toggle */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              Emoji
+            </span>
+            <button
+              onClick={toggleEmojiEnabled}
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!emojiOn ? 'opacity-40' : ''}`}
+              title={emojiOn ? 'Hide emoji button' : 'Show emoji button'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+                {!emojiOn && <line x1="2" y1="2" x2="22" y2="22" />}
+              </svg>
             </button>
           </div>
         </div>

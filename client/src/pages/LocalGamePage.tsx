@@ -233,11 +233,11 @@ export function LocalGamePage() {
           </div>
         </div>
 
-        {/* Spectator banner */}
+        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter */}
         {isEliminated && (
-          <div className="text-center glass p-2 animate-fade-in">
-            <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
-              Eliminated — Spectating
+          <div className="text-center glass p-2 animate-fade-in spectator-banner">
+            <p className="text-xs font-semibold uppercase tracking-widest">
+              <span className="text-[var(--gold-dim)]">Eliminated — </span><span className="text-[var(--gold)]">Spectating</span>
             </p>
           </div>
         )}
