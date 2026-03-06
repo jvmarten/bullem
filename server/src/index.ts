@@ -17,6 +17,7 @@ import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
+import { oauthRouter } from './auth/oauth.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
@@ -178,6 +179,7 @@ app.use(optionalAuth);
 
 // Auth routes
 app.use('/auth', authRouter);
+app.use('/auth', oauthRouter);
 
 // Replay routes
 import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
