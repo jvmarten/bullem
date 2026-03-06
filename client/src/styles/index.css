@@ -1389,4 +1389,9 @@ body {
     box-shadow: none;
     z-index: 1;
   }
+
+  /* Hide keyboard shortcut hints on touch devices */
+  .kbd-hint {
+    display: none;
+  }
 }

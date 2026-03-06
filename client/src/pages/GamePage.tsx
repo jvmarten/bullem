@@ -22,6 +22,7 @@ import type { HandCall } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
+import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
@@ -222,6 +223,27 @@ export function GamePage() {
     setHandSelectorOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
+  // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
+  const showBull = isMyTurn && gameState.currentHand !== null
+    && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showPass = isMyTurn && isLastChanceCaller;
+  const overlayActive = !!roundResult || !!roundTransition;
+
+  useGameKeyboardShortcuts({
+    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
+    onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
+    onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
+    onPass: showPass ? () => { play('uiClick'); lastChancePass(); } : null,
+    onEscape: roundResult
+      ? clearRoundResult
+      : handSelectorOpen
+        ? closeHandSelector
+        : null,
+    overlayActive,
+  });
+
   /* Landscape/desktop: merge game info into the Layout header bar */
   const headerLeftExtra = (
     <>
@@ -395,6 +417,7 @@ export function GamePage() {
                       className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
+                      <kbd className="kbd-hint ml-1.5 text-[10px] opacity-50 font-mono border border-current rounded px-1 leading-tight">R</kbd>
                     </button>
                   </div>
                 )}

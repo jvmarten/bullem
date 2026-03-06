@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
 
+/** Desktop-only keyboard shortcut hint shown next to a button label. */
+function KbdHint({ shortcut }: { shortcut: string }) {
+  return (
+    <kbd className="kbd-hint ml-1.5 text-[10px] opacity-50 font-mono border border-current rounded px-1 leading-tight">
+      {shortcut}
+    </kbd>
+  );
+}
+
 interface Props {
   roundPhase: RoundPhase;
   isMyTurn: boolean;
@@ -76,7 +85,7 @@ export const ActionButtons = memo(function ActionButtons({
     return (
       <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
         <button onClick={() => handleClick(onLastChancePass)} className="btn-safe px-6 py-2 text-base font-bold min-w-[9rem]">
-          Pass
+          Pass<KbdHint shortcut="P" />
         </button>
       </div>
     );
@@ -104,12 +113,12 @@ export const ActionButtons = memo(function ActionButtons({
     <div className="flex gap-2 justify-start animate-slide-up" data-action-buttons>
       {showBull && (
         <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger px-4 py-2 text-base font-bold min-w-[7rem]">
-          BULL!
+          BULL!<KbdHint shortcut="B" />
         </button>
       )}
       {showTrue && (
         <button onClick={() => handleClick(onTrue)} className="btn-info px-4 py-2 text-base font-bold min-w-[7rem]">
-          TRUE
+          TRUE<KbdHint shortcut="T" />
         </button>
       )}
     </div>
