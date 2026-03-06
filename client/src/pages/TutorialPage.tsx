@@ -47,8 +47,8 @@ function HandExample({ rank, name, cards, desc, highlight }: {
           const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
           return (
             <div key={i} className="w-6 h-8 rounded-[3px] flex flex-col items-center justify-center" style={{ background: 'var(--card-face)', border: highlight ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)' }}>
-              <span className={`text-[8px] font-bold leading-none ${isRed ? 'text-red-500' : 'text-[#e8e0d4]'}`}>{c.rank}</span>
-              <span className={`text-[8px] leading-none ${isRed ? 'text-red-500' : 'text-[#e8e0d4]'}`}>{SUIT_SYMBOLS[c.suit]}</span>
+              <span className={`text-[8px] font-bold leading-none ${isRed ? 'text-red-500' : 'text-[#1a1a1a]'}`}>{c.rank}</span>
+              <span className={`text-[8px] leading-none ${isRed ? 'text-red-500' : 'text-[#1a1a1a]'}`}>{SUIT_SYMBOLS[c.suit]}</span>
             </div>
           );
         })}

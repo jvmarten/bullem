@@ -1,4 +1,4 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange } from './types.js';
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
@@ -57,6 +57,8 @@ export interface ClientToServerEvents {
   'chat:send': (data: { message: string }) => void;
   'push:subscribe': (subscription: PushSubscriptionJSON, callback: (response: { ok: true } | { error: string }) => void) => void;
   'push:unsubscribe': (callback: (response: { ok: true } | { error: string }) => void) => void;
+  'matchmaking:join': (data: { mode: RankedMode }, callback: (response: { ok: true } | { error: string }) => void) => void;
+  'matchmaking:leave': (callback: (response: { ok: true } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -66,7 +68,7 @@ export interface ServerToClientEvents {
   'game:state': (state: ClientGameState) => void;
   'game:roundResult': (result: RoundResult) => void;
   'game:newRound': (state: ClientGameState) => void;
-  'game:over': (winnerId: PlayerId, gameStats: GameStats) => void;
+  'game:over': (winnerId: PlayerId, gameStats: GameStats, ratingChanges?: Record<PlayerId, RatingChange>) => void;
   'game:replay': (replay: GameReplay) => void;
   'game:rematchStarting': () => void;
   'player:disconnected': (playerId: PlayerId, disconnectDeadline: number) => void;
@@ -77,4 +79,7 @@ export interface ServerToClientEvents {
   'room:kicked': () => void;
   'game:reaction': (reaction: EmojiReaction) => void;
   'chat:message': (message: ChatMessage) => void;
+  'matchmaking:queued': (status: MatchmakingStatus) => void;
+  'matchmaking:found': (match: MatchmakingFound) => void;
+  'matchmaking:cancelled': () => void;
 }

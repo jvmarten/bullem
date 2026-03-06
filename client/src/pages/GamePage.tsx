@@ -26,6 +26,7 @@ import { getMinimumRaise } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
+import { useUISettings } from '../components/VolumeControl.js';
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
@@ -73,6 +74,7 @@ export function GamePage() {
   useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
+  const { chatEnabled, emojiEnabled } = useUISettings();
 
   const rejoinAttemptedRef = useRef(false);
 
@@ -210,14 +212,13 @@ export function GamePage() {
     if (!current) return;
     const minRaise = getMinimumRaise(current);
     if (!minRaise) return;
-    play('callMade');
     if (isLastChanceCaller) {
       lastChanceRaise(minRaise);
     } else {
       callHand(minRaise);
     }
     setHandSelectorOpen(false);
-  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand, play]);
+  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
 
   // Stable callback reference so ActionButtons' React.memo isn't broken by
   // an inline arrow function creating a new reference on every render.
@@ -270,7 +271,7 @@ export function GamePage() {
       >{roomCode}</span>
       {spectatorCount > 0 && (
         <span className="text-[var(--gold-dim)] text-xs" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
-          {spectatorCount} watching
+          &#128065; {spectatorCount}
         </span>
       )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
@@ -306,7 +307,7 @@ export function GamePage() {
             >{roomCode}</span>
             {spectatorCount > 0 && (
               <span className="text-[var(--gold-dim)]" title={`${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''} watching`}>
-                {spectatorCount} watching
+                &#128065; {spectatorCount}
               </span>
             )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
@@ -321,11 +322,15 @@ export function GamePage() {
           </div>
         </div>
 
-        {/* Spectator banner */}
+        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter */}
         {(isEliminated || isSpectator) && (
-          <div className="text-center glass p-2 animate-fade-in">
-            <p className="text-[var(--gold-dim)] text-xs font-semibold uppercase tracking-widest">
-              {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
+          <div className="text-center glass p-2 animate-fade-in spectator-banner">
+            <p className="text-xs font-semibold uppercase tracking-widest">
+              {isEliminated ? (
+                <><span className="text-[var(--gold-dim)]">Eliminated — </span><span className="text-[var(--gold)]">Spectating</span></>
+              ) : (
+                <span className="text-[var(--gold)]">Spectating</span>
+              )}
             </p>
           </div>
         )}
@@ -345,9 +350,6 @@ export function GamePage() {
                 reactions={reactions}
               />
             </div>
-            {!isEliminated && !isSpectator && (
-              <EmojiReactionBar onReaction={sendReaction} />
-            )}
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
               <CallHistory history={gameState.turnHistory} />
@@ -492,13 +494,20 @@ export function GamePage() {
           />
         )}
 
-        {/* Chat panel — spectators can always chat; players only between rounds/after game */}
-        <ChatPanel
-          messages={chatMessages}
-          onSend={sendChatMessage}
-          disabled={!isEliminated && !isSpectator && !roundResult && !winnerId}
-          label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
-        />
+        {/* Emoji reaction button — fixed bottom-left (hidden via settings toggle) */}
+        {emojiEnabled && !isEliminated && !isSpectator && (
+          <EmojiReactionBar onReaction={sendReaction} />
+        )}
+
+        {/* Chat panel — spectators can always chat; players can chat between rounds/during transitions/after game */}
+        {chatEnabled && (
+          <ChatPanel
+            messages={chatMessages}
+            onSend={sendChatMessage}
+            disabled={!isEliminated && !isSpectator && !roundResult && !roundTransition && !winnerId}
+            label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
+          />
+        )}
 
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}

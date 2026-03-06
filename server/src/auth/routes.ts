@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import crypto from 'node:crypto';
 import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
 import { AVATAR_OPTIONS } from '@bull-em/shared';
 import { hashPassword, verifyPassword } from './password.js';
@@ -8,9 +9,11 @@ import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
 import { query } from '../db/index.js';
 import { pool } from '../db/index.js';
 import { getGameHistory } from '../db/games.js';
+import { sendPasswordResetEmail } from '../email/index.js';
 import logger from '../logger.js';
 import type { RateLimiter } from '../rateLimit.js';
 import { httpRequestsTotal } from '../metrics.js';
+import { track } from '../analytics/track.js';
 
 const router = Router();
 
@@ -139,14 +142,16 @@ router.post('/register', authRateLimit, async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      role: string;
       avatar: string | null;
+      photo_url: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       `INSERT INTO users (username, display_name, email, password_hash, auth_provider)
        VALUES ($1, $2, $3, $4, 'email')
-       RETURNING id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at`,
+       RETURNING id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at`,
       [trimmedUsername, trimmedUsername, trimmedEmail, passwordHash],
     );
 
@@ -161,14 +166,18 @@ router.post('/register', authRateLimit, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
+      role: row.role as User['role'],
       authProvider: 'email',
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
 
-    const token = signToken({ userId: user.id, username: user.username });
+    const token = signToken({ userId: user.id, username: user.username, role: user.role });
     const response: AuthResponse = { user };
+
+    track('player:registered', { authMethod: 'email' }, user.id);
 
     res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
     res.status(201).json(response);
@@ -216,15 +225,17 @@ router.post('/login', authRateLimit, async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      role: string;
       avatar: string | null;
+      photo_url: string | null;
       password_hash: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       isEmail
-        ? 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
-        : 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
+        ? 'SELECT id, username, display_name, email, role, avatar, photo_url, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
+        : 'SELECT id, username, display_name, email, role, avatar, photo_url, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
       [trimmedId],
     );
 
@@ -255,14 +266,18 @@ router.post('/login', authRateLimit, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
+      role: row.role as User['role'],
       authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: new Date().toISOString(),
     };
 
-    const token = signToken({ userId: user.id, username: user.username });
+    const token = signToken({ userId: user.id, username: user.username, role: user.role });
     const response: AuthResponse = { user };
+
+    track('player:login', { authMethod: 'email' }, user.id);
 
     res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
     res.json(response);
@@ -291,12 +306,14 @@ router.get('/me', requireAuth, async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      role: string;
       avatar: string | null;
+      photo_url: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -339,6 +356,7 @@ router.get('/me', requireAuth, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
       gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
@@ -352,8 +370,10 @@ router.get('/me', requireAuth, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
+      role: row.role as User['role'],
       authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -410,6 +430,144 @@ router.get('/games', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch game history');
     res.status(500).json({ error: 'Failed to fetch game history' });
+  }
+});
+
+// ── POST /auth/forgot-password ──────────────────────────────────────────
+
+/** SHA-256 hash a plaintext token for storage/lookup. */
+function sha256(input: string): string {
+  return crypto.createHash('sha256').update(input).digest('hex');
+}
+
+/** Password reset token lifetime: 1 hour. */
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+router.post('/forgot-password', authRateLimit, async (req, res) => {
+  // Always return the same response to prevent email enumeration
+  const genericMessage = 'If an account with that email exists, we sent a password reset link.';
+
+  try {
+    const { email } = req.body as { email?: string };
+
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail.length > MAX_EMAIL_LENGTH || !EMAIL_REGEX.test(trimmedEmail)) {
+      res.status(400).json({ error: 'Invalid email address' });
+      return;
+    }
+
+    // Look up user — if not found, still return success (anti-enumeration)
+    const userResult = await query<{ id: string; auth_provider: string }>(
+      'SELECT id, auth_provider FROM users WHERE email = $1',
+      [trimmedEmail],
+    );
+
+    if (!userResult || userResult.rows.length === 0) {
+      res.json({ message: genericMessage });
+      return;
+    }
+
+    const user = userResult.rows[0]!;
+
+    // Only allow password reset for email auth users
+    if (user.auth_provider !== 'email') {
+      res.json({ message: genericMessage });
+      return;
+    }
+
+    // Generate token, hash it, and store in DB
+    const plainToken = crypto.randomUUID();
+    const tokenHash = sha256(plainToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+    if (!pool) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt.toISOString()],
+    );
+
+    // Send email (fire-and-forget — don't block response on email delivery)
+    sendPasswordResetEmail(trimmedEmail, plainToken).catch((err) => {
+      logger.error({ err, email: trimmedEmail }, 'Failed to send password reset email');
+    });
+
+    res.json({ message: genericMessage });
+  } catch (err) {
+    logger.error({ err }, 'Forgot password failed');
+    // Still return generic message to prevent information leakage
+    res.json({ message: genericMessage });
+  }
+});
+
+// ── POST /auth/reset-password ───────────────────────────────────────────
+
+router.post('/reset-password', authRateLimit, async (req, res) => {
+  try {
+    const { token, password } = req.body as { token?: string; password?: string };
+
+    if (!token || !password) {
+      res.status(400).json({ error: 'Token and password are required' });
+      return;
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      res.status(400).json({
+        error: `Password must be ${MIN_PASSWORD_LENGTH}–${MAX_PASSWORD_LENGTH} characters`,
+      });
+      return;
+    }
+
+    const tokenHash = sha256(token);
+
+    if (!pool) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    // Find a matching, non-expired, unused token
+    const tokenResult = await pool.query<{ id: string; user_id: string }>(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1
+         AND expires_at > NOW()
+         AND used_at IS NULL`,
+      [tokenHash],
+    );
+
+    if (tokenResult.rows.length === 0) {
+      res.status(400).json({ error: 'Invalid or expired reset link. Please request a new one.' });
+      return;
+    }
+
+    const resetRow = tokenResult.rows[0]!;
+
+    // Hash the new password and update the user
+    const passwordHash = await hashPassword(password);
+
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, resetRow.user_id],
+    );
+
+    // Mark the token as used
+    await pool.query(
+      'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1',
+      [resetRow.id],
+    );
+
+    res.json({ message: 'Password has been reset successfully.' });
+  } catch (err) {
+    logger.error({ err }, 'Reset password failed');
+    res.status(500).json({ error: 'Password reset failed' });
   }
 });
 

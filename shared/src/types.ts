@@ -59,6 +59,7 @@ export interface Player {
   isEliminated: boolean;
   isHost: boolean;
   isBot?: boolean;
+  isAdmin?: boolean;
 }
 
 /** Server-side player with actual cards. Never sent to other players' clients. */
@@ -186,6 +187,10 @@ export interface GameSettings {
   botSpeed?: BotSpeed;
   /** Last chance raise rules. Defaults to 'classic'. */
   lastChanceMode?: LastChanceMode;
+  /** Whether this game is a ranked match. */
+  ranked?: boolean;
+  /** Which ranked queue this game belongs to (set server-side based on player count). */
+  rankedMode?: RankedMode;
 }
 
 export interface PlayerGameStats {
@@ -255,10 +260,17 @@ export interface User {
   username: string;
   displayName: string;
   email: string;
+  role: 'user' | 'admin';
   authProvider: 'email' | 'google' | 'apple' | 'email+google' | 'email+apple';
   avatar: AvatarId | null;
+  /** Optional custom profile photo URL (set by admin). */
+  photoUrl?: string | null;
   createdAt: string;
   lastSeenAt: string;
+  /** True for bot accounts seeded in the database. */
+  isBot?: boolean;
+  /** Profile key referencing a BotProfileDefinition (only set for bot accounts). */
+  botProfile?: string | null;
 }
 
 /** Public-facing profile (safe to send to any client). */
@@ -267,6 +279,8 @@ export interface PublicProfile {
   username: string;
   displayName: string;
   avatar: AvatarId | null;
+  /** Optional custom profile photo URL (set by admin). */
+  photoUrl?: string | null;
   createdAt: string;
   gamesPlayed: number;
   gamesWon: number;
@@ -279,6 +293,20 @@ export interface PublicProfile {
 /** Response body for POST /auth/register and POST /auth/login. */
 export interface AuthResponse {
   user: Omit<User, 'email'> & { email: string };
+}
+
+/** Aggregated player statistics returned by GET /api/stats/:userId. */
+export interface PlayerStatsResponse {
+  userId: string;
+  gamesPlayed: number;
+  wins: number;
+  winRate: number | null;
+  avgFinishPosition: number | null;
+  bullAccuracy: number | null;
+  trueAccuracy: number | null;
+  bluffSuccessRate: number | null;
+  gamesByPlayerCount: Record<string, number>;
+  recentGames: GameHistoryEntry[];
 }
 
 /** A completed game in a user's game history. */
@@ -304,6 +332,138 @@ export interface GameHistoryEntry {
 export interface PushSubscriptionJSON {
   endpoint: string;
   keys?: { p256dh: string; auth: string };
+}
+
+// ── Rating types ────────────────────────────────────────────────────────
+
+/** Which ranked queue a game belongs to. */
+export type RankedMode = 'heads_up' | 'multiplayer';
+
+/** Elo rating for heads-up (1v1) games. */
+export interface EloRating {
+  mode: 'heads_up';
+  elo: number;
+  gamesPlayed: number;
+  peakRating: number;
+  lastUpdated: string;
+}
+
+/** OpenSkill (mu/sigma) rating for multiplayer (3-9 player) games. */
+export interface OpenSkillRating {
+  mode: 'multiplayer';
+  mu: number;
+  sigma: number;
+  gamesPlayed: number;
+  peakRating: number;
+  lastUpdated: string;
+}
+
+export type PlayerRating = EloRating | OpenSkillRating;
+
+/** Response body for GET /api/ratings/:userId. */
+export interface UserRatings {
+  userId: string;
+  headsUp: EloRating | null;
+  multiplayer: OpenSkillRating | null;
+}
+
+// ── Matchmaking types ────────────────────────────────────────────────────
+
+/** Status update sent while a player is in the matchmaking queue. */
+export interface MatchmakingStatus {
+  /** Approximate position in the queue (1-based). */
+  position: number;
+  /** Estimated wait time in seconds. -1 if unknown. */
+  estimatedWaitSeconds: number;
+  /** Which queue the player is in. */
+  mode: RankedMode;
+}
+
+/** Sent when a match is found and a room is being created. */
+export interface MatchmakingFound {
+  /** Room code for the matched game. */
+  roomCode: string;
+  /** Info about matched opponents. */
+  opponents: { name: string; rating: number; tier: RankTier }[];
+  /** The player's own reconnect token for the auto-joined room. */
+  reconnectToken: string;
+  /** The player's assigned in-game player ID. */
+  playerId: string;
+}
+
+// ── Match history types (for future rating recalculation) ────────────────
+
+/** Detailed match data stored for every ranked game. Designed so that
+ *  ratings can be recalculated from scratch if the rating algorithm changes. */
+export interface RankedMatchRecord {
+  gameId: string;
+  mode: RankedMode;
+  /** Number of players when the match started (including bots). */
+  playerCount: number;
+  /** Number of human players when the match started. */
+  humanPlayerCount: number;
+  /** Whether the match was created via matchmaking (vs. custom ranked lobby). */
+  fromMatchmaking: boolean;
+  /** Snapshot of game settings at match time. */
+  settings: GameSettings;
+  startedAt: string;
+  endedAt: string;
+  /** Ordered results — one entry per player. */
+  players: RankedMatchPlayerRecord[];
+}
+
+/** Per-player data in a ranked match record. */
+export interface RankedMatchPlayerRecord {
+  userId: string;
+  /** Display name at the time of the match. */
+  displayName: string;
+  finishPosition: number;
+  isBot: boolean;
+  /** Rating snapshot BEFORE the match was played. */
+  ratingBefore: {
+    elo?: number;
+    mu?: number;
+    sigma?: number;
+  };
+  /** Rating snapshot AFTER the match was played. */
+  ratingAfter: {
+    elo?: number;
+    mu?: number;
+    sigma?: number;
+  };
+}
+
+// ── Rank tier types ─────────────────────────────────────────────────────
+
+/** Display tiers for ranked play, derived from Elo / OpenSkill display rating. */
+export enum RankTier {
+  BRONZE = 'bronze',
+  SILVER = 'silver',
+  GOLD = 'gold',
+  PLATINUM = 'platinum',
+  DIAMOND = 'diamond',
+}
+
+/** Determine the rank tier from a numeric rating (Elo or converted OpenSkill). */
+export function getRankTier(rating: number): RankTier {
+  if (rating >= 1600) return RankTier.DIAMOND;
+  if (rating >= 1400) return RankTier.PLATINUM;
+  if (rating >= 1200) return RankTier.GOLD;
+  if (rating >= 1000) return RankTier.SILVER;
+  return RankTier.BRONZE;
+}
+
+/** Convert OpenSkill mu to a display rating on the same scale as Elo. */
+export function openSkillDisplayRating(mu: number): number {
+  return Math.round(mu * 48);
+}
+
+/** Rating change sent to clients after a ranked game ends. */
+export interface RatingChange {
+  mode: RankedMode;
+  before: number;
+  after: number;
+  delta: number;
 }
 
 /** Summary of an in-progress game available for spectating. */

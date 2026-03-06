@@ -14,13 +14,16 @@ import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
+import { CalibrationManager } from './game/CalibrationManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
+import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
-import { optionalAuth } from './auth/middleware.js';
+import { optionalAuth, requireAuth } from './auth/middleware.js';
+import { createAdminRouter } from './admin/routes.js';
 import logger from './logger.js';
-import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
+import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
 import { PushManager } from './push/PushManager.js';
@@ -99,6 +102,7 @@ io.use((socket, next) => {
         // Attach user info to socket.data for use in handlers
         socket.data.userId = payload.userId;
         socket.data.username = payload.username;
+        socket.data.role = payload.role;
       }
     }
   }
@@ -125,7 +129,21 @@ botManager.setRoomManager(roomManager);
 const pushManager = new PushManager();
 setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
-registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
+const calibrationManager = new CalibrationManager(io, roomManager, botManager);
+
+// Create matchmaking queue when Redis is available — matchmaking requires
+// Redis for queue state. Without Redis, ranked matchmaking is disabled.
+let matchmakingQueue: MatchmakingQueue | undefined;
+if (rateLimitRedis) {
+  // Reuse a dedicated Redis client for matchmaking sorted sets.
+  // TODO(scale): At very high scale, consider a separate Redis client
+  // to avoid contention with rate limiting on the same connection.
+  const matchmakingRedis = new Redis(process.env.REDIS_URL!);
+  redisClients.push(matchmakingRedis);
+  matchmakingQueue = new MatchmakingQueue(io, matchmakingRedis, roomManager, botManager);
+}
+
+registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
 
 // Restore rooms from Redis before accepting connections, then start cleanup.
 // Uses an async IIFE — server starts listening immediately but rooms are
@@ -157,6 +175,25 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
   }
   roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
   backgroundGameManager.start();
+
+  // Start matchmaking queue after Redis and DB are ready
+  if (matchmakingQueue) {
+    matchmakingQueue.start();
+    logger.info('Ranked matchmaking enabled (Redis available)');
+  } else {
+    logger.info('Ranked matchmaking disabled (no Redis configured)');
+  }
+
+  // Start bot calibration if enabled via environment variable.
+  // Disabled by default — you don't want calibration running in local dev.
+  if (process.env.ENABLE_BOT_CALIBRATION === 'true') {
+    calibrationManager.start().catch((err) => {
+      logger.error({ err }, 'CalibrationManager failed to start');
+    });
+    logger.info('Bot calibration enabled');
+  } else {
+    logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
+  }
 })();
 
 // Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies
@@ -181,6 +218,9 @@ app.use(optionalAuth);
 // Auth routes
 app.use('/auth', authRouter);
 app.use('/auth', oauthRouter);
+
+// Admin routes
+app.use('/admin', createAdminRouter(io, roomManager, botManager));
 
 // Replay routes
 import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
@@ -225,6 +265,85 @@ app.get('/api/replays/:gameId', async (req, res) => {
     logger.error({ err }, 'Failed to fetch replay');
     res.status(500).json({ error: 'Failed to fetch replay' });
   }
+});
+
+// Stats routes
+import { getPlayerStats } from './db/stats.js';
+
+/** GET /api/stats/me — convenience endpoint using the authenticated user's ID. */
+app.get('/api/stats/me', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const stats = await getPlayerStats(userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch player stats');
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/** GET /api/stats/:userId — fetch aggregated stats for any user. */
+app.get('/api/stats/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const stats = await getPlayerStats(userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    if (stats.gamesPlayed === 0) {
+      // Check if user actually exists
+      const userResult = await query<{ id: string }>(
+        'SELECT id FROM users WHERE id = $1',
+        [userId],
+      );
+      if (!userResult || userResult.rows.length === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch player stats');
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// Rating routes
+import { getUserRatings as fetchUserRatings } from './db/ratings.js';
+
+/** GET /api/ratings/:userId — fetch both ratings for a user. */
+app.get('/api/ratings/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const ratings = await fetchUserRatings(userId);
+    if (!ratings) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(ratings);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch user ratings');
+    res.status(500).json({ error: 'Failed to fetch ratings' });
+  }
+});
+
+// ── Calibration status endpoint ─────────────────────────────────────────
+// TODO: add admin auth — currently unauthenticated for dev/monitoring convenience
+app.get('/api/admin/calibration', (_req, res) => {
+  res.json(calibrationManager.getStatus());
 });
 
 // Health check — registered before the SPA catch-all
@@ -296,7 +415,7 @@ if (process.env.NODE_ENV === 'production') {
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/admin/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
       return;
     }
@@ -345,6 +464,8 @@ function shutdown(): void {
     clearTimeout(broadcastPending);
     broadcastPending = null;
   }
+  if (matchmakingQueue) matchmakingQueue.stop();
+  calibrationManager.stop();
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();

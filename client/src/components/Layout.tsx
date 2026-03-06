@@ -18,25 +18,46 @@ interface LayoutProps {
 
 function AuthLink() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
+
+  // When in a game/room session, don't navigate away — it would kick the player out
+  const inSession = /^\/(room|game|local|results)/.test(location.pathname);
+
+  const userIcon = (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  );
+
   if (user) {
     return (
       <Link
         to="/profile"
-        className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1"
+        className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
         title={user.username}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span className="hidden sm:inline">{user.username}</span>
+        {userIcon}
+        <span>{user.username}</span>
       </Link>
     );
   }
+
+  if (inSession) {
+    // Show guest label without navigation to avoid kicking from game
+    return (
+      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px]">
+        {userIcon}
+        <span>Guest</span>
+      </span>
+    );
+  }
+
   return (
     <Link
       to="/login"
-      className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
     >
-      Guest
+      {userIcon}
+      <span>Guest</span>
     </Link>
   );
 }
@@ -95,11 +116,11 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
+      <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
+        <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start gap-0.5' : 'items-center gap-2'} min-w-0`}>
           {isConnected && (
-            <div ref={popupRef} className="relative">
+            <div ref={popupRef} className="relative flex-shrink-0">
               <button
                 onClick={() => setShowPopup(prev => !prev)}
                 className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
@@ -135,7 +156,9 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
-          <AuthLink />
+          <div className={largeTitle ? 'mt-auto' : ''}>
+            <AuthLink />
+          </div>
           {headerLeftExtra && (
             <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
           )}
@@ -147,7 +170,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
         </div>
 
         {/* Right group */}
-        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+        <div className={`flex-1 flex ${largeTitle ? 'items-end' : 'items-center'} justify-end gap-2 min-w-0`}>
           {headerRightExtra && (
             <div className="landscape-only items-center gap-3">{headerRightExtra}</div>
           )}

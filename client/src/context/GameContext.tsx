@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 import { recordRecentPlayers } from '../utils/recentPlayers.js';
@@ -71,6 +71,18 @@ export interface GameContextValue {
   chatMessages: ChatMessage[];
   /** Send a chat message to the room. */
   sendChatMessage: (message: string) => void;
+  /** Current matchmaking queue status (null when not queued). */
+  matchmakingStatus: MatchmakingStatus | null;
+  /** Info about a found match (shown briefly before navigating to game). */
+  matchmakingFound: MatchmakingFound | null;
+  /** Join the matchmaking queue for a ranked mode. */
+  joinMatchmaking: (mode: RankedMode) => Promise<void>;
+  /** Leave the matchmaking queue. */
+  leaveMatchmaking: () => Promise<void>;
+  /** Clear the matchmaking found state (after navigation). */
+  clearMatchmakingFound: () => void;
+  /** Rating changes from the last completed ranked game (keyed by playerId). */
+  ratingChanges: Record<PlayerId, RatingChange> | null;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -79,6 +91,7 @@ const PLAYER_ID_KEY = 'bull-em-player-id';
 const PLAYER_NAME_KEY = 'bull-em-player-name';
 const ROOM_CODE_KEY = 'bull-em-room-code';
 const RECONNECT_TOKEN_KEY = 'bull-em-reconnect-token';
+const SPECTATOR_ROOM_KEY = 'bull-em-spectator-room';
 const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
 
 /** Wrap a socket.emit callback promise with a timeout so it can't hang forever.
@@ -114,6 +127,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
   const [reactions, setReactions] = useState<EmojiReaction[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [matchmakingStatus, setMatchmakingStatus] = useState<MatchmakingStatus | null>(null);
+  const [matchmakingFound, setMatchmakingFound] = useState<MatchmakingFound | null>(null);
+  const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -188,6 +204,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
     };
 
     socket.on('connect', () => { setIsConnected(true); setHasConnected(true); });
@@ -198,6 +215,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // new ID, so the server no longer knows which room it belongs to. Without
     // this, the client keeps stale state and receives no further game events.
     const handleReconnect = () => {
+      // Check if we were spectating — re-spectate instead of re-joining as a player
+      const spectatorRoom = sessionStorage.getItem(SPECTATOR_ROOM_KEY);
+      if (spectatorRoom) {
+        socket.emit('room:spectate', { roomCode: spectatorRoom }, (response) => {
+          if ('error' in response) {
+            // Game ended or room gone — clean up spectator state
+            sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+            setGameState(null);
+          }
+        });
+        return;
+      }
+
       const storedRoomCode = sessionStorage.getItem(ROOM_CODE_KEY);
       const storedName = sessionStorage.getItem(PLAYER_NAME_KEY);
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY);
@@ -245,9 +275,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:state', handleNewGameState);
     socket.on('game:newRound', handleNewGameState);
     socket.on('game:roundResult', setRoundResult);
-    socket.on('game:over', (wId, stats) => {
+    socket.on('game:over', (wId, stats, rChanges) => {
       setWinnerId(wId);
       setGameStats(stats);
+      setRatingChanges(rChanges ?? null);
       // Record other human players for the "Recent Players" list
       const gs = gameStateRef.current;
       const myName = sessionStorage.getItem(PLAYER_NAME_KEY);
@@ -263,6 +294,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
       setGameStats(null);
+      setRatingChanges(null);
       setLastReplay(null);
       setRoundResult(null);
       setRoundTransition(false);
@@ -307,6 +339,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return next.length > 200 ? next.slice(-200) : next;
       });
     });
+    socket.on('matchmaking:queued', (status: MatchmakingStatus) => {
+      setMatchmakingStatus(status);
+    });
+    socket.on('matchmaking:found', (match: MatchmakingFound) => {
+      setMatchmakingStatus(null);
+      setMatchmakingFound(match);
+      // Store session info so reconnection works for the auto-joined room
+      sessionStorage.setItem(ROOM_CODE_KEY, match.roomCode);
+      sessionStorage.setItem(PLAYER_ID_KEY, match.playerId);
+      sessionStorage.setItem(RECONNECT_TOKEN_KEY, match.reconnectToken);
+      setPlayerId(match.playerId);
+    });
+    socket.on('matchmaking:cancelled', () => {
+      setMatchmakingStatus(null);
+    });
 
     return () => {
       socket.off('connect');
@@ -327,6 +374,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('server:playerNames');
       socket.off('game:reaction');
       socket.off('chat:message');
+      socket.off('matchmaking:queued');
+      socket.off('matchmaking:found');
+      socket.off('matchmaking:cancelled');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -373,6 +423,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
   }, []);
 
   const deleteRoom = useCallback(() => {
@@ -389,6 +440,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
   }, []);
 
   const listRooms = useCallback((): Promise<RoomListing[]> => {
@@ -408,6 +460,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('room:spectate', { roomCode }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
+        sessionStorage.setItem(SPECTATOR_ROOM_KEY, roomCode);
         resolve();
       });
     }));
@@ -418,6 +471,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('room:watchRandom', (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
+        sessionStorage.setItem(SPECTATOR_ROOM_KEY, response.roomCode);
         resolve(response.roomCode);
       });
     }));
@@ -474,6 +528,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const sendReaction = useCallback((emoji: GameEmoji) => socket.emit('game:reaction', { emoji }), []);
   const sendChatMessage = useCallback((message: string) => socket.emit('chat:send', { message }), []);
+
+  const joinMatchmaking = useCallback((mode: RankedMode): Promise<void> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('matchmaking:join', { mode }, (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        resolve();
+      });
+    }));
+  }, []);
+
+  const leaveMatchmaking = useCallback((): Promise<void> => {
+    return withTimeout(new Promise((resolve, reject) => {
+      socket.emit('matchmaking:leave', (response) => {
+        if ('error' in response) return reject(new Error(response.error));
+        setMatchmakingStatus(null);
+        resolve();
+      });
+    }));
+  }, []);
+
+  const clearMatchmakingFound = useCallback(() => setMatchmakingFound(null), []);
+
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
@@ -536,14 +612,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sendReaction,
     chatMessages,
     sendChatMessage,
+    matchmakingStatus,
+    matchmakingFound,
+    joinMatchmaking,
+    leaveMatchmaking,
+    clearMatchmakingFound,
+    ratingChanges,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     lastReplay, reactions, chatMessages,
+    matchmakingStatus, matchmakingFound, ratingChanges,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
+    joinMatchmaking, leaveMatchmaking, clearMatchmakingFound,
   ]);
 
   return (

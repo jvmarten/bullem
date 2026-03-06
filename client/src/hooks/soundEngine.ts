@@ -36,6 +36,7 @@ type SoundName =
   | 'uiHover'
   | 'uiClick'
   | 'uiSoft'
+  | 'uiBack'
   | 'deckShuffle'
   | 'cardReveal'
   | 'fanfare'
@@ -56,7 +57,7 @@ interface ToneConfig {
 
 // Sounds that use an audio file instead of oscillator tones.
 // Most sounds now use pre-rendered MP3 files for richer quality.
-const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number }>> = {
+const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; fadeOut?: number; playbackRate?: number }>> = {
   cardDeal:    { url: cardDealUrl, gain: 0.18 },
   cardReveal:  { url: cardRevealUrl, gain: 0.3 },
   deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
@@ -71,7 +72,8 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   timerTick:   { url: timerTickUrl, gain: 0.5 },
   heartbeat:   { url: heartbeatUrl, gain: 0.55 },
   uiClick:     { url: uiClickUrl, gain: 0.4 },
-  uiSoft:      { url: uiSoftUrl, gain: 0.35 },
+  uiSoft:      { url: uiSoftUrl, gain: 0.5 },
+  uiBack:      { url: uiSoftUrl, gain: 0.35, playbackRate: 0.75 },
   fanfare:     { url: fanfareUrl, gain: 0.45 },
   wheelTick:   { url: wheelTickUrl, gain: 0.35 },
   wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
@@ -99,6 +101,7 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   ],
   uiClick: [],
   uiSoft: [],
+  uiBack: [],
   deckShuffle: [],
   cardReveal: [],
   wheelTick: [],
@@ -180,7 +183,7 @@ for (const entry of Object.values(AUDIO_FILE_SOUNDS)) {
   if (entry) loadAudioBuffer(entry.url);
 }
 
-function playAudioBuffer(url: string, volume: number, fileGain: number, fadeOut?: number): void {
+function playAudioBuffer(url: string, volume: number, fileGain: number, fadeOut?: number, playbackRate?: number): void {
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -192,6 +195,9 @@ function playAudioBuffer(url: string, volume: number, fileGain: number, fadeOut?
     const source = ctx.createBufferSource();
     const gainNode = ctx.createGain();
     source.buffer = buf;
+    if (playbackRate && playbackRate !== 1) {
+      source.playbackRate.value = playbackRate;
+    }
     const effectiveGain = volume * fileGain;
     gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime);
     // Apply fade-out at the end of playback
@@ -335,7 +341,7 @@ export function createSoundController(): SoundController {
 
       const audioEntry = AUDIO_FILE_SOUNDS[name];
       if (audioEntry) {
-        playAudioBuffer(audioEntry.url, volume, audioEntry.gain, audioEntry.fadeOut);
+        playAudioBuffer(audioEntry.url, volume, audioEntry.gain, audioEntry.fadeOut, audioEntry.playbackRate);
         return;
       }
 

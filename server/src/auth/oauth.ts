@@ -7,6 +7,7 @@ import { cookieOptions } from './routes.js';
 import { query } from '../db/index.js';
 import { pool } from '../db/index.js';
 import logger from '../logger.js';
+import { track } from '../analytics/track.js';
 
 const router = Router();
 
@@ -145,8 +146,8 @@ router.get('/google/callback', async (req, res) => {
     }
 
     // 1. Look up by oauth_id
-    const oauthResult = await query<{ id: string; username: string }>(
-      `SELECT id, username FROM users
+    const oauthResult = await query<{ id: string; username: string; role: string }>(
+      `SELECT id, username, role FROM users
        WHERE oauth_id = $1 AND auth_provider IN ('google', 'email+google')`,
       [googleId],
     );
@@ -154,15 +155,16 @@ router.get('/google/callback', async (req, res) => {
     if (oauthResult && oauthResult.rows.length > 0) {
       const row = oauthResult.rows[0]!;
       await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [row.id]);
-      const token = signToken({ userId: row.id, username: row.username });
+      track('player:login', { authMethod: 'google' }, row.id);
+      const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
       return;
     }
 
     // 2. Look up by email — link accounts
-    const emailResult = await query<{ id: string; username: string; auth_provider: string }>(
-      'SELECT id, username, auth_provider FROM users WHERE email = $1',
+    const emailResult = await query<{ id: string; username: string; role: string; auth_provider: string }>(
+      'SELECT id, username, role, auth_provider FROM users WHERE email = $1',
       [email.toLowerCase()],
     );
 
@@ -173,7 +175,8 @@ router.get('/google/callback', async (req, res) => {
         'UPDATE users SET oauth_id = $1, auth_provider = $2, last_seen_at = NOW() WHERE id = $3',
         [googleId, newProvider, row.id],
       );
-      const token = signToken({ userId: row.id, username: row.username });
+      track('player:login', { authMethod: 'google' }, row.id);
+      const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
       return;
@@ -203,16 +206,17 @@ router.get('/google/callback', async (req, res) => {
       }
 
       try {
-        const insertResult = await pool.query<{ id: string; username: string }>(
+        const insertResult = await pool.query<{ id: string; username: string; role: string }>(
           `INSERT INTO users (username, display_name, email, password_hash, auth_provider, oauth_id)
            VALUES ($1, $2, $3, NULL, 'google', $4)
-           RETURNING id, username`,
+           RETURNING id, username, role`,
           [username, name || username, email.toLowerCase(), googleId],
         );
 
         if (insertResult.rows.length > 0) {
           const row = insertResult.rows[0]!;
-          const token = signToken({ userId: row.id, username: row.username });
+          track('player:registered', { authMethod: 'google' }, row.id);
+          const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
           res.redirect('/');
           inserted = true;
@@ -437,8 +441,8 @@ router.post('/apple/callback', async (req, res) => {
     }
 
     // 1. Look up by oauth_id (returning Apple user)
-    const oauthResult = await query<{ id: string; username: string }>(
-      `SELECT id, username FROM users
+    const oauthResult = await query<{ id: string; username: string; role: string }>(
+      `SELECT id, username, role FROM users
        WHERE oauth_id = $1 AND auth_provider IN ('apple', 'email+apple')`,
       [appleId],
     );
@@ -446,7 +450,8 @@ router.post('/apple/callback', async (req, res) => {
     if (oauthResult && oauthResult.rows.length > 0) {
       const row = oauthResult.rows[0]!;
       await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [row.id]);
-      const token = signToken({ userId: row.id, username: row.username });
+      track('player:login', { authMethod: 'apple' }, row.id);
+      const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
       return;
@@ -454,8 +459,8 @@ router.post('/apple/callback', async (req, res) => {
 
     // 2. Look up by email — link accounts (only if email is available)
     if (email) {
-      const emailResult = await query<{ id: string; username: string; auth_provider: string }>(
-        'SELECT id, username, auth_provider FROM users WHERE email = $1',
+      const emailResult = await query<{ id: string; username: string; role: string; auth_provider: string }>(
+        'SELECT id, username, role, auth_provider FROM users WHERE email = $1',
         [email.toLowerCase()],
       );
 
@@ -466,7 +471,8 @@ router.post('/apple/callback', async (req, res) => {
           'UPDATE users SET oauth_id = $1, auth_provider = $2, last_seen_at = NOW() WHERE id = $3',
           [appleId, newProvider, row.id],
         );
-        const token = signToken({ userId: row.id, username: row.username });
+        track('player:login', { authMethod: 'apple' }, row.id);
+        const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
         res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
         res.redirect('/');
         return;
@@ -498,16 +504,17 @@ router.post('/apple/callback', async (req, res) => {
       }
 
       try {
-        const insertResult = await pool.query<{ id: string; username: string }>(
+        const insertResult = await pool.query<{ id: string; username: string; role: string }>(
           `INSERT INTO users (username, display_name, email, password_hash, auth_provider, oauth_id)
            VALUES ($1, $2, $3, NULL, 'apple', $4)
-           RETURNING id, username`,
+           RETURNING id, username, role`,
           [username, displayName || username, email ? email.toLowerCase() : null, appleId],
         );
 
         if (insertResult.rows.length > 0) {
           const row = insertResult.rows[0]!;
-          const token = signToken({ userId: row.id, username: row.username });
+          track('player:registered', { authMethod: 'apple' }, row.id);
+          const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
           res.redirect('/');
           inserted = true;

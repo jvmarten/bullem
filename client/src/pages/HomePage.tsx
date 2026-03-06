@@ -7,7 +7,8 @@ import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { HandType, handToString } from '@bull-em/shared';
-import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
+import { RankBadgeLarge } from '../components/RankBadge.js';
+import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
 const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
@@ -181,6 +182,75 @@ function getOrCreatePlayerName(): string {
 
 // Hue offsets for the "coming soon" wallpaper background on each press
 
+function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; position: number; estimatedWaitSeconds: number }; onCancel: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const modeLabel = status.mode === 'heads_up' ? 'Finding 1v1 opponent' : 'Finding multiplayer match';
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = mins > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `0:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+      <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+        <p className="text-lg font-semibold text-[var(--gold)]">{modeLabel}...</p>
+        {/* Pulsing dots indicator */}
+        <div className="flex justify-center gap-1.5">
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              className="w-2.5 h-2.5 rounded-full bg-[var(--gold)]"
+              style={{
+                animation: 'matchmaking-pulse 1.2s ease-in-out infinite',
+                animationDelay: `${i * 0.2}s`,
+              }}
+            />
+          ))}
+        </div>
+        <p className="text-sm text-[var(--gold-dim)] font-mono">{elapsedStr}</p>
+        {status.position > 0 && (
+          <p className="text-xs text-[var(--gold-dim)]">Position: #{status.position}</p>
+        )}
+        <button
+          onClick={onCancel}
+          className="btn-ghost px-6 py-2 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MatchFoundScreen({ match, onNavigate }: { match: { roomCode: string; opponents: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] }; onNavigate: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onNavigate, 2500);
+    return () => clearTimeout(timer);
+  }, [onNavigate]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+      <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+        <p className="text-2xl font-bold text-[var(--gold)] font-display">Match Found!</p>
+        <div className="space-y-2">
+          {match.opponents.map((opp, i) => (
+            <div key={i} className="flex items-center justify-center gap-2">
+              <span className="text-sm text-[var(--gold)]">{opp.name}</span>
+              <RankBadgeLarge rating={opp.rating} tier={opp.tier} />
+            </div>
+          ))}
+        </div>
+        <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { user } = useAuth();
   const [name, setName] = useState(() => {
@@ -210,7 +280,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
@@ -288,6 +358,7 @@ export function HomePage() {
 
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
+  const [rankedExpanded, setRankedExpanded] = useState(false);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -588,7 +659,10 @@ export function HomePage() {
         {/* Player name display — tap to edit */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
-            {isEditingName ? (
+            {user ? (
+              /* Signed-in users cannot edit their display name from the home page */
+              <span className="text-sm text-[var(--gold-dim)]">{name}</span>
+            ) : isEditingName ? (
               <div className="flex items-center gap-2">
                 <input
                   ref={nameInputRef}
@@ -657,26 +731,37 @@ export function HomePage() {
           <div className="flex flex-col gap-3 w-full animate-fade-in">
             {roomState ? (
               <>
-                <div className="w-full flex gap-0">
-                  <button
-                    onClick={() => navigate(`/room/${roomState.roomCode}`)}
-                    className="flex-1 btn-gold py-4 text-lg rounded-r-none"
-                  >
-                    Return to Room ({roomState.roomCode})
-                  </button>
-                  <button
-                    onClick={() => {
+                <button
+                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                  className="w-full btn-gold py-4 text-lg flex items-center justify-center relative"
+                >
+                  <span>Return to Room ({roomState.roomCode})</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const ok = window.confirm('Close this room? All players will be disconnected.');
                       if (!ok) return;
                       play('uiSoft');
                       deleteRoom();
                     }}
-                    className="btn-gold py-4 px-3 text-lg rounded-l-none border-l border-[rgba(0,0,0,0.2)] bg-[var(--danger)] hover:bg-red-600 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const ok = window.confirm('Close this room? All players will be disconnected.');
+                        if (!ok) return;
+                        play('uiSoft');
+                        deleteRoom();
+                      }
+                    }}
+                    className="absolute right-3 text-red-500 hover:text-red-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]"
                     title="Close room"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </span>
+                </button>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
                 </button>
@@ -700,18 +785,41 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {/* Ranked Play — disabled teaser */}
+            {/* Ranked Play — expandable with 1v1 / Multiplayer sub-options */}
             <button
-              disabled
-              className="w-full btn-gold py-4 text-lg relative"
+              onClick={() => {
+                play('uiSoft');
+                if (!user) { addToast('Sign in to play ranked'); return; }
+                setRankedExpanded(prev => !prev);
+              }}
+              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
             >
               Ranked Play
-              <span className="ml-2 text-xs font-semibold uppercase tracking-wider opacity-70">
-                Coming Soon
-              </span>
             </button>
+            {rankedExpanded && user && (
+              <div className="flex gap-2 w-full animate-fade-in -mt-1">
+                <button
+                  onClick={() => {
+                    play('uiSoft');
+                    joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                  }}
+                  className="flex-1 btn-ghost py-3 text-sm"
+                >
+                  1v1
+                </button>
+                <button
+                  onClick={() => {
+                    play('uiSoft');
+                    joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                  }}
+                  className="flex-1 btn-ghost py-3 text-sm"
+                >
+                  Multiplayer
+                </button>
+              </div>
+            )}
             <button
-              onClick={() => { play('uiSoft'); setMode('menu'); }}
+              onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -737,7 +845,7 @@ export function HomePage() {
               Join
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online');}}
+              onClick={() => { play('uiBack'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -827,7 +935,7 @@ export function HomePage() {
               Refresh
             </button>
             <button
-              onClick={() => { play('uiSoft'); setMode('online');}}
+              onClick={() => { play('uiBack'); setMode('online');}}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
             >
               Back
@@ -836,12 +944,31 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
+      {/* Matchmaking Queue Overlay */}
+      {matchmakingStatus && (
+        <MatchmakingQueue
+          status={matchmakingStatus}
+          onCancel={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
+        />
+      )}
+
+      {/* Match Found Overlay */}
+      {matchmakingFound && (
+        <MatchFoundScreen
+          match={matchmakingFound}
+          onNavigate={() => {
+            clearMatchmakingFound();
+            navigate(`/game/${matchmakingFound.roomCode}`);
+          }}
+        />
+      )}
+
       {/* Version — bottom right corner, home page only */}
       <button
         onClick={() => { play('uiSoft'); setShowVersion(true); }}
-        className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-0"
+        className="fixed bottom-6 right-6 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
-        v1.0.2
+        v1.0.6
       </button>
 
       {/* Version info modal */}
@@ -854,15 +981,9 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.2</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.6</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
-            <button
-              onClick={() => setShowVersion(false)}
-              className="glass px-4 py-1.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              Close
-            </button>
           </div>
         </div>
       )}

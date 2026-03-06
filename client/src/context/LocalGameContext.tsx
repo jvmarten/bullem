@@ -740,6 +740,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     sendReaction: noopSendReaction,
     chatMessages: EMPTY_CHAT_MESSAGES,
     sendChatMessage: noopSendChatMessage,
+    matchmakingStatus: null,
+    matchmakingFound: null,
+    joinMatchmaking: async () => {},
+    leaveMatchmaking: async () => {},
+    clearMatchmakingFound: () => {},
+    ratingChanges: null,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

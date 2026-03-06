@@ -120,10 +120,12 @@ export function useGameSounds(
     prevHistoryLenRef.current = history.length;
   }, [historyLen, play, playerId]);
 
-  // React to new round starting (card deal)
+  // React to new round starting (card deal).
+  // Skip the sound on the initial mount (prevRoundNumber is 0) so that
+  // spectators joining mid-game don't hear a stale deal sound.
   const roundNumber = gameState?.roundNumber ?? 0;
   useEffect(() => {
-    if (roundNumber > prevRoundNumberRef.current) {
+    if (prevRoundNumberRef.current > 0 && roundNumber > prevRoundNumberRef.current) {
       play('cardDeal');
     }
     prevRoundNumberRef.current = roundNumber;

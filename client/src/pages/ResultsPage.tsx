@@ -4,11 +4,44 @@ import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
+import { RankBadge } from '../components/RankBadge.js';
+import type { RatingChange } from '@bull-em/shared';
+
+function RatingChangeDisplay({ change }: { change: RatingChange }) {
+  const isGain = change.delta >= 0;
+  const sign = isGain ? '+' : '\u2212';
+  const color = isGain ? 'var(--safe)' : 'var(--danger)';
+  const modeLabel = change.mode === 'heads_up' ? '1v1 Rating' : 'Multiplayer Rating';
+
+  return (
+    <div className="glass px-6 py-4 text-center animate-rating-slide-up" style={{ animationDelay: '0.3s' }}>
+      <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+        {modeLabel}
+      </p>
+      <div className="flex items-center justify-center gap-3">
+        <span className="text-sm text-[var(--gold-dim)]">
+          {change.before}
+        </span>
+        <span className="text-[var(--gold-dim)]">&rarr;</span>
+        <span className="text-lg font-bold text-[var(--gold)] flex items-center gap-1">
+          {change.after}
+          <RankBadge rating={change.after} size="md" />
+        </span>
+      </div>
+      <p
+        className="text-lg font-bold mt-1 animate-rating-slide-up"
+        style={{ color, animationDelay: '0.6s' }}
+      >
+        {sign}{Math.abs(change.delta)}
+      </p>
+    </div>
+  );
+}
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges } = useGameContext();
 
   // When winnerId is cleared (rematch started), navigate back to the game page
   useEffect(() => {
@@ -45,6 +78,11 @@ export function ResultsPage() {
                 : 'Better luck next time.'}
           </p>
         </div>
+
+        {/* Rating change for ranked games */}
+        {playerId && ratingChanges && ratingChanges[playerId] && (
+          <RatingChangeDisplay change={ratingChanges[playerId]} />
+        )}
 
         {gameStats && gameState && (
           <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
