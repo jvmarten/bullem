@@ -6,6 +6,7 @@ import { AVATAR_OPTIONS, openSkillDisplayRating } from '@bull-em/shared';
 import type { AvatarId, GameHistoryEntry, PlayerStatsResponse, UserRatings } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 import { RankBadge } from '../components/RankBadge.js';
+import { AdvancedStats } from '../components/AdvancedStats.js';
 
 /** Emoji icons for each avatar template. */
 const AVATAR_ICONS: Record<AvatarId, string> = {
@@ -422,6 +423,9 @@ export function ProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Advanced Stats — loaded asynchronously so basic stats render immediately */}
+        {profile && <AdvancedStats userId={profile.id} />}
 
         {/* Actions */}
         <div className="w-full flex flex-col gap-3">

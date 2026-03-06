@@ -7,6 +7,7 @@ import {
   OPENSKILL_DEFAULT_SIGMA,
   calculateElo,
   calculateOpenSkill,
+  openSkillDisplayRating,
 } from '@bull-em/shared';
 
 // ── Query helpers ───────────────────────────────────────────────────────
@@ -98,26 +99,28 @@ interface RankedPlayerResult {
  * and OpenSkill (multiplayer) based on the game's ranked mode.
  *
  * Ensures rating rows exist (upserts defaults), calculates new ratings,
- * and persists the results. Fire-and-forget — never blocks gameplay.
+ * and persists the results. Also inserts rating_history rows when gameId
+ * is provided. Fire-and-forget — never blocks gameplay.
  */
 export async function updateRatingsAfterGame(
   rankedMode: RankedMode,
   players: RankedPlayerResult[],
+  gameId?: string,
 ): Promise<void> {
   if (players.length < 2) return;
 
   try {
     if (rankedMode === 'heads_up') {
-      await updateHeadsUpRatings(players);
+      await updateHeadsUpRatings(players, gameId);
     } else {
-      await updateMultiplayerRatings(players);
+      await updateMultiplayerRatings(players, gameId);
     }
   } catch (err) {
     logger.error({ err, rankedMode, playerCount: players.length }, 'Failed to update ratings');
   }
 }
 
-async function updateHeadsUpRatings(players: RankedPlayerResult[]): Promise<void> {
+async function updateHeadsUpRatings(players: RankedPlayerResult[], gameId?: string): Promise<void> {
   // Heads-up: exactly 2 players. Position 1 = winner, position 2 = loser.
   const winner = players.find(p => p.finishPosition === 1);
   const loser = players.find(p => p.finishPosition === 2);
@@ -140,9 +143,15 @@ async function updateHeadsUpRatings(players: RankedPlayerResult[]): Promise<void
   // Persist new ratings
   await updateEloRating(winner.userId, winnerResult.newRating, winnerRating.gamesPlayed + 1);
   await updateEloRating(loser.userId, loserResult.newRating, loserRating.gamesPlayed + 1);
+
+  // Persist rating history
+  if (gameId) {
+    await persistRatingHistory(winner.userId, gameId, 'heads_up', winnerRating.elo, winnerResult.newRating);
+    await persistRatingHistory(loser.userId, gameId, 'heads_up', loserRating.elo, loserResult.newRating);
+  }
 }
 
-async function updateMultiplayerRatings(players: RankedPlayerResult[]): Promise<void> {
+async function updateMultiplayerRatings(players: RankedPlayerResult[], gameId?: string): Promise<void> {
   // Ensure all rating rows exist
   await Promise.all(players.map(p => ensureRatingExists(p.userId, 'multiplayer')));
 
@@ -164,12 +173,21 @@ async function updateMultiplayerRatings(players: RankedPlayerResult[]): Promise<
 
   const results = calculateOpenSkill(openSkillInput);
 
-  // Persist updated ratings
+  // Persist updated ratings and rating history
   await Promise.all(
-    results.map(r => {
+    results.map(async (r) => {
       const existing = ratings.find(p => p.userId === r.userId);
       const gamesPlayed = (existing?.rating?.gamesPlayed ?? 0) + 1;
-      return updateOpenSkillRating(r.userId, r.mu, r.sigma, gamesPlayed);
+      const beforeMu = existing?.rating?.mode === 'multiplayer' ? existing.rating.mu : OPENSKILL_DEFAULT_MU;
+      await updateOpenSkillRating(r.userId, r.mu, r.sigma, gamesPlayed);
+      if (gameId) {
+        // Store display ratings (mu * 48) for consistent chart data
+        await persistRatingHistory(
+          r.userId, gameId, 'multiplayer',
+          openSkillDisplayRating(beforeMu),
+          openSkillDisplayRating(r.mu),
+        );
+      }
     }),
   );
 }
@@ -222,4 +240,26 @@ async function updateOpenSkillRating(
      WHERE user_id = $5 AND mode = 'multiplayer'`,
     [mu, sigma, gamesPlayed, displayRating, userId],
   );
+}
+
+// ── Rating history persistence ──────────────────────────────────────────
+
+/** Insert a rating_history row for a single player in a ranked game. */
+async function persistRatingHistory(
+  userId: string,
+  gameId: string,
+  mode: RankedMode,
+  ratingBefore: number,
+  ratingAfter: number,
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO rating_history (user_id, game_id, mode, rating_before, rating_after)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (game_id, user_id, mode) DO NOTHING`,
+      [userId, gameId, mode, ratingBefore, ratingAfter],
+    );
+  } catch (err) {
+    logger.error({ err, userId, gameId, mode }, 'Failed to persist rating history');
+  }
 }

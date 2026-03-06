@@ -87,29 +87,34 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
   // Fire-and-forget — game persistence must never block or crash the game
   persistGameResult(record)
     .then((gameId) => {
-      if (!gameId || !room.game) return;
+      if (!gameId) return;
+
       // Persist round snapshots for replay after the game row exists (FK constraint)
-      const snapshots = room.game.getRoundSnapshots();
-      return persistReplayRounds(gameId, snapshots);
+      if (room.game) {
+        const snapshots = room.game.getRoundSnapshots();
+        persistReplayRounds(gameId, snapshots).catch(() => {
+          // Error already logged inside persistReplayRounds
+        });
+      }
+
+      // Update ranked ratings if this was a ranked game with authenticated players.
+      // Chained after persistGameResult so we have the gameId for rating_history FK.
+      if (room.settings.ranked && room.settings.rankedMode) {
+        const rankedMode: RankedMode = room.settings.rankedMode;
+        const rankedPlayers = record.players
+          .filter(p => p.userId !== null)
+          .map(p => ({ userId: p.userId!, finishPosition: p.finishPosition }));
+
+        if (rankedPlayers.length >= 2) {
+          updateRatingsAfterGame(rankedMode, rankedPlayers, gameId).catch(() => {
+            // Error already logged inside updateRatingsAfterGame
+          });
+        }
+      }
     })
     .catch(() => {
-      // Error already logged inside persistGameResult / persistReplayRounds
+      // Error already logged inside persistGameResult
     });
-
-  // Update ranked ratings if this was a ranked game with authenticated players
-  if (room.settings.ranked && room.settings.rankedMode) {
-    const rankedMode: RankedMode = room.settings.rankedMode;
-    // Only include authenticated (non-guest) players in rating updates
-    const rankedPlayers = record.players
-      .filter(p => p.userId !== null)
-      .map(p => ({ userId: p.userId!, finishPosition: p.finishPosition }));
-
-    if (rankedPlayers.length >= 2) {
-      updateRatingsAfterGame(rankedMode, rankedPlayers).catch(() => {
-        // Error already logged inside updateRatingsAfterGame
-      });
-    }
-  }
 }
 
 /**
