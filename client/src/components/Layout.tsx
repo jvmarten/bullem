@@ -95,7 +95,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-6 layout-header-large' : 'py-1.5'}`}>
+      <header className={`layout-header flex items-center px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           {isConnected && (

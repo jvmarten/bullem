@@ -586,12 +586,14 @@ body {
 }
 
 .title-logo-large .title-logo-img {
-  width: 280px;
+  height: 48px;
+  width: auto;
   animation: shimmer 4s ease-in-out infinite;
 }
 
 .title-logo-small .title-logo-img {
-  width: 140px;
+  height: 28px;
+  width: auto;
 }
 
 @keyframes shimmer {
