@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { ShareButton } from '../components/ShareButton.js';
+import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
 import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
@@ -203,6 +204,9 @@ export function LobbyPage() {
 
         {/* Share invite link — prominent one-tap share */}
         <ShareButton roomCode={roomState.roomCode} />
+
+        {/* QR code — togglable, great for in-person "scan to join" */}
+        <RoomQRCode roomCode={roomState.roomCode} />
 
         <PlayerList
           players={roomState.players}
