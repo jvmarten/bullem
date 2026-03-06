@@ -13,6 +13,7 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -46,95 +47,13 @@ export function RegisterPage() {
           Create Account
         </h1>
 
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
-          {error && (
-            <div className="glass px-4 py-3 text-sm text-red-400 border border-red-400/30">
-              {error}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoComplete="username"
-              maxLength={20}
-              pattern="[a-zA-Z][a-zA-Z0-9_]{1,19}"
-              title="2–20 characters, starts with a letter, letters/numbers/underscores only"
-              className="input-felt"
-              placeholder="Pick a username"
-            />
+        {error && (
+          <div className="w-full glass px-4 py-3 text-sm text-red-400 border border-red-400/30 mb-4">
+            {error}
           </div>
+        )}
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="input-felt"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={128}
-              className="input-felt"
-              placeholder="At least 8 characters"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={128}
-              className="input-felt"
-              placeholder="Repeat password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-gold py-3 text-lg mt-2"
-          >
-            {submitting ? 'Creating account\u2026' : 'Create Account'}
-          </button>
-        </form>
-
-        <div className="w-full flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
-          <span className="text-xs text-[var(--gold-dim)]">&mdash; or &mdash;</span>
-          <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
-        </div>
-
+        {/* OAuth buttons — primary registration method */}
         <a
           href={`${API_BASE}/auth/google`}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-[#333] font-medium transition-colors"
@@ -163,6 +82,101 @@ export function RegisterPage() {
           </svg>
           Continue with Apple
         </a>
+
+        {/* Divider */}
+        <div className="w-full flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
+          <span className="text-xs text-[var(--gold-dim)]">&mdash; or &mdash;</span>
+          <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
+        </div>
+
+        {/* Email sign-up toggle */}
+        {!showEmailForm ? (
+          <button
+            type="button"
+            onClick={() => setShowEmailForm(true)}
+            className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            Sign up with email
+          </button>
+        ) : (
+          <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoComplete="username"
+                maxLength={20}
+                pattern="[a-zA-Z][a-zA-Z0-9_]{1,19}"
+                title="2–20 characters, starts with a letter, letters/numbers/underscores only"
+                className="input-felt"
+                placeholder="Pick a username"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="input-felt"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="input-felt"
+                placeholder="At least 8 characters"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="input-felt"
+                placeholder="Repeat password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-gold py-3 text-lg mt-2"
+            >
+              {submitting ? 'Creating account\u2026' : 'Create Account'}
+            </button>
+          </form>
+        )}
 
         <p className="text-sm text-[var(--gold-dim)] mt-6">
           Already have an account?{' '}
