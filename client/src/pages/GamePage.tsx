@@ -390,7 +390,7 @@ export function GamePage() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 text-center">
-                  <span className="font-display font-bold text-[var(--gold)] whitespace-nowrap" style={{ fontSize: 'clamp(0.85rem, 3.86vw, 1rem)' }}>
+                  <span className="font-display font-bold text-[var(--gold)] current-call-hand">
                     {handToString(gameState.currentHand)}
                   </span>
                 </div>
@@ -447,11 +447,10 @@ export function GamePage() {
                     {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
                       <button
                         onClick={handleQuickRaise}
-                        className="btn-amber font-semibold leading-tight self-center text-center"
-                        style={{ fontSize: 'clamp(9px, 2.4vw, 10px)', padding: 'clamp(3px, 0.8vw, 4px) clamp(6px, 1.6vw, 8px)' }}
+                        className="btn-amber py-2 font-bold action-btn-secondary"
                         title="Auto-raise to the minimum valid hand"
                       >
-                        min<br />raise
+                        Min Raise
                       </button>
                     )}
                     <div className="flex flex-col items-center">
