@@ -18,10 +18,10 @@ import { registerHandlers } from './socket/registerHandlers.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
-import { optionalAuth } from './auth/middleware.js';
+import { optionalAuth, requireAuth } from './auth/middleware.js';
 import { createAdminRouter } from './admin/routes.js';
 import logger from './logger.js';
-import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
+import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
 import { PushManager } from './push/PushManager.js';
@@ -228,6 +228,56 @@ app.get('/api/replays/:gameId', async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch replay');
     res.status(500).json({ error: 'Failed to fetch replay' });
+  }
+});
+
+// Stats routes
+import { getPlayerStats } from './db/stats.js';
+
+/** GET /api/stats/me — convenience endpoint using the authenticated user's ID. */
+app.get('/api/stats/me', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const stats = await getPlayerStats(userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch player stats');
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/** GET /api/stats/:userId — fetch aggregated stats for any user. */
+app.get('/api/stats/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const stats = await getPlayerStats(userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    if (stats.gamesPlayed === 0) {
+      // Check if user actually exists
+      const userResult = await query<{ id: string }>(
+        'SELECT id FROM users WHERE id = $1',
+        [userId],
+      );
+      if (!userResult || userResult.rows.length === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch player stats');
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 

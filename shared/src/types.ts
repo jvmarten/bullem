@@ -286,6 +286,20 @@ export interface AuthResponse {
   user: Omit<User, 'email'> & { email: string };
 }
 
+/** Aggregated player statistics returned by GET /api/stats/:userId. */
+export interface PlayerStatsResponse {
+  userId: string;
+  gamesPlayed: number;
+  wins: number;
+  winRate: number | null;
+  avgFinishPosition: number | null;
+  bullAccuracy: number | null;
+  trueAccuracy: number | null;
+  bluffSuccessRate: number | null;
+  gamesByPlayerCount: Record<string, number>;
+  recentGames: GameHistoryEntry[];
+}
+
 /** A completed game in a user's game history. */
 export interface GameHistoryEntry {
   id: string;
