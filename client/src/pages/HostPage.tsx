@@ -148,7 +148,7 @@ export function HostPage() {
         </div>
 
         <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
-        <button onClick={() => navigate('/')} className="w-full btn-ghost py-2">Back</button>
+        <button onClick={() => { play('uiBack'); navigate('/'); }} className="w-full btn-ghost py-2">Back</button>
         </div>{/* end host-right */}
       </div>
     </Layout>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { AVATAR_OPTIONS } from '@bull-em/shared';
@@ -105,6 +105,7 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
 export function ProfilePage() {
   const { user, profile, loading, logout, updateAvatar } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
@@ -298,7 +299,7 @@ export function ProfilePage() {
             My Replays
           </Link>
           <button
-            onClick={logout}
+            onClick={async () => { await logout(); navigate('/'); }}
             className="w-full btn-ghost py-3 text-sm"
           >
             Sign Out

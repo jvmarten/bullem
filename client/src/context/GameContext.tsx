@@ -79,6 +79,7 @@ const PLAYER_ID_KEY = 'bull-em-player-id';
 const PLAYER_NAME_KEY = 'bull-em-player-name';
 const ROOM_CODE_KEY = 'bull-em-room-code';
 const RECONNECT_TOKEN_KEY = 'bull-em-reconnect-token';
+const SPECTATOR_ROOM_KEY = 'bull-em-spectator-room';
 const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
 
 /** Wrap a socket.emit callback promise with a timeout so it can't hang forever.
@@ -188,6 +189,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
     };
 
     socket.on('connect', () => { setIsConnected(true); setHasConnected(true); });
@@ -198,6 +200,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // new ID, so the server no longer knows which room it belongs to. Without
     // this, the client keeps stale state and receives no further game events.
     const handleReconnect = () => {
+      // Check if we were spectating — re-spectate instead of re-joining as a player
+      const spectatorRoom = sessionStorage.getItem(SPECTATOR_ROOM_KEY);
+      if (spectatorRoom) {
+        socket.emit('room:spectate', { roomCode: spectatorRoom }, (response) => {
+          if ('error' in response) {
+            // Game ended or room gone — clean up spectator state
+            sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+            setGameState(null);
+          }
+        });
+        return;
+      }
+
       const storedRoomCode = sessionStorage.getItem(ROOM_CODE_KEY);
       const storedName = sessionStorage.getItem(PLAYER_NAME_KEY);
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY);
@@ -373,6 +388,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
   }, []);
 
   const deleteRoom = useCallback(() => {
@@ -389,6 +405,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
   }, []);
 
   const listRooms = useCallback((): Promise<RoomListing[]> => {
@@ -408,6 +425,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('room:spectate', { roomCode }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
+        sessionStorage.setItem(SPECTATOR_ROOM_KEY, roomCode);
         resolve();
       });
     }));
@@ -418,6 +436,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('room:watchRandom', (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
+        sessionStorage.setItem(SPECTATOR_ROOM_KEY, response.roomCode);
         resolve(response.roomCode);
       });
     }));

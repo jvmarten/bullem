@@ -18,25 +18,46 @@ interface LayoutProps {
 
 function AuthLink() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
+
+  // When in a game/room session, don't navigate away — it would kick the player out
+  const inSession = /^\/(room|game|local|results)/.test(location.pathname);
+
+  const userIcon = (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  );
+
   if (user) {
     return (
       <Link
         to="/profile"
-        className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1"
+        className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
         title={user.username}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span className="hidden sm:inline">{user.username}</span>
+        {userIcon}
+        <span>{user.username}</span>
       </Link>
     );
   }
+
+  if (inSession) {
+    // Show guest label without navigation to avoid kicking from game
+    return (
+      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px]">
+        {userIcon}
+        <span>Guest</span>
+      </span>
+    );
+  }
+
   return (
     <Link
       to="/login"
-      className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
     >
-      Guest
+      {userIcon}
+      <span>Guest</span>
     </Link>
   );
 }
