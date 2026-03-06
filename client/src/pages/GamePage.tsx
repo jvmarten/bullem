@@ -265,7 +265,7 @@ export function GamePage() {
     <>
       <span
         className="font-mono tracking-wider text-[var(--gold-dim)] text-xs mr-1 cursor-pointer active:scale-95 transition-transform"
-        onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+        onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!', 'info'); } }}
         title="Tap to copy"
       >{roomCode}</span>
       {spectatorCount > 0 && (
@@ -301,7 +301,7 @@ export function GamePage() {
           <div className="flex items-center gap-2">
             <span
               className="font-mono tracking-wider text-[var(--gold-dim)] cursor-pointer active:scale-95 transition-transform"
-              onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!'); } }}
+              onClick={() => { if (roomCode) { navigator.clipboard.writeText(roomCode); addToast('Room code copied!', 'info'); } }}
               title="Tap to copy"
             >{roomCode}</span>
             {spectatorCount > 0 && (
@@ -492,8 +492,13 @@ export function GamePage() {
           />
         )}
 
-        {/* Chat panel — available to all players and spectators */}
-        <ChatPanel messages={chatMessages} onSend={sendChatMessage} />
+        {/* Chat panel — spectators can always chat; players only between rounds/after game */}
+        <ChatPanel
+          messages={chatMessages}
+          onSend={sendChatMessage}
+          disabled={!isEliminated && !isSpectator && !roundResult && !winnerId}
+          label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
+        />
 
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}

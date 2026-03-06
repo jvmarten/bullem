@@ -12,6 +12,9 @@ export interface EmojiReaction {
   timestamp: number;
 }
 
+/** Chat channel — players and spectators have separate chats to prevent cheating. */
+export type ChatChannel = 'player' | 'spectator';
+
 /** A chat message sent by a player or spectator. */
 export interface ChatMessage {
   id: string;
@@ -20,6 +23,8 @@ export interface ChatMessage {
   timestamp: number;
   /** True when the message was sent by a spectator (not an active player). */
   isSpectator: boolean;
+  /** Which chat channel this message belongs to. */
+  channel: ChatChannel;
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { GamePhase, validateHandCall, ALLOWED_EMOJIS, CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PATTERN, CHAT_RATE_LIMIT_MS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameEmoji } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameEmoji, ChatChannel } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -125,6 +125,23 @@ export function registerGameHandlers(
 
     if (!senderName) return;
 
+    // Determine channel and enforce player chat restrictions.
+    // Players (non-eliminated) can only chat between rounds and after the game — not during active play.
+    // Spectators and eliminated players can always chat on the spectator channel.
+    const senderIsSpectator = isSpectator || (playerId != null && (room.players.get(playerId)?.isEliminated ?? false));
+    let channel: ChatChannel;
+
+    if (senderIsSpectator) {
+      channel = 'spectator';
+    } else {
+      // Active player — only allowed between rounds (ROUND_RESULT), in lobby, or after game
+      if (room.gamePhase === GamePhase.PLAYING) {
+        socket.emit('room:error', 'Chat is disabled during active rounds');
+        return;
+      }
+      channel = 'player';
+    }
+
     // Validate message content
     if (typeof data.message !== 'string') return;
     const trimmed = data.message.trim();
@@ -137,38 +154,61 @@ export function registerGameHandlers(
     if (rateLimiter) {
       void rateLimiter.checkCooldown(chatCooldownKey, CHAT_RATE_LIMIT_MS).then((allowed) => {
         if (!allowed) return;
-        emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+        emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
       }).catch(() => {
         // On error, allow the message (fail-open)
-        emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+        emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
       });
     } else {
       // Fallback: in-memory chat rate limiting (single-instance only)
       const lastChatTime = chatTimestamps.get(chatCooldownKey) ?? 0;
       if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
       chatTimestamps.set(chatCooldownKey, Date.now());
-      emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+      emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
     }
   });
 }
 
-/** Emit a validated chat message to the room. */
+/** Emit a validated chat message to the appropriate audience.
+ *  Player messages go only to non-eliminated player sockets.
+ *  Spectator messages go only to spectator + eliminated-player sockets. */
 function emitChat(
   io: TypedServer,
   room: ReturnType<RoomManager['getRoom']> & {},
-  playerId: string | undefined,
   isSpectator: boolean,
   senderName: string,
   message: string,
+  channel: ChatChannel,
 ): void {
-  const senderIsSpectator = isSpectator || (playerId != null && (room.players.get(playerId)?.isEliminated ?? false));
-  io.to(room.roomCode).emit('chat:message', {
+  const msg = {
     id: randomUUID(),
     senderName,
     message,
     timestamp: Date.now(),
-    isSpectator: senderIsSpectator,
-  });
+    isSpectator,
+    channel,
+  };
+
+  if (channel === 'spectator') {
+    // Send to spectator sockets + eliminated player sockets
+    for (const sid of room.spectatorSockets) {
+      io.to(sid).emit('chat:message', msg);
+    }
+    for (const [pid, player] of room.players) {
+      if (player.isEliminated) {
+        const sid = room.getSocketId(pid);
+        if (sid) io.to(sid).emit('chat:message', msg);
+      }
+    }
+  } else {
+    // Send to non-eliminated player sockets only
+    for (const [pid, player] of room.players) {
+      if (!player.isEliminated) {
+        const sid = room.getSocketId(pid);
+        if (sid) io.to(sid).emit('chat:message', msg);
+      }
+    }
+  }
 }
 
 /** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Cleaned up periodically. */
