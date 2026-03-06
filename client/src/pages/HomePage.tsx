@@ -278,6 +278,12 @@ export function HomePage() {
     navigate('/local');
   };
 
+  const handleQuickPlay = () => {
+    const playerName = getPlayerName();
+    sessionStorage.setItem('bull-em-local-name', playerName);
+    navigate('/local', { state: { quickPlay: true } });
+  };
+
 
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
@@ -606,6 +612,9 @@ export function HomePage() {
 
         {mode === 'menu' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
+            <button onClick={() => { play('uiSoft'); handleQuickPlay(); }} className="w-full btn-gold py-4 text-lg">
+              Quick Play
+            </button>
             <button onClick={() => { play('uiSoft'); setMode('online'); }} className="w-full btn-gold py-4 text-lg">
               Play Online
             </button>
