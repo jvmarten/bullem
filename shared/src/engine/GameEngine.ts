@@ -542,7 +542,16 @@ export class GameEngine {
     for (const p of activePlayers) {
       const lastAction = this.getPlayerLastAction(p.id);
       let incorrect = false;
-      const stats = this.gameStats.playerStats[p.id]!;
+      let stats = this.gameStats.playerStats[p.id];
+      if (!stats) {
+        // Safety: initialize stats for players missing from the stats map
+        // (e.g. corrupted snapshot restore). Prevents a crash mid-round.
+        stats = {
+          bullsCalled: 0, truesCalled: 0, callsMade: 0,
+          correctBulls: 0, correctTrues: 0, bluffsSuccessful: 0, roundsSurvived: 0,
+        };
+        this.gameStats.playerStats[p.id] = stats;
+      }
 
       if (p.id === this.lastCallerId) {
         // The caller is wrong if the hand doesn't exist

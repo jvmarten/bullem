@@ -146,6 +146,8 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         if (!room || !room.game) return;
 
         botManager.clearTurnTimer(room.roomCode);
+        // Record this player's elimination for finish position tracking
+        room.recordEliminations([playerId]);
         const elimResult = room.game.eliminatePlayer(playerId);
 
         switch (elimResult.type) {
@@ -184,6 +186,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
       const spectatorRoom = roomManager.getRoomForSocket(socket.id);
       if (spectatorRoom && spectatorRoom.spectatorSockets.has(socket.id)) {
         spectatorRoom.spectatorSockets.delete(socket.id);
+        spectatorRoom.spectatorNames.delete(socket.id);
         roomManager.removeSocketMapping(socket.id);
         // Notify players that spectator count changed
         broadcastRoomState(io, spectatorRoom);

@@ -124,6 +124,7 @@ export function registerLobbyHandlers(
     // If this socket is a spectator, clean up and exit early
     if (room.spectatorSockets.has(socket.id)) {
       room.spectatorSockets.delete(socket.id);
+      room.spectatorNames.delete(socket.id);
       roomManager.removeSocketMapping(socket.id);
       socket.leave(room.roomCode);
       // Notify players that spectator count changed
@@ -137,6 +138,7 @@ export function registerLobbyHandlers(
 
     // If a game is in progress, eliminate the player in the engine first
     if (playerId && room.game && room.gamePhase === GamePhase.PLAYING) {
+      room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
 
       // Remove from room after engine elimination (engine keeps its own player list)
@@ -164,6 +166,7 @@ export function registerLobbyHandlers(
       }
     } else if (playerId && room.game && room.gamePhase === GamePhase.ROUND_RESULT) {
       // Leaving during round result — eliminate in engine, check for game over
+      room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
       room.removePlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
@@ -237,6 +240,10 @@ export function registerLobbyHandlers(
     }
 
     room.spectatorSockets.add(socket.id);
+    // Store spectator display name for chat (from auth or fallback)
+    if (socket.data.username) {
+      room.spectatorNames.set(socket.id, socket.data.username);
+    }
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
 
@@ -258,6 +265,10 @@ export function registerLobbyHandlers(
     if (!room) return callback({ error: 'No live games available' });
 
     room.spectatorSockets.add(socket.id);
+    // Store spectator display name for chat (from auth or fallback)
+    if (socket.data.username) {
+      room.spectatorNames.set(socket.id, socket.data.username);
+    }
     roomManager.assignSocketToRoom(socket.id, room.roomCode);
     socket.join(room.roomCode);
 

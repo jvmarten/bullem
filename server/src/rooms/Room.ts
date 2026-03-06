@@ -351,9 +351,18 @@ export class Room {
       }
     }
     for (const id of disconnected) {
+      // Clean up both sides of the socket↔player mapping
+      const socketId = this.playerToSocket.get(id);
+      if (socketId) this.socketToPlayer.delete(socketId);
+      this.playerToSocket.delete(id);
       this.players.delete(id);
       this.reconnectTokens.delete(id);
-      this.playerToSocket.delete(id);
+      // Clear any pending disconnect timer for the removed player
+      const timer = this.disconnectTimers.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        this.disconnectTimers.delete(id);
+      }
     }
 
     // Reassign host if the current host was disconnected
