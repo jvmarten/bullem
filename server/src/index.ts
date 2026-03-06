@@ -102,6 +102,7 @@ io.use((socket, next) => {
         // Attach user info to socket.data for use in handlers
         socket.data.userId = payload.userId;
         socket.data.username = payload.username;
+        socket.data.role = payload.role;
       }
     }
   }

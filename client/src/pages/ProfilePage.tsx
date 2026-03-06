@@ -238,12 +238,16 @@ export function ProfilePage() {
         <div className="text-center mb-6">
           <button
             onClick={() => setShowAvatarPicker(v => !v)}
-            className="w-16 h-16 rounded-full bg-[var(--gold)]/20 border-2 border-[var(--gold)] flex items-center justify-center mx-auto mb-3 hover:border-white transition-colors cursor-pointer"
+            className="w-16 h-16 rounded-full bg-[var(--gold)]/20 border-2 border-[var(--gold)] flex items-center justify-center mx-auto mb-3 hover:border-white transition-colors cursor-pointer overflow-hidden"
             title="Change avatar"
           >
-            <span className={isEmoji ? 'text-2xl' : 'text-2xl font-bold text-[var(--gold)]'}>
-              {currentDisplay}
-            </span>
+            {profile.photoUrl ? (
+              <img src={profile.photoUrl} alt={profile.displayName} className="w-full h-full object-cover" />
+            ) : (
+              <span className={isEmoji ? 'text-2xl' : 'text-2xl font-bold text-[var(--gold)]'}>
+                {currentDisplay}
+              </span>
+            )}
           </button>
           <h1
             className="text-2xl font-bold text-[var(--gold)]"

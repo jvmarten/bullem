@@ -79,46 +79,29 @@ export function VolumeControl() {
 
       {open && (
         <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
-              Volume
-            </span>
+          <div className="flex items-center gap-2">
+            {/* Speaker icon — tap to toggle mute */}
             <button
               onClick={toggleMute}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors shrink-0 p-0"
               title={muted ? 'Unmute' : 'Mute'}
             >
-              {muted ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                {!muted && volume > 0 && (
                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-              )}
+                )}
+                {!muted && volume > 0.5 && (
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                )}
+                {(muted || volume === 0) && (
+                  <>
+                    <line x1="23" y1="9" x2="17" y2="15" />
+                    <line x1="17" y1="9" x2="23" y2="15" />
+                  </>
+                )}
+              </svg>
             </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Speaker icon with dynamic soundwaves based on volume */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-              {!muted && volume > 0 && (
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              )}
-              {!muted && volume > 0.5 && (
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-              )}
-              {(muted || volume === 0) && (
-                <>
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </>
-              )}
-            </svg>
             <input
               type="range"
               min="0"
@@ -142,7 +125,7 @@ export function VolumeControl() {
             </span>
             <button
               onClick={toggleHaptics}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5"
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!hapticsEnabled ? 'opacity-40' : ''}`}
               title={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
             >
               {hapticsEnabled ? (

@@ -144,13 +144,14 @@ router.post('/register', authRateLimit, async (req, res) => {
       email: string;
       role: string;
       avatar: string | null;
+      photo_url: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       `INSERT INTO users (username, display_name, email, password_hash, auth_provider)
        VALUES ($1, $2, $3, $4, 'email')
-       RETURNING id, username, display_name, email, role, avatar, auth_provider, created_at, last_seen_at`,
+       RETURNING id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at`,
       [trimmedUsername, trimmedUsername, trimmedEmail, passwordHash],
     );
 
@@ -168,6 +169,7 @@ router.post('/register', authRateLimit, async (req, res) => {
       role: row.role as User['role'],
       authProvider: 'email',
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -225,14 +227,15 @@ router.post('/login', authRateLimit, async (req, res) => {
       email: string;
       role: string;
       avatar: string | null;
+      photo_url: string | null;
       password_hash: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       isEmail
-        ? 'SELECT id, username, display_name, email, role, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
-        : 'SELECT id, username, display_name, email, role, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
+        ? 'SELECT id, username, display_name, email, role, avatar, photo_url, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
+        : 'SELECT id, username, display_name, email, role, avatar, photo_url, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
       [trimmedId],
     );
 
@@ -266,6 +269,7 @@ router.post('/login', authRateLimit, async (req, res) => {
       role: row.role as User['role'],
       authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: new Date().toISOString(),
     };
@@ -304,11 +308,12 @@ router.get('/me', requireAuth, async (req, res) => {
       email: string;
       role: string;
       avatar: string | null;
+      photo_url: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, role, avatar, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -351,6 +356,7 @@ router.get('/me', requireAuth, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
       gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
@@ -367,6 +373,7 @@ router.get('/me', requireAuth, async (req, res) => {
       role: row.role as User['role'],
       authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
+      photoUrl: row.photo_url,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
