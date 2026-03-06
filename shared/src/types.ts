@@ -375,7 +375,7 @@ export interface MatchmakingFound {
   /** Room code for the matched game. */
   roomCode: string;
   /** Info about matched opponents. */
-  opponents: { name: string; rating: number }[];
+  opponents: { name: string; rating: number; tier: RankTier }[];
   /** The player's own reconnect token for the auto-joined room. */
   reconnectToken: string;
   /** The player's assigned in-game player ID. */
@@ -422,6 +422,39 @@ export interface RankedMatchPlayerRecord {
     mu?: number;
     sigma?: number;
   };
+}
+
+// ── Rank tier types ─────────────────────────────────────────────────────
+
+/** Display tiers for ranked play, derived from Elo / OpenSkill display rating. */
+export enum RankTier {
+  BRONZE = 'bronze',
+  SILVER = 'silver',
+  GOLD = 'gold',
+  PLATINUM = 'platinum',
+  DIAMOND = 'diamond',
+}
+
+/** Determine the rank tier from a numeric rating (Elo or converted OpenSkill). */
+export function getRankTier(rating: number): RankTier {
+  if (rating >= 1600) return RankTier.DIAMOND;
+  if (rating >= 1400) return RankTier.PLATINUM;
+  if (rating >= 1200) return RankTier.GOLD;
+  if (rating >= 1000) return RankTier.SILVER;
+  return RankTier.BRONZE;
+}
+
+/** Convert OpenSkill mu to a display rating on the same scale as Elo. */
+export function openSkillDisplayRating(mu: number): number {
+  return Math.round(mu * 48);
+}
+
+/** Rating change sent to clients after a ranked game ends. */
+export interface RatingChange {
+  mode: RankedMode;
+  before: number;
+  after: number;
+  delta: number;
 }
 
 /** Summary of an in-progress game available for spectating. */

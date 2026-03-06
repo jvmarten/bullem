@@ -7,7 +7,8 @@ import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { HandType, handToString } from '@bull-em/shared';
-import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
+import { RankBadgeLarge } from '../components/RankBadge.js';
+import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
 const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
@@ -181,6 +182,75 @@ function getOrCreatePlayerName(): string {
 
 // Hue offsets for the "coming soon" wallpaper background on each press
 
+function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; position: number; estimatedWaitSeconds: number }; onCancel: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const modeLabel = status.mode === 'heads_up' ? 'Finding 1v1 opponent' : 'Finding multiplayer match';
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = mins > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `0:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+      <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+        <p className="text-lg font-semibold text-[var(--gold)]">{modeLabel}...</p>
+        {/* Pulsing dots indicator */}
+        <div className="flex justify-center gap-1.5">
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              className="w-2.5 h-2.5 rounded-full bg-[var(--gold)]"
+              style={{
+                animation: 'matchmaking-pulse 1.2s ease-in-out infinite',
+                animationDelay: `${i * 0.2}s`,
+              }}
+            />
+          ))}
+        </div>
+        <p className="text-sm text-[var(--gold-dim)] font-mono">{elapsedStr}</p>
+        {status.position > 0 && (
+          <p className="text-xs text-[var(--gold-dim)]">Position: #{status.position}</p>
+        )}
+        <button
+          onClick={onCancel}
+          className="btn-ghost px-6 py-2 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MatchFoundScreen({ match, onNavigate }: { match: { roomCode: string; opponents: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] }; onNavigate: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onNavigate, 2500);
+    return () => clearTimeout(timer);
+  }, [onNavigate]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+      <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+        <p className="text-2xl font-bold text-[var(--gold)] font-display">Match Found!</p>
+        <div className="space-y-2">
+          {match.opponents.map((opp, i) => (
+            <div key={i} className="flex items-center justify-center gap-2">
+              <span className="text-sm text-[var(--gold)]">{opp.name}</span>
+              <RankBadgeLarge rating={opp.rating} tier={opp.tier} />
+            </div>
+          ))}
+        </div>
+        <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { user } = useAuth();
   const [name, setName] = useState(() => {
@@ -210,7 +280,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
@@ -714,15 +784,26 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {/* Ranked Play — disabled teaser */}
+            {/* Ranked Play buttons */}
             <button
-              disabled
-              className="w-full btn-gold py-4 text-lg relative"
+              onClick={() => {
+                play('uiSoft');
+                if (!user) { addToast('Sign in to play ranked'); return; }
+                joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+              }}
+              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
             >
-              Ranked Play
-              <span className="ml-2 text-xs font-semibold uppercase tracking-wider opacity-70">
-                Coming Soon
-              </span>
+              Ranked 1v1
+            </button>
+            <button
+              onClick={() => {
+                play('uiSoft');
+                if (!user) { addToast('Sign in to play ranked'); return; }
+                joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+              }}
+              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
+            >
+              Ranked Multiplayer
             </button>
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
@@ -850,6 +931,25 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
+      {/* Matchmaking Queue Overlay */}
+      {matchmakingStatus && (
+        <MatchmakingQueue
+          status={matchmakingStatus}
+          onCancel={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
+        />
+      )}
+
+      {/* Match Found Overlay */}
+      {matchmakingFound && (
+        <MatchFoundScreen
+          match={matchmakingFound}
+          onNavigate={() => {
+            clearMatchmakingFound();
+            navigate(`/game/${matchmakingFound.roomCode}`);
+          }}
+        />
+      )}
+
       {/* Version — bottom right corner, home page only */}
       <button
         onClick={() => { play('uiSoft'); setShowVersion(true); }}

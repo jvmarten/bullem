@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
-import { AVATAR_OPTIONS } from '@bull-em/shared';
-import type { AvatarId, GameHistoryEntry, PlayerStatsResponse } from '@bull-em/shared';
+import { AVATAR_OPTIONS, openSkillDisplayRating } from '@bull-em/shared';
+import type { AvatarId, GameHistoryEntry, PlayerStatsResponse, UserRatings } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
+import { RankBadge } from '../components/RankBadge.js';
 
 /** Emoji icons for each avatar template. */
 const AVATAR_ICONS: Record<AvatarId, string> = {
@@ -137,6 +138,18 @@ export function ProfilePage() {
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
+  const [ratings, setRatings] = useState<UserRatings | null>(null);
+
+  const fetchRatings = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/ratings/${userId}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json() as UserRatings;
+      setRatings(data);
+    } catch {
+      // Non-critical — ratings may not exist yet
+    }
+  }, []);
 
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
@@ -155,12 +168,13 @@ export function ProfilePage() {
     }
   }, [addToast]);
 
-  // Fetch stats when profile loads
+  // Fetch stats and ratings when profile loads
   useEffect(() => {
     if (profile && !statsLoaded) {
       fetchStats();
+      fetchRatings(profile.id);
     }
-  }, [profile, statsLoaded, fetchStats]);
+  }, [profile, statsLoaded, fetchStats, fetchRatings]);
 
   if (loading) {
     return (
@@ -273,6 +287,50 @@ export function ProfilePage() {
                 Remove avatar (use initial)
               </button>
             )}
+          </div>
+        )}
+
+        {/* Ranked Ratings */}
+        {(ratings?.headsUp || ratings?.multiplayer) && (
+          <div className="w-full grid grid-cols-2 gap-3 mb-6">
+            {ratings.headsUp && (() => {
+              const r = ratings.headsUp;
+              return (
+                <div className="glass px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                    Heads-Up 1v1
+                  </p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-xl font-bold text-[var(--gold)]">{r.elo}</span>
+                    <RankBadge rating={r.elo} size="md" />
+                  </div>
+                  <p className="text-[10px] text-[var(--gold-dim)]">
+                    {r.gamesPlayed} games &middot; Peak {r.peakRating}
+                  </p>
+                </div>
+              );
+            })()}
+            {ratings.multiplayer && (() => {
+              const r = ratings.multiplayer;
+              const displayRating = openSkillDisplayRating(r.mu);
+              return (
+                <div className="glass px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                    Multiplayer
+                  </p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-xl font-bold text-[var(--gold)]">{displayRating}</span>
+                    <RankBadge rating={displayRating} size="md" />
+                  </div>
+                  <p className="text-[10px] text-[var(--gold-dim)]">
+                    {r.gamesPlayed} games &middot; Peak {r.peakRating}
+                  </p>
+                </div>
+              );
+            })()}
+            {/* Fill empty slot if only one rating exists */}
+            {!ratings.headsUp && <div />}
+            {!ratings.multiplayer && <div />}
           </div>
         )}
 

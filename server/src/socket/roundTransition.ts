@@ -5,7 +5,7 @@ import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
 import { broadcastGameState, broadcastNewRound, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
-import { persistCompletedGame } from './persistGame.js';
+import { persistCompletedGame, computeRatingChanges } from './persistGame.js';
 import { roundDurationSeconds } from '../metrics.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { track } from '../analytics/track.js';
@@ -43,7 +43,13 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   if (nextResult.type === 'game_over') {
     room.gamePhase = GamePhase.GAME_OVER;
     broadcastGameReplay(io, room, nextResult.winnerId);
-    io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
+    const stats = room.game!.getGameStats();
+    // Compute rating changes for ranked games before emitting
+    computeRatingChanges(room, nextResult.winnerId).then(ratingChanges => {
+      io.to(room.roomCode).emit('game:over', nextResult.winnerId, stats, ratingChanges);
+    }).catch(() => {
+      io.to(room.roomCode).emit('game:over', nextResult.winnerId, stats);
+    });
     persistCompletedGame(room, nextResult.winnerId);
     roomManager.persistRoom(room);
     return;

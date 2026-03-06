@@ -7,7 +7,7 @@ import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
 import { broadcastGameState, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
 import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
-import { persistCompletedGame } from './persistGame.js';
+import { persistCompletedGame, computeRatingChanges } from './persistGame.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { gameActionsTotal, gamesCompletedTotal } from '../metrics.js';
 import type { RateLimiter } from '../rateLimit.js';
@@ -282,7 +282,12 @@ function handleResult(
       room.gamePhase = GamePhase.GAME_OVER;
       room.cancelRoundContinueWindow();
       broadcastGameReplay(io, room, result.winnerId);
-      io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
+      const gameOverStats = room.game!.getGameStats();
+      computeRatingChanges(room, result.winnerId).then(ratingChanges => {
+        io.to(room.roomCode).emit('game:over', result.winnerId, gameOverStats, ratingChanges);
+      }).catch(() => {
+        io.to(room.roomCode).emit('game:over', result.winnerId, gameOverStats);
+      });
       persistCompletedGame(room, result.winnerId);
       break;
   }

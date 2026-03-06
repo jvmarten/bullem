@@ -1447,3 +1447,18 @@ body {
   padding: 0 0.25rem;
   line-height: 1.25;
 }
+
+/* ── Matchmaking ──────────────────────────────────── */
+@keyframes matchmaking-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* ── Rating change animation ─────────────────────── */
+@keyframes rating-slide-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-rating-slide-up {
+  animation: rating-slide-up 0.6s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+}
