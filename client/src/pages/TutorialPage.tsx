@@ -9,6 +9,8 @@ import { CardDisplay } from '../components/CardDisplay.js';
 import { TutorialOverlay } from '../components/TutorialOverlay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { useSound } from '../hooks/useSound.js';
+import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
+import { markTutorialCompleted } from '../utils/tutorialProgress.js';
 
 /* ── Scripted game data ────────────────────────────────── */
 
@@ -25,6 +27,39 @@ const PLAYERS: Player[] = [
   { id: MY_ID, name: MY_NAME, cardCount: 1, isConnected: true, isEliminated: false, isHost: true },
   { id: BOT_ID, name: BOT_NAME, cardCount: 1, isConnected: true, isEliminated: false, isHost: false, isBot: true },
 ];
+
+/* ── Hand example display for ranking walkthrough ──────── */
+
+function HandExample({ rank, name, cards, desc, highlight }: {
+  rank: number;
+  name: string;
+  cards: Card[];
+  desc: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[10px] font-mono w-5 text-right shrink-0 ${highlight ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}>
+        {rank}.
+      </span>
+      <div className="flex gap-0.5 shrink-0">
+        {cards.map((c, i) => {
+          const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
+          return (
+            <div key={i} className="w-6 h-8 rounded-[3px] flex flex-col items-center justify-center" style={{ background: 'var(--card-face)', border: highlight ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)' }}>
+              <span className={`text-[8px] font-bold leading-none ${isRed ? 'text-red-500' : 'text-[#e8e0d4]'}`}>{c.rank}</span>
+              <span className={`text-[8px] leading-none ${isRed ? 'text-red-500' : 'text-[#e8e0d4]'}`}>{SUIT_SYMBOLS[c.suit]}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="min-w-0">
+        <span className={`text-xs font-semibold ${highlight ? 'text-[var(--gold)]' : 'text-[#e8e0d4]'}`}>{name}</span>
+        <p className="text-[10px] text-[var(--gold-dim)] leading-tight">{desc}</p>
+      </div>
+    </div>
+  );
+}
 
 /* ── Tutorial steps ────────────────────────────────────── */
 
@@ -231,26 +266,83 @@ const STEPS: TutorialStep[] = [
     visibleSections: [],
   },
   {
-    id: 'rankings',
+    id: 'rankings-intro',
     title: 'Hand Rankings',
     body: (
       <>
-        <p className="text-sm text-[#e8e0d4] mb-1">
-          Bull &apos;Em uses <strong className="text-[var(--gold)]">custom rankings</strong> — note that
-          flush is <em>lower</em> than three of a kind!
+        <p className="text-sm text-[#e8e0d4] mb-2">
+          Bull &apos;Em uses <strong className="text-[var(--gold)]">custom hand rankings</strong> that differ from standard poker.
+          Let&apos;s walk through each hand type from lowest to highest.
         </p>
-        <ol className="text-xs text-[#e8e0d4] space-y-0.5 list-decimal list-inside mt-2">
-          <li>High Card</li>
-          <li>Pair</li>
-          <li>Two Pair</li>
-          <li><strong className="text-[var(--gold)]">Flush</strong> <span className="text-[var(--gold-dim)]">(lower than 3-of-a-kind!)</span></li>
-          <li>Three of a Kind</li>
-          <li>Straight</li>
-          <li>Full House</li>
-          <li>Four of a Kind</li>
-          <li>Straight Flush</li>
-          <li>Royal Flush</li>
-        </ol>
+        <p className="text-sm text-[#e8e0d4]">
+          Pay close attention — the order has a <strong className="text-[var(--danger)]">key difference</strong> you need to know!
+        </p>
+      </>
+    ),
+    visibleSections: [],
+  },
+  {
+    id: 'rankings-low',
+    title: 'Low Hands',
+    body: (
+      <>
+        <div className="space-y-2.5">
+          <HandExample rank={1} name="High Card" cards={[{rank:'K',suit:'spades'}]} desc="Just the highest single card." />
+          <HandExample rank={2} name="Pair" cards={[{rank:'7',suit:'hearts'},{rank:'7',suit:'spades'}]} desc="Two cards of the same rank." />
+          <HandExample rank={3} name="Two Pair" cards={[{rank:'J',suit:'spades'},{rank:'J',suit:'hearts'},{rank:'4',suit:'diamonds'},{rank:'4',suit:'clubs'}]} desc="Two different pairs." />
+        </div>
+      </>
+    ),
+    visibleSections: [],
+  },
+  {
+    id: 'rankings-surprise',
+    title: 'The Big Surprise!',
+    body: (
+      <>
+        <p className="text-sm text-[#e8e0d4] mb-2">
+          In standard poker, a flush beats three of a kind. But in Bull &apos;Em:
+        </p>
+        <div className="glass p-2.5 rounded-lg mb-2" style={{ border: '1px solid var(--danger)' }}>
+          <div className="space-y-2">
+            <HandExample rank={4} name="Flush" cards={[{rank:'2',suit:'hearts'},{rank:'5',suit:'hearts'},{rank:'8',suit:'hearts'}]} desc="All same suit — ranked LOWER here!" highlight />
+            <div className="text-center text-[var(--danger)] text-xs font-bold">&#9650; is LOWER than &#9660;</div>
+            <HandExample rank={5} name="Three of a Kind" cards={[{rank:'9',suit:'spades'},{rank:'9',suit:'hearts'},{rank:'9',suit:'diamonds'}]} desc="Three cards of the same rank." />
+          </div>
+        </div>
+        <p className="text-xs text-[var(--gold-dim)]">
+          This is the most common mistake new players make — remember it!
+        </p>
+      </>
+    ),
+    visibleSections: [],
+  },
+  {
+    id: 'rankings-high',
+    title: 'High Hands',
+    body: (
+      <>
+        <div className="space-y-2.5">
+          <HandExample rank={6} name="Straight" cards={[{rank:'5',suit:'clubs'},{rank:'6',suit:'hearts'},{rank:'7',suit:'spades'},{rank:'8',suit:'diamonds'},{rank:'9',suit:'clubs'}]} desc="Five consecutive ranks, any suits." />
+          <HandExample rank={7} name="Full House" cards={[{rank:'Q',suit:'spades'},{rank:'Q',suit:'hearts'},{rank:'Q',suit:'diamonds'},{rank:'3',suit:'clubs'},{rank:'3',suit:'hearts'}]} desc="Three of one rank + pair of another." />
+          <HandExample rank={8} name="Four of a Kind" cards={[{rank:'2',suit:'spades'},{rank:'2',suit:'hearts'},{rank:'2',suit:'diamonds'},{rank:'2',suit:'clubs'}]} desc="All four suits of one rank." />
+        </div>
+      </>
+    ),
+    visibleSections: [],
+  },
+  {
+    id: 'rankings-top',
+    title: 'The Best Hands',
+    body: (
+      <>
+        <div className="space-y-2.5">
+          <HandExample rank={9} name="Straight Flush" cards={[{rank:'5',suit:'spades'},{rank:'6',suit:'spades'},{rank:'7',suit:'spades'},{rank:'8',suit:'spades'},{rank:'9',suit:'spades'}]} desc="A straight, all in the same suit." />
+          <HandExample rank={10} name="Royal Flush" cards={[{rank:'10',suit:'diamonds'},{rank:'J',suit:'diamonds'},{rank:'Q',suit:'diamonds'},{rank:'K',suit:'diamonds'},{rank:'A',suit:'diamonds'}]} desc="10 through Ace, all same suit. Unbeatable!" highlight />
+        </div>
+        <p className="text-xs text-[var(--gold-dim)] mt-2">
+          Remember: you&apos;re claiming these hands exist across <strong>everyone&apos;s</strong> combined cards!
+        </p>
       </>
     ),
     visibleSections: [],
@@ -586,13 +678,13 @@ export function TutorialPage() {
                 {isLastStep ? (
                   <div className="flex gap-2 ml-auto">
                     <button
-                      onClick={() => { play('uiSoft'); navigate('/local'); }}
+                      onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/local'); }}
                       className="btn-ghost px-4 py-1.5 text-sm font-semibold"
                     >
                       Play Offline
                     </button>
                     <button
-                      onClick={() => { play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
+                      onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
                       className="btn-gold px-4 py-1.5 text-sm font-semibold"
                     >
                       Play Online
@@ -620,7 +712,7 @@ export function TutorialPage() {
           )}
           {isLastStep && (
             <button
-              onClick={() => navigate('/')}
+              onClick={() => { markTutorialCompleted(); navigate('/'); }}
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Back to Home
