@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
 import { AVATAR_OPTIONS } from '@bull-em/shared';
 import { hashPassword, verifyPassword } from './password.js';
@@ -7,8 +8,52 @@ import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
 import { query } from '../db/index.js';
 import { getGameHistory } from '../db/games.js';
 import logger from '../logger.js';
+import type { RateLimiter } from '../rateLimit.js';
+import { httpRequestsTotal } from '../metrics.js';
 
 const router = Router();
+
+/** Singleton RateLimiter instance, set via setAuthRateLimiter(). */
+let rateLimiter: RateLimiter | null = null;
+
+/** Configure the rate limiter for auth endpoints. Called once during startup. */
+export function setAuthRateLimiter(limiter: RateLimiter): void {
+  rateLimiter = limiter;
+}
+
+/** Rate limit config for auth endpoints. */
+const AUTH_RATE_LIMIT_MAX = 10;        // max attempts per window
+const AUTH_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+
+/**
+ * Express middleware: rate-limit by IP for brute-force protection.
+ * Uses the shared RateLimiter (Redis-backed when available).
+ */
+function authRateLimit(req: Request, res: Response, next: NextFunction): void {
+  if (!rateLimiter) {
+    // No rate limiter configured — allow through (dev/test without Redis)
+    next();
+    return;
+  }
+
+  // Use X-Forwarded-For (Fly.io / reverse proxy) or fall back to socket address
+  const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  const key = `auth:${ip}`;
+
+  void rateLimiter.checkWindow(key, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS).then((allowed) => {
+    if (!allowed) {
+      httpRequestsTotal.inc('auth_rate_limited');
+      logger.warn({ ip, path: req.path }, 'Auth rate limit exceeded');
+      res.status(429).json({ error: 'Too many requests — please try again later' });
+      return;
+    }
+    next();
+  }).catch((err) => {
+    // Fail-open: if rate limit check fails, allow the request
+    logger.warn({ err, ip }, 'Auth rate limit check failed — allowing request');
+    next();
+  });
+}
 
 /** Max length constraints for user input. */
 const MAX_USERNAME_LENGTH = 20;
@@ -41,7 +86,7 @@ function cookieOptions(): {
 
 // ── POST /auth/register ─────────────────────────────────────────────────
 
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimit, async (req, res) => {
   try {
     const { username, email, password } = req.body as {
       username?: string;
@@ -137,7 +182,7 @@ router.post('/register', async (req, res) => {
 
 // ── POST /auth/login ────────────────────────────────────────────────────
 
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, async (req, res) => {
   try {
     const { identifier, email: legacyEmail, password } = req.body as {
       identifier?: string;

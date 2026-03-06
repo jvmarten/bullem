@@ -15,11 +15,12 @@ import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
-import { authRouter } from './auth/routes.js';
+import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
+import { RateLimiter } from './rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +53,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 // Falls back to the default in-memory adapter for local development.
 // The same Redis instance is reused for session persistence (RedisStore).
 let redisStore: RedisStore | null = null;
+/** Redis client for rate limiting, if configured. */
+let rateLimitRedis: Redis | null = null;
 /** All Redis clients created by this process, tracked for graceful shutdown. */
 const redisClients: Redis[] = [];
 if (process.env.REDIS_URL) {
@@ -68,6 +71,12 @@ if (process.env.REDIS_URL) {
   const storeClient = new Redis(process.env.REDIS_URL);
   redisClients.push(storeClient);
   redisStore = new RedisStore(storeClient);
+
+  // Create a dedicated client for rate limiting — separate from pub/sub and
+  // store clients to avoid contention on the hot path.
+  const rateLimitClient = new Redis(process.env.REDIS_URL);
+  redisClients.push(rateLimitClient);
+  rateLimitRedis = rateLimitClient;
 }
 
 // Attach authenticated user info to socket handshake if JWT cookie is present.
@@ -103,10 +112,15 @@ registerGaugeCallbacks(
   () => roomManager.roomCount,
   () => io.engine.clientsCount,
 );
+const rateLimiter = new RateLimiter(rateLimitRedis);
+
+// Configure auth endpoint rate limiting with the shared RateLimiter instance
+setAuthRateLimiter(rateLimiter);
+
 const botManager = new BotManager();
 botManager.setRoomManager(roomManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
-registerHandlers(io, roomManager, botManager);
+registerHandlers(io, roomManager, botManager, rateLimiter);
 
 // Restore rooms from Redis before accepting connections, then start cleanup.
 // Uses an async IIFE — server starts listening immediately but rooms are

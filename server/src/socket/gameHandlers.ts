@@ -10,6 +10,7 @@ import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { gameActionsTotal, gamesCompletedTotal } from '../metrics.js';
+import type { RateLimiter } from '../rateLimit.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -19,6 +20,7 @@ export function registerGameHandlers(
   socket: TypedSocket,
   roomManager: RoomManager,
   botManager: BotManager,
+  rateLimiter?: RateLimiter,
 ): void {
   socket.on('game:call', (data) => {
     const log = getCorrelatedLogger();
@@ -129,26 +131,47 @@ export function registerGameHandlers(
     if (trimmed.length === 0 || trimmed.length > CHAT_MESSAGE_MAX_LENGTH) return;
     if (!CHAT_MESSAGE_PATTERN.test(trimmed)) return;
 
-    // Per-sender chat rate limit (separate from game action cooldown)
-    const rateLimitKey = `chat:${playerId ?? socket.id}`;
-    const lastChatTime = chatTimestamps.get(rateLimitKey) ?? 0;
-    if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
-    chatTimestamps.set(rateLimitKey, Date.now());
-
-    // Determine if sender is a spectator (external spectator or eliminated player)
-    const senderIsSpectator = isSpectator || (playerId != null && (room.players.get(playerId)?.isEliminated ?? false));
-
-    io.to(room.roomCode).emit('chat:message', {
-      id: randomUUID(),
-      senderName,
-      message: trimmed,
-      timestamp: Date.now(),
-      isSpectator: senderIsSpectator,
-    });
+    // Per-sender chat rate limit (separate from game action cooldown).
+    // Uses Redis-backed cooldown when available for multi-instance consistency.
+    const chatCooldownKey = `chat:${playerId ?? socket.id}`;
+    if (rateLimiter) {
+      void rateLimiter.checkCooldown(chatCooldownKey, CHAT_RATE_LIMIT_MS).then((allowed) => {
+        if (!allowed) return;
+        emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+      }).catch(() => {
+        // On error, allow the message (fail-open)
+        emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+      });
+    } else {
+      // Fallback: in-memory chat rate limiting (single-instance only)
+      const lastChatTime = chatTimestamps.get(chatCooldownKey) ?? 0;
+      if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
+      chatTimestamps.set(chatCooldownKey, Date.now());
+      emitChat(io, room, playerId, isSpectator, senderName, trimmed);
+    }
   });
 }
 
-/** Per-sender chat rate limit timestamps. Cleaned up periodically. */
+/** Emit a validated chat message to the room. */
+function emitChat(
+  io: TypedServer,
+  room: ReturnType<RoomManager['getRoom']> & {},
+  playerId: string | undefined,
+  isSpectator: boolean,
+  senderName: string,
+  message: string,
+): void {
+  const senderIsSpectator = isSpectator || (playerId != null && (room.players.get(playerId)?.isEliminated ?? false));
+  io.to(room.roomCode).emit('chat:message', {
+    id: randomUUID(),
+    senderName,
+    message,
+    timestamp: Date.now(),
+    isSpectator: senderIsSpectator,
+  });
+}
+
+/** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Cleaned up periodically. */
 const chatTimestamps = new Map<string, number>();
 
 // Clean up stale chat timestamps every 60s
