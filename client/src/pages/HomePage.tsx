@@ -660,26 +660,37 @@ export function HomePage() {
           <div className="flex flex-col gap-3 w-full animate-fade-in">
             {roomState ? (
               <>
-                <div className="w-full flex gap-0">
-                  <button
-                    onClick={() => navigate(`/room/${roomState.roomCode}`)}
-                    className="flex-1 btn-gold py-4 text-lg rounded-r-none"
-                  >
-                    Return to Room ({roomState.roomCode})
-                  </button>
-                  <button
-                    onClick={() => {
+                <button
+                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                  className="w-full btn-gold py-4 text-lg flex items-center justify-center relative"
+                >
+                  <span>Return to Room ({roomState.roomCode})</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const ok = window.confirm('Close this room? All players will be disconnected.');
                       if (!ok) return;
                       play('uiSoft');
                       deleteRoom();
                     }}
-                    className="btn-gold py-4 px-3 text-lg rounded-l-none border-l border-[rgba(0,0,0,0.2)] bg-[var(--danger)] hover:bg-red-600 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const ok = window.confirm('Close this room? All players will be disconnected.');
+                        if (!ok) return;
+                        play('uiSoft');
+                        deleteRoom();
+                      }
+                    }}
+                    className="absolute right-3 text-red-400 hover:text-red-300 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                     title="Close room"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </span>
+                </button>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
                 </button>
@@ -844,7 +855,7 @@ export function HomePage() {
         onClick={() => { play('uiSoft'); setShowVersion(true); }}
         className="fixed bottom-6 right-6 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
-        v1.0.3
+        v1.0.4
       </button>
 
       {/* Version info modal */}
@@ -857,15 +868,9 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.3</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.4</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
-            <button
-              onClick={() => setShowVersion(false)}
-              className="glass px-4 py-1.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              Close
-            </button>
           </div>
         </div>
       )}
