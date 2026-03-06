@@ -258,7 +258,6 @@ export function HomePage() {
     if (user?.displayName) return user.displayName;
     return getOrCreatePlayerName();
   });
-  const [isEditingName, setIsEditingName] = useState(false);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
     () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
@@ -277,18 +276,17 @@ export function HomePage() {
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
   const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
-    if (user?.displayName && !isEditingName) {
+    if (user?.displayName) {
       setName(user.displayName);
       localStorage.setItem(PLAYER_NAME_STORAGE_KEY, user.displayName);
     }
-  }, [user?.displayName, isEditingName]);
+  }, [user?.displayName]);
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -479,14 +477,6 @@ export function HomePage() {
     }
   };
 
-  const handleNameSave = () => {
-    const trimmed = name.trim();
-    if (trimmed) {
-      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, trimmed);
-    }
-    setIsEditingName(false);
-  };
-
   const isDealt = dealtCards !== null;
   const isRoyal = handCall?.type === HandType.ROYAL_FLUSH;
   const relevantIndices = dealtCards && handCall
@@ -656,37 +646,27 @@ export function HomePage() {
 
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
-        {/* Player name display — tap to edit */}
+        {/* Player name / auth display — centered */}
         {mode === 'menu' && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
             {user ? (
-              /* Signed-in users cannot edit their display name from the home page */
-              <span className="text-sm text-[var(--gold-dim)]">{name}</span>
-            ) : isEditingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={nameInputRef}
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={handleNameSave}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleNameSave(); }}
-                  maxLength={20}
-                  autoFocus
-                  className="input-felt text-center text-sm py-1.5 px-3 w-40"
-                />
-              </div>
+              /* Signed-in: show user icon + username linking to profile */
+              <Link
+                to="/profile"
+                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5 min-h-[44px]"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>{name}</span>
+              </Link>
             ) : (
-              <button
-                onClick={() => {
-                  setIsEditingName(true);
-                  setTimeout(() => nameInputRef.current?.select(), 0);
-                }}
-                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5"
+              /* Not signed in: show PlayerXXXX as a button that navigates to sign-in */
+              <Link
+                to="/login"
+                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5 min-h-[44px]"
               >
                 <span>{name}</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-              </button>
+                <span className="text-[10px] opacity-60">(sign in)</span>
+              </Link>
             )}
           </div>
         )}
@@ -803,7 +783,7 @@ export function HomePage() {
                     play('uiSoft');
                     joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
                   }}
-                  className="flex-1 btn-ghost py-3 text-sm"
+                  className="flex-1 btn-orange py-3 text-sm"
                 >
                   1v1
                 </button>
@@ -812,7 +792,7 @@ export function HomePage() {
                     play('uiSoft');
                     joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
                   }}
-                  className="flex-1 btn-ghost py-3 text-sm"
+                  className="flex-1 btn-orange py-3 text-sm"
                 >
                   Multiplayer
                 </button>
@@ -963,13 +943,15 @@ export function HomePage() {
         />
       )}
 
-      {/* Version — bottom right corner, home page only */}
-      <button
-        onClick={() => { play('uiSoft'); setShowVersion(true); }}
-        className="fixed bottom-6 right-6 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
-      >
-        v1.0.6
-      </button>
+      {/* Version — bottom right, scrolls with page content */}
+      <div className="flex justify-end mt-4 pb-4 pr-2">
+        <button
+          onClick={() => { play('uiSoft'); setShowVersion(true); }}
+          className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+        >
+          v1.0.7
+        </button>
+      </div>
 
       {/* Version info modal */}
       {showVersion && (
@@ -981,7 +963,7 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.6</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.7</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
           </div>

@@ -88,6 +88,12 @@ export function LocalGamePage() {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
     return { total, pct: Math.round((total / 52) * 100) };
   }, [gameState.players]);
+
+  const cardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of gameState.players) counts[p.id] = p.cardCount;
+    return counts;
+  }, [gameState.players]);
   const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
     && gameState.lastCallerId === playerId;
 
@@ -257,7 +263,7 @@ export function LocalGamePage() {
             </div>
             {/* Call history in sidebar — landscape only */}
             <div className="landscape-only flex-col">
-              <CallHistory history={gameState.turnHistory} />
+              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
           </div>
 
@@ -307,7 +313,7 @@ export function LocalGamePage() {
 
             {/* Call history — portrait only (in sidebar for landscape) */}
             <div className="portrait-only" data-tooltip="call-history">
-              <CallHistory history={gameState.turnHistory} />
+              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
