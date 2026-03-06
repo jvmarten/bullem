@@ -491,11 +491,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     onlinePlayerNames,
   }), [onlinePlayerCount, onlinePlayerNames]);
 
-  // onlinePlayerCount and onlinePlayerNames are deliberately excluded from the
-  // GameContext value — they live only in PresenceContext. Including them here
-  // caused every game component (GamePage, HandSelector, ActionButtons, etc.)
-  // to re-render on every server-wide connect/disconnect event, which happens
-  // frequently and has nothing to do with game state.
+  // onlinePlayerCount and onlinePlayerNames live in PresenceContext.
+  // They are included here for interface compatibility but intentionally
+  // excluded from the useMemo deps — no game component consumes them from
+  // GameContext (Layout uses PresenceContext instead).
   const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,

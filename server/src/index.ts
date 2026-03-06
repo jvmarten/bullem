@@ -168,7 +168,7 @@ if (process.env.NODE_ENV !== 'production') {
     res.header('Access-Control-Allow-Origin', _req.headers.origin ?? '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
     if (_req.method === 'OPTIONS') { res.sendStatus(204); return; }
     next();
   });
@@ -204,11 +204,12 @@ app.get('/api/replays', async (req, res) => {
 });
 
 /** GET /api/replays/:gameId — fetch a full replay by game ID. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 app.get('/api/replays/:gameId', async (req, res) => {
   try {
     const { gameId } = req.params;
-    if (!gameId) {
-      res.status(400).json({ error: 'Game ID is required' });
+    if (!gameId || !UUID_REGEX.test(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
       return;
     }
     const replay = await getReplayByGameId(gameId);
