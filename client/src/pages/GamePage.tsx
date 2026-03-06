@@ -21,8 +21,10 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { HandCall } from '@bull-em/shared';
+import type { HandCall, Card } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
+import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
+import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
@@ -74,7 +76,7 @@ export function GamePage() {
   useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
-  const { chatEnabled, emojiEnabled } = useUISettings();
+  const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
 
   const rejoinAttemptedRef = useRef(false);
 
@@ -178,6 +180,12 @@ export function GamePage() {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
     return { total, pct: Math.round((total / 52) * 100) };
   }, [gameState.players]);
+
+  const cardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of gameState.players) counts[p.id] = p.cardCount;
+    return counts;
+  }, [gameState.players]);
   const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
     && gameState.lastCallerId === playerId;
 
@@ -190,6 +198,35 @@ export function GamePage() {
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
+  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+
+  const quickDrawSuggestions = useMemo(() => {
+    if (!quickDrawOpen || !canRaise) return [];
+    return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+  }, [quickDrawOpen, canRaise, gameState.myCards, gameState.currentHand]);
+
+  // Tapping own cards: toggle Quick Draw chips
+  const handleCardTap = useCallback((_card: Card) => {
+    if (!quickDrawEnabled || !canRaise) return;
+    play('uiClick');
+    // If Quick Draw produces no suggestions, go straight to hand selector
+    const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+    if (suggestions.length === 0) {
+      setHandSelectorOpen(true);
+    } else {
+      setQuickDrawOpen(prev => !prev);
+    }
+  }, [quickDrawEnabled, canRaise, play, gameState.myCards, gameState.currentHand]);
+
+  const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
+    play('callMade');
+    if (isLastChanceCaller) {
+      lastChanceRaise(suggestion.hand);
+    } else {
+      callHand(suggestion.hand);
+    }
+    setQuickDrawOpen(false);
+  }, [play, isLastChanceCaller, lastChanceRaise, callHand]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
@@ -224,9 +261,43 @@ export function GamePage() {
   // an inline arrow function creating a new reference on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
 
-  // Close hand selector when turn changes
+  // Close hand selector on tap outside — same pattern as ActionButtons
+  useEffect(() => {
+    if (!handSelectorOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // Keep open if tapping inside the hand selector, action area, or own cards
+      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]')) return;
+      setHandSelectorOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [handSelectorOpen]);
+
+  // Close quick draw chips on tap outside
+  useEffect(() => {
+    if (!quickDrawOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      setQuickDrawOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [quickDrawOpen]);
+
+  // Close hand selector and quick draw when turn changes
   useEffect(() => {
     setHandSelectorOpen(false);
+    setQuickDrawOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
   // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
@@ -351,8 +422,8 @@ export function GamePage() {
               />
             </div>
             {/* Call history in sidebar — landscape only */}
-            <div className="landscape-only flex-col">
-              <CallHistory history={gameState.turnHistory} />
+            <div className="landscape-only flex-col" data-tooltip="call-history">
+              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
           </div>
 
@@ -377,14 +448,14 @@ export function GamePage() {
 
             {/* Current call display */}
             {gameState.currentHand && (
-              <div className="glass-raised px-3 py-1.5 animate-slide-up flex items-baseline">
+              <div className="glass-raised py-1.5 animate-slide-up flex items-baseline" style={{ padding: '0.375rem clamp(0.5rem, 2.9vw, 0.75rem)' }}>
                 <div className="w-1/4 min-w-0 shrink-0">
                   <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
                     Current Call
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 text-center">
-                  <span className="font-display text-base font-bold text-[var(--gold)] break-words">
+                  <span className="font-display font-bold text-[var(--gold)] current-call-hand">
                     {handToString(gameState.currentHand)}
                   </span>
                 </div>
@@ -399,7 +470,16 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
+
+            {/* Quick Draw suggestion chips */}
+            {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
+              <QuickDrawChips
+                suggestions={quickDrawSuggestions}
+                onSelect={handleQuickDrawSelect}
+                onDismiss={() => setQuickDrawOpen(false)}
+              />
+            )}
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
@@ -408,13 +488,13 @@ export function GamePage() {
 
             {/* Call history — portrait only (in sidebar for landscape) */}
             <div className="portrait-only" data-tooltip="call-history">
-              <CallHistory history={gameState.turnHistory} />
+              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && !isSpectator && (
-              <div className="flex justify-between items-start" data-tooltip="action-area">
+              <div className="flex justify-between items-start relative" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -426,38 +506,35 @@ export function GamePage() {
                   onExpand={closeHandSelector}
                 />
                 {canRaise && !handSelectorOpen && (
-                  <div className="flex justify-end animate-slide-up ml-auto gap-2">
+                  <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
                   </div>
                 )}
+                {canRaise && handSelectorOpen && gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                  <button
+                    onClick={handleQuickRaise}
+                    className="btn-amber action-btn-base font-bold action-btn-minraise absolute left-1/2 -translate-x-1/2 top-0 z-10"
+                    title="Auto-raise to the minimum valid hand"
+                  >
+                    min<br />raise
+                  </button>
+                )}
                 {canRaise && handSelectorOpen && (
-                  <div className="flex gap-2 items-start ml-auto">
-                    {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-                      <button
-                        onClick={handleQuickRaise}
-                        className="btn-amber px-2 py-1 font-semibold leading-tight self-center"
-                        style={{ fontSize: '10px' }}
-                        title="Auto-raise to the minimum valid hand"
-                      >
-                        min<br />raise
-                      </button>
-                    )}
-                    <div className="flex flex-col items-center">
-                      <button
-                        onClick={handleHandSubmit}
-                        disabled={!pendingValid}
-                        className={`btn-gold px-6 py-2 text-base font-bold min-w-[9rem] ${pendingValid ? 'hs-call-pulse' : ''}`}
-                      >
-                        {gameState.currentHand ? 'Raise' : 'Call'}
-                      </button>
-                      <p className={`text-[10px] text-[var(--danger)] mt-1 h-4 transition-opacity ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
-                    </div>
+                  <div className="flex flex-col items-center ml-auto">
+                    <button
+                      onClick={handleHandSubmit}
+                      disabled={!pendingValid}
+                      className={`btn-gold action-btn-base font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                    <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
                   </div>
                 )}
               </div>

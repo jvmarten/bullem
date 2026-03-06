@@ -94,6 +94,26 @@ body {
   transform: none;
 }
 
+/* ── Orange Buttons (Ranked Sub-options) ────────────── */
+.btn-orange {
+  background: linear-gradient(180deg, #f0a050 0%, #d98a3a 100%);
+  color: #1a1a0e;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(217, 138, 58, 0.3);
+  border: 1px solid #c07830;
+  cursor: pointer;
+}
+.btn-orange:hover {
+  background: linear-gradient(180deg, #f8b060 0%, #f0a050 100%);
+  box-shadow: 0 4px 16px rgba(217, 138, 58, 0.4);
+  transform: translateY(-1px);
+}
+.btn-orange:active { transform: scale(0.97); }
+
 /* ── Ghost Buttons ───────────────────────────────────── */
 .btn-ghost {
   background: transparent;
@@ -496,6 +516,91 @@ body {
 .animate-shake { animation: shake 0.4s ease-out; }
 .animate-timer-tick { animation: timer-tick 0.3s ease-out; }
 .animate-spin { animation: spin 1s linear infinite; }
+
+/* ── Quick Draw Chips ─────────────────────────────────── */
+@keyframes quick-draw-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-quick-draw-in {
+  animation: quick-draw-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.quick-draw-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.quick-draw-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--gold-dim);
+  background: rgba(11, 61, 30, 0.85);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.quick-draw-chip:active {
+  transform: scale(0.95);
+}
+
+.quick-draw-chip:hover {
+  border-color: var(--gold);
+  background: rgba(11, 61, 30, 0.95);
+}
+
+.quick-draw-chip-safe {
+  border-color: var(--safe);
+  color: var(--safe);
+}
+.quick-draw-chip-safe:hover {
+  border-color: var(--safe);
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+}
+
+.quick-draw-chip-ambitious {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.quick-draw-chip-ambitious:hover {
+  box-shadow: 0 0 8px var(--gold-glow);
+}
+
+.quick-draw-chip-bold {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.quick-draw-chip-bold:hover {
+  border-color: var(--danger);
+  box-shadow: 0 0 8px rgba(220, 53, 69, 0.3);
+}
+
+
+.quick-draw-chip-cards {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.quick-draw-chip-cards .playing-card-small {
+  font-size: 11px;
+  padding: 0 1px;
+}
 
 /* Staggered card deal delays */
 .deal-delay-0 { animation-delay: 0ms; }
@@ -1199,6 +1304,65 @@ body {
 }
 /* portrait-only has no default style — elements are visible by default */
 
+/* ── Action Button Scaling ────────────────────────────── */
+/* All spatial values derived from the 414pt portrait layout (golden reference).
+   Pure viewport-width units guarantee identical proportions at any portrait width. */
+
+/* Shared base: fixed vw height so all buttons (including 2-line min raise) match */
+.action-btn-base {
+  height: 10.14vw;        /* 42px at 414pt */
+  border-radius: 1.93vw;  /* 8px at 414pt */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.action-btn-primary {
+  font-size: 3.86vw;      /* 16px at 414pt */
+  padding-left: 4.25vw;   /* 17.6px at 414pt */
+  padding-right: 4.25vw;
+  min-width: 28.99vw;     /* 120px at 414pt */
+}
+
+.action-btn-secondary {
+  font-size: 3.86vw;      /* 16px at 414pt */
+  padding-left: 2.71vw;   /* 11.2px at 414pt */
+  padding-right: 2.71vw;
+  min-width: 21.26vw;     /* 88px at 414pt */
+}
+
+.action-btn-minraise {
+  font-size: 3.38vw;      /* 14px at 414pt */
+  line-height: 1.15;
+  padding-left: 2.71vw;   /* 11.2px at 414pt */
+  padding-right: 2.71vw;
+  min-width: 15.94vw;     /* 66px at 414pt */
+  text-align: center;
+}
+
+.action-btn-gap {
+  gap: 1.93vw;             /* 8px at 414pt */
+}
+
+.action-btn-hint {
+  font-size: 2.42vw;      /* 10px at 414pt */
+}
+
+/* ── Current Call Hand Name ─────────────────────────── */
+/* Original font size; long names wrap naturally to two lines.
+   At narrow widths (<390px) use a slightly smaller size so typical
+   hand names (e.g. "Three of a Kind, 9s") stay on one line at 375pt. */
+.current-call-hand {
+  font-size: 1rem;
+}
+@media (max-width: 389px) {
+  .current-call-hand {
+    font-size: 0.875rem;
+  }
+}
+
 /* ── Portrait Phone (default) — stack everything vertically ── */
 .game-content {
   display: flex;
@@ -1404,6 +1568,37 @@ body {
   .host-content,
   .results-content {
     max-width: 100%;
+  }
+
+  /* -- Action button overrides: cap vw values for wider viewports -- */
+  .action-btn-base {
+    height: 2.625rem;
+    border-radius: 0.5rem;
+  }
+  .action-btn-primary {
+    font-size: 1rem;
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+    min-width: 7.5rem;
+  }
+  .action-btn-secondary {
+    font-size: 1rem;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+    min-width: 5.5rem;
+  }
+  .action-btn-minraise {
+    font-size: 0.875rem;
+    line-height: 1.15;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+    min-width: 4.125rem;
+  }
+  .action-btn-gap {
+    gap: 0.5rem;
+  }
+  .action-btn-hint {
+    font-size: 0.625rem;
   }
 }
 

@@ -4,12 +4,13 @@ import { SUIT_SYMBOLS, SUIT_CSS, rankDisplay } from '../utils/cardUtils.js';
 
 // Memoized: cards are immutable once dealt. Without memo, every parent
 // re-render (turn changes, timer ticks) re-renders all card DOM elements.
-export const CardDisplay = memo(function CardDisplay({ card, small, className = '', style, onPointerEnter }: {
+export const CardDisplay = memo(function CardDisplay({ card, small, className = '', style, onPointerEnter, onClick }: {
   card: Card;
   small?: boolean;
   className?: string;
   style?: React.CSSProperties;
   onPointerEnter?: () => void;
+  onClick?: () => void;
 }) {
   const suitColor = SUIT_CSS[card.suit];
 
@@ -23,7 +24,7 @@ export const CardDisplay = memo(function CardDisplay({ card, small, className = 
   }
 
   return (
-    <div className={`playing-card inline-flex flex-col items-center justify-center w-10 h-14 mx-0.5 select-none ${className}`} style={style} onPointerEnter={onPointerEnter}>
+    <div className={`playing-card inline-flex flex-col items-center justify-center w-10 h-14 mx-0.5 select-none ${className}`} style={style} onPointerEnter={onPointerEnter} onClick={onClick}>
       <span className={`text-sm font-bold leading-tight ${suitColor}`}>
         {rankDisplay(card.rank)}
       </span>

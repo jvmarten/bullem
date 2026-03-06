@@ -14,7 +14,7 @@ function useIsWideViewport(): boolean {
 
 // Memoized: cards don't change during a round — skip re-renders triggered
 // by unrelated parent state (current turn, timer, call history).
-export const HandDisplay = memo(function HandDisplay({ cards, large }: { cards: Card[]; large?: boolean }) {
+export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap }: { cards: Card[]; large?: boolean; onCardTap?: (card: Card) => void }) {
   if (cards.length === 0) return null;
   const count = cards.length;
   const isWide = useIsWideViewport();
@@ -42,8 +42,9 @@ export const HandDisplay = memo(function HandDisplay({ cards, large }: { cards: 
         <CardDisplay
           key={`${card.rank}-${card.suit}-${i}`}
           card={card}
-          className={`animate-card-deal deal-delay-${i}`}
+          className={`animate-card-deal deal-delay-${i}${onCardTap ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
           style={cardStyles[i]}
+          onClick={onCardTap ? () => onCardTap(card) : undefined}
         />
       ))}
     </div>

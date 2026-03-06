@@ -16,7 +16,7 @@ export function HowToPlayPage() {
           <ol className="space-y-2 text-sm text-[#e8e0d4] list-decimal list-inside">
             <li>Everyone gets dealt cards. You can only see <strong>your own</strong>.</li>
             <li>On your turn, <strong>call a poker hand</strong> (e.g., "pair of 7s") &mdash; it must be higher than the last call.</li>
-            <li>Don't believe it? Call <strong className="text-[var(--danger)]">Bull</strong>. Believe it? Call <strong className="text-[var(--success)]">True</strong>.</li>
+            <li>Don't believe it? Call <strong className="text-[var(--danger)]">Bull</strong>. Believe it? Call <strong className="text-[var(--info)]">True</strong>.</li>
             <li>The hand is checked against <strong>ALL players' cards combined</strong>.</li>
             <li>Wrong callers get <strong>+1 card</strong>. Too many cards = <strong>eliminated</strong>.</li>
             <li>Last player standing <strong>wins</strong>!</li>
@@ -76,7 +76,7 @@ export function HowToPlayPage() {
               <ol className="space-y-1.5 text-sm text-[#e8e0d4] list-decimal list-inside">
                 <li><strong>First player</strong> calls any poker hand (e.g., "pair of 7s").</li>
                 <li><strong>Next player</strong> can <strong>raise</strong> (call a higher hand) or call <strong className="text-[var(--danger)]">bull</strong>.</li>
-                <li>Once someone calls bull, everyone else chooses: <strong>raise</strong>, <strong className="text-[var(--danger)]">bull</strong>, or <strong className="text-[var(--success)]">true</strong>.</li>
+                <li>Once someone calls bull, everyone else chooses: <strong>raise</strong>, <strong className="text-[var(--danger)]">bull</strong>, or <strong className="text-[var(--info)]">true</strong>.</li>
               </ol>
             </section>
 
@@ -93,7 +93,7 @@ export function HowToPlayPage() {
                   <dd className="text-xs text-[var(--gold-dim)]">"I don't believe that hand exists" &mdash; challenge the caller</dd>
                 </div>
                 <div>
-                  <dt className="font-bold text-[var(--success)]">True</dt>
+                  <dt className="font-bold text-[var(--info)]">True</dt>
                   <dd className="text-xs text-[var(--gold-dim)]">"I believe it" &mdash; side with the caller (only available after someone calls bull)</dd>
                 </div>
               </dl>
