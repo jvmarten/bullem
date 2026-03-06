@@ -4,6 +4,7 @@ import logger from '../logger.js';
 export interface JwtPayload {
   userId: string;
   username: string;
+  role: 'user' | 'admin';
 }
 
 function getSecret(): string {
@@ -23,7 +24,7 @@ export function signToken(payload: JwtPayload): string {
 export function verifyToken(token: string): JwtPayload | null {
   try {
     const decoded = jwt.verify(token, getSecret()) as jwt.JwtPayload & JwtPayload;
-    return { userId: decoded.userId, username: decoded.username };
+    return { userId: decoded.userId, username: decoded.username, role: decoded.role ?? 'user' };
   } catch (err) {
     logger.debug({ err }, 'JWT verification failed');
     return null;
