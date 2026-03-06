@@ -74,3 +74,29 @@ export const CHAT_MESSAGE_MAX_LENGTH = 200;
 export const CHAT_RATE_LIMIT_MS = 2000;
 /** Allowed characters in chat messages (printable ASCII + common punctuation). */
 export const CHAT_MESSAGE_PATTERN = /^[a-zA-Z0-9 _\-'.!?,;:()@#&+="/<>*\[\]{}|\\~`$%^]+$/;
+
+// ── Matchmaking constants ──────────────────────────────────────────────────
+
+/** How often the matching algorithm runs (ms). */
+export const MATCHMAKING_INTERVAL_MS = 2500;
+/** Base Elo window: two players must be within ±this to match in heads-up. */
+export const MATCHMAKING_ELO_WINDOW = 150;
+/** After this many seconds in queue, widen the matching window by 50%. */
+export const MATCHMAKING_WIDEN_AFTER_SECONDS = 15;
+/** After this many seconds, match with a rated bot instead of waiting. */
+export const MATCHMAKING_BOT_BACKFILL_SECONDS = 45;
+/** Target player count for multiplayer matchmaking. */
+export const MATCHMAKING_MULTIPLAYER_TARGET = 4;
+/** Minimum players to start a multiplayer match (including bot backfill). */
+export const MATCHMAKING_MULTIPLAYER_MIN = 3;
+/** Maximum players in a multiplayer match. */
+export const MATCHMAKING_MULTIPLAYER_MAX = 9;
+/** Countdown after enough players found before starting a multiplayer match (ms). */
+export const MATCHMAKING_COUNTDOWN_MS = 10_000;
+/** Countdown shown to players after match is found (ms). */
+export const MATCHMAKING_FOUND_COUNTDOWN_MS = 4_000;
+/** How often to send queue status updates to waiting players (ms). */
+export const MATCHMAKING_STATUS_INTERVAL_MS = 5_000;
+/** Elo spread for multiplayer matching (analogous to ±3σ in OpenSkill).
+ *  Players within this range of each other are considered compatible. */
+export const MATCHMAKING_MULTIPLAYER_ELO_SPREAD = 400;

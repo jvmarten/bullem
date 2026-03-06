@@ -358,6 +358,72 @@ export interface UserRatings {
   multiplayer: OpenSkillRating | null;
 }
 
+// ── Matchmaking types ────────────────────────────────────────────────────
+
+/** Status update sent while a player is in the matchmaking queue. */
+export interface MatchmakingStatus {
+  /** Approximate position in the queue (1-based). */
+  position: number;
+  /** Estimated wait time in seconds. -1 if unknown. */
+  estimatedWaitSeconds: number;
+  /** Which queue the player is in. */
+  mode: RankedMode;
+}
+
+/** Sent when a match is found and a room is being created. */
+export interface MatchmakingFound {
+  /** Room code for the matched game. */
+  roomCode: string;
+  /** Info about matched opponents. */
+  opponents: { name: string; rating: number }[];
+  /** The player's own reconnect token for the auto-joined room. */
+  reconnectToken: string;
+  /** The player's assigned in-game player ID. */
+  playerId: string;
+}
+
+// ── Match history types (for future rating recalculation) ────────────────
+
+/** Detailed match data stored for every ranked game. Designed so that
+ *  ratings can be recalculated from scratch if the rating algorithm changes. */
+export interface RankedMatchRecord {
+  gameId: string;
+  mode: RankedMode;
+  /** Number of players when the match started (including bots). */
+  playerCount: number;
+  /** Number of human players when the match started. */
+  humanPlayerCount: number;
+  /** Whether the match was created via matchmaking (vs. custom ranked lobby). */
+  fromMatchmaking: boolean;
+  /** Snapshot of game settings at match time. */
+  settings: GameSettings;
+  startedAt: string;
+  endedAt: string;
+  /** Ordered results — one entry per player. */
+  players: RankedMatchPlayerRecord[];
+}
+
+/** Per-player data in a ranked match record. */
+export interface RankedMatchPlayerRecord {
+  userId: string;
+  /** Display name at the time of the match. */
+  displayName: string;
+  finishPosition: number;
+  isBot: boolean;
+  /** Rating snapshot BEFORE the match was played. */
+  ratingBefore: {
+    elo?: number;
+    mu?: number;
+    sigma?: number;
+  };
+  /** Rating snapshot AFTER the match was played. */
+  ratingAfter: {
+    elo?: number;
+    mu?: number;
+    sigma?: number;
+  };
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;

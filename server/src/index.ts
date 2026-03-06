@@ -15,6 +15,7 @@ import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
+import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
@@ -126,7 +127,20 @@ botManager.setRoomManager(roomManager);
 const pushManager = new PushManager();
 setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
-registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
+
+// Create matchmaking queue when Redis is available — matchmaking requires
+// Redis for queue state. Without Redis, ranked matchmaking is disabled.
+let matchmakingQueue: MatchmakingQueue | undefined;
+if (rateLimitRedis) {
+  // Reuse a dedicated Redis client for matchmaking sorted sets.
+  // TODO(scale): At very high scale, consider a separate Redis client
+  // to avoid contention with rate limiting on the same connection.
+  const matchmakingRedis = new Redis(process.env.REDIS_URL!);
+  redisClients.push(matchmakingRedis);
+  matchmakingQueue = new MatchmakingQueue(io, matchmakingRedis, roomManager, botManager);
+}
+
+registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
 
 // Restore rooms from Redis before accepting connections, then start cleanup.
 // Uses an async IIFE — server starts listening immediately but rooms are
@@ -158,6 +172,14 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
   }
   roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
   backgroundGameManager.start();
+
+  // Start matchmaking queue after Redis and DB are ready
+  if (matchmakingQueue) {
+    matchmakingQueue.start();
+    logger.info('Ranked matchmaking enabled (Redis available)');
+  } else {
+    logger.info('Ranked matchmaking disabled (no Redis configured)');
+  }
 })();
 
 // Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies
@@ -422,6 +444,7 @@ function shutdown(): void {
     clearTimeout(broadcastPending);
     broadcastPending = null;
   }
+  if (matchmakingQueue) matchmakingQueue.stop();
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();

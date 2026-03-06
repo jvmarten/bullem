@@ -7,7 +7,9 @@ import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { registerPushHandlers } from './pushHandlers.js';
+import { registerMatchmakingHandlers } from './matchmakingHandlers.js';
 import type { PushManager } from '../push/PushManager.js';
+import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
@@ -105,7 +107,7 @@ function attachCorrelationMiddleware(
   });
 }
 
-export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager): void {
+export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager, matchmakingQueue?: MatchmakingQueue): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');
@@ -123,6 +125,9 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
     registerPushHandlers(io, socket, roomManager, pushManager);
+    if (matchmakingQueue) {
+      registerMatchmakingHandlers(io, socket, matchmakingQueue);
+    }
 
     socket.on('error', (err) => {
       socketErrorsTotal.inc();
@@ -137,6 +142,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
 
     socket.on('disconnect', () => {
       socketLog.info('Socket disconnected');
+
+      // Remove from matchmaking queue on disconnect
+      if (matchmakingQueue) {
+        void matchmakingQueue.handleDisconnect(socket.id);
+      }
 
       // Callback fired when the 30s disconnect timer expires and the player
       // hasn't reconnected. Properly eliminates the player through the game
