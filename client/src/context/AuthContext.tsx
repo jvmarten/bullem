@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
-import type { User, PublicProfile } from '@bull-em/shared';
+import type { User, PublicProfile, AvatarId } from '@bull-em/shared';
 
 export interface AuthContextValue {
   user: User | null;
   profile: PublicProfile | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Log in with email or username + password. */
+  login: (identifier: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateAvatar: (avatar: AvatarId | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,10 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshProfile().finally(() => setLoading(false));
   }, [refreshProfile]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (identifier: string, password: string) => {
     const data = await apiFetch<{ user: User }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     });
     setUser(data.user);
     // Fetch full profile with stats
@@ -75,6 +77,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, []);
 
+  const updateAvatar = useCallback(async (avatar: AvatarId | null) => {
+    await apiFetch<{ ok: boolean; avatar: AvatarId | null }>('/auth/avatar', {
+      method: 'PATCH',
+      body: JSON.stringify({ avatar }),
+    });
+    // Update local state immediately without a full profile refetch
+    setUser(prev => prev ? { ...prev, avatar } : null);
+    setProfile(prev => prev ? { ...prev, avatar } : null);
+  }, []);
+
   const value: AuthContextValue = useMemo(() => ({
     user,
     profile,
@@ -83,7 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     refreshProfile,
-  }), [user, profile, loading, login, register, logout, refreshProfile]);
+    updateAvatar,
+  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
