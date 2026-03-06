@@ -1244,6 +1244,19 @@ body {
   font-size: clamp(9px, 2.4vw, 10px);
 }
 
+/* ── Current Call Hand Name ─────────────────────────── */
+/* Original font size; long names wrap naturally to two lines.
+   At narrow widths (<390px) use a slightly smaller size so typical
+   hand names (e.g. "Three of a Kind, 9s") stay on one line at 375pt. */
+.current-call-hand {
+  font-size: 1rem;
+}
+@media (max-width: 389px) {
+  .current-call-hand {
+    font-size: 0.875rem;
+  }
+}
+
 /* ── Portrait Phone (default) — stack everything vertically ── */
 .game-content {
   display: flex;
