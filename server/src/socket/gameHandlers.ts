@@ -6,6 +6,7 @@ import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
 import { broadcastGameState, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
+import { persistCompletedGame } from './persistGame.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -131,11 +132,13 @@ function handleResult(
         if (room.game) room.game.setTurnDeadline(null);
         broadcastGameState(io, room);
         io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
+        room.recordEliminations(result.finalRoundResult.eliminatedPlayerIds);
       }
       room.gamePhase = GamePhase.GAME_OVER;
       room.cancelRoundContinueWindow();
       broadcastGameReplay(io, room, result.winnerId);
       io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
+      persistCompletedGame(room, result.winnerId);
       break;
   }
   room.touch();

@@ -5,6 +5,7 @@ import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
 import { broadcastGameState, broadcastNewRound, broadcastGameReplay } from './broadcast.js';
+import { persistCompletedGame } from './persistGame.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 const ROUND_CONTINUE_TIMEOUT_MS = 30_000;
@@ -20,6 +21,7 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
     room.gamePhase = GamePhase.GAME_OVER;
     broadcastGameReplay(io, room, nextResult.winnerId);
     io.to(room.roomCode).emit('game:over', nextResult.winnerId, room.game!.getGameStats());
+    persistCompletedGame(room, nextResult.winnerId);
     roomManager.persistRoom(room);
     return;
   }
@@ -46,6 +48,7 @@ export function beginRoundResultPhase(
   broadcastGameState(io, room);
 
   room.gamePhase = GamePhase.ROUND_RESULT;
+  room.recordEliminations(result.eliminatedPlayerIds);
   io.to(room.roomCode).emit('game:roundResult', result);
 
   // Update cross-round bot memory with round outcome, scoped to this room
