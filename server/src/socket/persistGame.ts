@@ -2,6 +2,7 @@ import type { PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import { persistGameResult } from '../db/games.js';
 import type { GameRecord } from '../db/games.js';
+import { persistReplayRounds } from '../db/replays.js';
 
 /**
  * Build a GameRecord from room state and persist it to the database.
@@ -64,7 +65,14 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
   };
 
   // Fire-and-forget — game persistence must never block or crash the game
-  persistGameResult(record).catch(() => {
-    // Error already logged inside persistGameResult
-  });
+  persistGameResult(record)
+    .then((gameId) => {
+      if (!gameId || !room.game) return;
+      // Persist round snapshots for replay after the game row exists (FK constraint)
+      const snapshots = room.game.getRoundSnapshots();
+      return persistReplayRounds(gameId, snapshots);
+    })
+    .catch(() => {
+      // Error already logged inside persistGameResult / persistReplayRounds
+    });
 }
