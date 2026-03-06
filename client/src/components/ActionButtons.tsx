@@ -66,7 +66,7 @@ export const ActionButtons = memo(function ActionButtons({
         <div className="flex justify-start animate-slide-up" data-action-buttons>
           <button
             onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
-            className="btn-ghost border-[var(--gold-dim)] py-2 font-bold animate-pulse-glow action-btn-primary"
+            className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary"
           >
             Pass
           </button>
@@ -75,7 +75,7 @@ export const ActionButtons = memo(function ActionButtons({
     }
     return (
       <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
-        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe py-2 font-bold action-btn-primary kbd-shortcut" data-kbd="P">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe action-btn-base font-bold action-btn-primary kbd-shortcut" data-kbd="P">
           Pass
         </button>
       </div>
@@ -92,7 +92,7 @@ export const ActionButtons = memo(function ActionButtons({
       <div className="flex justify-start animate-slide-up" data-action-buttons>
         <button
           onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
-          className="btn-ghost border-[var(--gold-dim)] py-2 font-bold animate-pulse-glow action-btn-primary whitespace-nowrap shrink-0"
+          className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary whitespace-nowrap shrink-0"
         >
           {showTrue ? 'BULL / TRUE' : 'BULL!'}
         </button>
@@ -103,12 +103,12 @@ export const ActionButtons = memo(function ActionButtons({
   return (
     <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
       {showBull && (
-        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger py-2 font-bold action-btn-secondary kbd-shortcut" data-kbd="B">
+        <button onClick={() => handleClick(onBull, 'bullCalled')} className="btn-danger action-btn-base font-bold action-btn-secondary kbd-shortcut" data-kbd="B">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button onClick={() => handleClick(onTrue)} className="btn-info py-2 font-bold action-btn-secondary kbd-shortcut" data-kbd="T">
+        <button onClick={() => handleClick(onTrue)} className="btn-info action-btn-base font-bold action-btn-secondary kbd-shortcut" data-kbd="T">
           TRUE
         </button>
       )}
