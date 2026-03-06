@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
@@ -66,6 +66,10 @@ export interface GameContextValue {
   reactions: EmojiReaction[];
   /** Send an emoji reaction to all players in the room. */
   sendReaction: (emoji: GameEmoji) => void;
+  /** Chat messages received in the current room. */
+  chatMessages: ChatMessage[];
+  /** Send a chat message to the room. */
+  sendChatMessage: (message: string) => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -108,6 +112,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [disconnectDeadlines, setDisconnectDeadlines] = useState<Map<string, number>>(new Map());
   const [lastReplay, setLastReplay] = useState<GameReplay | null>(null);
   const [reactions, setReactions] = useState<EmojiReaction[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -171,6 +176,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameStats(null);
       setLastReplay(null);
       setDisconnectDeadlines(new Map());
+      setChatMessages([]);
       sessionStorage.removeItem(PLAYER_ID_KEY);
       sessionStorage.removeItem(PLAYER_NAME_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -274,6 +280,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setReactions(prev => prev.filter(r => r.timestamp !== reaction.timestamp || r.playerId !== reaction.playerId));
       }, 2000);
     });
+    socket.on('chat:message', (message: ChatMessage) => {
+      setChatMessages(prev => {
+        const next = [...prev, message];
+        // Keep only the last 200 messages to prevent unbounded growth
+        return next.length > 200 ? next.slice(-200) : next;
+      });
+    });
 
     return () => {
       socket.off('connect');
@@ -293,6 +306,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('server:playerCount');
       socket.off('server:playerNames');
       socket.off('game:reaction');
+      socket.off('chat:message');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -334,6 +348,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinnerId(null);
     setGameStats(null);
     setLastReplay(null);
+    setChatMessages([]);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -349,6 +364,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinnerId(null);
     setGameStats(null);
     setLastReplay(null);
+    setChatMessages([]);
     sessionStorage.removeItem(PLAYER_ID_KEY);
     sessionStorage.removeItem(PLAYER_NAME_KEY);
     sessionStorage.removeItem(ROOM_CODE_KEY);
@@ -437,6 +453,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendReaction = useCallback((emoji: GameEmoji) => socket.emit('game:reaction', { emoji }), []);
+  const sendChatMessage = useCallback((message: string) => socket.emit('chat:send', { message }), []);
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
@@ -498,14 +515,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastReplay,
     reactions,
     sendReaction,
+    chatMessages,
+    sendChatMessage,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
-    lastReplay, reactions,
+    lastReplay, reactions, chatMessages,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
-    addBot, removeBot, kickPlayer, requestRematch, sendReaction,
+    addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
   ]);
 
   return (

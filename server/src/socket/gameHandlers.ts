@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
-import { GamePhase, validateHandCall, ALLOWED_EMOJIS } from '@bull-em/shared';
+import { GamePhase, validateHandCall, ALLOWED_EMOJIS, CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PATTERN, CHAT_RATE_LIMIT_MS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameEmoji } from '@bull-em/shared';
+import { randomUUID } from 'crypto';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
@@ -103,7 +104,60 @@ export function registerGameHandlers(
       timestamp: Date.now(),
     });
   });
+
+  socket.on('chat:send', (data) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+
+    // Resolve sender identity — works for players, eliminated players, and spectators
+    const playerId = room.getPlayerId(socket.id);
+    const isSpectator = room.spectatorSockets.has(socket.id);
+    let senderName: string | undefined;
+
+    if (playerId) {
+      const player = room.players.get(playerId);
+      senderName = player?.name;
+    } else if (isSpectator) {
+      senderName = room.spectatorNames.get(socket.id) ?? 'Spectator';
+    }
+
+    if (!senderName) return;
+
+    // Validate message content
+    if (typeof data.message !== 'string') return;
+    const trimmed = data.message.trim();
+    if (trimmed.length === 0 || trimmed.length > CHAT_MESSAGE_MAX_LENGTH) return;
+    if (!CHAT_MESSAGE_PATTERN.test(trimmed)) return;
+
+    // Per-sender chat rate limit (separate from game action cooldown)
+    const rateLimitKey = `chat:${playerId ?? socket.id}`;
+    const lastChatTime = chatTimestamps.get(rateLimitKey) ?? 0;
+    if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
+    chatTimestamps.set(rateLimitKey, Date.now());
+
+    // Determine if sender is a spectator (external spectator or eliminated player)
+    const senderIsSpectator = isSpectator || (playerId != null && (room.players.get(playerId)?.isEliminated ?? false));
+
+    io.to(room.roomCode).emit('chat:message', {
+      id: randomUUID(),
+      senderName,
+      message: trimmed,
+      timestamp: Date.now(),
+      isSpectator: senderIsSpectator,
+    });
+  });
 }
+
+/** Per-sender chat rate limit timestamps. Cleaned up periodically. */
+const chatTimestamps = new Map<string, number>();
+
+// Clean up stale chat timestamps every 60s
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [key, ts] of chatTimestamps) {
+    if (ts < cutoff) chatTimestamps.delete(key);
+  }
+}, 60_000).unref();
 
 /** Extract room + game + playerId from a socket, or emit an error and return null. */
 function getGameContext(socket: TypedSocket, roomManager: RoomManager) {

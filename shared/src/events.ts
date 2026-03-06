@@ -12,6 +12,16 @@ export interface EmojiReaction {
   timestamp: number;
 }
 
+/** A chat message sent by a player or spectator. */
+export interface ChatMessage {
+  id: string;
+  senderName: string;
+  message: string;
+  timestamp: number;
+  /** True when the message was sent by a spectator (not an active player). */
+  isSpectator: boolean;
+}
+
 /**
  * Socket.io events emitted by the client.
  * Used as the type parameter for Socket.io Server/Socket generics to get
@@ -39,6 +49,7 @@ export interface ClientToServerEvents {
   'room:delete': () => void;
   'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
   'game:reaction': (data: { emoji: GameEmoji }) => void;
+  'chat:send': (data: { message: string }) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -58,4 +69,5 @@ export interface ServerToClientEvents {
   'room:deleted': () => void;
   'room:kicked': () => void;
   'game:reaction': (reaction: EmojiReaction) => void;
+  'chat:message': (message: ChatMessage) => void;
 }
