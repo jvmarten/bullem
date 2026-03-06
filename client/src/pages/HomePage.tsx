@@ -412,6 +412,13 @@ export function HomePage() {
   return (
     <Layout largeTitle>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
+        {/* Tagline — orients first-time visitors */}
+        {mode === 'menu' && (
+          <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in -mb-4" style={{ maxWidth: '320px' }}>
+            A multiplayer bluffing card game — call it or call bull.
+          </p>
+        )}
+
         {/* Left panel in landscape: deck demo */}
         <div className="home-left">
         {/* Interactive deck */}
