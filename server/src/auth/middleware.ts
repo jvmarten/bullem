@@ -47,4 +47,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
+/**
+ * Admin-only middleware. Must be used AFTER requireAuth.
+ * Returns 403 if the authenticated user does not have the 'admin' role.
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || req.user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
+}
+
 export { AUTH_COOKIE_NAME };

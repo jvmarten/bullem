@@ -19,6 +19,7 @@ import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
 import { optionalAuth } from './auth/middleware.js';
+import { createAdminRouter } from './admin/routes.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
@@ -182,6 +183,9 @@ app.use(optionalAuth);
 app.use('/auth', authRouter);
 app.use('/auth', oauthRouter);
 
+// Admin routes
+app.use('/admin', createAdminRouter(io, roomManager, botManager));
+
 // Replay routes
 import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
 
@@ -296,7 +300,7 @@ if (process.env.NODE_ENV === 'production') {
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
+    if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/admin/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
       return;
     }

@@ -255,6 +255,7 @@ export interface User {
   username: string;
   displayName: string;
   email: string;
+  role: 'user' | 'admin';
   authProvider: 'email' | 'google' | 'apple' | 'email+google' | 'email+apple';
   avatar: AvatarId | null;
   createdAt: string;
