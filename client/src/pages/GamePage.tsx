@@ -152,6 +152,20 @@ export function GamePage() {
     wasEliminatedRef.current = isEliminated;
   }, [isEliminated, winnerId, addToast]);
 
+  // Show a toast for every player eliminated this round (including other players).
+  // Fires when roundResult arrives so the notification coincides with the reveal overlay.
+  const lastResultRef = useRef(roundResult);
+  useEffect(() => {
+    if (roundResult && roundResult !== lastResultRef.current) {
+      for (const eliminatedId of roundResult.eliminatedPlayerIds) {
+        if (eliminatedId === playerId) continue; // already handled above
+        const name = gameState.players.find(p => p.id === eliminatedId)?.name ?? 'A player';
+        addToast(`${name} has been eliminated!`, 'info');
+      }
+    }
+    lastResultRef.current = roundResult;
+  }, [roundResult, playerId, gameState.players, addToast]);
+
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
     return { total, pct: Math.round((total / 52) * 100) };
