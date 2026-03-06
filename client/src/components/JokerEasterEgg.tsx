@@ -91,7 +91,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   setPhase: (p: Phase) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }) {
-  const { volume, muted } = useSound();
+  const { volume, muted, hapticsEnabled } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const animRef = useRef<number>(0);
   // Sliding window of 4 waypoints for Catmull-Rom spline interpolation.
@@ -122,8 +122,8 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   useEffect(() => {
     if (phase !== 'flying') return;
 
-    // Haptic feedback
-    if (navigator.vibrate) {
+    // Haptic feedback (respects user's haptics setting)
+    if (hapticsEnabled && navigator.vibrate) {
       navigator.vibrate([100, 30, 100, 30, 200]);
     }
 
@@ -137,7 +137,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
       clearTimeout(timer);
       document.documentElement.classList.remove('screen-shake-heavy');
     };
-  }, [phase]);
+  }, [phase, hapticsEnabled]);
 
   // Flying animation via requestAnimationFrame with Catmull-Rom spline
   useEffect(() => {

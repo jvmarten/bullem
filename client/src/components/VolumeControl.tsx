@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSound } from '../hooks/useSound.js';
 
 export function VolumeControl() {
-  const { muted, toggleMute, volume, setVolume } = useSound();
+  const { muted, toggleMute, volume, setVolume, hapticsEnabled, toggleHaptics } = useSound();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -75,6 +75,32 @@ export function VolumeControl() {
             <span>0%</span>
             <span>{muted ? '0' : Math.round(volume * 100)}%</span>
             <span>100%</span>
+          </div>
+
+          {/* Haptics toggle — separate from sound mute */}
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              Haptics
+            </span>
+            <button
+              onClick={toggleHaptics}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5"
+              title={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
+            >
+              {hapticsEnabled ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12h2m4-7v2m8-2v2m4 5h2" />
+                  <rect x="8" y="9" width="8" height="10" rx="2" />
+                  <path d="M5 8a9 9 0 0 1 2.6-4" />
+                  <path d="M19 8a9 9 0 0 0-2.6-4" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="8" y="9" width="8" height="10" rx="2" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
       )}

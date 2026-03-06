@@ -285,6 +285,7 @@ function computeSubRank(hand: HandCall): number {
 
 const MUTE_KEY = 'bull-em-muted';
 const VOLUME_KEY = 'bull-em-volume';
+const HAPTICS_KEY = 'bull-em-haptics';
 
 export interface SoundController {
   play: (name: SoundName) => void;
@@ -299,6 +300,8 @@ export interface SoundController {
   toggleMute: () => void;
   volume: number;
   setVolume: (v: number) => void;
+  hapticsEnabled: boolean;
+  toggleHaptics: () => void;
 }
 
 // Tracks active looping audio sources so they can be stopped
@@ -311,18 +314,24 @@ export function createSoundController(): SoundController {
   let muted = localStorage.getItem(MUTE_KEY) === 'true';
   let volume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '1');
   if (isNaN(volume) || volume < 0 || volume > 1) volume = 1;
+  // Haptics default to enabled (null means user hasn't explicitly disabled)
+  let hapticsEnabled = localStorage.getItem(HAPTICS_KEY) !== 'false';
 
   const activeLoops = new Map<SoundName, ActiveLoop>();
 
   const controller: SoundController = {
     get muted() { return muted; },
     get volume() { return volume; },
+    get hapticsEnabled() { return hapticsEnabled; },
 
     play(name: SoundName) {
-      if (muted) return;
+      // Haptics fire independently of mute — a user may want vibration without sound
+      if (hapticsEnabled) {
+        const haptic = HAPTIC_PATTERNS[name];
+        if (haptic) vibrate(haptic);
+      }
 
-      const haptic = HAPTIC_PATTERNS[name];
-      if (haptic) vibrate(haptic);
+      if (muted) return;
 
       const audioEntry = AUDIO_FILE_SOUNDS[name];
       if (audioEntry) {
@@ -433,6 +442,11 @@ export function createSoundController(): SoundController {
     setVolume(v: number) {
       volume = Math.max(0, Math.min(1, v));
       localStorage.setItem(VOLUME_KEY, String(volume));
+    },
+
+    toggleHaptics() {
+      hapticsEnabled = !hapticsEnabled;
+      localStorage.setItem(HAPTICS_KEY, String(hapticsEnabled));
     },
   };
 
