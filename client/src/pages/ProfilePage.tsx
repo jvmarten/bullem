@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { AVATAR_OPTIONS } from '@bull-em/shared';
-import type { AvatarId, GameHistoryEntry } from '@bull-em/shared';
+import type { AvatarId, GameHistoryEntry, PlayerStatsResponse } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 
 /** Emoji icons for each avatar template. */
@@ -38,6 +38,32 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
       <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mt-1">
         {label}
       </p>
+    </div>
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <div className="glass px-4 py-3 text-center animate-pulse">
+      <div className="h-7 w-12 bg-[var(--gold)]/10 rounded mx-auto mb-1" />
+      <div className="h-3 w-16 bg-[var(--gold)]/10 rounded mx-auto" />
+    </div>
+  );
+}
+
+function GameHistorySkeleton() {
+  return (
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="glass px-4 py-3 flex items-center gap-3 animate-pulse">
+          <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 shrink-0" />
+          <div className="flex-1">
+            <div className="h-4 w-24 bg-[var(--gold)]/10 rounded mb-1" />
+            <div className="h-3 w-16 bg-[var(--gold)]/10 rounded" />
+          </div>
+          <div className="h-3 w-12 bg-[var(--gold)]/10 rounded" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -108,39 +134,33 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
-  const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
-  const [historyTotal, setHistoryTotal] = useState(0);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsLoaded, setStatsLoaded] = useState(false);
 
-  const fetchGameHistory = useCallback(async (offset = 0) => {
-    setHistoryLoading(true);
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/games?limit=10&offset=${offset}`, {
+      const res = await fetch(`${API_BASE}/api/stats/me`, {
         credentials: 'include',
       });
       if (!res.ok) return;
-      const data = await res.json() as { games: GameHistoryEntry[]; total: number };
-      if (offset === 0) {
-        setGameHistory(data.games);
-      } else {
-        setGameHistory(prev => [...prev, ...data.games]);
-      }
-      setHistoryTotal(data.total);
-      setHistoryLoaded(true);
+      const data = await res.json() as PlayerStatsResponse;
+      setStats(data);
+      setStatsLoaded(true);
     } catch {
-      addToast('Failed to load game history');
+      addToast('Failed to load stats');
     } finally {
-      setHistoryLoading(false);
+      setStatsLoading(false);
     }
   }, [addToast]);
 
-  // Fetch game history when profile loads
+  // Fetch stats when profile loads
   useEffect(() => {
-    if (profile && !historyLoaded) {
-      fetchGameHistory();
+    if (profile && !statsLoaded) {
+      fetchStats();
     }
-  }, [profile, historyLoaded, fetchGameHistory]);
+  }, [profile, statsLoaded, fetchStats]);
 
   if (loading) {
     return (
@@ -156,9 +176,17 @@ export function ProfilePage() {
     return (
       <Layout>
         <div className="flex flex-col items-center pt-12 max-w-sm mx-auto text-center">
-          <p className="text-[var(--gold-dim)] mb-4">You need to sign in to view your profile.</p>
+          <p className="text-[var(--gold-dim)] mb-4">
+            Sign in to track your stats, win rate, and game history.
+          </p>
           <Link to="/login" className="btn-gold py-3 px-8 text-lg">
             Sign In
+          </Link>
+          <Link
+            to="/"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-4"
+          >
+            Back to Home
           </Link>
         </div>
       </Layout>
@@ -184,7 +212,10 @@ export function ProfilePage() {
 
   const currentDisplay = avatarDisplay(profile.avatar, profile.displayName);
   const isEmoji = profile.avatar !== null;
-  const hasMore = gameHistory.length < historyTotal;
+
+  const playerCountEntries = stats
+    ? Object.entries(stats.gamesByPlayerCount).sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10))
+    : [];
 
   return (
     <Layout>
@@ -246,46 +277,86 @@ export function ProfilePage() {
         )}
 
         {/* Stats Grid */}
-        <div className="w-full grid grid-cols-2 gap-3 mb-6">
-          <StatCard label="Games Played" value={profile.gamesPlayed} />
-          <StatCard label="Wins" value={profile.gamesWon} />
-          <StatCard
-            label="Bull Accuracy"
-            value={profile.bullAccuracy !== null ? `${profile.bullAccuracy}%` : '\u2014'}
-          />
-          <StatCard
-            label="Bluff Success"
-            value={profile.bluffSuccessRate !== null ? `${profile.bluffSuccessRate}%` : '\u2014'}
-          />
-        </div>
+        {statsLoading && !stats ? (
+          <div className="w-full grid grid-cols-2 gap-3 mb-6">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </div>
+        ) : stats && stats.gamesPlayed > 0 ? (
+          <>
+            <div className="w-full grid grid-cols-2 gap-3 mb-4">
+              <StatCard label="Games Played" value={stats.gamesPlayed} />
+              <StatCard label="Wins" value={stats.wins} />
+              <StatCard
+                label="Win Rate"
+                value={stats.winRate !== null ? `${stats.winRate}%` : '\u2014'}
+              />
+              <StatCard
+                label="Avg Finish"
+                value={stats.avgFinishPosition !== null ? `${stats.avgFinishPosition}` : '\u2014'}
+              />
+              <StatCard
+                label="Bull Accuracy"
+                value={stats.bullAccuracy !== null ? `${stats.bullAccuracy}%` : '\u2014'}
+              />
+              <StatCard
+                label="True Accuracy"
+                value={stats.trueAccuracy !== null ? `${stats.trueAccuracy}%` : '\u2014'}
+              />
+            </div>
+            <div className="w-full grid grid-cols-1 gap-3 mb-6">
+              <StatCard
+                label="Bluff Success"
+                value={stats.bluffSuccessRate !== null ? `${stats.bluffSuccessRate}%` : '\u2014'}
+              />
+            </div>
 
-        {/* Game History */}
+            {/* Games by Player Count */}
+            {playerCountEntries.length > 0 && (
+              <div className="w-full mb-6">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
+                  Games by Player Count
+                </p>
+                <div className="glass px-4 py-3">
+                  <div className="flex flex-wrap gap-3">
+                    {playerCountEntries.map(([count, num]) => (
+                      <div key={count} className="text-center min-w-[48px]">
+                        <p className="text-sm font-bold text-[var(--gold)]">{num}</p>
+                        <p className="text-[10px] text-[var(--gold-dim)]">{count}p</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : stats && stats.gamesPlayed === 0 ? (
+          <div className="w-full glass px-4 py-6 text-center mb-6">
+            <p className="text-[var(--gold-dim)] text-sm">No games played yet</p>
+            <p className="text-[var(--gold-dim)] text-xs mt-1">Play a game to start tracking your stats!</p>
+          </div>
+        ) : null}
+
+        {/* Recent Game History */}
         <div className="w-full mb-6">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
-            Recent Games {historyTotal > 0 && `(${historyTotal})`}
+            Recent Games {stats && stats.gamesPlayed > 0 && `(${stats.recentGames.length})`}
           </p>
-          {historyLoading && gameHistory.length === 0 ? (
-            <div className="flex justify-center py-4">
-              <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : gameHistory.length === 0 ? (
-            <div className="glass px-4 py-4 text-center">
-              <p className="text-[var(--gold-dim)] text-xs">No games played yet</p>
-            </div>
-          ) : (
+          {statsLoading && !stats ? (
+            <GameHistorySkeleton />
+          ) : stats && stats.recentGames.length > 0 ? (
             <div className="flex flex-col gap-2">
-              {gameHistory.map(game => (
+              {stats.recentGames.map(game => (
                 <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
               ))}
-              {hasMore && (
-                <button
-                  onClick={() => fetchGameHistory(gameHistory.length)}
-                  disabled={historyLoading}
-                  className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-                >
-                  {historyLoading ? 'Loading...' : 'Load More'}
-                </button>
-              )}
+            </div>
+          ) : (
+            <div className="glass px-4 py-4 text-center">
+              <p className="text-[var(--gold-dim)] text-xs">No games played yet</p>
             </div>
           )}
         </div>
