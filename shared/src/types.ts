@@ -297,6 +297,15 @@ export interface GameHistoryEntry {
   stats: PlayerGameStats;
 }
 
+/**
+ * Serializable push subscription matching the browser's PushSubscription.toJSON().
+ * Defined here so both client and server can use it without DOM types.
+ */
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys?: { p256dh: string; auth: string };
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;

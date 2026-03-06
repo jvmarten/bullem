@@ -4,7 +4,7 @@ import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId 
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
-import { broadcastGameState, broadcastNewRound, broadcastGameReplay } from './broadcast.js';
+import { broadcastGameState, broadcastNewRound, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
 import { persistCompletedGame } from './persistGame.js';
 import { roundDurationSeconds } from '../metrics.js';
 import { getCorrelatedLogger } from '../logger.js';
@@ -54,6 +54,7 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   // Schedule the bot turn first so the human turn deadline is set before broadcast.
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
   broadcastNewRound(io, room);
+  sendTurnPushNotification(io, room);
   roomManager.persistRoom(room);
 }
 

@@ -50,7 +50,9 @@ export async function createTestServer(): Promise<TestContext> {
   const botManager = new BotManager();
   botManager.setRoomManager(roomManager);
   const rateLimiter = new RateLimiter(null);
-  registerHandlers(io, roomManager, botManager, rateLimiter);
+  const { PushManager } = await import('../push/PushManager.js');
+  const pushManager = new PushManager();
+  registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
 
   const clients: TypedClientSocket[] = [];
 

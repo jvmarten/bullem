@@ -1,4 +1,4 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON } from './types.js';
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
@@ -50,6 +50,8 @@ export interface ClientToServerEvents {
   'room:watchRandom': (callback: (response: { roomCode: string } | { error: string }) => void) => void;
   'game:reaction': (data: { emoji: GameEmoji }) => void;
   'chat:send': (data: { message: string }) => void;
+  'push:subscribe': (subscription: PushSubscriptionJSON, callback: (response: { ok: true } | { error: string }) => void) => void;
+  'push:unsubscribe': (callback: (response: { ok: true } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */

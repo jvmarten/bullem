@@ -15,12 +15,14 @@ import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
 import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
+import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
+import { PushManager } from './push/PushManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -119,8 +121,10 @@ setAuthRateLimiter(rateLimiter);
 
 const botManager = new BotManager();
 botManager.setRoomManager(roomManager);
+const pushManager = new PushManager();
+setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
-registerHandlers(io, roomManager, botManager, rateLimiter);
+registerHandlers(io, roomManager, botManager, rateLimiter, pushManager);
 
 // Restore rooms from Redis before accepting connections, then start cleanup.
 // Uses an async IIFE — server starts listening immediately but rooms are

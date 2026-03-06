@@ -6,6 +6,8 @@ import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
+import { registerPushHandlers } from './pushHandlers.js';
+import type { PushManager } from '../push/PushManager.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
@@ -103,7 +105,7 @@ function attachCorrelationMiddleware(
   });
 }
 
-export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter): void {
+export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');
@@ -120,6 +122,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
 
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
+    registerPushHandlers(io, socket, roomManager, pushManager);
 
     socket.on('error', (err) => {
       socketErrorsTotal.inc();
