@@ -6,6 +6,12 @@ const URL = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '/'
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL, {
   autoConnect: false,
+  // Skip HTTP long-polling and connect via WebSocket directly. This is critical
+  // for multi-instance deployments: Socket.io's default polling transport sends
+  // sequential HTTP requests that can land on different server instances behind a
+  // load balancer, breaking the handshake. WebSocket connections are inherently
+  // sticky once the TCP upgrade completes.
+  transports: ['websocket'],
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,

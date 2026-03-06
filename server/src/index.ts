@@ -51,9 +51,12 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 // Falls back to the default in-memory adapter for local development.
 // The same Redis instance is reused for session persistence (RedisStore).
 let redisStore: RedisStore | null = null;
+/** All Redis clients created by this process, tracked for graceful shutdown. */
+const redisClients: Redis[] = [];
 if (process.env.REDIS_URL) {
   const pubClient = new Redis(process.env.REDIS_URL);
   const subClient = pubClient.duplicate();
+  redisClients.push(pubClient, subClient);
   io.adapter(createAdapter(pubClient, subClient));
   pubClient.on('connect', () => {
     logger.info('Redis adapter connected — Socket.io pub/sub is active');
@@ -62,6 +65,7 @@ if (process.env.REDIS_URL) {
   // Create a dedicated client for session persistence (separate from pub/sub
   // clients to avoid command conflicts on subscribed connections).
   const storeClient = new Redis(process.env.REDIS_URL);
+  redisClients.push(storeClient);
   redisStore = new RedisStore(storeClient);
 }
 
@@ -164,11 +168,28 @@ app.get('/health', async (_req, res) => {
     }
   }
 
-  const httpStatus = db === 'ok' ? 200 : 503;
+  // Probe Redis health if adapter is configured
+  let redis: 'ok' | 'unavailable' | 'not_configured' = 'not_configured';
+  if (redisClients.length > 0) {
+    try {
+      // Ping the first (pub) client — if it responds, Redis is reachable
+      await redisClients[0]!.ping();
+      redis = 'ok';
+    } catch {
+      redis = 'unavailable';
+    }
+  }
+
+  const allOk = db === 'ok' && (redis === 'ok' || redis === 'not_configured');
+  const httpStatus = allOk ? 200 : 503;
   res.status(httpStatus).json({
-    status: db === 'ok' ? 'ok' : 'degraded',
+    status: allOk ? 'ok' : 'degraded',
     db,
+    redis,
     rooms: roomManager.roomCount,
+    // NOTE: This count is per-instance. With multiple instances behind a load
+    // balancer, each instance reports only its own connected sockets. Aggregate
+    // across instances for the true global count.
     players: io.engine.clientsCount,
   });
 });
@@ -195,14 +216,31 @@ if (process.env.NODE_ENV === 'production') {
 // Broadcast online player count and names on connect/disconnect.
 // Debounced: rapid connect/disconnect bursts (e.g. 20 players joining at once)
 // collapse into a single broadcast instead of one per event.
+//
+// With the Redis adapter, io.fetchSockets() returns sockets across ALL
+// instances, giving us a true global count. We fall back to the local
+// io.engine.clientsCount when Redis isn't configured (single-instance dev).
 let broadcastPending: ReturnType<typeof setTimeout> | null = null;
 function scheduleBroadcastPlayerCount(): void {
   if (broadcastPending) return;
   broadcastPending = setTimeout(() => {
     broadcastPending = null;
-    const count = io.engine.clientsCount;
-    io.emit('server:playerCount', count);
-    io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+    void (async () => {
+      let count: number;
+      if (redisClients.length > 0) {
+        // fetchSockets() queries all instances via the Redis adapter
+        const allSockets = await io.fetchSockets();
+        count = allSockets.length;
+      } else {
+        count = io.engine.clientsCount;
+      }
+      io.emit('server:playerCount', count);
+      // TODO(scale): getOnlinePlayerNames() only returns names from this
+      // instance's in-memory RoomManager. At multi-instance scale, aggregate
+      // names via Redis or a shared store. Low priority — player names in the
+      // lobby are a nice-to-have, not a correctness requirement.
+      io.emit('server:playerNames', roomManager.getOnlinePlayerNames());
+    })();
   }, 100);
 }
 io.on('connection', () => scheduleBroadcastPlayerCount());
@@ -211,10 +249,19 @@ io.engine.on('close', () => scheduleBroadcastPlayerCount());
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {
   logger.info('Shutting down...');
+  // Clear debounced broadcast timer to prevent firing after teardown
+  if (broadcastPending) {
+    clearTimeout(broadcastPending);
+    broadcastPending = null;
+  }
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
   io.close();
+  // Close all Redis connections (pub, sub, store clients)
+  for (const client of redisClients) {
+    client.disconnect();
+  }
   // Close the database pool before exiting
   closePool().catch((err) => {
     logger.error({ err }, 'Error closing database pool during shutdown');
