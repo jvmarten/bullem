@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { TurnAction, handToString } from '@bull-em/shared';
-import type { Player, PlayerId, TurnEntry } from '@bull-em/shared';
+import type { Player, PlayerId, TurnEntry, EmojiReaction } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   turnHistory?: TurnEntry[];
   /** Enable collapse/expand toggle. Default shown (expanded). */
   collapsible?: boolean;
+  /** Active emoji reactions to display as floating bubbles. */
+  reactions?: EmojiReaction[];
 }
 
 /* Mini card-back fan: shows card backs matching the player's card count */
@@ -74,15 +76,16 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
   showKickPlayer?: boolean; onKickPlayer?: (playerId: string) => void;
+  reactions?: EmojiReaction[];
 }) {
   return (
     <div
-      className={`flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
+      className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
         p.isEliminated
           ? 'glass opacity-40'
           : isMe
@@ -160,6 +163,16 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           </button>
         )}
       </div>
+      {/* Floating emoji reactions */}
+      {reactions && reactions.length > 0 && (
+        <div className="emoji-bubble-container">
+          {reactions.map((r) => (
+            <span key={`${r.playerId}-${r.timestamp}`} className="emoji-bubble">
+              {r.emoji}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -168,11 +181,22 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 // every game state broadcast (timer ticks, other players' actions), but the
 // PlayerList props are often the same. Without memo, buildLastActionMap and
 // the collapsed-view player lookup run on every parent render.
-export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible }: Props) {
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
   const lastActionMap = useMemo(() => buildLastActionMap(turnHistory), [turnHistory?.length]);
+  // Group reactions by player ID for efficient per-card lookup
+  const reactionsMap = useMemo(() => {
+    const map = new Map<PlayerId, EmojiReaction[]>();
+    if (!reactions) return map;
+    for (const r of reactions) {
+      const list = map.get(r.playerId);
+      if (list) list.push(r);
+      else map.set(r.playerId, [r]);
+    }
+    return map;
+  }, [reactions]);
 
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
@@ -208,6 +232,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               maxCards={maxCards}
               roundNumber={roundNumber}
               lastAction={lastActionMap.get(currentPlayer.id) ?? null}
+              reactions={reactionsMap.get(currentPlayer.id)}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -219,6 +244,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               maxCards={maxCards}
               roundNumber={roundNumber}
               lastAction={lastActionMap.get(nextPlayer.id) ?? null}
+              reactions={reactionsMap.get(nextPlayer.id)}
             />
           )}
         </div>
@@ -256,6 +282,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
             onRemoveBot={onRemoveBot}
             showKickPlayer={showKickPlayer}
             onKickPlayer={onKickPlayer}
+            reactions={reactionsMap.get(p.id)}
           />
         ))}
       </div>

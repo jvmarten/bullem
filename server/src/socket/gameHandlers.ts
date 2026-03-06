@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import { GamePhase, validateHandCall } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
+import { GamePhase, validateHandCall, ALLOWED_EMOJIS } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameEmoji } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
@@ -66,6 +66,21 @@ export function registerGameHandlers(
     const playerId = room.getPlayerId(socket.id);
     if (!playerId) return;
     markContinueReady(io, room, botManager, playerId, roomManager);
+  });
+
+  socket.on('game:reaction', (data) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room || !room.game) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (!playerId) return;
+    // Validate emoji is in the allowed set
+    if (!ALLOWED_EMOJIS.includes(data.emoji as GameEmoji)) return;
+    // Relay to all clients in the room
+    io.to(room.roomCode).emit('game:reaction', {
+      playerId,
+      emoji: data.emoji,
+      timestamp: Date.now(),
+    });
   });
 }
 

@@ -17,6 +17,8 @@ const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
  *  render, which would break referential equality and cause downstream
  *  re-renders for all context consumers. */
 const EMPTY_DISCONNECT_DEADLINES: ReadonlyMap<string, number> = new Map();
+const EMPTY_REACTIONS: import('@bull-em/shared').EmojiReaction[] = [];
+const noopSendReaction = () => {};
 
 interface LocalGameSave {
   engineSnapshot: GameEngineSnapshot;
@@ -732,6 +734,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     updateSettings: noopUpdateSettings,
     deleteRoom: noopDeleteRoom,
     kickPlayer: noopKickPlayer,
+    reactions: EMPTY_REACTIONS,
+    sendReaction: noopSendReaction,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
