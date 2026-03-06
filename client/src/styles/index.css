@@ -576,37 +576,22 @@ body {
 
 /* ── Spectator desaturation ──────────────────────────── */
 /* ── Title Logo ─────────────────────────────────────── */
-.title-logo-text {
-  font-family: var(--font-title);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: linear-gradient(
-    170deg,
-    #dbb856 0%,
-    #d4a843 40%,
-    #dbb856 60%,
-    #d4a843 100%
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: none;
-  -webkit-text-stroke: 1px rgba(212, 168, 67, 0.3);
+.title-logo-img {
+  display: block;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
   filter: drop-shadow(0 0 10px rgba(212, 168, 67, 0.35))
           drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
-  position: relative;
 }
 
-.title-logo-large .title-logo-text {
-  font-size: 3.2rem;
-  line-height: 1.1;
+.title-logo-large .title-logo-img {
+  width: 280px;
   animation: shimmer 4s ease-in-out infinite;
 }
 
-.title-logo-small .title-logo-text {
-  font-size: 1.35rem;
-  line-height: 1.2;
+.title-logo-small .title-logo-img {
+  width: 140px;
 }
 
 @keyframes shimmer {
