@@ -18,7 +18,7 @@ import { registerHandlers } from './socket/registerHandlers.js';
 import { authRouter } from './auth/routes.js';
 import { optionalAuth } from './auth/middleware.js';
 import logger from './logger.js';
-import { pool, closePool, migrate } from './db/index.js';
+import { pool, closePool, connectWithRetry, getDbStatus, migrate } from './db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -102,8 +102,12 @@ registerHandlers(io, roomManager, botManager);
 // restored in the background. This is safe because Socket.io buffers events
 // until handlers are registered, and the restore typically completes in <100ms.
 (async () => {
-  // Run database migrations if PostgreSQL is available
-  if (pool) {
+  // Verify database connectivity with retries before running migrations.
+  // If the DB is unreachable after all retries, the app continues in degraded
+  // mode without persistence rather than crashing.
+  await connectWithRetry();
+
+  if (pool && getDbStatus() === 'ok') {
     try {
       await migrate(pool);
     } catch (err) {
@@ -148,17 +152,21 @@ app.use('/auth', authRouter);
 
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
-  let db: 'ok' | 'unavailable' = 'unavailable';
-  if (pool) {
+  let db = getDbStatus();
+
+  // If the pool exists and we think we're ok, do a live probe to confirm.
+  // If degraded/unavailable, skip the probe to avoid adding latency.
+  if (pool && db === 'ok') {
     try {
       await pool.query('SELECT 1');
-      db = 'ok';
     } catch {
-      db = 'unavailable';
+      db = 'degraded';
     }
   }
-  res.json({
-    status: 'ok',
+
+  const httpStatus = db === 'ok' ? 200 : 503;
+  res.status(httpStatus).json({
+    status: db === 'ok' ? 'ok' : 'degraded',
     db,
     rooms: roomManager.roomCount,
     players: io.engine.clientsCount,

@@ -2,7 +2,8 @@ import type { QueryResult, QueryResultRow } from 'pg';
 import { pool } from './pool.js';
 import logger from '../logger.js';
 
-export { pool, closePool } from './pool.js';
+export { pool, closePool, connectWithRetry, getDbStatus } from './pool.js';
+export type { DbStatus } from './pool.js';
 export { migrate } from './migrate.js';
 
 const SLOW_QUERY_THRESHOLD_MS = 100;
@@ -20,15 +21,24 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   if (!pool) return null;
 
   const start = performance.now();
-  const result = await pool.query<T>(text, params);
-  const durationMs = Math.round(performance.now() - start);
+  try {
+    const result = await pool.query<T>(text, params);
+    const durationMs = Math.round(performance.now() - start);
 
-  if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
-    logger.warn(
-      { durationMs, query: text, rows: result.rowCount },
-      'Slow database query detected',
+    if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+      logger.warn(
+        { durationMs, query: text, rows: result.rowCount },
+        'Slow database query detected',
+      );
+    }
+
+    return result;
+  } catch (err) {
+    const durationMs = Math.round(performance.now() - start);
+    logger.error(
+      { err, durationMs, query: text },
+      'Database query failed — returning null to degrade gracefully',
     );
+    return null;
   }
-
-  return result;
 }
