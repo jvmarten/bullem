@@ -24,6 +24,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall, Card } from '@bull-em/shared';
 import { HandType } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
+import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
+import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
@@ -75,7 +77,7 @@ export function GamePage() {
   useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
-  const { chatEnabled, emojiEnabled } = useUISettings();
+  const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
 
   const rejoinAttemptedRef = useRef(false);
 
@@ -198,14 +200,47 @@ export function GamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [cardSuggestion, setCardSuggestion] = useState<HandSuggestion | null>(null);
+  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
 
-  // Tapping own cards while hand selector is open adjusts pickers to that card
+  const quickDrawSuggestions = useMemo(() => {
+    if (!quickDrawOpen || !canRaise) return [];
+    return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+  }, [quickDrawOpen, canRaise, gameState.myCards, gameState.currentHand]);
+
+  // Tapping own cards: if Quick Draw enabled, show chips; otherwise open hand selector
   const handleCardTap = useCallback((card: Card) => {
+    if (quickDrawEnabled && canRaise && !handSelectorOpen) {
+      play('uiClick');
+      // If Quick Draw produces no suggestions, go straight to hand selector
+      const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+      if (suggestions.length === 0) {
+        setHandSelectorOpen(true);
+      } else {
+        setQuickDrawOpen(prev => !prev);
+      }
+      return;
+    }
     if (!handSelectorOpen) return;
     play('uiClick');
-    // Suggest a pair of the tapped card's rank (most common useful suggestion)
+    // Legacy behavior: suggest a pair of the tapped card's rank
     setCardSuggestion({ handType: HandType.PAIR, rank: card.rank, suit: card.suit });
-  }, [handSelectorOpen, play]);
+  }, [quickDrawEnabled, canRaise, handSelectorOpen, play, gameState.myCards, gameState.currentHand]);
+
+  const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
+    play('callMade');
+    if (isLastChanceCaller) {
+      lastChanceRaise(suggestion.hand);
+    } else {
+      callHand(suggestion.hand);
+    }
+    setQuickDrawOpen(false);
+  }, [play, isLastChanceCaller, lastChanceRaise, callHand]);
+
+  const handleQuickDrawMore = useCallback(() => {
+    play('uiClick');
+    setQuickDrawOpen(false);
+    setHandSelectorOpen(true);
+  }, [play]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
@@ -257,9 +292,26 @@ export function GamePage() {
     };
   }, [handSelectorOpen]);
 
-  // Close hand selector when turn changes
+  // Close quick draw chips on tap outside
+  useEffect(() => {
+    if (!quickDrawOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      setQuickDrawOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [quickDrawOpen]);
+
+  // Close hand selector and quick draw when turn changes
   useEffect(() => {
     setHandSelectorOpen(false);
+    setQuickDrawOpen(false);
   }, [isMyTurn, gameState.roundPhase]);
 
   // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
@@ -432,7 +484,17 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={handSelectorOpen ? handleCardTap : undefined} /></div>}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={(canRaise && quickDrawEnabled) || handSelectorOpen ? handleCardTap : undefined} /></div>}
+
+            {/* Quick Draw suggestion chips */}
+            {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
+              <QuickDrawChips
+                suggestions={quickDrawSuggestions}
+                onSelect={handleQuickDrawSelect}
+                onMore={handleQuickDrawMore}
+                onDismiss={() => setQuickDrawOpen(false)}
+              />
+            )}
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
