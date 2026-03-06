@@ -19,6 +19,8 @@ const LOCAL_GAME_STORAGE_KEY = 'bull-em-local-game';
 const EMPTY_DISCONNECT_DEADLINES: ReadonlyMap<string, number> = new Map();
 const EMPTY_REACTIONS: import('@bull-em/shared').EmojiReaction[] = [];
 const noopSendReaction = () => {};
+const EMPTY_CHAT_MESSAGES: import('@bull-em/shared').ChatMessage[] = [];
+const noopSendChatMessage = () => {};
 
 interface LocalGameSave {
   engineSnapshot: GameEngineSnapshot;
@@ -736,6 +738,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     kickPlayer: noopKickPlayer,
     reactions: EMPTY_REACTIONS,
     sendReaction: noopSendReaction,
+    chatMessages: EMPTY_CHAT_MESSAGES,
+    sendChatMessage: noopSendChatMessage,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

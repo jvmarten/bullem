@@ -13,6 +13,7 @@ import { ShareButton } from '../components/ShareButton.js';
 import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
 import { DisconnectBanner } from '../components/DisconnectBanner.js';
 import { EmojiReactionBar } from '../components/EmojiReactionBar.js';
+import { ChatPanel } from '../components/ChatPanel.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -65,6 +66,7 @@ export function GamePage() {
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
     isConnected, hasConnected, disconnectDeadlines,
     reactions, sendReaction,
+    chatMessages, sendChatMessage,
   } = useGameContext();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
@@ -481,6 +483,9 @@ export function GamePage() {
             onDismiss={clearRoundResult}
           />
         )}
+
+        {/* Chat panel — available to all players and spectators */}
+        <ChatPanel messages={chatMessages} onSend={sendChatMessage} />
 
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}

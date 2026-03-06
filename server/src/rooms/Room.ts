@@ -30,6 +30,8 @@ export class Room {
   private roundContinueTimer: ReturnType<typeof setTimeout> | null = null;
   /** Socket IDs of spectators watching this game */
   spectatorSockets = new Set<string>();
+  /** Display names for spectator sockets (set when spectating or chatting). */
+  spectatorNames = new Map<string, string>();
   /** When true, the room is exempt from stale-room cleanup (e.g., background bot game). */
   isBackgroundGame = false;
   /** Maps in-game player IDs to authenticated user IDs (null for guests). */
