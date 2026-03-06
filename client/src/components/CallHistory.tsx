@@ -41,7 +41,7 @@ export const CallHistory = memo(function CallHistory({ history, cardCounts }: Ca
                 <div key={i} className="text-xs">
                   <span className="font-medium text-[var(--gold-light)]">{entry.playerName}</span>
                   {count != null && (
-                    <span className="text-[var(--gold-dim)] opacity-70 ml-0.5 text-[10px]">[{count}]</span>
+                    <span className="text-[var(--gold-dim)] ml-0.5 text-[10px]">[{count}]</span>
                   )}
                   {' '}
                   {entry.action === TurnAction.CALL && entry.hand && (
