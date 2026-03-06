@@ -3,7 +3,7 @@ import { RoundPhase } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { HandDisplay } from '../components/HandDisplay.js';
-import { HandSelector } from '../components/HandSelector.js';
+import { HandSelector, type HandSuggestion } from '../components/HandSelector.js';
 import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory } from '../components/CallHistory.js';
@@ -21,7 +21,8 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { HandCall } from '@bull-em/shared';
+import type { HandCall, Card } from '@bull-em/shared';
+import { HandType } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
@@ -196,6 +197,15 @@ export function GamePage() {
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
+  const [cardSuggestion, setCardSuggestion] = useState<HandSuggestion | null>(null);
+
+  // Tapping own cards while hand selector is open adjusts pickers to that card
+  const handleCardTap = useCallback((card: Card) => {
+    if (!handSelectorOpen) return;
+    play('uiClick');
+    // Suggest a pair of the tapped card's rank (most common useful suggestion)
+    setCardSuggestion({ handType: HandType.PAIR, rank: card.rank, suit: card.suit });
+  }, [handSelectorOpen, play]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
     setPendingHand(hand);
@@ -229,6 +239,23 @@ export function GamePage() {
   // Stable callback reference so ActionButtons' React.memo isn't broken by
   // an inline arrow function creating a new reference on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
+
+  // Close hand selector on tap outside — same pattern as ActionButtons
+  useEffect(() => {
+    if (!handSelectorOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // Keep open if tapping inside the hand selector, action area, or own cards
+      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      setHandSelectorOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [handSelectorOpen]);
 
   // Close hand selector when turn changes
   useEffect(() => {
@@ -405,7 +432,7 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large /></div>}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={handSelectorOpen ? handleCardTap : undefined} /></div>}
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
@@ -474,6 +501,7 @@ export function GamePage() {
                   onSubmit={handleHandSubmit}
                   onHandChange={handleHandChange}
                   showSubmit={false}
+                  suggestion={cardSuggestion}
                 />
               </div>
             )}

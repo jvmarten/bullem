@@ -94,7 +94,7 @@ export const ActionButtons = memo(function ActionButtons({
           onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
           className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary whitespace-nowrap shrink-0"
         >
-          {showTrue ? 'BULL / TRUE' : 'BULL!'}
+          {showTrue ? 'BULL! / TRUE' : 'BULL!'}
         </button>
       </div>
     );

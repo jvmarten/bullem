@@ -83,14 +83,14 @@ describe('ActionButtons', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={true} />
       );
-      expect(getButtonByText(container, 'BULL / TRUE')).not.toBeNull();
+      expect(getButtonByText(container, 'BULL! / TRUE')).not.toBeNull();
     });
 
     it('shows both BULL and TRUE buttons after expanding gateway', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={true} />
       );
-      const gateway = getButtonByText(container, 'BULL / TRUE');
+      const gateway = getButtonByText(container, 'BULL! / TRUE');
       fireEvent.click(gateway!);
       expect(getButtonByText(container, 'BULL!')).not.toBeNull();
       expect(getButtonByText(container, 'TRUE')).not.toBeNull();
@@ -100,8 +100,8 @@ describe('ActionButtons', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} hasCurrentHand={false} />
       );
-      // Gateway text is "BULL / TRUE" because showTrue is true
-      const gateway = getButtonByText(container, 'BULL / TRUE');
+      // Gateway text is "BULL! / TRUE" because showTrue is true
+      const gateway = getButtonByText(container, 'BULL! / TRUE');
       expect(gateway).not.toBeNull();
       fireEvent.click(gateway!);
       expect(getButtonByText(container, 'BULL!')).toBeNull();
@@ -113,7 +113,7 @@ describe('ActionButtons', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} onBull={onBull} />
       );
-      const gateway = getButtonByText(container, 'BULL / TRUE');
+      const gateway = getButtonByText(container, 'BULL! / TRUE');
       fireEvent.click(gateway!);
       const bullBtn = getButtonByText(container, 'BULL!');
       expect(bullBtn).not.toBeNull();
@@ -126,7 +126,7 @@ describe('ActionButtons', () => {
       const { container } = render(
         <ActionButtons {...defaultProps} roundPhase={RoundPhase.BULL_PHASE} onTrue={onTrue} />
       );
-      const gateway = getButtonByText(container, 'BULL / TRUE');
+      const gateway = getButtonByText(container, 'BULL! / TRUE');
       fireEvent.click(gateway!);
       const trueBtn = getButtonByText(container, 'TRUE');
       expect(trueBtn).not.toBeNull();
