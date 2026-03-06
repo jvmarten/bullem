@@ -12,6 +12,7 @@ import { persistCompletedGame } from './persistGame.js';
 import { createChildLogger } from '../logger.js';
 import { runWithCorrelation, generateCorrelationId } from '../correlationContext.js';
 import { socketEventsTotal, socketErrorsTotal, rateLimitRejectsTotal } from '../metrics.js';
+import type { RateLimiter } from '../rateLimit.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -29,61 +30,43 @@ const GAME_ACTION_EVENTS = new Set([
   'game:reaction', 'chat:send',
 ]);
 
-/** Per-player-ID game action cooldown. Survives socket reconnects so a
- *  malicious client can't bypass the cooldown by rapidly reconnecting.
- *  Entries are cleaned up when rooms are deleted (stale entries expire
- *  naturally since they only store a timestamp). */
-const playerActionTimestamps = new Map<string, number>();
-
-/** Clean up stale player action timestamps older than 60s. Called periodically
- *  to prevent the map from growing if players disconnect without cleanup. */
-function pruneStaleTimestamps(): void {
-  const cutoff = Date.now() - 60_000;
-  for (const [id, ts] of playerActionTimestamps) {
-    if (ts < cutoff) playerActionTimestamps.delete(id);
-  }
-}
-// Prune every 60s
-setInterval(pruneStaleTimestamps, 60_000).unref();
-
 function attachRateLimiter(
   socket: { use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
   getPlayerId: () => string | undefined,
+  rateLimiter: RateLimiter,
 ): void {
-  let eventCount = 0;
-  let windowStart = Date.now();
+  const socketId = (socket as unknown as { id: string }).id;
 
   socket.use((event, next) => {
-    const now = Date.now();
-
-    // Connection-level rate limit
-    if (now - windowStart > RATE_LIMIT_WINDOW_MS) {
-      eventCount = 0;
-      windowStart = now;
-    }
-    eventCount++;
-    if (eventCount > RATE_LIMIT_MAX_EVENTS) {
-      rateLimitRejectsTotal.inc();
-      next(new Error('Rate limit exceeded'));
-      return;
-    }
-
-    // Per-event cooldown for game actions — keyed by player ID so it
-    // survives reconnects. Falls back to per-socket if no player ID yet.
-    const eventName = event[0];
-    if (typeof eventName === 'string' && GAME_ACTION_EVENTS.has(eventName)) {
-      const playerId = getPlayerId();
-      const key = playerId ?? `socket:${(socket as unknown as { id: string }).id}`;
-      const lastTime = playerActionTimestamps.get(key) ?? 0;
-      if (now - lastTime < GAME_ACTION_COOLDOWN_MS) {
+    // Connection-level sliding window rate limit
+    const windowKey = `socket:${socketId}`;
+    void rateLimiter.checkWindow(windowKey, RATE_LIMIT_MAX_EVENTS, RATE_LIMIT_WINDOW_MS).then((allowed) => {
+      if (!allowed) {
         rateLimitRejectsTotal.inc();
-        next(new Error('Too fast — please wait'));
+        next(new Error('Rate limit exceeded'));
         return;
       }
-      playerActionTimestamps.set(key, now);
-    }
 
-    next();
+      // Per-event cooldown for game actions — keyed by player ID so it
+      // survives reconnects across instances. Falls back to socket ID
+      // if no player ID is assigned yet.
+      const eventName = event[0];
+      if (typeof eventName === 'string' && GAME_ACTION_EVENTS.has(eventName)) {
+        const playerId = getPlayerId();
+        const key = `action:${playerId ?? `socket:${socketId}`}`;
+        void rateLimiter.checkCooldown(key, GAME_ACTION_COOLDOWN_MS).then((actionAllowed) => {
+          if (!actionAllowed) {
+            rateLimitRejectsTotal.inc();
+            next(new Error('Too fast — please wait'));
+            return;
+          }
+          next();
+        }).catch(() => next()); // On error, allow the action (fail-open)
+        return;
+      }
+
+      next();
+    }).catch(() => next()); // On error, allow the event (fail-open)
   });
 }
 
@@ -120,7 +103,7 @@ function attachCorrelationMiddleware(
   });
 }
 
-export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager): void {
+export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');
@@ -133,10 +116,10 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     attachRateLimiter(socket, () => {
       const room = roomManager.getRoomForSocket(socket.id);
       return room?.getPlayerId(socket.id);
-    });
+    }, rateLimiter);
 
     registerLobbyHandlers(io, socket, roomManager, botManager);
-    registerGameHandlers(io, socket, roomManager, botManager);
+    registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
 
     socket.on('error', (err) => {
       socketErrorsTotal.inc();

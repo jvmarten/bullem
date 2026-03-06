@@ -20,6 +20,7 @@ import type {
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { registerHandlers } from './registerHandlers.js';
+import { RateLimiter } from '../rateLimit.js';
 
 type TypedClientSocket = ClientSocket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -48,7 +49,8 @@ export async function createTestServer(): Promise<TestContext> {
   const roomManager = new RoomManager();
   const botManager = new BotManager();
   botManager.setRoomManager(roomManager);
-  registerHandlers(io, roomManager, botManager);
+  const rateLimiter = new RateLimiter(null);
+  registerHandlers(io, roomManager, botManager, rateLimiter);
 
   const clients: TypedClientSocket[] = [];
 
