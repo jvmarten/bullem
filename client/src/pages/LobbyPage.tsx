@@ -9,6 +9,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
+import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
 
 export function LobbyPage() {
@@ -17,6 +18,7 @@ export function LobbyPage() {
   const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
   const { addToast } = useToast();
   const { play } = useSound();
+  const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications();
   useErrorToast(error, clearError);
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
@@ -452,6 +454,42 @@ export function LobbyPage() {
                 <p className="text-[var(--gold-dim)]">True in LCR</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Push notification toggle — available to all players, not a game setting */}
+        {pushState !== 'unsupported' && (
+          <div className="glass px-4 py-3">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <span className="text-sm text-[var(--gold-dim)]">Turn notifications</span>
+                {pushState === 'denied' && (
+                  <p className="text-[10px] text-[var(--danger)]">Blocked by browser</p>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  play('uiSoft');
+                  if (pushState === 'subscribed') {
+                    await pushUnsubscribe();
+                    addToast('Notifications disabled');
+                  } else if (pushState !== 'denied') {
+                    const ok = await pushSubscribe();
+                    addToast(ok ? 'Notifications enabled' : 'Could not enable notifications');
+                  }
+                }}
+                disabled={pushState === 'denied' || pushState === 'loading'}
+                className={`w-11 h-6 rounded-full transition-colors relative border ${
+                  pushState === 'subscribed'
+                    ? 'bg-[var(--gold)] border-[var(--gold)]'
+                    : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
+                } ${pushState === 'denied' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                  pushState === 'subscribed' ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                }`} />
+              </button>
+            </label>
           </div>
         )}
 

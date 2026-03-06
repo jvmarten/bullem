@@ -3,6 +3,15 @@ import type { ClientToServerEvents, ServerToClientEvents, PlayerId } from '@bull
 import type { GameReplay } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
+import type { PushManager } from '../push/PushManager.js';
+
+/** Module-level push manager reference, set once at startup via {@link setPushManager}. */
+let pushManagerRef: PushManager | null = null;
+
+/** Configure the push manager for turn notifications. Called once from index.ts at startup. */
+export function setPushManager(pm: PushManager): void {
+  pushManagerRef = pm;
+}
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -69,4 +78,25 @@ export function broadcastGameReplay(io: TypedServer, room: Room, winnerId: Playe
     completedAt: new Date().toISOString(),
   };
   io.to(room.roomCode).emit('game:replay', replay);
+}
+
+/**
+ * Send a push notification to the current player if they are not actively
+ * connected. Bots never receive push notifications.
+ */
+export function sendTurnPushNotification(io: TypedServer, room: Room): void {
+  if (!pushManagerRef || !room.game) return;
+  const currentPlayerId = room.game.currentPlayerId;
+  const player = room.players.get(currentPlayerId);
+  if (!player || player.isBot) return;
+
+  // Only send if the player's socket is not connected
+  const socketId = room.getSocketId(currentPlayerId);
+  if (socketId) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket?.connected) return;
+  }
+
+  // Fire-and-forget — push errors are logged inside PushManager
+  void pushManagerRef.notifyTurn(currentPlayerId, room.roomCode);
 }
