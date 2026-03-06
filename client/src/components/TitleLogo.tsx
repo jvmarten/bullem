@@ -11,9 +11,12 @@ export function TitleLogo({ size, onClick }: TitleLogoProps) {
       onClick={onClick}
       className={`title-logo cursor-pointer bg-transparent border-none p-0 min-h-[44px] relative z-10 transition-transform active:scale-95 ${isLarge ? 'title-logo-large' : 'title-logo-small'}`}
     >
-      <span className="title-logo-text" aria-label="Bull 'Em">
-        Bull &rsquo;Em
-      </span>
+      <img
+        src="/bullem-text-transparent.png"
+        alt="Bull 'Em"
+        className="title-logo-img"
+        draggable={false}
+      />
     </button>
   );
 }
