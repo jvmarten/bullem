@@ -4,7 +4,8 @@ import { Layout } from '../components/Layout.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
-import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards } from '@bull-em/shared';
+import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
+import type { LastChanceMode } from '@bull-em/shared';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ export function HostPage() {
   const [turnTimer, setTurnTimer] = useState(30);
   const [allowSpectators, setAllowSpectators] = useState(false);
   const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(false);
+  const [botSpeed, setBotSpeed] = useState<BotSpeed>(BotSpeed.NORMAL);
+  const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>('classic');
+  const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const dynamicMaxPlayers = maxPlayersForMaxCards(maxCards);
@@ -41,7 +45,7 @@ export function HostPage() {
     setLoading(true);
     try {
       const roomCode = await createRoom(playerName);
-      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards });
+      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');
@@ -78,6 +82,41 @@ export function HostPage() {
           <div className="flex gap-1.5">{ONLINE_TURN_TIMER_OPTIONS.map(n => (
             <button key={n} onClick={() => { play('uiSoft'); setTurnTimer(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${turnTimer===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}s</button>
           ))}</div>
+        </div>
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Bot Speed</p>
+          <div className="flex gap-1.5">{([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
+            <button key={speed} onClick={() => { play('uiSoft'); setBotSpeed(speed); }} className={`flex-1 px-2 py-2 text-sm rounded capitalize ${botSpeed===speed ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{speed}</button>
+          ))}</div>
+        </div>
+
+        <div className="glass px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+              Allow &lsquo;True&rsquo; in LCR?
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowLcrInfo(v => !v)}
+              className="w-4 h-4 rounded-full border border-[var(--gold-dim)] text-[var(--gold-dim)] text-[9px] leading-none flex items-center justify-center hover:border-[var(--gold)] hover:text-[var(--gold)] transition-colors"
+              aria-label="What is LCR?"
+            >
+              ?
+            </button>
+          </div>
+          {showLcrInfo && (
+            <div className="bg-black/40 rounded px-3 py-2 mb-2 text-[10px] text-[var(--gold-dim)] leading-relaxed">
+              <strong className="text-[var(--gold)]">LCR</strong> = Last Chance Raise — when everyone calls bull, the last caller gets one chance to raise. This setting controls whether the next player can call &lsquo;True&rsquo; after that raise.
+            </div>
+          )}
+          <div className="flex gap-1.5">{([['classic', 'Yes'], ['strict', 'No']] as const).map(([mode, label]) => (
+            <button key={mode} onClick={() => { play('uiSoft'); setLastChanceMode(mode); }} className={`flex-1 px-2 py-2 text-sm rounded ${lastChanceMode===mode ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{label}</button>
+          ))}</div>
+          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+            {lastChanceMode === 'classic'
+              ? 'After LCR, all players can bull, true, or raise'
+              : 'After LCR, next player must bull or raise — no true option'}
+          </p>
         </div>
         </div>{/* end host-left */}
 

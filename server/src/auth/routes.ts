@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import type { User, AuthResponse, PublicProfile } from '@bull-em/shared';
+import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
+import { AVATAR_OPTIONS } from '@bull-em/shared';
 import { hashPassword, verifyPassword } from './password.js';
 import { signToken } from './jwt.js';
 import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
@@ -82,13 +83,14 @@ router.post('/register', async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
       `INSERT INTO users (username, display_name, email, password_hash, auth_provider)
        VALUES ($1, $2, $3, $4, 'email')
-       RETURNING id, username, display_name, email, auth_provider, created_at, last_seen_at`,
+       RETURNING id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at`,
       [trimmedUsername, trimmedUsername, trimmedEmail, passwordHash],
     );
 
@@ -104,6 +106,7 @@ router.post('/register', async (req, res) => {
       displayName: row.display_name,
       email: row.email,
       authProvider: 'email',
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -135,30 +138,38 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body as {
+    const { identifier, email: legacyEmail, password } = req.body as {
+      identifier?: string;
       email?: string;
       password?: string;
     };
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
+    // Support both 'identifier' (new) and 'email' (legacy) fields
+    const loginId = identifier ?? legacyEmail;
+
+    if (!loginId || !password) {
+      res.status(400).json({ error: 'Username/email and password are required' });
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedId = loginId.trim().toLowerCase();
+    const isEmail = trimmedId.includes('@');
 
     const result = await query<{
       id: string;
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
       password_hash: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1',
-      [trimmedEmail],
+      isEmail
+        ? 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE email = $1'
+        : 'SELECT id, username, display_name, email, avatar, password_hash, auth_provider, created_at, last_seen_at FROM users WHERE LOWER(username) = $1',
+      [trimmedId],
     );
 
     if (!result || result.rows.length === 0) {
@@ -188,6 +199,7 @@ router.post('/login', async (req, res) => {
       displayName: row.display_name,
       email: row.email,
       authProvider: 'email',
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: new Date().toISOString(),
     };
@@ -222,10 +234,11 @@ router.get('/me', requireAuth, async (req, res) => {
       username: string;
       display_name: string;
       email: string;
+      avatar: string | null;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, avatar, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -267,6 +280,7 @@ router.get('/me', requireAuth, async (req, res) => {
       id: row.id,
       username: row.username,
       displayName: row.display_name,
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
       gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
@@ -281,6 +295,7 @@ router.get('/me', requireAuth, async (req, res) => {
       displayName: row.display_name,
       email: row.email,
       authProvider: 'email',
+      avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -289,6 +304,33 @@ router.get('/me', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch profile');
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// ── PATCH /auth/avatar ──────────────────────────────────────────────────
+
+router.patch('/avatar', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { avatar } = req.body as { avatar?: string | null };
+
+    // Allow null to clear avatar, otherwise validate against known options
+    if (avatar !== null && avatar !== undefined) {
+      if (!(AVATAR_OPTIONS as readonly string[]).includes(avatar)) {
+        res.status(400).json({ error: 'Invalid avatar option' });
+        return;
+      }
+    }
+
+    await query(
+      'UPDATE users SET avatar = $1 WHERE id = $2',
+      [avatar ?? null, userId],
+    );
+
+    res.json({ ok: true, avatar: avatar ?? null });
+  } catch (err) {
+    logger.error({ err }, 'Failed to update avatar');
+    res.status(500).json({ error: 'Failed to update avatar' });
   }
 });
 

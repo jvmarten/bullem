@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -16,7 +16,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(identifier, password);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -44,16 +44,16 @@ export function LoginPage() {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Email
+              Username or Email
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="input-felt"
-              placeholder="you@example.com"
+              placeholder="username or you@example.com"
             />
           </div>
 

@@ -141,15 +141,16 @@ export function GamePage() {
   const isSpectator = !myPlayer;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
 
-  // Show a one-time prominent notification when the player gets eliminated
+  // Show a one-time prominent notification when the player gets eliminated,
+  // but only if the game is still in progress (no winner yet).
   const { addToast } = useToast();
   const wasEliminatedRef = useRef(isEliminated);
   useEffect(() => {
-    if (isEliminated && !wasEliminatedRef.current) {
+    if (isEliminated && !wasEliminatedRef.current && !winnerId) {
       addToast("You've been eliminated! You're now spectating.", 'info');
     }
     wasEliminatedRef.current = isEliminated;
-  }, [isEliminated, addToast]);
+  }, [isEliminated, winnerId, addToast]);
 
   const cardStats = useMemo(() => {
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);

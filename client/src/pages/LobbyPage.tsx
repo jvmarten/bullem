@@ -266,10 +266,8 @@ export function LobbyPage() {
                     key={n}
                     onClick={() => handleMaxPlayersChange(n)}
                     className={`flex-1 min-w-[2.5rem] px-2 py-2 text-sm rounded transition-colors ${
-                      maxPlayersSetting === n || (n === Math.min(MAX_PLAYERS, cardBasedMax) && maxPlayersSetting >= n)
-                        ? maxPlayersSetting === n
-                          ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                          : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                      maxPlayersSetting === n
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                     }`}
                   >

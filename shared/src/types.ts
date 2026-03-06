@@ -241,6 +241,14 @@ export interface RoomListing {
 
 // ── Auth types ──────────────────────────────────────────────────────────
 
+/** Pre-defined avatar template identifiers users can choose from. */
+export const AVATAR_OPTIONS = [
+  'bull', 'ace', 'crown', 'diamond', 'flame', 'skull',
+  'star', 'wolf', 'eagle', 'lion', 'fox', 'bear',
+] as const;
+
+export type AvatarId = typeof AVATAR_OPTIONS[number];
+
 /** Authenticated user stored in the database. Never send password_hash to clients. */
 export interface User {
   id: string;
@@ -248,6 +256,7 @@ export interface User {
   displayName: string;
   email: string;
   authProvider: 'email';
+  avatar: AvatarId | null;
   createdAt: string;
   lastSeenAt: string;
 }
@@ -257,6 +266,7 @@ export interface PublicProfile {
   id: string;
   username: string;
   displayName: string;
+  avatar: AvatarId | null;
   createdAt: string;
   gamesPlayed: number;
   gamesWon: number;

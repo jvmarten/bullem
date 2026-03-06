@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout.js';
 import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing } from '@bull-em/shared';
 
@@ -180,7 +181,12 @@ function getOrCreatePlayerName(): string {
 // Hue offsets for the "coming soon" wallpaper background on each press
 
 export function HomePage() {
-  const [name, setName] = useState(() => getOrCreatePlayerName());
+  const { user } = useAuth();
+  const [name, setName] = useState(() => {
+    // Prefer the signed-in user's display name over the random Player1234
+    if (user?.displayName) return user.displayName;
+    return getOrCreatePlayerName();
+  });
   const [isEditingName, setIsEditingName] = useState(false);
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
@@ -204,6 +210,14 @@ export function HomePage() {
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
   const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom } = useGameContext();
+
+  // Sync player name with auth state — when user signs in, use their display name
+  useEffect(() => {
+    if (user?.displayName && !isEditingName) {
+      setName(user.displayName);
+      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, user.displayName);
+    }
+  }, [user?.displayName, isEditingName]);
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
