@@ -291,6 +291,12 @@ export function ProfilePage() {
 
         {/* Actions */}
         <div className="w-full flex flex-col gap-3">
+          <Link
+            to="/replays"
+            className="w-full btn-ghost py-3 text-sm text-center"
+          >
+            My Replays
+          </Link>
           <button
             onClick={logout}
             className="w-full btn-ghost py-3 text-sm"

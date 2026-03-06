@@ -49,10 +49,8 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   // components from re-rendering when the global online count changes.
   const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
   const [showPopup, setShowPopup] = useState(false);
-  const [showVersionPopup, setShowVersionPopup] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const versionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -81,13 +79,10 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   }, [showPopup]);
 
   useEffect(() => {
-    if (!showPopup && !showVersionPopup) return;
+    if (!showPopup) return;
     const handler = (e: MouseEvent | TouchEvent) => {
-      if (showPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setShowPopup(false);
-      }
-      if (showVersionPopup && versionRef.current && !versionRef.current.contains(e.target as Node)) {
-        setShowVersionPopup(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -96,7 +91,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
     };
-  }, [showPopup, showVersionPopup]);
+  }, [showPopup]);
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
@@ -157,21 +152,6 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
             <div className="landscape-only items-center gap-3">{headerRightExtra}</div>
           )}
           <VolumeControl />
-          <div ref={versionRef} className="relative">
-            <button
-              onClick={() => setShowVersionPopup(v => !v)}
-              className="text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              v1.0.0
-            </button>
-            {showVersionPopup && (
-              <div className="absolute right-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[100px] animate-fade-in">
-                <p className="text-[10px] text-[var(--gold-dim)] whitespace-nowrap">
-                  v1.0.0 &middot; 06.03.26
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </header>
       {!isConnected && (

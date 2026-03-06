@@ -44,6 +44,10 @@ export function registerLobbyHandlers(
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
 
+    // Prevent creating a room when already in one
+    const existingRoom = roomManager.getRoomForSocket(socket.id);
+    if (existingRoom) return callback({ error: 'Already in a room — leave or close it first' });
+
     const room = roomManager.createRoom();
     const playerId = randomUUID();
     const { reconnectToken } = room.addPlayer(socket.id, playerId, name);

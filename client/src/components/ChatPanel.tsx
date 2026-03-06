@@ -5,12 +5,16 @@ import { CHAT_MESSAGE_MAX_LENGTH } from '@bull-em/shared';
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => void;
+  /** When true, the input is disabled (e.g. players during active rounds). */
+  disabled?: boolean;
+  /** Label shown in the header (e.g. "Spectator Chat"). */
+  label?: string;
 }
 
 /** Maximum number of messages kept in the chat panel before oldest are trimmed. */
 const MAX_VISIBLE_MESSAGES = 100;
 
-export function ChatPanel({ messages, onSend }: ChatPanelProps) {
+export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -39,19 +43,20 @@ export function ChatPanel({ messages, onSend }: ChatPanelProps) {
 
   // Focus input when panel opens
   useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
+    if (isOpen && !wasOpenRef.current && !disabled) {
       inputRef.current?.focus();
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen]);
+  }, [isOpen, disabled]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    if (disabled) return;
     const trimmed = input.trim();
     if (!trimmed) return;
     onSend(trimmed);
     setInput('');
-  }, [input, onSend]);
+  }, [input, onSend, disabled]);
 
   const visibleMessages = messages.slice(-MAX_VISIBLE_MESSAGES);
 
@@ -65,7 +70,9 @@ export function ChatPanel({ messages, onSend }: ChatPanelProps) {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--gold-dim)]/30">
-            <span className="text-xs font-semibold text-[var(--gold)] uppercase tracking-wider">Chat</span>
+            <span className="text-xs font-semibold text-[var(--gold)] uppercase tracking-wider">
+              {label ?? 'Chat'}
+            </span>
             <button
               onClick={() => setIsOpen(false)}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
@@ -99,25 +106,33 @@ export function ChatPanel({ messages, onSend }: ChatPanelProps) {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSubmit} className="px-3 py-2 border-t border-[var(--gold-dim)]/30 flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
-              placeholder="Type a message..."
-              maxLength={CHAT_MESSAGE_MAX_LENGTH}
-              className="flex-1 bg-[var(--surface)] text-[var(--text)] text-xs rounded px-2 py-1.5 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none placeholder:text-[var(--gold-dim)]/50 min-h-[36px]"
-              autoComplete="off"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="btn-ghost text-xs px-3 py-1.5 min-h-[36px] min-w-[44px] disabled:opacity-30"
-            >
-              Send
-            </button>
-          </form>
+          {disabled ? (
+            <div className="px-3 py-2 border-t border-[var(--gold-dim)]/30">
+              <p className="text-[10px] text-[var(--gold-dim)] text-center opacity-60">
+                Chat available between rounds
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="px-3 py-2 border-t border-[var(--gold-dim)]/30 flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
+                placeholder="Type a message..."
+                maxLength={CHAT_MESSAGE_MAX_LENGTH}
+                className="flex-1 bg-[var(--surface)] text-[var(--text)] text-xs rounded px-2 py-1.5 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none placeholder:text-[var(--gold-dim)]/50 min-h-[36px]"
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="btn-ghost text-xs px-3 py-1.5 min-h-[36px] min-w-[44px] disabled:opacity-30"
+              >
+                Send
+              </button>
+            </form>
+          )}
         </div>
       )}
 
@@ -126,7 +141,7 @@ export function ChatPanel({ messages, onSend }: ChatPanelProps) {
         onClick={() => setIsOpen(prev => !prev)}
         className="btn-ghost rounded-full w-11 h-11 flex items-center justify-center shadow-lg relative"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
-        title="Chat"
+        title={label ?? 'Chat'}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

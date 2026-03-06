@@ -209,7 +209,7 @@ export function HomePage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom } = useGameContext();
 
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
@@ -285,13 +285,18 @@ export function HomePage() {
   };
 
 
+  const [creatingRoom, setCreatingRoom] = useState(false);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
+    if (creatingRoom) return;
+    setCreatingRoom(true);
     try {
       const roomCode = await createRoom(getOnlinePlayerName());
       navigate(`/room/${roomCode}`);
     } catch {
       addToast('Failed to quick start — check your connection');
+    } finally {
+      setCreatingRoom(false);
     }
   };
 
@@ -634,12 +639,6 @@ export function HomePage() {
               Watch a Game
             </button>
             <Link
-              to="/replays"
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
-            >
-              My Replays
-            </Link>
-            <Link
               to="/how-to-play"
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
             >
@@ -652,12 +651,26 @@ export function HomePage() {
           <div className="flex flex-col gap-3 w-full animate-fade-in">
             {roomState ? (
               <>
-                <button
-                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
-                  className="w-full btn-gold py-4 text-lg"
-                >
-                  Return to Room ({roomState.roomCode})
-                </button>
+                <div className="w-full flex gap-0">
+                  <button
+                    onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                    className="flex-1 btn-gold py-4 text-lg rounded-r-none"
+                  >
+                    Return to Room ({roomState.roomCode})
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ok = window.confirm('Close this room? All players will be disconnected.');
+                      if (!ok) return;
+                      play('uiSoft');
+                      deleteRoom();
+                    }}
+                    className="btn-gold py-4 px-3 text-lg rounded-l-none border-l border-[rgba(0,0,0,0.2)] bg-[var(--danger)] hover:bg-red-600 transition-colors"
+                    title="Close room"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
                 </button>
@@ -817,6 +830,10 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
+      {/* Version — bottom right corner, home page only */}
+      <p className="fixed bottom-3 right-4 text-[10px] text-[var(--gold-dim)] opacity-60">
+        v1.0.1
+      </p>
     </Layout>
   );
 }
