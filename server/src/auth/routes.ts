@@ -13,6 +13,7 @@ import { sendPasswordResetEmail } from '../email/index.js';
 import logger from '../logger.js';
 import type { RateLimiter } from '../rateLimit.js';
 import { httpRequestsTotal } from '../metrics.js';
+import { track } from '../analytics/track.js';
 
 const router = Router();
 
@@ -174,6 +175,8 @@ router.post('/register', authRateLimit, async (req, res) => {
     const token = signToken({ userId: user.id, username: user.username, role: user.role });
     const response: AuthResponse = { user };
 
+    track('player:registered', { authMethod: 'email' }, user.id);
+
     res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
     res.status(201).json(response);
   } catch (err: unknown) {
@@ -269,6 +272,8 @@ router.post('/login', authRateLimit, async (req, res) => {
 
     const token = signToken({ userId: user.id, username: user.username, role: user.role });
     const response: AuthResponse = { user };
+
+    track('player:login', { authMethod: 'email' }, user.id);
 
     res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
     res.json(response);

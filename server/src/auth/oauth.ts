@@ -7,6 +7,7 @@ import { cookieOptions } from './routes.js';
 import { query } from '../db/index.js';
 import { pool } from '../db/index.js';
 import logger from '../logger.js';
+import { track } from '../analytics/track.js';
 
 const router = Router();
 
@@ -154,6 +155,7 @@ router.get('/google/callback', async (req, res) => {
     if (oauthResult && oauthResult.rows.length > 0) {
       const row = oauthResult.rows[0]!;
       await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [row.id]);
+      track('player:login', { authMethod: 'google' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
@@ -173,6 +175,7 @@ router.get('/google/callback', async (req, res) => {
         'UPDATE users SET oauth_id = $1, auth_provider = $2, last_seen_at = NOW() WHERE id = $3',
         [googleId, newProvider, row.id],
       );
+      track('player:login', { authMethod: 'google' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
@@ -212,6 +215,7 @@ router.get('/google/callback', async (req, res) => {
 
         if (insertResult.rows.length > 0) {
           const row = insertResult.rows[0]!;
+          track('player:registered', { authMethod: 'google' }, row.id);
           const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
           res.redirect('/');
@@ -446,6 +450,7 @@ router.post('/apple/callback', async (req, res) => {
     if (oauthResult && oauthResult.rows.length > 0) {
       const row = oauthResult.rows[0]!;
       await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [row.id]);
+      track('player:login', { authMethod: 'apple' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
       res.redirect('/');
@@ -466,6 +471,7 @@ router.post('/apple/callback', async (req, res) => {
           'UPDATE users SET oauth_id = $1, auth_provider = $2, last_seen_at = NOW() WHERE id = $3',
           [appleId, newProvider, row.id],
         );
+        track('player:login', { authMethod: 'apple' }, row.id);
         const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
         res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
         res.redirect('/');
@@ -507,6 +513,7 @@ router.post('/apple/callback', async (req, res) => {
 
         if (insertResult.rows.length > 0) {
           const row = insertResult.rows[0]!;
+          track('player:registered', { authMethod: 'apple' }, row.id);
           const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
           res.redirect('/');
