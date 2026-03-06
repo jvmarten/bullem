@@ -625,6 +625,12 @@ export function HomePage() {
               Watch a Game
             </button>
             <Link
+              to="/replays"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
+            >
+              My Replays
+            </Link>
+            <Link
               to="/how-to-play"
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
             >
