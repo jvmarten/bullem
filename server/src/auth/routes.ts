@@ -236,7 +236,8 @@ router.post('/login', authRateLimit, async (req, res) => {
     const row = result.rows[0]!;
 
     if (!row.password_hash) {
-      res.status(401).json({ error: "This account uses Google sign-in. Use the 'Continue with Google' button to log in." });
+      const providerName = row.auth_provider === 'apple' ? 'Apple' : 'Google';
+      res.status(401).json({ error: `This account uses ${providerName} sign-in. Use the 'Continue with ${providerName}' button to log in.` });
       return;
     }
 
