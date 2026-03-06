@@ -458,6 +458,41 @@ export function openSkillDisplayRating(mu: number): number {
   return Math.round(mu * 48);
 }
 
+// ── Leaderboard types ────────────────────────────────────────────────────
+
+/** Time period filter for leaderboard queries. */
+export type LeaderboardPeriod = 'all_time' | 'month' | 'week';
+
+/** A single entry in the leaderboard response. */
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: AvatarId | null;
+  rating: number;
+  gamesPlayed: number;
+  tier: RankTier;
+}
+
+/** Response body for GET /api/leaderboard/:mode. */
+export interface LeaderboardResponse {
+  mode: RankedMode;
+  period: LeaderboardPeriod;
+  entries: LeaderboardEntry[];
+  totalCount: number;
+  /** The requesting user's rank/rating, if logged in and qualified. */
+  currentUser: LeaderboardEntry | null;
+}
+
+/** Response body for GET /api/leaderboard/:mode/nearby. */
+export interface LeaderboardNearbyResponse {
+  mode: RankedMode;
+  entries: LeaderboardEntry[];
+  /** The requesting user's entry (same as the middle entry). */
+  currentUser: LeaderboardEntry;
+}
+
 /** Rating change sent to clients after a ranked game ends. */
 export interface RatingChange {
   mode: RankedMode;

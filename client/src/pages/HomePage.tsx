@@ -695,6 +695,12 @@ export function HomePage() {
               Watch a Game
             </button>
             <Link
+              to="/leaderboard"
+              className="w-full btn-ghost py-4 text-lg text-center block"
+            >
+              Leaderboard
+            </Link>
+            <Link
               to="/how-to-play"
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
             >
