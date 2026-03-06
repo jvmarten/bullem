@@ -4,6 +4,7 @@ import { persistGameResult } from '../db/games.js';
 import type { GameRecord } from '../db/games.js';
 import { persistReplayRounds } from '../db/replays.js';
 import { updateRatingsAfterGame } from '../db/ratings.js';
+import { track } from '../analytics/track.js';
 
 /**
  * Build a GameRecord from room state and persist it to the database.
@@ -64,6 +65,15 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
       },
     })),
   };
+
+  const durationSeconds = Math.round((Date.now() - room.gameStartedAt.getTime()) / 1000);
+  track('game:completed', {
+    roomCode: room.roomCode,
+    playerCount,
+    winnerId,
+    durationSeconds,
+    ranked: room.settings.ranked ?? false,
+  }, room.playerUserIds.get(winnerId) ?? null);
 
   // Fire-and-forget — game persistence must never block or crash the game
   persistGameResult(record)

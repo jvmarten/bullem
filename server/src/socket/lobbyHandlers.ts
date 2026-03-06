@@ -9,6 +9,7 @@ import { beginRoundResultPhase, checkRoundContinueComplete, recordRoundStart } f
 import { persistCompletedGame } from './persistGame.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { roomsCreatedTotal, playersJoinedTotal } from '../metrics.js';
+import { track } from '../analytics/track.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -502,6 +503,12 @@ export function registerLobbyHandlers(
     room.startGame();
     recordRoundStart(room.roomCode);
     log.info({ roomCode: room.roomCode, playerCount: room.playerCount, ranked: room.settings.ranked ?? false }, 'Game started');
+    track('game:started', {
+      roomCode: room.roomCode,
+      playerCount: room.playerCount,
+      settings: { ...room.settings },
+      ranked: room.settings.ranked ?? false,
+    });
     // Clear cross-round bot memory for this room's scope
     BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
