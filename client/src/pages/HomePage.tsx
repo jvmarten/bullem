@@ -358,6 +358,7 @@ export function HomePage() {
 
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
+  const [rankedExpanded, setRankedExpanded] = useState(false);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -755,10 +756,10 @@ export function HomePage() {
                         deleteRoom();
                       }
                     }}
-                    className="absolute right-3 text-red-400 hover:text-red-300 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="absolute right-3 text-red-500 hover:text-red-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]"
                     title="Close room"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </span>
                 </button>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
@@ -784,27 +785,39 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {/* Ranked Play buttons */}
+            {/* Ranked Play — expandable with 1v1 / Multiplayer sub-options */}
             <button
               onClick={() => {
                 play('uiSoft');
                 if (!user) { addToast('Sign in to play ranked'); return; }
-                joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                setRankedExpanded(prev => !prev);
               }}
               className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
             >
-              Ranked 1v1
+              Ranked Play
             </button>
-            <button
-              onClick={() => {
-                play('uiSoft');
-                if (!user) { addToast('Sign in to play ranked'); return; }
-                joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
-              }}
-              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
-            >
-              Ranked Multiplayer
-            </button>
+            {rankedExpanded && user && (
+              <div className="flex gap-2 w-full animate-fade-in -mt-1">
+                <button
+                  onClick={() => {
+                    play('uiSoft');
+                    joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                  }}
+                  className="flex-1 btn-ghost py-3 text-sm"
+                >
+                  1v1
+                </button>
+                <button
+                  onClick={() => {
+                    play('uiSoft');
+                    joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                  }}
+                  className="flex-1 btn-ghost py-3 text-sm"
+                >
+                  Multiplayer
+                </button>
+              </div>
+            )}
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
@@ -955,7 +968,7 @@ export function HomePage() {
         onClick={() => { play('uiSoft'); setShowVersion(true); }}
         className="fixed bottom-6 right-6 text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
-        v1.0.4
+        v1.0.5
       </button>
 
       {/* Version info modal */}
@@ -968,7 +981,7 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.4</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.0.5</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
           </div>

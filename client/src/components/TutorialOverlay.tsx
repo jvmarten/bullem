@@ -43,12 +43,24 @@ export function TutorialOverlay({
   useEffect(() => {
     if (!visible) return;
     measure();
+    // Re-measure after a short delay so layout has fully settled
+    const raf = requestAnimationFrame(() => measure());
+    const delayed = setTimeout(() => measure(), 100);
+
     // Re-measure on scroll/resize
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, true);
+
+    // Re-measure when the DOM layout changes (e.g. content shifts the target)
+    const observer = new MutationObserver(() => measure());
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
     return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(delayed);
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure, true);
+      observer.disconnect();
     };
   }, [visible, measure]);
 

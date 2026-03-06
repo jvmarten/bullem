@@ -611,6 +611,11 @@ body {
   filter: saturate(0.5) brightness(0.85);
 }
 
+/* Override dimming on the spectator banner so "Spectating" text stays bright */
+.spectating .spectator-banner {
+  filter: saturate(2) brightness(1.18);
+}
+
 /* ── Joker Easter Egg ──────────────────────────────── */
 .joker-card-container {
   width: 180px;
