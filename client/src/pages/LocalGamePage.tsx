@@ -324,10 +324,10 @@ export function LocalGamePage() {
                   <div className="flex justify-end animate-slide-up ml-auto gap-2">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem]"
+                      className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] kbd-shortcut"
+                      data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
-                      <kbd className="kbd-hint ml-1.5 text-[10px] opacity-50 font-mono border border-current rounded px-1 leading-tight">R</kbd>
                     </button>
                   </div>
                 )}
