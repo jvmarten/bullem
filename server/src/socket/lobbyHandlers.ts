@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -338,15 +338,29 @@ export function registerLobbyHandlers(
 
     // Build a validated settings object — only pick known fields to prevent
     // unexpected properties from leaking into game state.
-    const validated: GameSettings = {
-      maxCards,
-      turnTimer,
-      maxPlayers,
-      allowSpectators: data.settings.allowSpectators === true,
-      spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
-      botSpeed: botSpeed as BotSpeed | undefined,
-      lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
-    };
+    const ranked = data.settings.ranked === true;
+    const validated: GameSettings = ranked
+      ? {
+          // Ranked games enforce locked settings — player choices are ignored
+          maxCards: RANKED_SETTINGS.maxCards,
+          turnTimer: RANKED_SETTINGS.turnTimer,
+          maxPlayers: RANKED_SETTINGS.maxPlayers,
+          lastChanceMode: RANKED_SETTINGS.lastChanceMode,
+          allowSpectators: data.settings.allowSpectators === true,
+          spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
+          botSpeed: botSpeed as BotSpeed | undefined,
+          ranked: true,
+          // rankedMode is set server-side at game start based on actual player count
+        }
+      : {
+          maxCards,
+          turnTimer,
+          maxPlayers,
+          allowSpectators: data.settings.allowSpectators === true,
+          spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
+          botSpeed: botSpeed as BotSpeed | undefined,
+          lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
+        };
 
     room.updateSettings(validated);
     broadcastRoomState(io, room);
@@ -471,9 +485,23 @@ export function registerLobbyHandlers(
       socket.emit('room:error', `Need at least ${MIN_PLAYERS} players`);
       return;
     }
+    // Set rankedMode based on actual player count before starting
+    if (room.settings.ranked) {
+      const humanCount = [...room.players.values()].filter(p => !p.isBot).length;
+      // Only allow ranked if all human players are authenticated
+      const allAuthenticated = [...room.players.values()]
+        .filter(p => !p.isBot)
+        .every(p => room.playerUserIds.has(p.id));
+      if (!allAuthenticated) {
+        socket.emit('room:error', 'All players must be logged in for ranked games');
+        return;
+      }
+      room.settings.rankedMode = humanCount === 2 ? 'heads_up' : 'multiplayer';
+    }
+
     room.startGame();
     recordRoundStart(room.roomCode);
-    log.info({ roomCode: room.roomCode, playerCount: room.playerCount }, 'Game started');
+    log.info({ roomCode: room.roomCode, playerCount: room.playerCount, ranked: room.settings.ranked ?? false }, 'Game started');
     // Clear cross-round bot memory for this room's scope
     BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline
