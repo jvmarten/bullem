@@ -45,7 +45,18 @@ export function useJokerEasterEgg() {
     return () => clearTimeout(timerRef.current);
   }, []);
 
-  return { phase, setPhase, handleLogoClick, audioRef };
+  /** Stop audio and reset state — call when navigating away from the home page. */
+  const stopEasterEgg = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    countRef.current = 0;
+    clearTimeout(timerRef.current);
+    setPhase('idle');
+  }, []);
+
+  return { phase, setPhase, handleLogoClick, audioRef, stopEasterEgg };
 }
 
 /** Catmull-Rom spline interpolation for continuous, smooth curves through waypoints */

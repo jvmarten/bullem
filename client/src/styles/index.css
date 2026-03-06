@@ -94,6 +94,26 @@ body {
   transform: none;
 }
 
+/* ── Orange Buttons (Ranked Sub-options) ────────────── */
+.btn-orange {
+  background: linear-gradient(180deg, #f0a050 0%, #d98a3a 100%);
+  color: #1a1a0e;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(217, 138, 58, 0.3);
+  border: 1px solid #c07830;
+  cursor: pointer;
+}
+.btn-orange:hover {
+  background: linear-gradient(180deg, #f8b060 0%, #f0a050 100%);
+  box-shadow: 0 4px 16px rgba(217, 138, 58, 0.4);
+  transform: translateY(-1px);
+}
+.btn-orange:active { transform: scale(0.97); }
+
 /* ── Ghost Buttons ───────────────────────────────────── */
 .btn-ghost {
   background: transparent;

@@ -21,6 +21,9 @@ function AuthLink() {
   const location = useLocation();
   if (loading) return null;
 
+  // Home page handles its own auth display in the center — hide the header auth link
+  if (location.pathname === '/') return null;
+
   // When in a game/room session, don't navigate away — it would kick the player out
   const inSession = /^\/(room|game|local|results)/.test(location.pathname);
 
@@ -75,7 +78,12 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef } = useJokerEasterEgg();
+  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef, stopEasterEgg: jokerStop } = useJokerEasterEgg();
+
+  // Stop joker easter egg audio when navigating to a different route
+  useEffect(() => {
+    jokerStop();
+  }, [location.pathname, jokerStop]);
 
   const handleTitleClick = () => {
     jokerClick();
