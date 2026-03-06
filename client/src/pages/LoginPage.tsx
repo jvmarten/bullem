@@ -15,9 +15,14 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   useEffect(() => {
     if (searchParams.get('error') === 'oauth_failed') {
       setError('Sign-in failed. Please try again.');
+    }
+    if (searchParams.get('reset') === 'success') {
+      setSuccessMessage('Password reset successfully. You can now sign in with your new password.');
     }
   }, [searchParams]);
 
@@ -46,6 +51,12 @@ export function LoginPage() {
         </h1>
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
+          {successMessage && (
+            <div className="glass px-4 py-3 text-sm text-green-400 border border-green-400/30">
+              {successMessage}
+            </div>
+          )}
+
           {error && (
             <div className="glass px-4 py-3 text-sm text-red-400 border border-red-400/30">
               {error}
@@ -91,6 +102,13 @@ export function LoginPage() {
             {submitting ? 'Signing in\u2026' : 'Sign In'}
           </button>
         </form>
+
+        <Link
+          to="/forgot-password"
+          className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors mt-3"
+        >
+          Forgot password?
+        </Link>
 
         <div className="w-full flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
