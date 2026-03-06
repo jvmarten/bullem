@@ -5,6 +5,7 @@ import { useSound } from '../hooks/useSound.js';
 
 const CHAT_KEY = 'bull-em-chat-enabled';
 const EMOJI_KEY = 'bull-em-emoji-enabled';
+const QUICK_DRAW_KEY = 'bull-em-quick-draw';
 
 let settingsListeners = new Set<() => void>();
 function notifySettings() { settingsListeners.forEach(cb => cb()); }
@@ -21,9 +22,11 @@ function readBool(key: string, fallback: boolean): boolean {
 
 let chatEnabled = readBool(CHAT_KEY, true);
 let emojiEnabled = readBool(EMOJI_KEY, true);
+let quickDrawEnabled = readBool(QUICK_DRAW_KEY, true);
 
 function getChatEnabled() { return chatEnabled; }
 function getEmojiEnabled() { return emojiEnabled; }
+function getQuickDrawEnabled() { return quickDrawEnabled; }
 
 function toggleChatEnabled() {
   chatEnabled = !chatEnabled;
@@ -37,17 +40,25 @@ function toggleEmojiEnabled() {
   notifySettings();
 }
 
-/** Hook to read chat/emoji visibility settings. */
+function toggleQuickDrawEnabled() {
+  quickDrawEnabled = !quickDrawEnabled;
+  localStorage.setItem(QUICK_DRAW_KEY, quickDrawEnabled ? '1' : '0');
+  notifySettings();
+}
+
+/** Hook to read chat/emoji/quickDraw visibility settings. */
 export function useUISettings() {
   const chat = useSyncExternalStore(subscribeSettings, getChatEnabled);
   const emoji = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
-  return { chatEnabled: chat, emojiEnabled: emoji };
+  const quickDraw = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
+  return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw };
 }
 
 export function VolumeControl() {
   const { muted, toggleMute, volume, setVolume, hapticsEnabled, toggleHaptics } = useSound();
   const chatOn = useSyncExternalStore(subscribeSettings, getChatEnabled);
   const emojiOn = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
+  const quickDrawOn = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -177,6 +188,23 @@ export function VolumeControl() {
                 <line x1="9" y1="9" x2="9.01" y2="9"/>
                 <line x1="15" y1="9" x2="15.01" y2="9"/>
                 {!emojiOn && <line x1="2" y1="2" x2="22" y2="22" />}
+              </svg>
+            </button>
+          </div>
+
+          {/* Quick Draw toggle */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              Quick Draw
+            </span>
+            <button
+              onClick={toggleQuickDrawEnabled}
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!quickDrawOn ? 'opacity-40' : ''}`}
+              title={quickDrawOn ? 'Disable quick draw suggestions' : 'Enable quick draw suggestions'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                {!quickDrawOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
             </button>
           </div>
