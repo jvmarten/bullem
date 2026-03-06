@@ -1,7 +1,8 @@
 import { useState, useMemo, memo } from 'react';
 import { TurnAction, handToString } from '@bull-em/shared';
-import type { Player, PlayerId, TurnEntry, EmojiReaction } from '@bull-em/shared';
+import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { RankBadge } from './RankBadge.js';
 
 interface Props {
   players: Player[];
@@ -18,6 +19,8 @@ interface Props {
   collapsible?: boolean;
   /** Active emoji reactions to display as floating bubbles. */
   reactions?: EmojiReaction[];
+  /** Player ratings for ranked games — maps playerId to { rating, tier }. */
+  playerRatings?: ReadonlyMap<PlayerId, { rating: number; tier: RankTier }>;
 }
 
 /* Mini card-back fan: shows card backs matching the player's card count */
@@ -76,12 +79,13 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
   showKickPlayer?: boolean; onKickPlayer?: (playerId: string) => void;
   reactions?: EmojiReaction[];
+  rankInfo?: { rating: number; tier: RankTier };
 }) {
   return (
     <div
@@ -104,6 +108,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">
             {p.name}
+            {rankInfo && <RankBadge rating={rankInfo.rating} tier={rankInfo.tier} />}
             {isMe && <span className="text-[var(--gold)] ml-1 text-[10px]">(you)</span>}
             {p.isBot && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">[BOT]</span>}
             {p.isHost && <span className="text-[var(--gold-dim)] ml-1 text-[10px]">host</span>}
@@ -181,7 +186,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 // every game state broadcast (timer ticks, other players' actions), but the
 // PlayerList props are often the same. Without memo, buildLastActionMap and
 // the collapsed-view player lookup run on every parent render.
-export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions }: Props) {
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -233,6 +238,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               roundNumber={roundNumber}
               lastAction={lastActionMap.get(currentPlayer.id) ?? null}
               reactions={reactionsMap.get(currentPlayer.id)}
+              rankInfo={playerRatings?.get(currentPlayer.id)}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -245,6 +251,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               roundNumber={roundNumber}
               lastAction={lastActionMap.get(nextPlayer.id) ?? null}
               reactions={reactionsMap.get(nextPlayer.id)}
+              rankInfo={playerRatings?.get(nextPlayer.id)}
             />
           )}
         </div>
@@ -283,6 +290,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
             showKickPlayer={showKickPlayer}
             onKickPlayer={onKickPlayer}
             reactions={reactionsMap.get(p.id)}
+            rankInfo={playerRatings?.get(p.id)}
           />
         ))}
       </div>
