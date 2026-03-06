@@ -27,6 +27,7 @@ const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({
 const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
 const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
 const ReplayPage = lazy(() => import('./pages/ReplayPage.js').then(m => ({ default: m.ReplayPage })));
+const ReplaysPage = lazy(() => import('./pages/ReplaysPage.js').then(m => ({ default: m.ReplaysPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
 
 // Auth pages
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/replays" element={<ReplaysPage />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
