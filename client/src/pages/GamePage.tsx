@@ -420,7 +420,7 @@ export function GamePage() {
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
             {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && !isSpectator && (
-              <div className="flex justify-between items-start" data-tooltip="action-area">
+              <div className="flex justify-between items-start relative" data-tooltip="action-area">
                 <ActionButtons
                   roundPhase={gameState.roundPhase}
                   isMyTurn={isMyTurn}
@@ -435,34 +435,32 @@ export function GamePage() {
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
-                      className="btn-ghost border-[var(--gold-dim)] py-2 font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
+                      className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="R"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
                   </div>
                 )}
+                {canRaise && handSelectorOpen && gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                  <button
+                    onClick={handleQuickRaise}
+                    className="btn-amber action-btn-base font-bold action-btn-minraise absolute left-1/2 -translate-x-1/2 top-0 z-10"
+                    title="Auto-raise to the minimum valid hand"
+                  >
+                    min<br />raise
+                  </button>
+                )}
                 {canRaise && handSelectorOpen && (
-                  <div className="flex items-start ml-auto action-btn-gap">
-                    {gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-                      <button
-                        onClick={handleQuickRaise}
-                        className="btn-amber py-2 font-bold action-btn-secondary"
-                        title="Auto-raise to the minimum valid hand"
-                      >
-                        Min Raise
-                      </button>
-                    )}
-                    <div className="flex flex-col items-center">
-                      <button
-                        onClick={handleHandSubmit}
-                        disabled={!pendingValid}
-                        className={`btn-gold py-2 font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
-                      >
-                        {gameState.currentHand ? 'Raise' : 'Call'}
-                      </button>
-                      <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
-                    </div>
+                  <div className="flex flex-col items-center ml-auto">
+                    <button
+                      onClick={handleHandSubmit}
+                      disabled={!pendingValid}
+                      className={`btn-gold action-btn-base font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                    <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
                   </div>
                 )}
               </div>
