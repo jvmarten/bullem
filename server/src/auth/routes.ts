@@ -69,7 +69,7 @@ const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{1,19}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Cookie options for the auth JWT. */
-function cookieOptions(): {
+export function cookieOptions(): {
   httpOnly: boolean;
   secure: boolean;
   sameSite: 'lax';
@@ -236,7 +236,7 @@ router.post('/login', authRateLimit, async (req, res) => {
     const row = result.rows[0]!;
 
     if (!row.password_hash) {
-      res.status(401).json({ error: 'This account uses a different sign-in method' });
+      res.status(401).json({ error: "This account uses Google sign-in. Use the 'Continue with Google' button to log in." });
       return;
     }
 
@@ -254,7 +254,7 @@ router.post('/login', authRateLimit, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
-      authProvider: 'email',
+      authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: new Date().toISOString(),
@@ -291,10 +291,11 @@ router.get('/me', requireAuth, async (req, res) => {
       display_name: string;
       email: string;
       avatar: string | null;
+      auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, avatar, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, avatar, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -350,7 +351,7 @@ router.get('/me', requireAuth, async (req, res) => {
       username: row.username,
       displayName: row.display_name,
       email: row.email,
-      authProvider: 'email',
+      authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,

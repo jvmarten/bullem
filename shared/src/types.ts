@@ -255,7 +255,7 @@ export interface User {
   username: string;
   displayName: string;
   email: string;
-  authProvider: 'email';
+  authProvider: 'email' | 'google' | 'email+google';
   avatar: AvatarId | null;
   createdAt: string;
   lastSeenAt: string;
