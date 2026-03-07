@@ -277,15 +277,19 @@ export class BotManager {
     if (!botPlayer || !botPlayer.isBot) return;
 
     const state = room.game.getClientState(botId);
+    // Use IMPOSSIBLE difficulty if this bot is The Oracle (by name) or if global difficulty is IMPOSSIBLE
+    const effectiveDifficulty = botPlayer.name === IMPOSSIBLE_BOT.name
+      ? BotDifficulty.IMPOSSIBLE
+      : this.difficulty;
     // For IMPOSSIBLE difficulty, bots see their own cards + human players' cards (not other bots')
-    const visibleCards = this.difficulty === BotDifficulty.IMPOSSIBLE
+    const visibleCards = effectiveDifficulty === BotDifficulty.IMPOSSIBLE
       ? [...room.players.values()]
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
     // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)
     const profileConfig = this.botProfileConfigs.get(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards, room.roomCode, profileConfig);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, room.roomCode, profileConfig);
 
     let result: TurnResult;
     switch (decision.action) {
