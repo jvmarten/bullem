@@ -427,13 +427,14 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
           setGameState(engineRef.current.getClientState(HUMAN_ID));
         }
       } else {
-        // Resuming: re-schedule bot/human timers
+        // Resuming: re-schedule bot/human timers and broadcast so timer UI updates
         scheduleBotTurn();
         scheduleHumanTimer();
+        broadcastState();
       }
       return next;
     });
-  }, [scheduleBotTurn, scheduleHumanTimer]);
+  }, [scheduleBotTurn, scheduleHumanTimer, broadcastState]);
 
   // After restoring a saved game, schedule bot/human turns once callbacks are ready
   useEffect(() => {
