@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis';
-import type { GameEngineSnapshot, GamePhase, GameSettings, PlayerId, ServerPlayer } from '@bull-em/shared';
+import type { GameEngineSnapshot, GamePhase, GameSettings, PlayerId, ServerPlayer, SeriesState } from '@bull-em/shared';
 import { GameEngine } from '../game/GameEngine.js';
 import { Room } from './Room.js';
 import logger from '../logger.js';
@@ -35,6 +35,8 @@ export interface RoomSnapshot {
   gameStartedAt?: string | null;
   /** Elimination order for finish position calculation. */
   eliminationOrder?: PlayerId[];
+  /** Series state for best-of matches. Null for single games. */
+  seriesState?: SeriesState | null;
 }
 
 function roomKey(roomCode: string): string {

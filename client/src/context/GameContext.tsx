@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 import { recordRecentPlayers } from '../utils/recentPlayers.js';
@@ -370,6 +370,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         recordRecentPlayers(humanNames, myName, roomCode);
       }
     });
+    socket.on('game:seriesSetResult', (_data: { setWinnerId: PlayerId; seriesInfo: SeriesInfo }) => {
+      // The set result is consumed by the existing round result / game over flow.
+      // The seriesInfo is embedded in the next game:state broadcast, so no extra
+      // state is needed here. This handler exists to prevent unhandled-event warnings.
+    });
     socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
@@ -449,6 +454,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:newRound');
       socket.off('game:roundResult');
       socket.off('game:over');
+      socket.off('game:seriesSetResult');
       socket.off('game:replay');
       socket.off('game:rematchStarting');
       socket.off('room:error');

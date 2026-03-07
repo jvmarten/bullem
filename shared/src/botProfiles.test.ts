@@ -4,13 +4,18 @@ import {
   BOT_PROFILE_MAP,
   BOT_PROFILE_KEYS,
   DEFAULT_BOT_PROFILE_CONFIG,
+  BOT_LEVELS,
+  BOT_PERSONALITIES,
+  BOT_MATRIX_SIZE,
+  LEGACY_PROFILE_KEY_MAP,
 } from './botProfiles.js';
-import type { BotProfileConfig, BotProfileDefinition } from './botProfiles.js';
+import type { BotProfileConfig } from './botProfiles.js';
 
 describe('botProfiles', () => {
   describe('BOT_PROFILES', () => {
-    it('has 8 profiles', () => {
-      expect(BOT_PROFILES.length).toBe(8);
+    it('has 81 profiles (9 personalities × 9 levels)', () => {
+      expect(BOT_PROFILES.length).toBe(BOT_MATRIX_SIZE);
+      expect(BOT_PROFILES.length).toBe(BOT_PERSONALITIES.length * BOT_LEVELS);
     });
 
     it('every profile has a unique key', () => {
@@ -90,9 +95,9 @@ describe('botProfiles', () => {
     });
 
     it('allows O(1) lookup by key', () => {
-      const rock = BOT_PROFILE_MAP.get('the_rock');
-      expect(rock).toBeDefined();
-      expect(rock!.name).toBe('The Rock');
+      const rock9 = BOT_PROFILE_MAP.get('rock_lvl9');
+      expect(rock9).toBeDefined();
+      expect(rock9!.name).toBe('Rock lvl9');
     });
 
     it('returns undefined for unknown keys', () => {
@@ -116,33 +121,60 @@ describe('botProfiles', () => {
     });
   });
 
-  describe('profile differentiation', () => {
-    it('The Rock bluffs much less than Maverick', () => {
-      const rock = BOT_PROFILE_MAP.get('the_rock')!;
-      const maverick = BOT_PROFILE_MAP.get('maverick')!;
-      expect(rock.config.bluffFrequency).toBeLessThan(maverick.config.bluffFrequency);
-      expect(rock.config.openingBluffRate).toBeLessThan(maverick.config.openingBluffRate);
+  describe('LEGACY_PROFILE_KEY_MAP', () => {
+    it('maps all 8 old profile keys to new lvl9 keys', () => {
+      expect(LEGACY_PROFILE_KEY_MAP.size).toBe(8);
+      for (const [_old, newKey] of LEGACY_PROFILE_KEY_MAP) {
+        expect(BOT_PROFILE_MAP.has(newKey)).toBe(true);
+      }
+    });
+  });
+
+  describe('level scaling', () => {
+    it('lvl9 profiles are more skilled than lvl1 profiles for same personality', () => {
+      const rock1 = BOT_PROFILE_MAP.get('rock_lvl1')!;
+      const rock9 = BOT_PROFILE_MAP.get('rock_lvl9')!;
+      // Level 9 should have tighter noise band (more precise)
+      expect(rock9.config.noiseBand).toBeLessThanOrEqual(rock1.config.noiseBand);
     });
 
-    it('Ice Queen is more conservative than Loose Cannon', () => {
-      const iceQueen = BOT_PROFILE_MAP.get('ice_queen')!;
-      const looseCannon = BOT_PROFILE_MAP.get('loose_cannon')!;
-      expect(iceQueen.config.riskTolerance).toBeLessThan(looseCannon.config.riskTolerance);
-      expect(iceQueen.config.aggressionBias).toBeLessThan(looseCannon.config.aggressionBias);
+    it('all 9 levels exist for each personality', () => {
+      for (const personality of BOT_PERSONALITIES) {
+        for (let lvl = 1; lvl <= BOT_LEVELS; lvl++) {
+          const key = `${personality.key}_lvl${lvl}`;
+          expect(BOT_PROFILE_MAP.has(key)).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe('profile differentiation (lvl9 comparisons)', () => {
+    it('Rock bluffs much less than Bluffer', () => {
+      const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
+      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
+      expect(rock.config.bluffFrequency).toBeLessThan(bluffer.config.bluffFrequency);
+      expect(rock.config.openingBluffRate).toBeLessThan(bluffer.config.openingBluffRate);
     });
 
-    it('The Grinder takes minimal risks', () => {
-      const grinder = BOT_PROFILE_MAP.get('the_grinder')!;
+    it('Frost is more conservative than Cannon', () => {
+      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      const cannon = BOT_PROFILE_MAP.get('cannon_lvl9')!;
+      expect(frost.config.riskTolerance).toBeLessThan(cannon.config.riskTolerance);
+      expect(frost.config.aggressionBias).toBeLessThan(cannon.config.aggressionBias);
+    });
+
+    it('Grinder takes minimal risks', () => {
+      const grinder = BOT_PROFILE_MAP.get('grinder_lvl9')!;
       expect(grinder.config.riskTolerance).toBeLessThanOrEqual(0.15);
     });
 
     it('Shark has high trust multiplier for opponent reads', () => {
-      const shark = BOT_PROFILE_MAP.get('shark')!;
+      const shark = BOT_PROFILE_MAP.get('shark_lvl9')!;
       expect(shark.config.trustMultiplier).toBeGreaterThan(1.0);
     });
 
     it('Wildcard has wide noise band for unpredictability', () => {
-      const wildcard = BOT_PROFILE_MAP.get('wildcard')!;
+      const wildcard = BOT_PROFILE_MAP.get('wildcard_lvl9')!;
       expect(wildcard.config.noiseBand).toBeGreaterThan(DEFAULT_BOT_PROFILE_CONFIG.noiseBand);
     });
   });

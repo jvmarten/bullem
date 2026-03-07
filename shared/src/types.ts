@@ -152,6 +152,8 @@ export interface ClientGameState {
   turnDeadline?: number | null;
   /** All active players' cards — only sent to eliminated players acting as spectators. */
   spectatorCards?: SpectatorPlayerCards[];
+  /** Series info for best-of matches. Null for single games. */
+  seriesInfo?: SeriesInfo | null;
 }
 
 export enum BotDifficulty {
@@ -170,6 +172,9 @@ export enum BotSpeed {
  *  - 'classic': enters BULL_PHASE — all responders get bull/true/raise (current behavior).
  *  - 'strict': enters CALLING — first responder can only bull/raise. True unlocks after a bull is called. */
 export type LastChanceMode = 'classic' | 'strict';
+
+/** Best-of series options for 1v1 games. */
+export type BestOf = 1 | 3 | 5;
 
 /** Configurable game settings, set by the host in the lobby. */
 export interface GameSettings {
@@ -191,6 +196,37 @@ export interface GameSettings {
   ranked?: boolean;
   /** Which ranked queue this game belongs to (set server-side based on player count). */
   rankedMode?: RankedMode;
+  /** Best-of series length for 1v1 games. Ranked 1v1 = always Bo3.
+   *  Unranked 1v1 (maxPlayers=2): host can choose Bo1/Bo3/Bo5. Default Bo1.
+   *  Multiplayer (3+): always single game (ignored). */
+  bestOf?: BestOf;
+}
+
+// ── Series (Best-of) types ────────────────────────────────────────────
+
+/** Tracks the state of a best-of series across multiple sets (individual games). */
+export interface SeriesState {
+  /** Best-of value: 1, 3, or 5. */
+  bestOf: BestOf;
+  /** Current set number (1-based). */
+  currentSet: number;
+  /** Wins per player. Keys are player IDs. */
+  wins: Record<PlayerId, number>;
+  /** Number of wins needed to clinch the series. */
+  winsNeeded: number;
+  /** Player ID of the series winner (null if series still in progress). */
+  seriesWinnerId: PlayerId | null;
+  /** The two player IDs in the series (for 1v1). */
+  playerIds: [PlayerId, PlayerId];
+}
+
+/** Summary sent to clients during a series match. */
+export interface SeriesInfo {
+  bestOf: BestOf;
+  currentSet: number;
+  wins: Record<PlayerId, number>;
+  winsNeeded: number;
+  seriesWinnerId: PlayerId | null;
 }
 
 export interface PlayerGameStats {
@@ -478,6 +514,9 @@ export function openSkillDisplayRating(mu: number): number {
 /** Time period filter for leaderboard queries. */
 export type LeaderboardPeriod = 'all_time' | 'month' | 'week';
 
+/** Player type filter for leaderboard queries. */
+export type LeaderboardPlayerFilter = 'all' | 'players' | 'bots';
+
 /** A single entry in the leaderboard response. */
 export interface LeaderboardEntry {
   rank: number;
@@ -488,6 +527,8 @@ export interface LeaderboardEntry {
   rating: number;
   gamesPlayed: number;
   tier: RankTier;
+  /** Whether this entry is a bot account. */
+  isBot?: boolean;
 }
 
 /** Response body for GET /api/leaderboard/:mode. */

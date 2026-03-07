@@ -3,6 +3,7 @@ import logger from '../logger.js';
 import type {
   RankedMode,
   LeaderboardPeriod,
+  LeaderboardPlayerFilter,
   LeaderboardEntry,
   LeaderboardResponse,
   LeaderboardNearbyResponse,
@@ -52,10 +53,26 @@ interface LeaderboardRow {
   rating: string;
   games_played: string;
   rank: string;
+  is_bot: boolean;
 }
 
 interface CountRow {
   total: string;
+}
+
+/**
+ * Build a WHERE clause fragment that filters by player type (all/players/bots).
+ */
+function playerTypeFilter(filter: LeaderboardPlayerFilter): string {
+  switch (filter) {
+    case 'players':
+      return 'AND u.is_bot = false';
+    case 'bots':
+      return 'AND u.is_bot = true';
+    case 'all':
+    default:
+      return '';
+  }
 }
 
 /**
@@ -94,8 +111,9 @@ export async function getLeaderboard(
   limit: number,
   offset: number,
   currentUserId?: string,
+  playerFilter: LeaderboardPlayerFilter = 'all',
 ): Promise<LeaderboardResponse | null> {
-  const cacheKey = `lb:${mode}:${period}:${limit}:${offset}`;
+  const cacheKey = `lb:${mode}:${period}:${limit}:${offset}:${playerFilter}`;
   const cached = getCached<LeaderboardResponse>(cacheKey);
   if (cached) {
     // If the cached response has no currentUser but we have a userId, we still
@@ -105,6 +123,7 @@ export async function getLeaderboard(
 
   const rating = ratingExpr(mode);
   const periodWhere = periodFilter(period);
+  const playerTypeWhere = playerTypeFilter(playerFilter);
 
   // Fetch ranked entries with ROW_NUMBER()
   const entriesResult = await query<LeaderboardRow>(
@@ -113,6 +132,7 @@ export async function getLeaderboard(
        u.username,
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
+       u.is_bot,
        ${rating} AS rating,
        r.games_played,
        ROW_NUMBER() OVER (ORDER BY ${rating} DESC, r.games_played DESC) AS rank
@@ -121,6 +141,7 @@ export async function getLeaderboard(
      WHERE r.mode = $1
        AND r.games_played >= ${MIN_GAMES}
        ${periodWhere}
+       ${playerTypeWhere}
      ORDER BY ${rating} DESC, r.games_played DESC
      LIMIT $2 OFFSET $3`,
     [mode, limit, offset],
@@ -132,9 +153,11 @@ export async function getLeaderboard(
   const countResult = await query<CountRow>(
     `SELECT COUNT(*) AS total
      FROM ratings r
+     JOIN users u ON u.id = r.user_id
      WHERE r.mode = $1
        AND r.games_played >= ${MIN_GAMES}
-       ${periodWhere}`,
+       ${periodWhere}
+       ${playerTypeWhere}`,
     [mode],
   );
 
@@ -151,6 +174,7 @@ export async function getLeaderboard(
       rating: ratingNum,
       gamesPlayed: parseInt(row.games_played, 10),
       tier: getRankTier(ratingNum),
+      isBot: row.is_bot,
     };
   });
 

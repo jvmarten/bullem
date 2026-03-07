@@ -4,7 +4,8 @@ import { PlayerList } from '../components/PlayerList.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF } from '@bull-em/shared';
+import type { BestOf } from '@bull-em/shared';
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -331,6 +332,40 @@ export function LobbyPage() {
               </div>
             </div>
 
+            {/* Best-of Series setting — only for 1v1 (maxPlayers = 2) unranked */}
+            {maxPlayersSetting === 2 && !settings.ranked && (
+              <div className="glass px-4 py-3">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                  Match Format
+                </p>
+                <div className="flex gap-1.5">
+                  {BEST_OF_OPTIONS.map(bo => (
+                    <button
+                      key={bo}
+                      onClick={() => { play('uiSoft'); updateSettings({
+                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
+                        allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
+                        bestOf: bo as BestOf,
+                      }); }}
+                      className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                        (settings.bestOf ?? DEFAULT_BEST_OF) === bo
+                          ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                          : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                      }`}
+                    >
+                      {bo === 1 ? 'Bo1' : `Bo${bo}`}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                  {(settings.bestOf ?? DEFAULT_BEST_OF) === 1
+                    ? 'Single game — winner takes all'
+                    : `Best of ${settings.bestOf ?? DEFAULT_BEST_OF} — first to ${Math.ceil((settings.bestOf ?? DEFAULT_BEST_OF) / 2)} wins`}
+                </p>
+              </div>
+            )}
+
             {/* Last Chance Rules setting */}
             <div className="glass px-4 py-3">
               <div className="flex items-center gap-1.5 mb-2">
@@ -453,6 +488,12 @@ export function LobbyPage() {
                 <p className="text-[var(--gold)] font-bold text-base">{(settings.lastChanceMode ?? 'classic') === 'classic' ? 'Yes' : 'No'}</p>
                 <p className="text-[var(--gold-dim)]">True in LCR</p>
               </div>
+              {maxPlayersSetting === 2 && (settings.bestOf ?? DEFAULT_BEST_OF) > 1 && (
+                <div>
+                  <p className="text-[var(--gold)] font-bold text-base">Bo{settings.bestOf ?? DEFAULT_BEST_OF}</p>
+                  <p className="text-[var(--gold-dim)]">Format</p>
+                </div>
+              )}
             </div>
           </div>
         )}

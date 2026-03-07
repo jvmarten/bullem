@@ -4,6 +4,7 @@ import {
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
+  SeriesState,
 } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
@@ -40,6 +41,8 @@ export class Room {
   gameStartedAt: Date | null = null;
   /** Tracks elimination order for finish position calculation. First eliminated = last place. */
   eliminationOrder: PlayerId[] = [];
+  /** Series state for best-of matches. Null for single games. */
+  seriesState: SeriesState | null = null;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -254,6 +257,7 @@ export class Room {
       playerUserIds: Object.fromEntries(this.playerUserIds),
       gameStartedAt: this.gameStartedAt?.toISOString() ?? null,
       eliminationOrder: [...this.eliminationOrder],
+      seriesState: this.seriesState ? { ...this.seriesState, wins: { ...this.seriesState.wins } } : null,
     };
   }
 
@@ -290,6 +294,7 @@ export class Room {
     }
     room.gameStartedAt = snapshot.gameStartedAt ? new Date(snapshot.gameStartedAt) : null;
     room.eliminationOrder = snapshot.eliminationOrder ? [...snapshot.eliminationOrder] : [];
+    room.seriesState = snapshot.seriesState ?? null;
 
     // Restore game engine if a game was in progress
     if (snapshot.gameSnapshot) {
