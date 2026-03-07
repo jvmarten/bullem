@@ -4,10 +4,12 @@ import { PlayerList } from '../components/PlayerList.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF } from '@bull-em/shared';
-import type { BestOf } from '@bull-em/shared';
-import { useEffect, useState, useRef } from 'react';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, BotDifficulty } from '@bull-em/shared';
+import type { BestOf, BotLevelCategory } from '@bull-em/shared';
+import type { Player } from '@bull-em/shared';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useToast } from '../context/ToastContext.js';
+import { BotProfileModal } from '../components/BotProfileModal.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
@@ -24,7 +26,15 @@ export function LobbyPage() {
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
+  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const joinAttemptedRef = useRef(false);
+  const handlePlayerClick = useCallback((player: Player) => {
+    if (player.isBot) {
+      setSelectedBotName(player.name);
+    } else if (player.id === playerId) {
+      navigate('/profile');
+    }
+  }, [playerId, navigate]);
 
   // Navigate to game when it starts
   useEffect(() => {
@@ -219,6 +229,7 @@ export function LobbyPage() {
           onRemoveBot={removeBot}
           showKickPlayer={isHost}
           onKickPlayer={(targetId) => kickPlayer(targetId).catch(e => addToast(e instanceof Error ? e.message : 'Failed to kick player'))}
+          onPlayerClick={handlePlayerClick}
         />
 
         {isHost && (
@@ -330,6 +341,57 @@ export function LobbyPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Bot Level Category setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Bot Level
+              </p>
+              <div className="flex gap-1.5">
+                {(['easy', 'normal', 'hard', 'mixed'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      play('uiSoft');
+                      updateSettings({
+                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
+                        allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
+                        botLevelCategory: cat,
+                      });
+                      // Replace existing bots with bots from the new category
+                      const bots = roomState.players.filter(p => p.isBot);
+                      const usedNames = new Set(roomState.players.filter(p => !p.isBot).map(p => p.name));
+                      for (const bot of bots) {
+                        removeBot(bot.id);
+                      }
+                      for (let i = 0; i < bots.length; i++) {
+                        const picked = pickRandomBot(cat, usedNames);
+                        if (picked) {
+                          usedNames.add(picked.name);
+                          addBot(picked.name).catch(() => {});
+                        } else {
+                          addBot().catch(() => {});
+                        }
+                      }
+                    }}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                      (settings.botLevelCategory ?? 'normal') === cat
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {(settings.botLevelCategory ?? 'normal') === 'easy' ? 'Levels 1-3 — beginner bots' :
+                 (settings.botLevelCategory ?? 'normal') === 'normal' ? 'Levels 4-6 — standard difficulty' :
+                 (settings.botLevelCategory ?? 'normal') === 'hard' ? 'Levels 7-9 — expert bots' :
+                 'Levels 1-9 — all skill levels'}
+              </p>
             </div>
 
             {/* Best-of Series setting — only for 1v1 (maxPlayers = 2) unranked */}
@@ -575,6 +637,9 @@ export function LobbyPage() {
         </div>
         </div>{/* end lobby-right */}
       </div>
+      {selectedBotName && (
+        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      )}
     </Layout>
   );
 }

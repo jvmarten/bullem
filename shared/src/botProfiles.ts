@@ -434,6 +434,35 @@ function generateBotMatrix(): BotProfileDefinition[] {
   return profiles;
 }
 
+// ── Impossible bot (level 10) ────────────────────────────────────────────
+
+/** The impossible bot — sees all cards, perfect play. Unlocked via settings toggle. */
+export const IMPOSSIBLE_BOT: BotProfileDefinition = {
+  key: 'oracle_lvl10',
+  name: 'The Oracle',
+  personality: 'Sees all cards. Perfect play. Cannot be beaten by strategy alone.',
+  avatar: '\u{1F441}\u{FE0F}',
+  config: {
+    bluffFrequency: 1.0,
+    bullThreshold: 0.5,
+    riskTolerance: 0.5,
+    aggressionBias: 0.5,
+    lastChanceBluffRate: 0.4,
+    openingBluffRate: 0.08,
+    bullPhaseRaiseRate: 0.15,
+    trustMultiplier: 1.0,
+    bluffPlausibilityGate: 0.3,
+    noiseBand: 0.0,
+  },
+  flavorText: {
+    callBull: ['I see everything.', 'Your cards betray you.', 'I know what you hold.'],
+    caughtBluffing: ['Impossible...', 'A calculated sacrifice.'],
+    winRound: ['As foreseen.', 'Inevitable.', 'The all-seeing eye never blinks.'],
+    bigRaise: ['I see the truth.', 'Destiny unfolds.'],
+    eliminated: ['Even oracles fall.', 'The vision... fades.'],
+  },
+};
+
 // ── Profile definitions ─────────────────────────────────────────────────
 
 /** All 81 bot profiles (9 personalities × 9 levels). */
@@ -444,11 +473,11 @@ export const BOT_PERSONALITIES: readonly PersonalityBase[] = PERSONALITY_BASES;
 
 /** Map from profile key to profile definition for O(1) lookup. */
 export const BOT_PROFILE_MAP: ReadonlyMap<string, BotProfileDefinition> = new Map(
-  BOT_PROFILES.map(p => [p.key, p]),
+  [...BOT_PROFILES.map(p => [p.key, p] as const), [IMPOSSIBLE_BOT.key, IMPOSSIBLE_BOT]],
 );
 
 /** All valid profile keys. */
-export const BOT_PROFILE_KEYS: readonly string[] = BOT_PROFILES.map(p => p.key);
+export const BOT_PROFILE_KEYS: readonly string[] = [...BOT_PROFILES.map(p => p.key), IMPOSSIBLE_BOT.key];
 
 // ── Legacy compatibility ────────────────────────────────────────────────
 
@@ -469,12 +498,13 @@ export const LEGACY_PROFILE_KEY_MAP: ReadonlyMap<string, string> = new Map([
 
 /**
  * Map from bot display name → avatar emoji for rendering in the player list.
- * Includes both personality-based bots (from BOT_PROFILES) and generic bots (from BOT_NAMES).
  * These avatars are NOT available to human users — they don't appear in AVATAR_OPTIONS.
  */
 export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
   // All 81 personality bots
   ...BOT_PROFILES.map(p => [p.name, p.avatar] as const),
+  // Impossible bot
+  [IMPOSSIBLE_BOT.name, IMPOSSIBLE_BOT.avatar],
   // Legacy names (old 8 bots)
   ['The Rock', '\u{1FAA8}'],
   ['Maverick', '\u{1F920}'],
@@ -484,13 +514,41 @@ export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
   ['Shark', '\u{1F988}'],
   ['Loose Cannon', '\u{1F4A3}'],
   ['Ice Queen', '\u{2744}\u{FE0F}'],
-  // Generic bots (from BOT_NAMES in constants.ts)
-  ['Bot Brady', '\u{1F916}'],      // 🤖
-  ['RoboBluff', '\u{1F3AD}'],      // 🎭
-  ['CPU Carl', '\u{1F4BB}'],       // 💻
-  ['Digital Dave', '\u{1F4DF}'],    // 📟
-  ['Silicon Sam', '\u{1F50C}'],     // 🔌
-  ['Byte Betty', '\u{1F9EE}'],     // 🧮
-  ['Chip Charlie', '\u{1F3B0}'],   // 🎰
-  ['Data Diana', '\u{1F4CA}'],     // 📊
+  // Generic bots (legacy, from BOT_NAMES in constants.ts)
+  ['Bot Brady', '\u{1F916}'],
+  ['RoboBluff', '\u{1F3AD}'],
+  ['CPU Carl', '\u{1F4BB}'],
+  ['Digital Dave', '\u{1F4DF}'],
+  ['Silicon Sam', '\u{1F50C}'],
+  ['Byte Betty', '\u{1F9EE}'],
+  ['Chip Charlie', '\u{1F3B0}'],
+  ['Data Diana', '\u{1F4CA}'],
 ]);
+
+// ── Level category helpers ──────────────────────────────────────────────
+
+import type { BotLevelCategory } from './types.js';
+
+/** Level ranges for each bot level category. */
+const LEVEL_RANGES: Record<BotLevelCategory, { min: number; max: number }> = {
+  easy:   { min: 1, max: 3 },
+  normal: { min: 4, max: 6 },
+  hard:   { min: 7, max: 9 },
+  mixed:  { min: 1, max: 9 },
+};
+
+/** Get bot profiles filtered by level category. */
+export function getBotsForCategory(category: BotLevelCategory): BotProfileDefinition[] {
+  const range = LEVEL_RANGES[category];
+  return BOT_PROFILES.filter(p => {
+    const level = parseInt(p.key.split('_lvl')[1]!, 10);
+    return level >= range.min && level <= range.max;
+  });
+}
+
+/** Pick a random bot from the given category, excluding names already in use. */
+export function pickRandomBot(category: BotLevelCategory, usedNames: Set<string>): BotProfileDefinition | null {
+  const candidates = getBotsForCategory(category).filter(p => !usedNames.has(p.name));
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)]!;
+}

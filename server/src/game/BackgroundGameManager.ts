@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, BotSpeed, BOT_NAMES } from '@bull-em/shared';
+import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
@@ -94,7 +94,7 @@ export class BackgroundGameManager {
 
     // Add bots
     for (let i = 0; i < BACKGROUND_BOT_COUNT; i++) {
-      const name = BOT_NAMES[i] ?? `Bot ${i + 1}`;
+      const name = BOT_PROFILES[i]?.name ?? `Bot ${i + 1}`;
       const botId = `bg-bot-${i}`;
       room.addBot(botId, name);
     }

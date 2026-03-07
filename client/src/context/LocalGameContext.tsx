@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay } from '@bull-em/shared';
 import {
-  GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_NAMES, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
+  GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
-  saveReplay,
+  saveReplay, pickRandomBot,
 } from '@bull-em/shared';
+import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
 import { socket } from '../socket.js';
@@ -604,7 +605,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       throw new Error(`Too many players for ${settings.maxCards}-card game. Reduce max cards or remove a player.`);
     }
     const usedNames = new Set(playersRef.current.map(p => p.name));
-    const name = botName || BOT_NAMES.find(n => !usedNames.has(n)) || `Bot ${botCounter.current + 1}`;
+    const category: BotLevelCategory = gameSettingsRef.current.botLevelCategory ?? 'normal';
+    const pickedBot = pickRandomBot(category, usedNames);
+    const name = botName || pickedBot?.name || `Bot ${botCounter.current + 1}`;
     const botId = `bot-${++botCounter.current}`;
 
     const botPlayer: ServerPlayer = {

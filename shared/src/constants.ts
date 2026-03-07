@@ -70,6 +70,7 @@ export const BOT_SPEED_MULTIPLIERS: Record<BotSpeed, number> = {
   normal: 1.0,
   fast: 0.4,
 };
+/** @deprecated Use BOT_PROFILES from botProfiles.ts instead. Kept for migration compatibility. */
 export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
   'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',

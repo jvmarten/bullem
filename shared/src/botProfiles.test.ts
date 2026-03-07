@@ -90,8 +90,9 @@ describe('botProfiles', () => {
   });
 
   describe('BOT_PROFILE_MAP', () => {
-    it('contains all profiles', () => {
-      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length);
+    it('contains all profiles plus impossible bot', () => {
+      // 81 personality bots + 1 impossible bot = 82
+      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length + 1);
     });
 
     it('allows O(1) lookup by key', () => {
@@ -107,7 +108,7 @@ describe('botProfiles', () => {
 
   describe('BOT_PROFILE_KEYS', () => {
     it('has the right keys', () => {
-      expect(BOT_PROFILE_KEYS).toEqual(BOT_PROFILES.map(p => p.key));
+      expect(BOT_PROFILE_KEYS).toEqual([...BOT_PROFILES.map(p => p.key), 'oracle_lvl10']);
     });
   });
 
