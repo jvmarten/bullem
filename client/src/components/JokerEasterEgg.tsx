@@ -11,44 +11,46 @@ interface SubtitleEntry {
   time: number;
   speaker: string;
   text: string;
+  textEn: string;
 }
 
-const SUBTITLE_RAW: { time: number; speaker?: string; text: string }[] = [
-  { time: 2.0,  speaker: 'A', text: 'Nonnih, Stubbin on talossa, Stubbin on talossa' },
-  { time: 6.0,  text: 'Mika Aaltola hieno puku' },
-  { time: 8.0,  text: 'Haluaako joku nähdä TikTokin, jossa matkustan junalla?' },
-  { time: 12.0, text: 'Oliko kertonut teille, että poikani on armeijassa, jokaisessa haastattelussa?' },
-  { time: 17.0, text: 'Okei' },
-  { time: 21.0, text: 'Sari, kato tätä' },
-  { time: 26.0, text: 'Jutta, don\'t quit your day job' },
-  { time: 28.0, text: 'hei Halla-aho, oletko nähnyt pelottavia muslimeja viime aikoina?' },
-  { time: 32.0, speaker: 'B', text: 'Joo' },
-  { time: 32.5, speaker: 'A', text: 'Hieno poika' },
-  { time: 35.0, text: 'Olli Rehn' },
-  { time: 37.0, text: 'en tiedä mitä sanoisin sinulle' },
-  { time: 40.0, speaker: 'B', text: 'Alexander' },
-  { time: 41.0, speaker: 'A', text: 'Pekka?' },
-  { time: 46.0, text: 'Mene pois Pekka, mulla on Li Andersson' },
-  { time: 49.0, speaker: 'B', text: 'En välitä, en ole vasemmistolainen' },
-  { time: 53.0, speaker: 'A', text: 'Älä viitsi, Pekka' },
-  { time: 54.0, text: 'se on ongelma, sinä välität, minä en' },
-  { time: 62.0, speaker: 'B', text: 'Li' },
-  { time: 63.0, text: 'kiitos taktisista äänistä' },
+const SUBTITLE_RAW: { time: number; speaker?: string; text: string; textEn: string }[] = [
+  { time: 2.0,  speaker: 'Joker', text: 'Nonnih, Stubbin on talossa, Stubbin on talossa', textEn: 'Well then, Stubbin\'s in the house, Stubbin\'s in the house' },
+  { time: 6.0,  text: 'Mika Aaltola hieno puku', textEn: 'Mika Aaltola, nice suit' },
+  { time: 8.0,  text: 'Haluaako joku nähdä TikTokin, jossa matkustan junalla?', textEn: 'Does anyone want to see a TikTok where I travel by train?' },
+  { time: 12.0, text: 'Olenko kertonut teille, että poikani on armeijassa, jokaisessa haastattelussa?', textEn: 'Have I told you that my son is in the army, in every interview?' },
+  { time: 17.0, text: 'Okei', textEn: 'Okay' },
+  { time: 21.0, text: 'Sari, kato tätä', textEn: 'Sari, look at this' },
+  { time: 26.0, text: 'Jutta, don\'t quit your day job', textEn: 'Jutta, don\'t quit your day job' },
+  { time: 28.0, text: 'hei Halla-Aho, oletko nähnyt pelottavia muslimeja viime aikoina?', textEn: 'Hey Halla-Aho, have you seen any scary Muslims lately?' },
+  { time: 32.0, speaker: 'Halla-Aho', text: 'Joo', textEn: 'Yeah' },
+  { time: 32.5, speaker: 'Joker', text: 'Hieno poika', textEn: 'Good boy' },
+  { time: 35.0, text: 'Olli Rehn', textEn: 'Olli Rehn' },
+  { time: 37.0, text: 'en tiedä mitä sanoisin sinulle', textEn: 'I don\'t know what I would say to you' },
+  { time: 40.0, speaker: 'Batman', text: 'Alexander', textEn: 'Alexander' },
+  { time: 41.0, speaker: 'Joker', text: 'Pekka?', textEn: 'Pekka?' },
+  { time: 46.0, text: 'Mene pois Pekka, mulla on Li Andersson', textEn: 'Go away, Pekka, I\'ve got Li Andersson' },
+  { time: 49.0, speaker: 'Batman', text: 'En välitä, en ole vasemmistolainen', textEn: 'I don\'t care, I\'m not a leftist' },
+  { time: 53.0, speaker: 'Joker', text: 'Älä viitsi, Pekka', textEn: 'Oh, come on, Pekka' },
+  { time: 54.0, text: 'se on ongelma, sinä välität, minä en', textEn: 'that\'s the problem, you care, I don\'t' },
+  { time: 62.0, speaker: 'Batman', text: 'Li', textEn: 'Li' },
+  { time: 63.0, text: 'kiitos taktisista äänistä', textEn: 'thanks for the tactical votes' },
 ];
 
 // Resolve inherited speakers and build the final subtitle list
 const SUBTITLES: SubtitleEntry[] = (() => {
-  let lastSpeaker = 'A';
+  let lastSpeaker = 'Joker';
   return SUBTITLE_RAW.map((entry) => {
     const speaker = entry.speaker ?? lastSpeaker;
     lastSpeaker = speaker;
-    return { time: entry.time, speaker, text: entry.text };
+    return { time: entry.time, speaker, text: entry.text, textEn: entry.textEn };
   });
 })();
 
 const SPEAKER_COLORS: Record<string, string> = {
-  A: '#ffffff',
-  B: '#e8c56e',
+  'Joker': '#ffffff',
+  'Halla-Aho': '#e8c56e',
+  'Batman': '#e8c56e',
 };
 
 function getSpeakerColor(speaker: string): string {
@@ -415,13 +417,13 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
         </div>
       </div>
 
-      {/* Synced subtitles — fixed at bottom center */}
+      {/* Synced subtitles — fixed at bottom center, Finnish + English */}
       {phase === 'flying' && (
         <div
-          className="fixed bottom-8 left-0 right-0 z-[10000] flex justify-center pointer-events-none"
+          className="fixed bottom-8 left-0 right-0 z-[10000] flex flex-col items-center gap-1 pointer-events-none"
         >
           <div
-            key={currentSubtitle?.time ?? 'empty'}
+            key={`fi-${currentSubtitle?.time ?? 'empty'}`}
             className="joker-subtitle"
             style={{
               color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
@@ -429,6 +431,17 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
             }}
           >
             {currentSubtitle?.text ?? ''}
+          </div>
+          <div
+            key={`en-${currentSubtitle?.time ?? 'empty'}`}
+            className="joker-subtitle"
+            style={{
+              color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
+              opacity: currentSubtitle ? 0.7 : 0,
+              fontSize: '14px',
+            }}
+          >
+            {currentSubtitle?.textEn ?? ''}
           </div>
         </div>
       )}
