@@ -83,8 +83,8 @@ describe('BotPlayer with profile configs', () => {
 
   describe('The Rock bluffs less than Maverick', () => {
     it('Maverick raises more aggressively in calling phase with no legitimate hand', () => {
-      const rockConfig = BOT_PROFILE_MAP.get('the_rock')!.config;
-      const maverickConfig = BOT_PROFILE_MAP.get('maverick')!.config;
+      const rockConfig = BOT_PROFILE_MAP.get('rock_lvl9')!.config;
+      const maverickConfig = BOT_PROFILE_MAP.get('bluffer_lvl9')!.config;
 
       // Calling phase with an existing hand that the bot can't legitimately beat.
       // The bot must choose between bluff-raising and calling bull.
@@ -133,8 +133,8 @@ describe('BotPlayer with profile configs', () => {
 
   describe('Ice Queen vs Loose Cannon raising behavior', () => {
     it('Loose Cannon raises more in bull phase when hand is suspicious', () => {
-      const iceQueenConfig = BOT_PROFILE_MAP.get('ice_queen')!.config;
-      const looseCannonConfig = BOT_PROFILE_MAP.get('loose_cannon')!.config;
+      const iceQueenConfig = BOT_PROFILE_MAP.get('frost_lvl9')!.config;
+      const looseCannonConfig = BOT_PROFILE_MAP.get('cannon_lvl9')!.config;
 
       // Bull phase with a moderately suspicious hand — adjustedP should be < 0.5
       // to trigger the raise consideration code path. Use a high hand type that's
@@ -193,14 +193,14 @@ describe('BotPlayer with profile configs', () => {
     ];
 
     for (const profile of [
-      BOT_PROFILE_MAP.get('the_rock')!,
-      BOT_PROFILE_MAP.get('maverick')!,
-      BOT_PROFILE_MAP.get('the_grinder')!,
-      BOT_PROFILE_MAP.get('wildcard')!,
-      BOT_PROFILE_MAP.get('the_professor')!,
-      BOT_PROFILE_MAP.get('shark')!,
-      BOT_PROFILE_MAP.get('loose_cannon')!,
-      BOT_PROFILE_MAP.get('ice_queen')!,
+      BOT_PROFILE_MAP.get('rock_lvl9')!,
+      BOT_PROFILE_MAP.get('bluffer_lvl9')!,
+      BOT_PROFILE_MAP.get('grinder_lvl9')!,
+      BOT_PROFILE_MAP.get('wildcard_lvl9')!,
+      BOT_PROFILE_MAP.get('professor_lvl9')!,
+      BOT_PROFILE_MAP.get('shark_lvl9')!,
+      BOT_PROFILE_MAP.get('cannon_lvl9')!,
+      BOT_PROFILE_MAP.get('frost_lvl9')!,
     ]) {
       for (const { phase, hand, lastCallerId } of phases) {
         it(`${profile.name} produces valid action in ${phase}`, () => {

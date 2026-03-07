@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { RankBadge } from '../components/RankBadge.js';
+import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import type { RatingChange } from '@bull-em/shared';
 
 function RatingChangeDisplay({ change }: { change: RatingChange }) {
@@ -41,7 +42,33 @@ function RatingChangeDisplay({ change }: { change: RatingChange }) {
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame } = useGameContext();
+  const [watchingAnother, setWatchingAnother] = useState(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  const handleWatchAnother = useCallback(async () => {
+    setWatchingAnother(true);
+    const tryWatch = async (): Promise<void> => {
+      try {
+        const code = await watchRandomGame();
+        leaveRoom();
+        navigate(`/game/${code}`);
+      } catch {
+        // No match available — retry after a short delay
+        retryTimerRef.current = setTimeout(() => {
+          void tryWatch();
+        }, 3000);
+      }
+    };
+    await tryWatch();
+  }, [watchRandomGame, leaveRoom, navigate]);
 
   // When winnerId is cleared (rematch started), navigate back to the game page
   useEffect(() => {
@@ -50,7 +77,9 @@ export function ResultsPage() {
     }
   }, [winnerId, roomCode, gameState, navigate]);
 
-  const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
+  const winnerIndex = gameState?.players.findIndex((p) => p.id === winnerId) ?? -1;
+  const winnerPlayer = winnerIndex >= 0 ? gameState!.players[winnerIndex]! : null;
+  const winnerName = winnerPlayer?.name ?? 'Unknown';
   const isPlayerInGame = gameState?.players.some(p => p.id === playerId) ?? false;
   const isWinner = isPlayerInGame && winnerId === playerId;
   const isSpectator = !isPlayerInGame;
@@ -62,8 +91,11 @@ export function ResultsPage() {
     <Layout>
       <div className="results-content flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
         <div className="results-left">
-        <div className="text-5xl animate-float">
-          {isWinner ? '\uD83C\uDFC6' : '\uD83D\uDE14'}
+        <div className="animate-float">
+          <div className={`avatar ${playerColor(winnerIndex >= 0 ? winnerIndex : 0)} flex items-center justify-center`}
+               style={{ width: '4rem', height: '4rem', fontSize: '1.75rem' }}>
+            {winnerPlayer?.isBot ? '\u2699' : playerInitial(winnerName)}
+          </div>
         </div>
 
         <div>
@@ -103,6 +135,21 @@ export function ResultsPage() {
             <p className="text-[var(--gold-dim)] text-sm">
               Waiting for host to start rematch...
             </p>
+          )}
+          {isSpectator && (
+            watchingAnother ? (
+              <div className="flex items-center justify-center gap-2 py-3">
+                <div className="w-4 h-4 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-[var(--gold-dim)]">Waiting for matches to start...</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleWatchAnother}
+                className="btn-gold px-10 py-3 text-lg"
+              >
+                Watch Another Match
+              </button>
+            )
           )}
           {lastReplay && (
             <button

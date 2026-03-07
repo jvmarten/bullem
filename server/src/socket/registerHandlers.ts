@@ -10,6 +10,7 @@ import { registerPushHandlers } from './pushHandlers.js';
 import { registerMatchmakingHandlers } from './matchmakingHandlers.js';
 import type { PushManager } from '../push/PushManager.js';
 import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
+import type { InMemoryMatchmakingQueue } from '../dev/InMemoryMatchmakingQueue.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
 import { persistCompletedGame } from './persistGame.js';
@@ -107,7 +108,7 @@ function attachCorrelationMiddleware(
   });
 }
 
-export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager, matchmakingQueue?: MatchmakingQueue): void {
+export function registerHandlers(io: TypedServer, roomManager: RoomManager, botManager: BotManager, rateLimiter: RateLimiter, pushManager: PushManager, matchmakingQueue?: MatchmakingQueue | InMemoryMatchmakingQueue): void {
   io.on('connection', (socket) => {
     const socketLog = createChildLogger({ playerId: socket.id });
     socketLog.info('Socket connected');

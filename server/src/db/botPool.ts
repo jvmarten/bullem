@@ -1,5 +1,5 @@
 import { query } from './index.js';
-import { BOT_PROFILE_MAP } from '@bull-em/shared';
+import { BOT_PROFILE_MAP, IMPOSSIBLE_BOT } from '@bull-em/shared';
 import type { BotProfileConfig, BotProfileDefinition } from '@bull-em/shared';
 import logger from '../logger.js';
 
@@ -62,6 +62,9 @@ export async function getRankedBotPool(
 
   const entries: RankedBotEntry[] = [];
   for (const user of usersResult.rows) {
+    // Exclude lvl10 (The Oracle) from ranked play — too strong for matchmaking
+    if (user.bot_profile === IMPOSSIBLE_BOT.key) continue;
+
     const profile = BOT_PROFILE_MAP.get(user.bot_profile);
     if (!profile) {
       logger.warn({ botProfile: user.bot_profile, userId: user.id }, 'Bot profile not found in BOT_PROFILE_MAP');

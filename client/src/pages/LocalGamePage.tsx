@@ -11,6 +11,8 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
+import { BotProfileModal } from '../components/BotProfileModal.js';
+
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -18,7 +20,7 @@ import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { HandCall, Card } from '@bull-em/shared';
+import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -35,6 +37,34 @@ export function LocalGamePage() {
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
   const { quickDrawEnabled } = useUISettings();
+  const { addToast } = useToast();
+
+  // All useState hooks — must be called unconditionally (before any early return)
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
+  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+
+  // All useRef hooks — unconditional
+  const wasEliminatedRef = useRef(false);
+  const lastResultRef = useRef(roundResult);
+
+  // Derived state — safe to compute with null gameState
+  const myPlayer = gameState?.players.find(p => p.id === playerId) ?? null;
+  const isEliminated = myPlayer?.isEliminated ?? false;
+  const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated : false;
+  const isAtMaxCards = !isEliminated && myPlayer && gameState
+    ? myPlayer.cardCount >= gameState.maxCards
+    : false;
+  const isLastChanceCaller = gameState
+    ? gameState.roundPhase === RoundPhase.LAST_CHANCE && gameState.lastCallerId === playerId
+    : false;
+  const canCallHand = isMyTurn && gameState !== null && (
+    gameState.roundPhase === RoundPhase.CALLING
+    || gameState.roundPhase === RoundPhase.BULL_PHASE
+  );
+  const canRaise = canCallHand || isLastChanceCaller;
 
   // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
@@ -44,13 +74,6 @@ export function LocalGamePage() {
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
 
-  const handleLeave = () => {
-    if (window.confirm('Leave this game?')) {
-      leaveRoom();
-      navigate('/');
-    }
-  };
-
   // If gameState is null, there's no active local game — redirect to the lobby.
   // Game state is restored synchronously in LocalGameProvider, so after a
   // browser refresh gameState is already set on the first render.
@@ -58,15 +81,7 @@ export function LocalGamePage() {
     if (!gameState) navigate('/local');
   }, [gameState, navigate]);
 
-  if (!gameState) return null;
-
-  const myPlayer = gameState.players.find(p => p.id === playerId);
-  const isEliminated = myPlayer?.isEliminated ?? false;
-  const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
-
   // Show a one-time prominent notification when the player gets eliminated
-  const { addToast } = useToast();
-  const wasEliminatedRef = useRef(isEliminated);
   useEffect(() => {
     if (isEliminated && !wasEliminatedRef.current) {
       addToast("You've been eliminated! You're now spectating.", 'info');
@@ -76,9 +91,8 @@ export function LocalGamePage() {
 
   // Show a toast for every player eliminated this round (including other players).
   // Fires when roundResult arrives so the notification coincides with the reveal overlay.
-  const lastResultRef = useRef(roundResult);
   useEffect(() => {
-    if (roundResult && roundResult !== lastResultRef.current) {
+    if (roundResult && roundResult !== lastResultRef.current && gameState) {
       for (const eliminatedId of roundResult.eliminatedPlayerIds) {
         if (eliminatedId === playerId) continue; // already handled above
         const name = gameState.players.find(p => p.id === eliminatedId)?.name ?? 'A player';
@@ -86,40 +100,33 @@ export function LocalGamePage() {
       }
     }
     lastResultRef.current = roundResult;
-  }, [roundResult, playerId, gameState.players, addToast]);
+  }, [roundResult, playerId, gameState, addToast]);
 
   const cardStats = useMemo(() => {
+    if (!gameState) return { total: 0, pct: 0 };
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
     return { total, pct: Math.round((total / 52) * 100) };
-  }, [gameState.players]);
+  }, [gameState]);
 
   const cardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
+    if (!gameState) return counts;
     for (const p of gameState.players) counts[p.id] = p.cardCount;
     return counts;
-  }, [gameState.players]);
-  const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
-    && gameState.lastCallerId === playerId;
+  }, [gameState]);
 
-  const canCallHand = isMyTurn && (
-    gameState.roundPhase === RoundPhase.CALLING
-    || gameState.roundPhase === RoundPhase.BULL_PHASE
-  );
-
-  const canRaise = canCallHand || isLastChanceCaller;
-  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
-  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
-  const [pendingValid, setPendingValid] = useState(false);
-  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const handlePlayerClick = useCallback((player: Player) => {
+    if (player.isBot) setSelectedBotName(player.name);
+  }, []);
 
   const quickDrawSuggestions = useMemo(() => {
-    if (!quickDrawOpen || !canRaise) return [];
+    if (!quickDrawOpen || !canRaise || !gameState) return [];
     return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
-  }, [quickDrawOpen, canRaise, gameState.myCards, gameState.currentHand]);
+  }, [quickDrawOpen, canRaise, gameState]);
 
   // Tapping own cards: toggle Quick Draw chips
   const handleCardTap = useCallback((_card: Card) => {
-    if (!quickDrawEnabled || !canRaise) return;
+    if (!quickDrawEnabled || !canRaise || !gameState) return;
     play('uiClick');
     const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
     if (suggestions.length === 0) {
@@ -127,7 +134,7 @@ export function LocalGamePage() {
     } else {
       setQuickDrawOpen(prev => !prev);
     }
-  }, [quickDrawEnabled, canRaise, play, gameState.myCards, gameState.currentHand]);
+  }, [quickDrawEnabled, canRaise, play, gameState]);
 
   const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
     play('callMade');
@@ -156,7 +163,7 @@ export function LocalGamePage() {
 
   // Quick raise — immediately submit the minimum valid raise
   const handleQuickRaise = useCallback(() => {
-    const current = gameState.currentHand;
+    const current = gameState?.currentHand;
     if (!current) return;
     const minRaise = getMinimumRaise(current);
     if (!minRaise) return;
@@ -166,11 +173,12 @@ export function LocalGamePage() {
       callHand(minRaise);
     }
     setHandSelectorOpen(false);
-  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
+  }, [gameState?.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
 
-  // Stable callback reference so ActionButtons' React.memo isn't broken by
-  // an inline arrow function creating a new reference on every render.
+  // Stable callback references so ActionButtons' React.memo isn't broken by
+  // inline arrow functions creating new references on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
+  const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
 
   // Close hand selector on tap outside — same pattern as ActionButtons
   useEffect(() => {
@@ -194,7 +202,7 @@ export function LocalGamePage() {
     if (!quickDrawOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="action-area"]')) return;
       setQuickDrawOpen(false);
     };
     document.addEventListener('mousedown', handleOutside);
@@ -209,12 +217,12 @@ export function LocalGamePage() {
   useEffect(() => {
     setHandSelectorOpen(false);
     setQuickDrawOpen(false);
-  }, [isMyTurn, gameState.roundPhase]);
+  }, [isMyTurn, gameState?.roundPhase]);
 
   // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
-  const showBull = isMyTurn && gameState.currentHand !== null
+  const showBull = isMyTurn && gameState !== null && gameState.currentHand !== null
     && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
-  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showTrue = isMyTurn && gameState !== null && gameState.roundPhase === RoundPhase.BULL_PHASE;
   const showPass = isMyTurn && isLastChanceCaller;
   const overlayActive = !!roundResult || !!roundTransition;
 
@@ -231,6 +239,16 @@ export function LocalGamePage() {
         : null,
     overlayActive,
   });
+
+  // --- Early return AFTER all hooks ---
+  if (!gameState) return null;
+
+  const handleLeave = () => {
+    if (window.confirm('Leave this game?')) {
+      leaveRoom();
+      navigate('/');
+    }
+  };
 
   /* Landscape/desktop: merge game info into the Layout header bar */
   const pauseButton = togglePause ? (
@@ -280,7 +298,7 @@ export function LocalGamePage() {
 
   return (
     <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
-      <div className={`game-layout ${isEliminated ? 'spectating' : ''}`}>
+      <div className={`game-layout ${isEliminated && !winnerId ? 'spectating' : ''}`}>
         {/* Top bar — portrait only (merged into header in landscape) */}
         <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
@@ -304,8 +322,9 @@ export function LocalGamePage() {
           </div>
         </div>
 
-        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter */}
-        {isEliminated && (
+        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter.
+            Hidden when winnerId is set because the match is over (no active game to spectate). */}
+        {isEliminated && !winnerId && (
           <div className="text-center glass p-2 animate-fade-in spectator-banner">
             <p className="text-xs font-semibold uppercase tracking-widest">
               <span className="text-[var(--gold-dim)]">Eliminated — </span><span className="text-[var(--gold)]">Spectating</span>
@@ -325,6 +344,7 @@ export function LocalGamePage() {
                 roundNumber={gameState.roundNumber}
                 turnHistory={gameState.turnHistory}
                 collapsible
+                onPlayerClick={handlePlayerClick}
               />
             </div>
             {/* Call history in sidebar — landscape only */}
@@ -373,7 +393,7 @@ export function LocalGamePage() {
             {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
 
             {/* Quick Draw suggestion chips */}
-            {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
+            {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}
@@ -403,7 +423,7 @@ export function LocalGamePage() {
                   onBull={callBull}
                   onTrue={callTrue}
                   onLastChancePass={lastChancePass}
-                  onExpand={closeHandSelector}
+                  onExpand={handleActionExpand}
                 />
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
@@ -457,6 +477,11 @@ export function LocalGamePage() {
         {/* First-game contextual tooltips */}
         <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
 
+        {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}
+        {isAtMaxCards && (
+          <div className="max-cards-warning-glow" aria-hidden="true" />
+        )}
+
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (
           <div className="fixed inset-0 flex items-center justify-center z-50"
@@ -497,6 +522,9 @@ export function LocalGamePage() {
           </div>
         )}
       </div>
+      {selectedBotName && (
+        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      )}
     </Layout>
   );
 }

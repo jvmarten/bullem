@@ -1,9 +1,12 @@
 /**
- * Bot profiles with distinct playstyles for ranked matchmaking.
+ * Bot profile system: 9 personalities × 9 levels = 81 distinct bots.
  *
- * Each profile tunes the existing BotPlayer decision logic via a config object.
- * When no config is provided, BotPlayer falls back to its current hardcoded
- * thresholds — zero regression.
+ * Each personality has a distinct strategic profile (e.g., bluffs aggressively,
+ * plays tight/conservative, is erratic, reads opponents). Level controls the
+ * skill/accuracy of the decision-making parameters (lvl9 = current Hard bot,
+ * lvl1 = easiest). Personality controls strategic tendencies and style.
+ *
+ * Naming format: `{Personality} lvl{N}` — e.g., "Professor lvl3", "Bluffer lvl9"
  */
 
 // ── Profile config type ─────────────────────────────────────────────────
@@ -79,6 +82,8 @@ export interface BotProfileDefinition {
   name: string;
   /** Short personality description for the UI. */
   personality: string;
+  /** Emoji avatar for this bot personality. Not available to human users. */
+  avatar: string;
   /** Decision parameter overrides for BotPlayer. */
   config: BotProfileConfig;
   /** In-character quips for various game events. */
@@ -100,13 +105,31 @@ export const DEFAULT_BOT_PROFILE_CONFIG: Readonly<BotProfileConfig> = {
   noiseBand: 0.05,
 };
 
-// ── Profile definitions ─────────────────────────────────────────────────
+// ── Personality base definitions (level 9 = full personality expression) ─
 
-export const BOT_PROFILES: readonly BotProfileDefinition[] = [
+/**
+ * Base personality definition — describes a personality's strategic profile
+ * at maximum skill (level 9). Lower levels degrade toward a noisy default.
+ */
+interface PersonalityBase {
+  /** Unique key prefix, used as `{key}_lvl{N}` in database. */
+  key: string;
+  /** Personality display name. Bot name = `{name} lvl{N}`. */
+  name: string;
+  personality: string;
+  avatar: string;
+  /** Level 9 config — the full expression of this personality at max skill. */
+  config: BotProfileConfig;
+  flavorText: BotFlavorText;
+}
+
+/** The 9 base personalities. Level 9 config = current Hard bot parameterization. */
+const PERSONALITY_BASES: readonly PersonalityBase[] = [
   {
-    key: 'the_rock',
-    name: 'The Rock',
+    key: 'rock',
+    name: 'Rock',
     personality: 'Ultra-conservative. Almost never bluffs. Only calls bull when very confident.',
+    avatar: '\u{1FAA8}',
     config: {
       bluffFrequency: 0.15,
       bullThreshold: 0.7,
@@ -128,9 +151,10 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     },
   },
   {
-    key: 'maverick',
-    name: 'Maverick',
+    key: 'bluffer',
+    name: 'Bluffer',
     personality: 'Aggressive bluffer. High bull call rate. Plays fast and loose.',
+    avatar: '\u{1F920}',
     config: {
       bluffFrequency: 1.8,
       bullThreshold: 0.3,
@@ -146,15 +170,16 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     flavorText: {
       callBull: ['BULL! No way!', 'You\'re bluffing and we both know it.', 'Nice try, pal.'],
       caughtBluffing: ['Worth the shot!', 'You win some, you lose some.', 'I regret nothing.'],
-      winRound: ['Too easy!', 'Who\'s the maverick now?', 'Never in doubt.'],
+      winRound: ['Too easy!', 'Who\'s bluffing now?', 'Never in doubt.'],
       bigRaise: ['Go big or go home!', 'Feeling lucky?', 'Top that!'],
       eliminated: ['Flame out in style!', 'At least it was exciting.'],
     },
   },
   {
-    key: 'the_grinder',
-    name: 'The Grinder',
+    key: 'grinder',
+    name: 'Grinder',
     personality: 'Minimal risk. Prefers small incremental raises. Wins by patience.',
+    avatar: '\u{26CF}\u{FE0F}',
     config: {
       bluffFrequency: 0.5,
       bullThreshold: 0.55,
@@ -179,6 +204,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'wildcard',
     name: 'Wildcard',
     personality: 'Unpredictable. Random-feeling mix of strategies. Keeps opponents guessing.',
+    avatar: '\u{1F3B2}',
     config: {
       bluffFrequency: 1.2,
       bullThreshold: 0.45,
@@ -200,9 +226,10 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     },
   },
   {
-    key: 'the_professor',
-    name: 'The Professor',
+    key: 'professor',
+    name: 'Professor',
     personality: 'Probability-optimal. Closest to theoretically correct play.',
+    avatar: '\u{1F393}',
     config: {
       bluffFrequency: 1.0,
       bullThreshold: 0.5,
@@ -227,6 +254,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'shark',
     name: 'Shark',
     personality: 'Reads opponents heavily. Adjusts strategy based on opponent memory.',
+    avatar: '\u{1F988}',
     config: {
       bluffFrequency: 0.9,
       bullThreshold: 0.45,
@@ -248,9 +276,10 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     },
   },
   {
-    key: 'loose_cannon',
-    name: 'Loose Cannon',
+    key: 'cannon',
+    name: 'Cannon',
     personality: 'Loves big hand-type jumps. Goes for straights and full houses early.',
+    avatar: '\u{1F4A3}',
     config: {
       bluffFrequency: 1.5,
       bullThreshold: 0.4,
@@ -272,9 +301,10 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     },
   },
   {
-    key: 'ice_queen',
-    name: 'Ice Queen',
+    key: 'frost',
+    name: 'Frost',
     personality: 'Very tight player. Rarely acts unless the math is strongly in her favor.',
+    avatar: '\u{2744}\u{FE0F}',
     config: {
       bluffFrequency: 0.25,
       bullThreshold: 0.65,
@@ -295,12 +325,230 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
       eliminated: ['Suboptimal.', 'Ice melts eventually.'],
     },
   },
-] as const;
+  {
+    key: 'hustler',
+    name: 'Hustler',
+    personality: 'Balanced aggression. Mixes solid play with well-timed bluffs to exploit opponents.',
+    avatar: '\u{1F3B1}',
+    config: {
+      bluffFrequency: 1.3,
+      bullThreshold: 0.42,
+      riskTolerance: 0.65,
+      aggressionBias: 0.7,
+      lastChanceBluffRate: 0.55,
+      openingBluffRate: 0.12,
+      bullPhaseRaiseRate: 0.22,
+      trustMultiplier: 0.9,
+      bluffPlausibilityGate: 0.2,
+      noiseBand: 0.06,
+    },
+    flavorText: {
+      callBull: ['I know a hustle when I see one.', 'Not today.', 'That ain\'t it.'],
+      caughtBluffing: ['Cost of doing business.', 'You got me... this time.'],
+      winRound: ['Easy money.', 'Just like I planned.'],
+      bigRaise: ['Let me raise the stakes.', 'Time to turn up the heat.'],
+      eliminated: ['I\'ll be back.', 'The hustle never stops.'],
+    },
+  },
+];
+
+// ── Level scaling ───────────────────────────────────────────────────────
+
+/** Number of levels per personality. */
+export const BOT_LEVELS = 9;
+
+/** Number of personalities. */
+export const BOT_PERSONALITY_COUNT = PERSONALITY_BASES.length; // 9
+
+/** Total number of distinct bots in the matrix. */
+export const BOT_MATRIX_SIZE = BOT_PERSONALITY_COUNT * BOT_LEVELS; // 81
+
+/**
+ * Noisy default config — what a completely unskilled bot looks like.
+ * High noise, poor thresholds, random-feeling decisions.
+ */
+const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
+  bluffFrequency: 0.8,
+  bullThreshold: 0.5,
+  riskTolerance: 0.5,
+  aggressionBias: 0.5,
+  lastChanceBluffRate: 0.5,
+  openingBluffRate: 0.15,
+  bullPhaseRaiseRate: 0.2,
+  trustMultiplier: 0.5,
+  bluffPlausibilityGate: 0.1,
+  noiseBand: 0.18,
+};
+
+/**
+ * Interpolate between unskilled config and the personality's lvl9 config.
+ * Level 1 = mostly unskilled with slight personality lean.
+ * Level 9 = full personality expression at max skill.
+ *
+ * The interpolation factor is `(level - 1) / 8`:
+ * - Level 1: factor = 0.0 (all unskilled)
+ * - Level 5: factor = 0.5 (half unskilled, half personality)
+ * - Level 9: factor = 1.0 (full personality)
+ *
+ * Additionally, noise band scales inversely with level to make lower-level
+ * bots more erratic regardless of personality.
+ */
+function scaleConfigForLevel(personality: BotProfileConfig, level: number): BotProfileConfig {
+  const t = (level - 1) / 8; // 0.0 to 1.0
+  const lerp = (unskilled: number, skilled: number): number => unskilled + (skilled - unskilled) * t;
+
+  const config: BotProfileConfig = {
+    bluffFrequency: lerp(UNSKILLED_CONFIG.bluffFrequency, personality.bluffFrequency),
+    bullThreshold: lerp(UNSKILLED_CONFIG.bullThreshold, personality.bullThreshold),
+    riskTolerance: lerp(UNSKILLED_CONFIG.riskTolerance, personality.riskTolerance),
+    aggressionBias: lerp(UNSKILLED_CONFIG.aggressionBias, personality.aggressionBias),
+    lastChanceBluffRate: lerp(UNSKILLED_CONFIG.lastChanceBluffRate, personality.lastChanceBluffRate),
+    openingBluffRate: lerp(UNSKILLED_CONFIG.openingBluffRate, personality.openingBluffRate),
+    bullPhaseRaiseRate: lerp(UNSKILLED_CONFIG.bullPhaseRaiseRate, personality.bullPhaseRaiseRate),
+    trustMultiplier: lerp(UNSKILLED_CONFIG.trustMultiplier, personality.trustMultiplier),
+    bluffPlausibilityGate: lerp(UNSKILLED_CONFIG.bluffPlausibilityGate, personality.bluffPlausibilityGate),
+    noiseBand: lerp(UNSKILLED_CONFIG.noiseBand, personality.noiseBand),
+  };
+
+  return config;
+}
+
+// ── Generate full 81-bot matrix ─────────────────────────────────────────
+
+function generateBotMatrix(): BotProfileDefinition[] {
+  const profiles: BotProfileDefinition[] = [];
+
+  for (const base of PERSONALITY_BASES) {
+    for (let level = 1; level <= BOT_LEVELS; level++) {
+      profiles.push({
+        key: `${base.key}_lvl${level}`,
+        name: `${base.name} lvl${level}`,
+        personality: base.personality,
+        avatar: base.avatar,
+        config: scaleConfigForLevel(base.config, level),
+        flavorText: base.flavorText,
+      });
+    }
+  }
+
+  return profiles;
+}
+
+// ── Impossible bot (level 10) ────────────────────────────────────────────
+
+/** The impossible bot — sees all cards, perfect play. Unlocked via settings toggle. */
+export const IMPOSSIBLE_BOT: BotProfileDefinition = {
+  key: 'oracle_lvl10',
+  name: 'The Oracle',
+  personality: 'Sees all cards. Perfect play. Cannot be beaten by strategy alone.',
+  avatar: '\u{1F441}\u{FE0F}',
+  config: {
+    bluffFrequency: 1.0,
+    bullThreshold: 0.5,
+    riskTolerance: 0.5,
+    aggressionBias: 0.5,
+    lastChanceBluffRate: 0.4,
+    openingBluffRate: 0.08,
+    bullPhaseRaiseRate: 0.15,
+    trustMultiplier: 1.0,
+    bluffPlausibilityGate: 0.3,
+    noiseBand: 0.0,
+  },
+  flavorText: {
+    callBull: ['I see everything.', 'Your cards betray you.', 'I know what you hold.'],
+    caughtBluffing: ['Impossible...', 'A calculated sacrifice.'],
+    winRound: ['As foreseen.', 'Inevitable.', 'The all-seeing eye never blinks.'],
+    bigRaise: ['I see the truth.', 'Destiny unfolds.'],
+    eliminated: ['Even oracles fall.', 'The vision... fades.'],
+  },
+};
+
+// ── Profile definitions ─────────────────────────────────────────────────
+
+/** All 81 bot profiles (9 personalities × 9 levels). */
+export const BOT_PROFILES: readonly BotProfileDefinition[] = generateBotMatrix();
+
+/** The 9 base personality definitions (level-independent). */
+export const BOT_PERSONALITIES: readonly PersonalityBase[] = PERSONALITY_BASES;
 
 /** Map from profile key to profile definition for O(1) lookup. */
 export const BOT_PROFILE_MAP: ReadonlyMap<string, BotProfileDefinition> = new Map(
-  BOT_PROFILES.map(p => [p.key, p]),
+  [...BOT_PROFILES.map(p => [p.key, p] as const), [IMPOSSIBLE_BOT.key, IMPOSSIBLE_BOT]],
 );
 
 /** All valid profile keys. */
-export const BOT_PROFILE_KEYS: readonly string[] = BOT_PROFILES.map(p => p.key);
+export const BOT_PROFILE_KEYS: readonly string[] = [...BOT_PROFILES.map(p => p.key), IMPOSSIBLE_BOT.key];
+
+// ── Legacy compatibility ────────────────────────────────────────────────
+
+/**
+ * Map from old profile keys (used in migration 009) to new keys.
+ * The old 8 bots at their original parameterization correspond to lvl9.
+ */
+export const LEGACY_PROFILE_KEY_MAP: ReadonlyMap<string, string> = new Map([
+  ['the_rock', 'rock_lvl9'],
+  ['maverick', 'bluffer_lvl9'],
+  ['the_grinder', 'grinder_lvl9'],
+  ['wildcard', 'wildcard_lvl9'],
+  ['the_professor', 'professor_lvl9'],
+  ['shark', 'shark_lvl9'],
+  ['loose_cannon', 'cannon_lvl9'],
+  ['ice_queen', 'frost_lvl9'],
+]);
+
+/**
+ * Map from bot display name → avatar emoji for rendering in the player list.
+ * These avatars are NOT available to human users — they don't appear in AVATAR_OPTIONS.
+ */
+export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
+  // All 81 personality bots
+  ...BOT_PROFILES.map(p => [p.name, p.avatar] as const),
+  // Impossible bot
+  [IMPOSSIBLE_BOT.name, IMPOSSIBLE_BOT.avatar],
+  // Legacy names (old 8 bots)
+  ['The Rock', '\u{1FAA8}'],
+  ['Maverick', '\u{1F920}'],
+  ['The Grinder', '\u{26CF}\u{FE0F}'],
+  ['Wildcard', '\u{1F3B2}'],
+  ['The Professor', '\u{1F393}'],
+  ['Shark', '\u{1F988}'],
+  ['Loose Cannon', '\u{1F4A3}'],
+  ['Ice Queen', '\u{2744}\u{FE0F}'],
+  // Generic bots (legacy, from BOT_NAMES in constants.ts)
+  ['Bot Brady', '\u{1F916}'],
+  ['RoboBluff', '\u{1F3AD}'],
+  ['CPU Carl', '\u{1F4BB}'],
+  ['Digital Dave', '\u{1F4DF}'],
+  ['Silicon Sam', '\u{1F50C}'],
+  ['Byte Betty', '\u{1F9EE}'],
+  ['Chip Charlie', '\u{1F3B0}'],
+  ['Data Diana', '\u{1F4CA}'],
+]);
+
+// ── Level category helpers ──────────────────────────────────────────────
+
+import type { BotLevelCategory } from './types.js';
+
+/** Level ranges for each bot level category. */
+const LEVEL_RANGES: Record<BotLevelCategory, { min: number; max: number }> = {
+  easy:   { min: 1, max: 3 },
+  normal: { min: 4, max: 6 },
+  hard:   { min: 7, max: 9 },
+  mixed:  { min: 1, max: 9 },
+};
+
+/** Get bot profiles filtered by level category. */
+export function getBotsForCategory(category: BotLevelCategory): BotProfileDefinition[] {
+  const range = LEVEL_RANGES[category];
+  return BOT_PROFILES.filter(p => {
+    const level = parseInt(p.key.split('_lvl')[1]!, 10);
+    return level >= range.min && level <= range.max;
+  });
+}
+
+/** Pick a random bot from the given category, excluding names already in use. */
+export function pickRandomBot(category: BotLevelCategory, usedNames: Set<string>): BotProfileDefinition | null {
+  const candidates = getBotsForCategory(category).filter(p => !usedNames.has(p.name));
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)]!;
+}

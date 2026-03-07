@@ -16,6 +16,7 @@ import {
   OPENSKILL_DEFAULT_MU,
   OPENSKILL_DEFAULT_SIGMA,
   RANKED_SETTINGS,
+  RANKED_BEST_OF,
   openSkillOrdinal,
   GamePhase,
   BotPlayer,
@@ -23,6 +24,8 @@ import {
 } from '@bull-em/shared';
 import type {
   RankedMode,
+  PlayerId,
+  BestOf,
   ClientToServerEvents,
   ServerToClientEvents,
   MatchmakingStatus,
@@ -625,8 +628,12 @@ export class MatchmakingQueue {
       allPlayerInfo.push({ entry, playerId, reconnectToken });
     }
 
-    // Fill remaining slots with ranked bots, falling back to anonymous bots
-    const botsNeeded = Math.max(0, MATCHMAKING_MULTIPLAYER_TARGET - humanPlayers.length);
+    // Random total player count between 3 and 9 for multiplayer bot backfill
+    const targetPlayers = Math.max(
+      MATCHMAKING_MULTIPLAYER_MIN,
+      Math.min(MATCHMAKING_MULTIPLAYER_MAX, 3 + Math.floor(Math.random() * 7)),
+    );
+    const botsNeeded = Math.max(0, targetPlayers - humanPlayers.length);
     const avgRating = humanPlayers.reduce((sum, p) => sum + p.rating, 0) / humanPlayers.length;
     const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] = [];
 
@@ -695,6 +702,21 @@ export class MatchmakingQueue {
     const room = this.roomManager.getRoom(roomCode);
     if (!room) return;
     if (room.gamePhase !== GamePhase.LOBBY) return;
+
+    // Ranked 1v1 is always Bo3
+    if (room.settings.rankedMode === 'heads_up' && room.playerCount === 2) {
+      const bestOf = RANKED_BEST_OF as BestOf;
+      room.settings.bestOf = bestOf;
+      const playerIds = [...room.players.keys()] as [PlayerId, PlayerId];
+      room.seriesState = {
+        bestOf,
+        currentSet: 1,
+        wins: { [playerIds[0]]: 0, [playerIds[1]]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds,
+      };
+    }
 
     room.startGame();
     recordRoundStart(room.roomCode);

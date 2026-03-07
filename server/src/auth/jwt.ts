@@ -10,6 +10,11 @@ export interface JwtPayload {
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret) {
+    // In dev mode without a database, use a hardcoded secret for convenience.
+    // This is safe because dev auth tokens are ephemeral and never reach production.
+    if (process.env.NODE_ENV !== 'production' && !process.env.DATABASE_URL) {
+      return 'dev-mode-secret-not-for-production';
+    }
     throw new Error('SESSION_SECRET environment variable is required for auth');
   }
   return secret;

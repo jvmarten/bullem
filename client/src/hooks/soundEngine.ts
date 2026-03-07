@@ -61,7 +61,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   cardDeal:    { url: cardDealUrl, gain: 0.18 },
   cardReveal:  { url: cardRevealUrl, gain: 0.3 },
   deckShuffle: { url: deckShuffleUrl, gain: 0.4 },
-  bullCalled:  { url: bullCalledUrl, gain: 0.5 },
+  bullCalled:  { url: bullCalledUrl, gain: 0.7 },
   trueCalled:  { url: trueCalledUrl, gain: 0.45 },
   callMade:    { url: callMadeUrl, gain: 0.45 },
   roundWin:    { url: roundWinUrl, gain: 0.5 },
@@ -71,9 +71,9 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   yourTurn:    { url: yourTurnUrl, gain: 0.14 },
   timerTick:   { url: timerTickUrl, gain: 0.5 },
   heartbeat:   { url: heartbeatUrl, gain: 0.55 },
-  uiClick:     { url: uiClickUrl, gain: 0.4 },
-  uiSoft:      { url: uiSoftUrl, gain: 0.5 },
-  uiBack:      { url: uiSoftUrl, gain: 0.35, playbackRate: 0.75 },
+  uiClick:     { url: uiClickUrl, gain: 0.6 },
+  uiSoft:      { url: uiSoftUrl, gain: 0.65 },
+  uiBack:      { url: uiSoftUrl, gain: 0.45, playbackRate: 0.75 },
   fanfare:     { url: fanfareUrl, gain: 0.45 },
   wheelTick:   { url: wheelTickUrl, gain: 0.35 },
   wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
@@ -138,6 +138,11 @@ function vibrate(pattern: number | number[]): void {
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
+  // If the AudioContext exists but has been permanently closed (can happen
+  // on some mobile browsers after extended backgrounding), create a fresh one.
+  if (audioCtx && audioCtx.state === 'closed') {
+    audioCtx = null;
+  }
   if (audioCtx) return audioCtx;
   try {
     audioCtx = new AudioContext();
@@ -145,6 +150,28 @@ function getAudioContext(): AudioContext | null {
     // Web Audio API not available
   }
   return audioCtx;
+}
+
+// Recover the AudioContext when the tab becomes visible again. Mobile browsers
+// (especially iOS Safari and Chrome on Android) suspend the AudioContext when
+// the tab is backgrounded. Without explicit resume, sounds silently fail.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && audioCtx) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    }
+  });
+  // Also try resuming on user interaction — covers the case where the
+  // browser refuses resume without a gesture (autoplay policy).
+  const resumeOnInteraction = () => {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  };
+  document.addEventListener('touchstart', resumeOnInteraction, { once: false, passive: true });
+  document.addEventListener('click', resumeOnInteraction, { once: false, passive: true });
 }
 
 // Cache decoded audio buffers so we only fetch/decode once per file
@@ -457,6 +484,18 @@ export function createSoundController(): SoundController {
   };
 
   return controller;
+}
+
+/**
+ * Returns a Promise that resolves when all audio files have been pre-loaded
+ * and decoded. Use this to gate a loading screen so sounds are ready before
+ * the user interacts with the app.
+ */
+export function waitForAudioReady(): Promise<void> {
+  const promises = Object.values(AUDIO_FILE_SOUNDS)
+    .filter(Boolean)
+    .map(entry => loadAudioBuffer(entry!.url));
+  return Promise.all(promises).then(() => {});
 }
 
 export type { SoundName };

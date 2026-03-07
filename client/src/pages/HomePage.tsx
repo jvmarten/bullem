@@ -6,7 +6,7 @@ import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
-import { HandType, handToString } from '@bull-em/shared';
+import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
@@ -216,6 +216,11 @@ function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; po
         {status.position > 0 && (
           <p className="text-xs text-[var(--gold-dim)]">Position: #{status.position}</p>
         )}
+        {elapsed < MATCHMAKING_BOT_BACKFILL_SECONDS && (
+          <p className="text-xs text-[var(--gold-dim)]">
+            Max wait: {MATCHMAKING_BOT_BACKFILL_SECONDS - elapsed}s
+          </p>
+        )}
         <button
           onClick={onCancel}
           className="btn-ghost px-6 py-2 text-sm"
@@ -280,6 +285,16 @@ export function HomePage() {
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
   const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
+  // Dev mode badge state — only checked in dev builds
+  const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    fetch('/api/dev-status', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setDevStatus(data as { devAuth: boolean }); })
+      .catch(() => { /* server not running yet — ignore */ });
+  }, []);
+
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
     if (user?.displayName) {
@@ -287,6 +302,16 @@ export function HomePage() {
       localStorage.setItem(PLAYER_NAME_STORAGE_KEY, user.displayName);
     }
   }, [user?.displayName]);
+
+  // Auto-redirect to an active game when the user returns after browser close.
+  // The GameContext connect handler rejoins from localStorage, which sets
+  // roomState and gameState. If we detect an active in-progress game, navigate
+  // directly to the game page instead of showing the home menu.
+  useEffect(() => {
+    if (roomState && roomState.gamePhase !== 'lobby') {
+      navigate(`/game/${roomState.roomCode}`);
+    }
+  }, [roomState, navigate]);
 
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
@@ -357,6 +382,18 @@ export function HomePage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
   const [rankedExpanded, setRankedExpanded] = useState(false);
+  const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
+
+  // Sync joining state with matchmaking status — keep the queue mode visible
+  // so the 1v1/multiplayer buttons maintain their in-queue appearance
+  useEffect(() => {
+    if (matchmakingStatus) {
+      setJoiningRanked(matchmakingStatus.mode === 'heads_up' ? 'heads_up' : 'multiplayer');
+      setRankedExpanded(true);
+    } else if (!matchmakingFound) {
+      setJoiningRanked(null);
+    }
+  }, [matchmakingStatus, matchmakingFound]);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -647,7 +684,7 @@ export function HomePage() {
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
         {/* Player name / auth display — centered */}
-        {mode === 'menu' && (
+        {(mode === 'menu' || mode === 'online') && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
             {user ? (
               /* Signed-in: show user icon + username linking to profile */
@@ -778,30 +815,48 @@ export function HomePage() {
                 if (!user) { addToast('Sign in to play ranked'); return; }
                 setRankedExpanded(prev => !prev);
               }}
-              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
+              className={`w-full btn-danger py-4 text-lg ${!user ? 'opacity-60' : ''}`}
             >
               Ranked Play
             </button>
             {rankedExpanded && user && (
-              <div className="flex gap-2 w-full animate-fade-in -mt-1">
-                <button
-                  onClick={() => {
-                    play('uiSoft');
-                    joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
-                  }}
-                  className="flex-1 btn-orange py-3 text-sm"
-                >
-                  1v1
-                </button>
-                <button
-                  onClick={() => {
-                    play('uiSoft');
-                    joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
-                  }}
-                  className="flex-1 btn-orange py-3 text-sm"
-                >
-                  Multiplayer
-                </button>
+              <div className="flex flex-col gap-2 w-full animate-fade-in -mt-1">
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => {
+                      if (joiningRanked) return;
+                      play('uiSoft');
+                      getOnlinePlayerName();
+                      setJoiningRanked('heads_up');
+                      joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
+                    }}
+                    disabled={joiningRanked !== null && joiningRanked !== 'heads_up'}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
+                  >
+                    {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (joiningRanked) return;
+                      play('uiSoft');
+                      getOnlinePlayerName();
+                      setJoiningRanked('multiplayer');
+                      joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
+                    }}
+                    disabled={joiningRanked !== null && joiningRanked !== 'multiplayer'}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
+                  >
+                    {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
+                  </button>
+                </div>
+                {joiningRanked && (
+                  <button
+                    onClick={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
+                    className="btn-ghost text-sm py-2"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             )}
             <button
@@ -955,7 +1010,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.1.0
+          v1.2.8
         </button>
       </div>
 
@@ -969,10 +1024,38 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.1.0</h3>
-            <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
-            {/* TODO(scale): Add link to patch notes page once changelog route exists */}
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.8</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
+            <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
+              <li>Bot count selector in match settings</li>
+              <li>Fixed bot profile opening when removing bots</li>
+              <li>Fixed matchmaking queue overlay visibility</li>
+              <li>Fixed hook ordering crash during local gameplay</li>
+            </ul>
           </div>
+        </div>
+      )}
+      {/* Dev mode badge — only shown in Vite dev builds */}
+      {import.meta.env.DEV && devStatus && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 8,
+            left: 8,
+            padding: '2px 8px',
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            borderRadius: 9999,
+            background: 'rgba(255, 200, 0, 0.15)',
+            color: 'rgba(255, 200, 0, 0.7)',
+            border: '1px solid rgba(255, 200, 0, 0.25)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          DEV MODE{devStatus.devAuth ? ' · simulated login' : ''}
         </div>
       )}
     </Layout>

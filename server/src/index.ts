@@ -20,13 +20,25 @@ import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
-import { optionalAuth, requireAuth } from './auth/middleware.js';
+import { optionalAuth, requireAuth, requireAdmin } from './auth/middleware.js';
 import { createAdminRouter } from './admin/routes.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
 import { PushManager } from './push/PushManager.js';
+import { isDevAuthActive, isDevMatchmakingActive } from './dev/isDevMode.js';
+import { createDevAuthRouter, logDevAuthActive } from './dev/devAuth.js';
+import {
+  logDevSeedDataActive,
+  getDevLeaderboard,
+  getDevLeaderboardNearby,
+  getDevPlayerStats,
+  getDevAdvancedStats,
+  getDevUserRatings,
+  getDevGameHistory,
+} from './dev/devSeedData.js';
+import { InMemoryMatchmakingQueue } from './dev/InMemoryMatchmakingQueue.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -132,8 +144,9 @@ const backgroundGameManager = new BackgroundGameManager(io, roomManager, botMana
 const calibrationManager = new CalibrationManager(io, roomManager, botManager);
 
 // Create matchmaking queue when Redis is available — matchmaking requires
-// Redis for queue state. Without Redis, ranked matchmaking is disabled.
-let matchmakingQueue: MatchmakingQueue | undefined;
+// Redis for queue state. Without Redis, ranked matchmaking is disabled
+// (unless dev mode is active, in which case an in-memory fallback is used).
+let matchmakingQueue: MatchmakingQueue | InMemoryMatchmakingQueue | undefined;
 if (rateLimitRedis) {
   // Reuse a dedicated Redis client for matchmaking sorted sets.
   // TODO(scale): At very high scale, consider a separate Redis client
@@ -141,6 +154,8 @@ if (rateLimitRedis) {
   const matchmakingRedis = new Redis(process.env.REDIS_URL!);
   redisClients.push(matchmakingRedis);
   matchmakingQueue = new MatchmakingQueue(io, matchmakingRedis, roomManager, botManager);
+} else if (isDevMatchmakingActive()) {
+  matchmakingQueue = new InMemoryMatchmakingQueue(io, roomManager, botManager);
 }
 
 registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
@@ -176,10 +191,20 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
   backgroundGameManager.start();
 
+  // Log dev mode status at startup
+  if (isDevAuthActive()) {
+    logDevAuthActive();
+    logDevSeedDataActive();
+  }
+
   // Start matchmaking queue after Redis and DB are ready
   if (matchmakingQueue) {
     matchmakingQueue.start();
-    logger.info('Ranked matchmaking enabled (Redis available)');
+    if (matchmakingQueue instanceof InMemoryMatchmakingQueue) {
+      logger.info('Ranked matchmaking enabled (in-memory dev mode)');
+    } else {
+      logger.info('Ranked matchmaking enabled (Redis available)');
+    }
   } else {
     logger.info('Ranked matchmaking disabled (no Redis configured)');
   }
@@ -215,12 +240,25 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use(optionalAuth);
 
+// Dev auth routes — mounted before real auth so they take precedence in dev mode
+if (isDevAuthActive()) {
+  app.use('/auth', createDevAuthRouter());
+}
+
 // Auth routes
 app.use('/auth', authRouter);
 app.use('/auth', oauthRouter);
 
 // Admin routes
 app.use('/admin', createAdminRouter(io, roomManager, botManager));
+
+// Dev status endpoint — tells the client whether dev auth is active
+app.get('/api/dev-status', (_req, res) => {
+  res.json({
+    devAuth: isDevAuthActive(),
+    devMatchmaking: isDevMatchmakingActive(),
+  });
+});
 
 // Replay routes
 import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
@@ -266,6 +304,57 @@ app.get('/api/replays/:gameId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch replay' });
   }
 });
+
+// ── Dev seed data routes (registered before real DB routes to take precedence) ──
+if (isDevAuthActive()) {
+  // Stats
+  app.get('/api/stats/me', requireAuth, (req, res) => {
+    res.json(getDevPlayerStats(req.user!.userId));
+  });
+  app.get('/api/stats/:userId', (req, res) => {
+    res.json(getDevPlayerStats(req.params.userId!));
+  });
+  app.get('/api/stats/:userId/advanced', (req, res) => {
+    res.json(getDevAdvancedStats(req.params.userId!));
+  });
+
+  // Ratings
+  app.get('/api/ratings/:userId', (req, res) => {
+    res.json(getDevUserRatings(req.params.userId!));
+  });
+
+  // Leaderboard
+  app.get('/api/leaderboard/:mode', (req, res) => {
+    const mode = req.params.mode as import('@bull-em/shared').RankedMode;
+    const period = (req.query.period as string) ?? 'all_time';
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+    res.json(getDevLeaderboard(
+      mode,
+      period as import('@bull-em/shared').LeaderboardPeriod,
+      limit,
+      offset,
+      req.user?.userId,
+      req.user?.username,
+    ));
+  });
+  app.get('/api/leaderboard/:mode/nearby', requireAuth, (req, res) => {
+    const mode = req.params.mode as import('@bull-em/shared').RankedMode;
+    const result = getDevLeaderboardNearby(mode, req.user!.userId, req.user!.username);
+    if (!result) {
+      res.status(404).json({ error: 'Not ranked or not enough games played' });
+      return;
+    }
+    res.json(result);
+  });
+
+  // Game history (for /auth/games)
+  app.get('/auth/games', requireAuth, (req, res) => {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+    res.json(getDevGameHistory(req.user!.userId, limit, offset));
+  });
+}
 
 // Stats routes
 import { getPlayerStats } from './db/stats.js';
@@ -338,6 +427,67 @@ app.get('/api/stats/:userId/advanced', async (req, res) => {
   }
 });
 
+/** GET /api/users/:userId/profile — fetch public profile for any user. */
+app.get('/api/users/:userId/profile', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const userResult = await query<{
+      id: string; username: string; display_name: string;
+      avatar: string | null; photo_url: string | null; created_at: string;
+      is_bot: boolean; bot_profile: string | null;
+    }>(
+      'SELECT id, username, display_name, avatar, photo_url, created_at, is_bot, bot_profile FROM users WHERE id = $1',
+      [userId],
+    );
+    if (!userResult || userResult.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const row = userResult.rows[0]!;
+    const statsResult = await query<{
+      games_played: string; games_won: string;
+      total_correct_bulls: string; total_bulls_called: string;
+      total_bluffs_successful: string; total_calls_made: string;
+    }>(
+      `SELECT COUNT(*)::text AS games_played,
+       COUNT(*) FILTER (WHERE finish_position = 1)::text AS games_won,
+       COALESCE(SUM((stats->>'correctBulls')::int), 0)::text AS total_correct_bulls,
+       COALESCE(SUM((stats->>'bullsCalled')::int), 0)::text AS total_bulls_called,
+       COALESCE(SUM((stats->>'bluffsSuccessful')::int), 0)::text AS total_bluffs_successful,
+       COALESCE(SUM((stats->>'callsMade')::int), 0)::text AS total_calls_made
+      FROM game_players WHERE user_id = $1`,
+      [userId],
+    );
+    const stats = statsResult?.rows[0];
+    const bullsCalled = stats ? parseInt(stats.total_bulls_called, 10) : 0;
+    const correctBulls = stats ? parseInt(stats.total_correct_bulls, 10) : 0;
+    const callsMade = stats ? parseInt(stats.total_calls_made, 10) : 0;
+    const bluffsSuccessful = stats ? parseInt(stats.total_bluffs_successful, 10) : 0;
+
+    res.json({
+      id: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar,
+      photoUrl: row.photo_url,
+      createdAt: row.created_at,
+      gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
+      gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
+      bullAccuracy: bullsCalled > 0 ? Math.round((correctBulls / bullsCalled) * 100) : null,
+      bluffSuccessRate: callsMade > 0 ? Math.round((bluffsSuccessful / callsMade) * 100) : null,
+      isBot: row.is_bot,
+      botProfile: row.bot_profile,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch user profile');
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
 // Rating routes
 import { getUserRatings as fetchUserRatings } from './db/ratings.js';
 
@@ -386,12 +536,21 @@ app.get('/api/leaderboard/:mode', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
     const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
 
+    const VALID_PLAYER_FILTERS = ['all', 'players', 'bots'] as const;
+    type PlayerFilter = typeof VALID_PLAYER_FILTERS[number];
+    const playerFilter = (req.query.playerFilter as string) ?? 'all';
+    if (!VALID_PLAYER_FILTERS.includes(playerFilter as PlayerFilter)) {
+      res.status(400).json({ error: 'Invalid playerFilter. Must be "all", "players", or "bots".' });
+      return;
+    }
+
     const result = await getLeaderboard(
       mode as RankedMode,
       period as LeaderboardPeriod,
       limit,
       offset,
       req.user?.userId,
+      playerFilter as PlayerFilter,
     );
 
     if (!result) {
@@ -430,8 +589,7 @@ app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
 });
 
 // ── Calibration status endpoint ─────────────────────────────────────────
-// TODO: add admin auth — currently unauthenticated for dev/monitoring convenience
-app.get('/api/admin/calibration', (_req, res) => {
+app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
   res.json(calibrationManager.getStatus());
 });
 

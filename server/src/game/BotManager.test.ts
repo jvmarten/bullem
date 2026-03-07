@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BotManager } from './BotManager.js';
 import { Room } from '../rooms/Room.js';
-import { GamePhase, MAX_PLAYERS, BOT_NAMES, STARTING_CARDS, DEFAULT_BOT_DIFFICULTY, maxPlayersForMaxCards } from '@bull-em/shared';
+import { GamePhase, MAX_PLAYERS, STARTING_CARDS, DEFAULT_BOT_DIFFICULTY, maxPlayersForMaxCards, BOT_PROFILES } from '@bull-em/shared';
 
 describe('BotManager', () => {
   let botManager: BotManager;
@@ -24,10 +24,11 @@ describe('BotManager', () => {
       expect(bot.cardCount).toBe(STARTING_CARDS);
     });
 
-    it('uses a name from BOT_NAMES', () => {
+    it('uses a name from BOT_PROFILES', () => {
       const botId = botManager.addBot(room);
       const bot = room.players.get(botId)!;
-      expect(BOT_NAMES).toContain(bot.name);
+      const profileNames = BOT_PROFILES.map(p => p.name);
+      expect(profileNames).toContain(bot.name);
     });
 
     it('uses custom name if provided', () => {

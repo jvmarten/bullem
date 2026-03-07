@@ -1,10 +1,10 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer } from '@bull-em/shared';
+import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
-import { broadcastGameState, broadcastNewRound, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
+import { broadcastGameState, broadcastNewRound, broadcastGameReplay, broadcastRoomState, sendTurnPushNotification } from './broadcast.js';
 import { persistCompletedGame, computeRatingChanges } from './persistGame.js';
 import { roundDurationSeconds } from '../metrics.js';
 import { getCorrelatedLogger } from '../logger.js';
@@ -24,6 +24,13 @@ export function recordRoundStart(roomCode: string): void {
   roundStartTimes.set(roomCode, Date.now());
 }
 
+/** Clean up the round start time entry for a room. Called when a room is
+ *  deleted (stale cleanup, host delete) to prevent orphaned entries from
+ *  games that never resolved a round. */
+export function cleanupRoundStartTime(roomCode: string): void {
+  roundStartTimes.delete(roomCode);
+}
+
 /** Observe the round duration for metrics and clean up the start time entry. */
 function observeRoundDuration(roomCode: string): void {
   const startTime = roundStartTimes.get(roomCode);
@@ -41,17 +48,7 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   room.cancelRoundContinueWindow();
   const nextResult = room.game!.startNextRound();
   if (nextResult.type === 'game_over') {
-    room.gamePhase = GamePhase.GAME_OVER;
-    broadcastGameReplay(io, room, nextResult.winnerId);
-    const stats = room.game!.getGameStats();
-    // Compute rating changes for ranked games before emitting
-    computeRatingChanges(room, nextResult.winnerId).then(ratingChanges => {
-      io.to(room.roomCode).emit('game:over', nextResult.winnerId, stats, ratingChanges);
-    }).catch(() => {
-      io.to(room.roomCode).emit('game:over', nextResult.winnerId, stats);
-    });
-    persistCompletedGame(room, nextResult.winnerId);
-    roomManager.persistRoom(room);
+    handleSetOver(io, room, roomManager, botManager, nextResult.winnerId);
     return;
   }
 
@@ -63,6 +60,112 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   botManager.scheduleBotTurn(room, io, POST_RESOLVE_GRACE_MS);
   broadcastNewRound(io, room);
   sendTurnPushNotification(io, room);
+  roomManager.persistRoom(room);
+}
+
+/**
+ * Handle a single game (set) ending. If the room has a series, check if
+ * the series is decided or if we need to start the next set. If no series
+ * (single game), finalize as game_over.
+ */
+export function handleSetOver(
+  io: TypedServer,
+  room: Room,
+  roomManager: RoomManager,
+  botManager: BotManager,
+  setWinnerId: PlayerId,
+): void {
+  const series = room.seriesState;
+
+  if (!series || series.bestOf <= 1) {
+    // No series — normal game over
+    finalizeGameOver(io, room, roomManager, setWinnerId);
+    return;
+  }
+
+  // Record the set win
+  series.wins[setWinnerId] = (series.wins[setWinnerId] ?? 0) + 1;
+  const winsNeeded = Math.ceil(series.bestOf / 2);
+
+  if (series.wins[setWinnerId]! >= winsNeeded) {
+    // Series is decided — this player wins the match
+    series.seriesWinnerId = setWinnerId;
+
+    // Emit the series transition info before final game:over
+    io.to(room.roomCode).emit('game:seriesSetResult', {
+      setWinnerId,
+      seriesInfo: {
+        bestOf: series.bestOf,
+        currentSet: series.currentSet,
+        wins: { ...series.wins },
+        winsNeeded,
+        seriesWinnerId: setWinnerId,
+      },
+    });
+
+    // Finalize the match — ratings update based on series winner, not set winner
+    finalizeGameOver(io, room, roomManager, setWinnerId);
+    return;
+  }
+
+  // Series continues — start next set after a brief transition
+  series.currentSet++;
+
+  // Emit the set result so clients can show the transition screen
+  io.to(room.roomCode).emit('game:seriesSetResult', {
+    setWinnerId,
+    seriesInfo: {
+      bestOf: series.bestOf,
+      currentSet: series.currentSet,
+      wins: { ...series.wins },
+      winsNeeded,
+      seriesWinnerId: null,
+    },
+  });
+
+  // After transition delay, start the next set
+  const log = getCorrelatedLogger();
+  log.info({
+    roomCode: room.roomCode,
+    set: series.currentSet - 1,
+    wins: series.wins,
+  }, 'Series set completed — starting next set');
+
+  botManager.clearTurnTimer(room.roomCode);
+
+  setTimeout(() => {
+    if (room.gamePhase === GamePhase.GAME_OVER || room.gamePhase === GamePhase.FINISHED) return;
+
+    // Reset for next set — resetForRematch handles player reset
+    room.resetForRematch();
+    recordRoundStart(room.roomCode);
+    BotPlayer.resetMemory(room.roomCode);
+    botManager.scheduleBotTurn(room, io);
+    broadcastRoomState(io, room);
+    broadcastGameState(io, room);
+    roomManager.persistRoom(room);
+  }, SERIES_TRANSITION_DELAY_MS);
+
+  roomManager.persistRoom(room);
+}
+
+/** Finalize a game/match as over — emit game:over, persist, update ratings. */
+function finalizeGameOver(
+  io: TypedServer,
+  room: Room,
+  roomManager: RoomManager,
+  winnerId: PlayerId,
+): void {
+  room.gamePhase = GamePhase.GAME_OVER;
+  broadcastGameReplay(io, room, winnerId);
+  const stats = room.game!.getGameStats();
+  // Compute rating changes for ranked games before emitting
+  computeRatingChanges(room, winnerId).then(ratingChanges => {
+    io.to(room.roomCode).emit('game:over', winnerId, stats, ratingChanges);
+  }).catch(() => {
+    io.to(room.roomCode).emit('game:over', winnerId, stats);
+  });
+  persistCompletedGame(room, winnerId);
   roomManager.persistRoom(room);
 }
 

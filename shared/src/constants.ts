@@ -32,6 +32,15 @@ export const ONLINE_TURN_TIMER_OPTIONS = [15, 30, 60] as const; // online requir
 export const DEFAULT_ONLINE_TURN_TIMER = 30;
 export const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12] as const;
 export const LAST_CHANCE_MODES = ['classic', 'strict'] as const;
+
+// Best-of series options for 1v1 games
+export const BEST_OF_OPTIONS = [1, 3, 5] as const;
+/** Default best-of for unranked 1v1. */
+export const DEFAULT_BEST_OF = 1;
+/** Forced best-of for ranked 1v1 (always Bo3). */
+export const RANKED_BEST_OF = 3;
+/** Delay between sets in a series (ms) — shows transition screen. */
+export const SERIES_TRANSITION_DELAY_MS = 5_000;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS };
 /** How long a disconnected player has to reconnect before being eliminated (ms). */
@@ -61,6 +70,7 @@ export const BOT_SPEED_MULTIPLIERS: Record<BotSpeed, number> = {
   normal: 1.0,
   fast: 0.4,
 };
+/** @deprecated Use BOT_PROFILES from botProfiles.ts instead. Kept for migration compatibility. */
 export const BOT_NAMES = [
   'Bot Brady', 'RoboBluff', 'CPU Carl', 'Digital Dave',
   'Silicon Sam', 'Byte Betty', 'Chip Charlie', 'Data Diana',

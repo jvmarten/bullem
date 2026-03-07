@@ -152,6 +152,8 @@ export interface ClientGameState {
   turnDeadline?: number | null;
   /** All active players' cards — only sent to eliminated players acting as spectators. */
   spectatorCards?: SpectatorPlayerCards[];
+  /** Series info for best-of matches. Null for single games. */
+  seriesInfo?: SeriesInfo | null;
 }
 
 export enum BotDifficulty {
@@ -159,6 +161,9 @@ export enum BotDifficulty {
   HARD = 'hard',
   IMPOSSIBLE = 'impossible',
 }
+
+/** Bot level categories for match settings. Controls which bot levels (1-9) are used. */
+export type BotLevelCategory = 'easy' | 'normal' | 'hard' | 'mixed';
 
 export enum BotSpeed {
   SLOW = 'slow',
@@ -170,6 +175,9 @@ export enum BotSpeed {
  *  - 'classic': enters BULL_PHASE — all responders get bull/true/raise (current behavior).
  *  - 'strict': enters CALLING — first responder can only bull/raise. True unlocks after a bull is called. */
 export type LastChanceMode = 'classic' | 'strict';
+
+/** Best-of series options for 1v1 games. */
+export type BestOf = 1 | 3 | 5;
 
 /** Configurable game settings, set by the host in the lobby. */
 export interface GameSettings {
@@ -191,6 +199,41 @@ export interface GameSettings {
   ranked?: boolean;
   /** Which ranked queue this game belongs to (set server-side based on player count). */
   rankedMode?: RankedMode;
+  /** Best-of series length for 1v1 games. Ranked 1v1 = always Bo3.
+   *  Unranked 1v1 (maxPlayers=2): host can choose Bo1/Bo3/Bo5. Default Bo1.
+   *  Multiplayer (3+): always single game (ignored). */
+  bestOf?: BestOf;
+  /** Bot level category — controls which personality bot levels are used.
+   *  'easy' = lvl 1-3, 'normal' = lvl 4-6, 'hard' = lvl 7-9, 'mixed' = lvl 1-9.
+   *  Defaults to 'normal'. */
+  botLevelCategory?: BotLevelCategory;
+}
+
+// ── Series (Best-of) types ────────────────────────────────────────────
+
+/** Tracks the state of a best-of series across multiple sets (individual games). */
+export interface SeriesState {
+  /** Best-of value: 1, 3, or 5. */
+  bestOf: BestOf;
+  /** Current set number (1-based). */
+  currentSet: number;
+  /** Wins per player. Keys are player IDs. */
+  wins: Record<PlayerId, number>;
+  /** Number of wins needed to clinch the series. */
+  winsNeeded: number;
+  /** Player ID of the series winner (null if series still in progress). */
+  seriesWinnerId: PlayerId | null;
+  /** The two player IDs in the series (for 1v1). */
+  playerIds: [PlayerId, PlayerId];
+}
+
+/** Summary sent to clients during a series match. */
+export interface SeriesInfo {
+  bestOf: BestOf;
+  currentSet: number;
+  wins: Record<PlayerId, number>;
+  winsNeeded: number;
+  seriesWinnerId: PlayerId | null;
 }
 
 export interface PlayerGameStats {
@@ -260,7 +303,7 @@ export interface RoomListing {
 
 /** Pre-defined avatar template identifiers users can choose from. */
 export const AVATAR_OPTIONS = [
-  'bull', 'ace', 'crown', 'diamond', 'flame', 'skull',
+  'bull', 'ace', 'crown', 'diamond', 'skull',
   'star', 'wolf', 'eagle', 'lion', 'fox', 'bear',
 ] as const;
 
@@ -314,6 +357,9 @@ export interface PlayerStatsResponse {
   wins: number;
   winRate: number | null;
   avgFinishPosition: number | null;
+  /** Normalized finish percentile (0–100). 100 = always 1st, 0 = always last.
+   *  Accounts for game size so 2nd/2 isn't equated with 2nd/8. */
+  avgFinishPercentile?: number | null;
   bullAccuracy: number | null;
   trueAccuracy: number | null;
   bluffSuccessRate: number | null;
@@ -475,6 +521,9 @@ export function openSkillDisplayRating(mu: number): number {
 /** Time period filter for leaderboard queries. */
 export type LeaderboardPeriod = 'all_time' | 'month' | 'week';
 
+/** Player type filter for leaderboard queries. */
+export type LeaderboardPlayerFilter = 'all' | 'players' | 'bots';
+
 /** A single entry in the leaderboard response. */
 export interface LeaderboardEntry {
   rank: number;
@@ -485,6 +534,8 @@ export interface LeaderboardEntry {
   rating: number;
   gamesPlayed: number;
   tier: RankTier;
+  /** Whether this entry is a bot account. */
+  isBot?: boolean;
 }
 
 /** Response body for GET /api/leaderboard/:mode. */

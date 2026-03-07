@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 import { recordRecentPlayers } from '../utils/recentPlayers.js';
@@ -93,6 +93,30 @@ const ROOM_CODE_KEY = 'bull-em-room-code';
 const RECONNECT_TOKEN_KEY = 'bull-em-reconnect-token';
 const SPECTATOR_ROOM_KEY = 'bull-em-spectator-room';
 const SOCKET_CALLBACK_TIMEOUT_MS = 10_000;
+
+// localStorage keys for surviving browser close/reopen. SessionStorage is
+// cleared when the browser is fully closed, so we mirror critical reconnect
+// data to localStorage. These are cleared on intentional leave/kick/delete.
+const LS_ACTIVE_ROOM = 'bull-em-active-room';
+const LS_ACTIVE_PLAYER_ID = 'bull-em-active-player-id';
+const LS_ACTIVE_PLAYER_NAME = 'bull-em-active-player-name';
+const LS_ACTIVE_RECONNECT_TOKEN = 'bull-em-active-reconnect-token';
+
+/** Persist active game session to localStorage so reconnection survives browser close. */
+function persistActiveSession(roomCode: string, playerId: string, playerName: string, reconnectToken: string): void {
+  localStorage.setItem(LS_ACTIVE_ROOM, roomCode);
+  localStorage.setItem(LS_ACTIVE_PLAYER_ID, playerId);
+  localStorage.setItem(LS_ACTIVE_PLAYER_NAME, playerName);
+  localStorage.setItem(LS_ACTIVE_RECONNECT_TOKEN, reconnectToken);
+}
+
+/** Clear localStorage active session data (intentional leave, kick, game over, etc.). */
+function clearActiveSession(): void {
+  localStorage.removeItem(LS_ACTIVE_ROOM);
+  localStorage.removeItem(LS_ACTIVE_PLAYER_ID);
+  localStorage.removeItem(LS_ACTIVE_PLAYER_NAME);
+  localStorage.removeItem(LS_ACTIVE_RECONNECT_TOKEN);
+}
 
 /** Wrap a socket.emit callback promise with a timeout so it can't hang forever.
  *  The timeout is cleared once the inner promise settles, preventing leaked timers. */
@@ -205,9 +229,52 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(ROOM_CODE_KEY);
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
       sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+      clearActiveSession();
     };
 
-    socket.on('connect', () => { setIsConnected(true); setHasConnected(true); });
+    socket.on('connect', () => {
+      setIsConnected(true);
+      setHasConnected(true);
+
+      // Attempt to rejoin from localStorage when sessionStorage is empty.
+      // This handles the "close browser and reopen" scenario — sessionStorage
+      // is cleared on browser close, but localStorage persists.
+      const hasSessionData = sessionStorage.getItem(ROOM_CODE_KEY);
+      if (!hasSessionData) {
+        const lsRoom = localStorage.getItem(LS_ACTIVE_ROOM);
+        const lsPlayerId = localStorage.getItem(LS_ACTIVE_PLAYER_ID);
+        const lsPlayerName = localStorage.getItem(LS_ACTIVE_PLAYER_NAME);
+        const lsToken = localStorage.getItem(LS_ACTIVE_RECONNECT_TOKEN);
+        if (lsRoom && lsPlayerId && lsPlayerName && lsToken) {
+          // Restore sessionStorage so the rest of the app works normally
+          sessionStorage.setItem(ROOM_CODE_KEY, lsRoom);
+          sessionStorage.setItem(PLAYER_ID_KEY, lsPlayerId);
+          sessionStorage.setItem(PLAYER_NAME_KEY, lsPlayerName);
+          sessionStorage.setItem(RECONNECT_TOKEN_KEY, lsToken);
+
+          socket.emit('room:join', {
+            roomCode: lsRoom,
+            playerName: lsPlayerName,
+            playerId: lsPlayerId,
+            reconnectToken: lsToken,
+          }, (response) => {
+            if ('error' in response) {
+              // Room gone or token expired — clean up
+              clearActiveSession();
+              sessionStorage.removeItem(PLAYER_ID_KEY);
+              sessionStorage.removeItem(PLAYER_NAME_KEY);
+              sessionStorage.removeItem(ROOM_CODE_KEY);
+              sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+            } else {
+              // Reconnection succeeded — update token and player ID
+              setPlayerId(response.playerId);
+              sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+              persistActiveSession(lsRoom, response.playerId, lsPlayerName, response.reconnectToken);
+            }
+          });
+        }
+      }
+    });
     socket.on('disconnect', () => setIsConnected(false));
 
     // Auto-rejoin the room after Socket.io reconnects. A brief disconnect
@@ -256,8 +323,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem(PLAYER_NAME_KEY);
             sessionStorage.removeItem(ROOM_CODE_KEY);
             sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+            clearActiveSession();
             setRoomState(null);
             setGameState(null);
+          } else {
+            // Update rotated token in both storages
+            sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+            persistActiveSession(storedRoomCode, response.playerId, storedName, response.reconnectToken);
           }
         });
       }
@@ -270,6 +342,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const id = state.players[0]!.id;
         setPlayerId(id);
         sessionStorage.setItem(PLAYER_ID_KEY, id);
+        // Persist to localStorage for browser close recovery
+        const name = sessionStorage.getItem(PLAYER_NAME_KEY) ?? '';
+        const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? '';
+        if (name && token) {
+          persistActiveSession(state.roomCode, id, name, token);
+        }
       }
     });
     socket.on('game:state', handleNewGameState);
@@ -279,6 +357,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setWinnerId(wId);
       setGameStats(stats);
       setRatingChanges(rChanges ?? null);
+      // Game is over — clear active session so we don't try to rejoin on next browser open
+      clearActiveSession();
       // Record other human players for the "Recent Players" list
       const gs = gameStateRef.current;
       const myName = sessionStorage.getItem(PLAYER_NAME_KEY);
@@ -289,6 +369,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
           .map(p => p.name);
         recordRecentPlayers(humanNames, myName, roomCode);
       }
+    });
+    socket.on('game:seriesSetResult', (_data: { setWinnerId: PlayerId; seriesInfo: SeriesInfo }) => {
+      // The set result is consumed by the existing round result / game over flow.
+      // The seriesInfo is embedded in the next game:state broadcast, so no extra
+      // state is needed here. This handler exists to prevent unhandled-event warnings.
     });
     socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
@@ -349,6 +434,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem(ROOM_CODE_KEY, match.roomCode);
       sessionStorage.setItem(PLAYER_ID_KEY, match.playerId);
       sessionStorage.setItem(RECONNECT_TOKEN_KEY, match.reconnectToken);
+      // Ensure player name is stored for GamePage rejoin flow
+      const playerName = sessionStorage.getItem(PLAYER_NAME_KEY) ?? localStorage.getItem('bull-em-player-name') ?? '';
+      if (playerName && !sessionStorage.getItem(PLAYER_NAME_KEY)) {
+        sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
+      }
+      persistActiveSession(match.roomCode, match.playerId, playerName, match.reconnectToken);
       setPlayerId(match.playerId);
     });
     socket.on('matchmaking:cancelled', () => {
@@ -363,6 +454,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:newRound');
       socket.off('game:roundResult');
       socket.off('game:over');
+      socket.off('game:seriesSetResult');
       socket.off('game:replay');
       socket.off('game:rematchStarting');
       socket.off('room:error');
@@ -388,6 +480,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
         sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+        // playerId is set via room:state — persist after it's available
         resolve(response.roomCode);
       });
     }));
@@ -395,8 +488,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
     return withTimeout(new Promise((resolve, reject) => {
-      const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? undefined;
-      const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? undefined;
+      // Check sessionStorage first, then fall back to localStorage (browser close scenario)
+      const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? localStorage.getItem(LS_ACTIVE_PLAYER_ID) ?? undefined;
+      const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? localStorage.getItem(LS_ACTIVE_RECONNECT_TOKEN) ?? undefined;
       socket.emit('room:join', { roomCode, playerName, playerId: storedId, reconnectToken: storedToken }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         setPlayerId(response.playerId);
@@ -404,6 +498,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
         sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
         sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+        persistActiveSession(roomCode, response.playerId, playerName, response.reconnectToken);
         resolve();
       });
     }));
@@ -424,6 +519,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+    clearActiveSession();
   }, []);
 
   const deleteRoom = useCallback(() => {
@@ -441,6 +537,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(ROOM_CODE_KEY);
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+    clearActiveSession();
   }, []);
 
   const listRooms = useCallback((): Promise<RoomListing[]> => {

@@ -1,5 +1,5 @@
 import { STARTING_CARDS, MAX_CARDS, DEFAULT_GAME_SETTINGS, DECK_SIZE } from '../constants.js';
-import { isHigherHand } from '../hands.js';
+import { isHigherHand, getMinimumRaise } from '../hands.js';
 import {
   GamePhase, RoundPhase, TurnAction,
 } from '../types.js';
@@ -195,9 +195,16 @@ export class GameEngine {
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
     this.gameStats.playerStats[playerId]!.callsMade++;
     this.trackHandCall(playerId, hand.type);
+    // Track whether the called hand actually exists in the combined cards at call
+    // time, regardless of whether this hand survives to the reveal. This gives
+    // players accurate "existed %" stats in their profile breakdown.
+    if (HandChecker.exists(this.getAllCards(), hand)) {
+      this.trackHandExisted(playerId, hand.type);
+    }
 
-    // A raise resets the bull phase
-    this.roundPhase = RoundPhase.CALLING;
+    // A raise resets the bull phase — unless the hand is unraiseable (e.g. royal flush),
+    // in which case go straight to BULL_PHASE so the next player can also call true.
+    this.roundPhase = getMinimumRaise(hand) === null ? RoundPhase.BULL_PHASE : RoundPhase.CALLING;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
     this.advanceTurn();
@@ -278,6 +285,9 @@ export class GameEngine {
     this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
     this.gameStats.playerStats[playerId]!.callsMade++;
     this.trackHandCall(playerId, hand.type);
+    if (HandChecker.exists(this.getAllCards(), hand)) {
+      this.trackHandExisted(playerId, hand.type);
+    }
 
     // In strict mode, re-enter CALLING so the first responder can only bull/raise
     // (true is unavailable until someone calls bull, which transitions to BULL_PHASE).
@@ -512,10 +522,8 @@ export class GameEngine {
     const handExists = HandChecker.exists(allCards, this.currentHand!);
     const revealedCards = HandChecker.findAllRelevantCards(allCardsOwned, this.currentHand!);
 
-    // Track whether the final called hand existed for the caller's hand breakdown
-    if (this.lastCallerId && handExists) {
-      this.trackHandExisted(this.lastCallerId, this.currentHand!.type);
-    }
+    // Note: hand existence is now tracked at call time (in handleCall / handleLastChanceRaise)
+    // so it reflects whether the hand existed when called, not just at resolution.
 
     // Determine who was right and wrong
     const penalties: Record<PlayerId, number> = {};

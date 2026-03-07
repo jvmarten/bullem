@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from 'react';
-import { TurnAction, handToString } from '@bull-em/shared';
+import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import { RankBadge } from './RankBadge.js';
@@ -21,6 +21,8 @@ interface Props {
   reactions?: EmojiReaction[];
   /** Player ratings for ranked games — maps playerId to { rating, tier }. */
   playerRatings?: ReadonlyMap<PlayerId, { rating: number; tier: RankTier }>;
+  /** Called when a player tile is tapped/clicked. */
+  onPlayerClick?: (player: Player) => void;
 }
 
 /* Mini card-back fan: shows card backs matching the player's card count */
@@ -79,13 +81,14 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo, onPlayerClick }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
   showKickPlayer?: boolean; onKickPlayer?: (playerId: string) => void;
   reactions?: EmojiReaction[];
   rankInfo?: { rating: number; tier: RankTier };
+  onPlayerClick?: (player: Player) => void;
 }) {
   return (
     <div
@@ -102,8 +105,14 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
       } ${!p.isEliminated && !p.isConnected ? 'player-disconnected' : ''}`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''}`}>
-          {p.isBot ? '\u2699' : playerInitial(p.name)}
+        <div
+          onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(p); } : undefined}
+          role={onPlayerClick ? 'button' : undefined}
+          tabIndex={onPlayerClick ? 0 : undefined}
+          onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
+          className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+        >
+          {p.isBot ? (BOT_AVATAR_MAP.get(p.name) ?? '\u2699') : playerInitial(p.name)}
         </div>
         <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">
@@ -152,7 +161,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         )}
         {showRemoveBot && p.isBot && onRemoveBot && (
           <button
-            onClick={() => onRemoveBot(p.id)}
+            onClick={(e) => { e.stopPropagation(); onRemoveBot(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Remove bot"
           >
@@ -161,7 +170,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         )}
         {showKickPlayer && !p.isBot && !p.isHost && onKickPlayer && (
           <button
-            onClick={() => onKickPlayer(p.id)}
+            onClick={(e) => { e.stopPropagation(); onKickPlayer(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Kick player"
           >
@@ -187,7 +196,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 // every game state broadcast (timer ticks, other players' actions), but the
 // PlayerList props are often the same. Without memo, buildLastActionMap and
 // the collapsed-view player lookup run on every parent render.
-export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings }: Props) {
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings, onPlayerClick }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -240,6 +249,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               lastAction={lastActionMap.get(currentPlayer.id) ?? null}
               reactions={reactionsMap.get(currentPlayer.id)}
               rankInfo={playerRatings?.get(currentPlayer.id)}
+              onPlayerClick={onPlayerClick}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -253,6 +263,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               lastAction={lastActionMap.get(nextPlayer.id) ?? null}
               reactions={reactionsMap.get(nextPlayer.id)}
               rankInfo={playerRatings?.get(nextPlayer.id)}
+              onPlayerClick={onPlayerClick}
             />
           )}
         </div>
@@ -292,6 +303,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
             onKickPlayer={onKickPlayer}
             reactions={reactionsMap.get(p.id)}
             rankInfo={playerRatings?.get(p.id)}
+            onPlayerClick={onPlayerClick}
           />
         ))}
       </div>

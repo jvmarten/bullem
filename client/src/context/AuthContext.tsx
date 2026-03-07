@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { User, PublicProfile, AvatarId } from '@bull-em/shared';
+import { socket } from '../socket.js';
 
 export interface AuthContextValue {
   user: User | null;
@@ -11,12 +12,14 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateAvatar: (avatar: AvatarId | null) => Promise<void>;
+  /** Upload a profile photo from device (admin only). Pass null to remove. */
+  uploadPhoto: (photoDataUrl: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -58,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ identifier, password }),
     });
     setUser(data.user);
+    // Reconnect socket so the handshake middleware picks up the new auth cookie.
+    // Without this, socket.data.userId stays empty and ranked matchmaking rejects.
+    socket.disconnect().connect();
     // Fetch full profile with stats
     await refreshProfile();
   }, [refreshProfile]);
@@ -68,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ username, email, password }),
     });
     setUser(data.user);
+    // Reconnect socket so the handshake middleware picks up the new auth cookie
+    socket.disconnect().connect();
     await refreshProfile();
   }, [refreshProfile]);
 
@@ -75,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiFetch<{ ok: boolean }>('/auth/logout', { method: 'POST' });
     setUser(null);
     setProfile(null);
+    // Reconnect socket so the handshake drops the cleared auth cookie
+    socket.disconnect().connect();
   }, []);
 
   const updateAvatar = useCallback(async (avatar: AvatarId | null) => {
@@ -87,6 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(prev => prev ? { ...prev, avatar } : null);
   }, []);
 
+  const uploadPhoto = useCallback(async (photoDataUrl: string | null) => {
+    await apiFetch<{ ok: boolean; photoUrl: string | null }>('/auth/upload-photo', {
+      method: 'POST',
+      body: JSON.stringify({ photo: photoDataUrl }),
+    });
+    setUser(prev => prev ? { ...prev, photoUrl: photoDataUrl } : null);
+    setProfile(prev => prev ? { ...prev, photoUrl: photoDataUrl } : null);
+  }, []);
+
   const value: AuthContextValue = useMemo(() => ({
     user,
     profile,
@@ -96,7 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     refreshProfile,
     updateAvatar,
-  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar]);
+    uploadPhoto,
+  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar, uploadPhoto]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

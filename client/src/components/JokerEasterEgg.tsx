@@ -5,12 +5,65 @@ import cardBack from '../assets/images/joker-card-back.svg';
 
 type Phase = 'idle' | 'flying' | 'dismiss';
 
+/* ── Subtitle data synced to stubbin-full.mp3 ─────────────────────────── */
+
+interface SubtitleEntry {
+  time: number;
+  speaker: string;
+  text: string;
+  textEn: string;
+}
+
+const SUBTITLE_RAW: { time: number; speaker?: string; text: string; textEn: string }[] = [
+  { time: 2.0,  speaker: 'Joker', text: 'Nonnih, Stubbin on talossa, Stubbin on talossa', textEn: 'Well then, Stubbin\'s in the house, Stubbin\'s in the house' },
+  { time: 6.0,  text: 'Mika Aaltola hieno puku', textEn: 'Mika Aaltola, nice suit' },
+  { time: 8.0,  text: 'Haluaako joku nähdä TikTokin, jossa matkustan junalla?', textEn: 'Does anyone want to see a TikTok where I travel by train?' },
+  { time: 12.0, text: 'Olenko kertonut teille, että poikani on armeijassa, jokaisessa haastattelussa?', textEn: 'Have I told you that my son is in the army, in every interview?' },
+  { time: 17.0, text: 'Okei', textEn: 'Okay' },
+  { time: 21.0, text: 'Sari, kato tätä', textEn: 'Sari, look at this' },
+  { time: 26.0, text: 'Jutta, don\'t quit your day job', textEn: 'Jutta, don\'t quit your day job' },
+  { time: 28.0, text: 'hei Halla-Aho, oletko nähnyt pelottavia muslimeja viime aikoina?', textEn: 'Hey Halla-Aho, have you seen any scary Muslims lately?' },
+  { time: 32.0, speaker: 'Halla-Aho', text: 'Joo', textEn: 'Yeah' },
+  { time: 32.5, speaker: 'Joker', text: 'Hieno poika', textEn: 'Good boy' },
+  { time: 35.0, text: 'Olli Rehn', textEn: 'Olli Rehn' },
+  { time: 37.0, text: 'en tiedä mitä sanoisin sinulle', textEn: 'I don\'t know what I would say to you' },
+  { time: 40.0, speaker: 'Batman', text: 'Alexander', textEn: 'Alexander' },
+  { time: 41.0, speaker: 'Joker', text: 'Pekka?', textEn: 'Pekka?' },
+  { time: 46.0, text: 'Mene pois Pekka, mulla on Li Andersson', textEn: 'Go away, Pekka, I\'ve got Li Andersson' },
+  { time: 49.0, speaker: 'Batman', text: 'En välitä, en ole vasemmistolainen', textEn: 'I don\'t care, I\'m not a leftist' },
+  { time: 53.0, speaker: 'Joker', text: 'Älä viitsi, Pekka', textEn: 'Oh, come on, Pekka' },
+  { time: 54.0, text: 'se on ongelma, sinä välität, minä en', textEn: 'that\'s the problem, you care, I don\'t' },
+  { time: 62.0, speaker: 'Batman', text: 'Li', textEn: 'Li' },
+  { time: 63.0, text: 'kiitos taktisista äänistä', textEn: 'thanks for the tactical votes' },
+];
+
+// Resolve inherited speakers and build the final subtitle list
+const SUBTITLES: SubtitleEntry[] = (() => {
+  let lastSpeaker = 'Joker';
+  return SUBTITLE_RAW.map((entry) => {
+    const speaker = entry.speaker ?? lastSpeaker;
+    lastSpeaker = speaker;
+    return { time: entry.time, speaker, text: entry.text, textEn: entry.textEn };
+  });
+})();
+
+const SPEAKER_COLORS: Record<string, string> = {
+  'Joker': '#ffffff',
+  'Halla-Aho': '#e8c56e',
+  'Batman': '#7eb8da',
+};
+
+function getSpeakerColor(speaker: string): string {
+  return SPEAKER_COLORS[speaker] ?? '#b0c4de'; // light steel blue fallback for extra speakers
+}
+
 const TAP_THRESHOLD = 53;
 const TAP_TIMEOUT_MS = 2000;
 const DISMISS_MS = 600;
 
 export function useJokerEasterEgg() {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [audioReady, setAudioReady] = useState(false);
   const countRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -30,6 +83,16 @@ export function useJokerEasterEgg() {
       import('../assets/sounds/stubbin-full.mp3').then(({ default: url }) => {
         const audio = new Audio(url);
         audioRef.current = audio;
+        setAudioReady(true);
+        // Dismiss the joker card when the audio finishes playing
+        audio.addEventListener('ended', () => {
+          setPhase('dismiss');
+          setTimeout(() => {
+            setPhase('idle');
+            audioRef.current = null;
+            setAudioReady(false);
+          }, DISMISS_MS);
+        });
         audio.play().catch(() => {});
       }).catch(() => {});
 
@@ -42,7 +105,16 @@ export function useJokerEasterEgg() {
   }, [phase]);
 
   useEffect(() => {
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      // Stop audio on unmount — when the Layout component unmounts during
+      // navigation (e.g. home → game), the ref is lost but the audio element
+      // would keep playing in memory without this explicit cleanup.
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   /** Stop audio and reset state — call when navigating away from the home page. */
@@ -51,12 +123,13 @@ export function useJokerEasterEgg() {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    setAudioReady(false);
     countRef.current = 0;
     clearTimeout(timerRef.current);
     setPhase('idle');
   }, []);
 
-  return { phase, setPhase, handleLogoClick, audioRef, stopEasterEgg };
+  return { phase, setPhase, handleLogoClick, audioRef, audioReady, stopEasterEgg };
 }
 
 /** Catmull-Rom spline interpolation for continuous, smooth curves through waypoints */
@@ -97,14 +170,16 @@ function randomWaypoint(): Waypoint {
   };
 }
 
-export function JokerOverlay({ phase, setPhase, audioRef }: {
+export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
   phase: Phase;
   setPhase: (p: Phase) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  audioReady: boolean;
 }) {
   const { volume, muted, hapticsEnabled } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const animRef = useRef<number>(0);
+  const [currentSubtitle, setCurrentSubtitle] = useState<SubtitleEntry | null>(null);
   // Sliding window of 4 waypoints for Catmull-Rom spline interpolation.
   // The card always travels along the curve between waypoints[1] and waypoints[2],
   // using waypoints[0] and waypoints[3] as tangent guides.
@@ -115,6 +190,34 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   const spinRef = useRef<{ active: boolean; startTime: number; duration: number; rx: number; ry: number; rz: number; baseRx: number; baseRy: number; baseRz: number }>({
     active: false, startTime: 0, duration: 0, rx: 0, ry: 0, rz: 0, baseRx: 0, baseRy: 0, baseRz: 0,
   });
+
+  // Track audio currentTime to show synced subtitles.
+  // audioReady is needed as a dependency because the audio element is loaded
+  // asynchronously — phase switches to 'flying' before audioRef.current is set,
+  // so without audioReady this effect would exit early and never attach the listener.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || phase !== 'flying') {
+      setCurrentSubtitle(null);
+      return;
+    }
+
+    const onTimeUpdate = () => {
+      const t = audio.currentTime;
+      // Find the last subtitle whose time <= currentTime
+      let active: SubtitleEntry | null = null;
+      for (let i = SUBTITLES.length - 1; i >= 0; i--) {
+        if (SUBTITLES[i]!.time <= t) {
+          active = SUBTITLES[i]!;
+          break;
+        }
+      }
+      setCurrentSubtitle(active);
+    };
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    return () => audio.removeEventListener('timeupdate', onTimeUpdate);
+  }, [phase, audioRef, audioReady]);
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {
@@ -313,6 +416,35 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
           />
         </div>
       </div>
+
+      {/* Synced subtitles — fixed at bottom center, Finnish + English */}
+      {phase === 'flying' && (
+        <div
+          className="fixed bottom-8 left-0 right-0 z-[10000] flex flex-col items-center gap-1 pointer-events-none"
+        >
+          <div
+            key={`fi-${currentSubtitle?.time ?? 'empty'}`}
+            className="joker-subtitle"
+            style={{
+              color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
+              opacity: currentSubtitle ? 1 : 0,
+            }}
+          >
+            {currentSubtitle?.text ?? ''}
+          </div>
+          <div
+            key={`en-${currentSubtitle?.time ?? 'empty'}`}
+            className="joker-subtitle"
+            style={{
+              color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
+              opacity: currentSubtitle ? 0.7 : 0,
+              fontSize: '14px',
+            }}
+          >
+            {currentSubtitle?.textEn ?? ''}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -95,16 +95,37 @@ export function registerGameHandlers(
   socket.on('game:reaction', (data) => {
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room || !room.game) return;
-    const playerId = room.getPlayerId(socket.id);
-    if (!playerId) return;
     // Validate emoji is in the allowed set
     if (!ALLOWED_EMOJIS.includes(data.emoji as GameEmoji)) return;
-    // Relay to all clients in the room
-    io.to(room.roomCode).emit('game:reaction', {
-      playerId,
+    gameActionsTotal.inc('reaction');
+
+    const playerId = room.getPlayerId(socket.id);
+    const isSpectator = room.spectatorSockets.has(socket.id);
+    const isEliminated = playerId != null && (room.players.get(playerId)?.isEliminated ?? false);
+
+    if (!playerId && !isSpectator) return;
+
+    const reactionPayload = {
+      playerId: playerId ?? socket.id,
       emoji: data.emoji,
       timestamp: Date.now(),
-    });
+    };
+
+    if (isSpectator || isEliminated) {
+      // Route spectator/eliminated reactions only to other spectators and eliminated players
+      for (const sid of room.spectatorSockets) {
+        io.to(sid).emit('game:reaction', reactionPayload);
+      }
+      for (const [pid, player] of room.players) {
+        if (player.isEliminated) {
+          const sid = room.getSocketId(pid);
+          if (sid) io.to(sid).emit('game:reaction', reactionPayload);
+        }
+      }
+    } else {
+      // Active player — broadcast to all clients in the room
+      io.to(room.roomCode).emit('game:reaction', reactionPayload);
+    }
   });
 
   socket.on('chat:send', (data) => {
@@ -163,6 +184,11 @@ export function registerGameHandlers(
       // Fallback: in-memory chat rate limiting (single-instance only)
       const lastChatTime = chatTimestamps.get(chatCooldownKey) ?? 0;
       if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
+      // Evict oldest entry if at capacity (Map iterates in insertion order)
+      if (chatTimestamps.size >= MAX_CHAT_TIMESTAMP_ENTRIES) {
+        const oldest = chatTimestamps.keys().next().value;
+        if (oldest !== undefined) chatTimestamps.delete(oldest);
+      }
       chatTimestamps.set(chatCooldownKey, Date.now());
       emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
     }
@@ -211,8 +237,10 @@ function emitChat(
   }
 }
 
-/** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Cleaned up periodically. */
+/** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Cleaned up periodically.
+ *  Capped at MAX_CHAT_TIMESTAMP_ENTRIES to prevent unbounded growth under load. */
 const chatTimestamps = new Map<string, number>();
+const MAX_CHAT_TIMESTAMP_ENTRIES = 10_000;
 
 // Clean up stale chat timestamps every 60s
 setInterval(() => {

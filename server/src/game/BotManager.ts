@@ -1,16 +1,18 @@
 import type { Server } from 'socket.io';
 import {
-  GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
+  GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
   maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
+  pickRandomBot, IMPOSSIBLE_BOT,
 } from '@bull-em/shared';
+import type { BotLevelCategory } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId, BotProfileConfig } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
 import { broadcastGameState, broadcastGameReplay } from '../socket/broadcast.js';
-import { beginRoundResultPhase } from '../socket/roundTransition.js';
+import { beginRoundResultPhase, handleSetOver } from '../socket/roundTransition.js';
 import { persistCompletedGame } from '../socket/persistGame.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -275,15 +277,19 @@ export class BotManager {
     if (!botPlayer || !botPlayer.isBot) return;
 
     const state = room.game.getClientState(botId);
+    // Use IMPOSSIBLE difficulty if this bot is The Oracle (by name) or if global difficulty is IMPOSSIBLE
+    const effectiveDifficulty = botPlayer.name === IMPOSSIBLE_BOT.name
+      ? BotDifficulty.IMPOSSIBLE
+      : this.difficulty;
     // For IMPOSSIBLE difficulty, bots see their own cards + human players' cards (not other bots')
-    const visibleCards = this.difficulty === BotDifficulty.IMPOSSIBLE
+    const visibleCards = effectiveDifficulty === BotDifficulty.IMPOSSIBLE
       ? [...room.players.values()]
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
     // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)
     const profileConfig = this.botProfileConfigs.get(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, this.difficulty, visibleCards, room.roomCode, profileConfig);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, room.roomCode, profileConfig);
 
     let result: TurnResult;
     switch (decision.action) {
@@ -351,11 +357,9 @@ export class BotManager {
           io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
           room.recordEliminations(result.finalRoundResult.eliminatedPlayerIds);
         }
-        room.gamePhase = GamePhase.GAME_OVER;
         room.cancelRoundContinueWindow();
-        broadcastGameReplay(io, room, result.winnerId);
-        io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
-        persistCompletedGame(room, result.winnerId);
+        // Use series-aware handler which checks if the match continues
+        handleSetOver(io, room, this.roomManager, this, result.winnerId);
         break;
     }
     // Persist after every bot action that mutated game state
@@ -396,9 +400,12 @@ export class BotManager {
     const usedNames = new Set(
       [...room.players.values()].map(p => p.name)
     );
-    for (const name of BOT_NAMES) {
-      if (!usedNames.has(name)) return name;
-    }
+    const category: BotLevelCategory = room.settings.botLevelCategory ?? 'normal';
+    const bot = pickRandomBot(category, usedNames);
+    if (bot) return bot.name;
+    // Fallback: try any category if the specific one is exhausted
+    const anyBot = pickRandomBot('mixed', usedNames);
+    if (anyBot) return anyBot.name;
     return `Bot ${botCounter + 1}`;
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { handToString, TurnAction } from '@bull-em/shared';
 import type { GameReplay, TurnEntry, HandCall, PlayerId, RoundResult, SpectatorPlayerCards } from '@bull-em/shared';
@@ -6,6 +6,7 @@ import { ReplayEngine, loadReplay } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { HandDisplay } from '../components/HandDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useToast } from '../context/ToastContext.js';
 import { fetchReplay } from '../api/replays.js';
 
 function actionLabel(entry: TurnEntry): string {
@@ -68,9 +69,12 @@ export function ReplayPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { lastReplay } = useGameContext();
+  const { addToast } = useToast();
 
   const [replay, setReplay] = useState<GameReplay | null>(null);
   const [loadingReplay, setLoadingReplay] = useState(true);
+  /** Track whether we've applied the initial deep-link seek so we only do it once. */
+  const deepLinkApplied = useRef(false);
 
   // Load replay from context (just finished game), API (by game ID), or localStorage fallback
   useEffect(() => {
@@ -123,6 +127,67 @@ export function ReplayPage() {
   // Force re-render on step changes
   const [, setTick] = useState(0);
   const rerender = useCallback(() => setTick(t => t + 1), []);
+
+  // Deep-link: seek to the round/turn specified in query params on first load
+  useEffect(() => {
+    if (!engine || deepLinkApplied.current) return;
+    deepLinkApplied.current = true;
+
+    const roundParam = searchParams.get('r');
+    const turnParam = searchParams.get('t');
+
+    if (roundParam !== null) {
+      const roundIdx = parseInt(roundParam, 10);
+      if (!Number.isNaN(roundIdx) && roundIdx >= 0 && roundIdx < engine.roundCount) {
+        engine.seekToRound(roundIdx);
+
+        if (turnParam !== null) {
+          const turnIdx = parseInt(turnParam, 10);
+          if (!Number.isNaN(turnIdx) && turnIdx > 0) {
+            // Step forward turnIdx times within the current round
+            for (let i = 0; i < turnIdx; i++) {
+              if (!engine.stepForward()) break;
+              // Stop if we moved past this round
+              if (engine.currentRoundIndex !== roundIdx) {
+                engine.seekToRound(roundIdx);
+                engine.seekToRoundEnd();
+                break;
+              }
+            }
+          }
+        }
+
+        rerender();
+      }
+    }
+  }, [engine, searchParams, rerender]);
+
+  /** Build a shareable URL pointing to the current replay position. */
+  const buildShareUrl = useCallback((): string => {
+    if (!replay || !engine) return window.location.href;
+    const url = new URL(window.location.origin + '/replay');
+    url.searchParams.set('id', replay.id);
+    const ri = engine.currentRoundIndex;
+    const ti = engine.currentTurnIndex;
+    if (ri > 0 || ti > 0) {
+      url.searchParams.set('r', String(ri));
+      if (ti > 0) {
+        url.searchParams.set('t', String(ti));
+      }
+    }
+    return url.toString();
+  }, [replay, engine]);
+
+  const handleShare = useCallback(async () => {
+    const url = buildShareUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      addToast('Replay link copied!', 'success');
+    } catch {
+      // Fallback for contexts where clipboard API is unavailable
+      addToast('Could not copy link', 'error');
+    }
+  }, [buildShareUrl, addToast]);
 
   // Auto-play state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -210,6 +275,21 @@ export function ReplayPage() {
           <p className="text-[var(--gold-dim)] text-xs mt-0.5">
             Winner: {winnerName} &middot; {replay.rounds.length} rounds
           </p>
+          {/* Share button — copies a deep-link to the current round/turn position */}
+          <button
+            onClick={handleShare}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors px-3 py-1.5 glass rounded-full"
+            title="Copy shareable link to current position"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            Share
+          </button>
         </div>
 
         {/* Round indicator */}
