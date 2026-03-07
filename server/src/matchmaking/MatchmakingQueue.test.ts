@@ -427,10 +427,12 @@ describe('MatchmakingQueue', () => {
       const zset = mockRedis.getZset('matchmaking:multiplayer');
       expect(zset.size).toBe(0);
 
-      // Room created with bot backfill to reach target
+      // Room created with bot backfill to reach random target (3-9 total)
       expect(mockRoomManager.createRoom).toHaveBeenCalled();
-      // 4 - 3 = 1 bot needed
-      expect(mockBotManager.addBot).toHaveBeenCalledTimes(1);
+      // Random target 3-9, 3 humans, so 0-6 bots needed
+      const botCalls = mockBotManager.addBot.mock.calls.length;
+      expect(botCalls).toBeGreaterThanOrEqual(0);
+      expect(botCalls).toBeLessThanOrEqual(6);
     });
 
     it('does not match fewer than minimum players without timeout', async () => {
@@ -471,8 +473,10 @@ describe('MatchmakingQueue', () => {
 
       // Should have created a match with bot backfill
       expect(mockRoomManager.createRoom).toHaveBeenCalled();
-      // Target is 4, 1 human, so 3 bots
-      expect(mockBotManager.addBot).toHaveBeenCalledTimes(3);
+      // Random target 3-9, 1 human, so 2-8 bots needed
+      const botCalls = mockBotManager.addBot.mock.calls.length;
+      expect(botCalls).toBeGreaterThanOrEqual(2);
+      expect(botCalls).toBeLessThanOrEqual(8);
     });
   });
 
