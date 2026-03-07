@@ -280,6 +280,18 @@ export function HomePage() {
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
   const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
+  // Dev mode badge state — only checked in dev builds
+  const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
+    const base = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+    fetch(`${base}/api/dev-status`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setDevStatus(data as { devAuth: boolean }); })
+      .catch(() => { /* server not running yet — ignore */ });
+  }, []);
+
   // Sync player name with auth state — when user signs in, use their display name
   useEffect(() => {
     if (user?.displayName) {
@@ -989,6 +1001,29 @@ export function HomePage() {
               <li>Quick Draw &amp; ghost button fixes</li>
             </ul>
           </div>
+        </div>
+      )}
+      {/* Dev mode badge — only shown in Vite dev builds */}
+      {import.meta.env.DEV && devStatus && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 8,
+            left: 8,
+            padding: '2px 8px',
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            borderRadius: 9999,
+            background: 'rgba(255, 200, 0, 0.15)',
+            color: 'rgba(255, 200, 0, 0.7)',
+            border: '1px solid rgba(255, 200, 0, 0.25)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          DEV MODE{devStatus.devAuth ? ' · simulated login' : ''}
         </div>
       )}
     </Layout>

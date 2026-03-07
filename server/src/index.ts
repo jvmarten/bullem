@@ -27,6 +27,18 @@ import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from '
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
 import { PushManager } from './push/PushManager.js';
+import { isDevAuthActive, isDevMatchmakingActive } from './dev/isDevMode.js';
+import { createDevAuthRouter, logDevAuthActive } from './dev/devAuth.js';
+import {
+  logDevSeedDataActive,
+  getDevLeaderboard,
+  getDevLeaderboardNearby,
+  getDevPlayerStats,
+  getDevAdvancedStats,
+  getDevUserRatings,
+  getDevGameHistory,
+} from './dev/devSeedData.js';
+import { InMemoryMatchmakingQueue } from './dev/InMemoryMatchmakingQueue.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -132,8 +144,9 @@ const backgroundGameManager = new BackgroundGameManager(io, roomManager, botMana
 const calibrationManager = new CalibrationManager(io, roomManager, botManager);
 
 // Create matchmaking queue when Redis is available — matchmaking requires
-// Redis for queue state. Without Redis, ranked matchmaking is disabled.
-let matchmakingQueue: MatchmakingQueue | undefined;
+// Redis for queue state. Without Redis, ranked matchmaking is disabled
+// (unless dev mode is active, in which case an in-memory fallback is used).
+let matchmakingQueue: MatchmakingQueue | InMemoryMatchmakingQueue | undefined;
 if (rateLimitRedis) {
   // Reuse a dedicated Redis client for matchmaking sorted sets.
   // TODO(scale): At very high scale, consider a separate Redis client
@@ -141,6 +154,8 @@ if (rateLimitRedis) {
   const matchmakingRedis = new Redis(process.env.REDIS_URL!);
   redisClients.push(matchmakingRedis);
   matchmakingQueue = new MatchmakingQueue(io, matchmakingRedis, roomManager, botManager);
+} else if (isDevMatchmakingActive()) {
+  matchmakingQueue = new InMemoryMatchmakingQueue(io, roomManager, botManager);
 }
 
 registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
@@ -176,10 +191,20 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
   backgroundGameManager.start();
 
+  // Log dev mode status at startup
+  if (isDevAuthActive()) {
+    logDevAuthActive();
+    logDevSeedDataActive();
+  }
+
   // Start matchmaking queue after Redis and DB are ready
   if (matchmakingQueue) {
     matchmakingQueue.start();
-    logger.info('Ranked matchmaking enabled (Redis available)');
+    if (matchmakingQueue instanceof InMemoryMatchmakingQueue) {
+      logger.info('Ranked matchmaking enabled (in-memory dev mode)');
+    } else {
+      logger.info('Ranked matchmaking enabled (Redis available)');
+    }
   } else {
     logger.info('Ranked matchmaking disabled (no Redis configured)');
   }
@@ -215,12 +240,25 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use(optionalAuth);
 
+// Dev auth routes — mounted before real auth so they take precedence in dev mode
+if (isDevAuthActive()) {
+  app.use('/auth', createDevAuthRouter());
+}
+
 // Auth routes
 app.use('/auth', authRouter);
 app.use('/auth', oauthRouter);
 
 // Admin routes
 app.use('/admin', createAdminRouter(io, roomManager, botManager));
+
+// Dev status endpoint — tells the client whether dev auth is active
+app.get('/api/dev-status', (_req, res) => {
+  res.json({
+    devAuth: isDevAuthActive(),
+    devMatchmaking: isDevMatchmakingActive(),
+  });
+});
 
 // Replay routes
 import { getReplayByGameId, getReplayList, getUserReplays } from './db/replays.js';
@@ -266,6 +304,57 @@ app.get('/api/replays/:gameId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch replay' });
   }
 });
+
+// ── Dev seed data routes (registered before real DB routes to take precedence) ──
+if (isDevAuthActive()) {
+  // Stats
+  app.get('/api/stats/me', requireAuth, (req, res) => {
+    res.json(getDevPlayerStats(req.user!.userId));
+  });
+  app.get('/api/stats/:userId', (req, res) => {
+    res.json(getDevPlayerStats(req.params.userId!));
+  });
+  app.get('/api/stats/:userId/advanced', (req, res) => {
+    res.json(getDevAdvancedStats(req.params.userId!));
+  });
+
+  // Ratings
+  app.get('/api/ratings/:userId', (req, res) => {
+    res.json(getDevUserRatings(req.params.userId!));
+  });
+
+  // Leaderboard
+  app.get('/api/leaderboard/:mode', (req, res) => {
+    const mode = req.params.mode as import('@bull-em/shared').RankedMode;
+    const period = (req.query.period as string) ?? 'all_time';
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+    res.json(getDevLeaderboard(
+      mode,
+      period as import('@bull-em/shared').LeaderboardPeriod,
+      limit,
+      offset,
+      req.user?.userId,
+      req.user?.username,
+    ));
+  });
+  app.get('/api/leaderboard/:mode/nearby', requireAuth, (req, res) => {
+    const mode = req.params.mode as import('@bull-em/shared').RankedMode;
+    const result = getDevLeaderboardNearby(mode, req.user!.userId, req.user!.username);
+    if (!result) {
+      res.status(404).json({ error: 'Not ranked or not enough games played' });
+      return;
+    }
+    res.json(result);
+  });
+
+  // Game history (for /auth/games)
+  app.get('/auth/games', requireAuth, (req, res) => {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+    res.json(getDevGameHistory(req.user!.userId, limit, offset));
+  });
+}
 
 // Stats routes
 import { getPlayerStats } from './db/stats.js';
