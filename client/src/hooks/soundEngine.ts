@@ -138,6 +138,11 @@ function vibrate(pattern: number | number[]): void {
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
+  // If the AudioContext exists but has been permanently closed (can happen
+  // on some mobile browsers after extended backgrounding), create a fresh one.
+  if (audioCtx && audioCtx.state === 'closed') {
+    audioCtx = null;
+  }
   if (audioCtx) return audioCtx;
   try {
     audioCtx = new AudioContext();
@@ -145,6 +150,28 @@ function getAudioContext(): AudioContext | null {
     // Web Audio API not available
   }
   return audioCtx;
+}
+
+// Recover the AudioContext when the tab becomes visible again. Mobile browsers
+// (especially iOS Safari and Chrome on Android) suspend the AudioContext when
+// the tab is backgrounded. Without explicit resume, sounds silently fail.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && audioCtx) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    }
+  });
+  // Also try resuming on user interaction — covers the case where the
+  // browser refuses resume without a gesture (autoplay policy).
+  const resumeOnInteraction = () => {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  };
+  document.addEventListener('touchstart', resumeOnInteraction, { once: false, passive: true });
+  document.addEventListener('click', resumeOnInteraction, { once: false, passive: true });
 }
 
 // Cache decoded audio buffers so we only fetch/decode once per file

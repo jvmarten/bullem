@@ -22,6 +22,7 @@ const AVATAR_ICONS: Record<AvatarId, string> = {
   lion: '\u{1F981}',
   fox: '\u{1F98A}',
   bear: '\u{1F43B}',
+  sunglasses: '\u{1F60E}',
 };
 
 /** Returns the emoji for a given avatar ID, or the user's initial as fallback. */
@@ -104,6 +105,7 @@ function positionLabel(position: number): string {
 
 function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
   const isWin = game.finishPosition === 1;
+  const is1v1 = game.playerCount === 2;
   return (
     <div className="glass px-4 py-3 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
@@ -116,10 +118,10 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
         </div>
         <div className="min-w-0">
           <p className="text-sm text-[var(--gold)] truncate">
-            {isWin ? 'Victory' : `Won by ${game.winnerName}`}
+            {isWin ? 'Victory' : is1v1 ? 'Loss' : `Won by ${game.winnerName}`}
           </p>
           <p className="text-[10px] text-[var(--gold-dim)]">
-            {game.playerCount} players &middot; {formatDuration(game.durationSeconds)}
+            {is1v1 ? '1v1' : `${game.playerCount} players`} &middot; {formatDuration(game.durationSeconds)}
           </p>
         </div>
       </div>

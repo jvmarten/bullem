@@ -373,7 +373,7 @@ export function LocalGamePage() {
             {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
 
             {/* Quick Draw suggestion chips */}
-            {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
+            {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}

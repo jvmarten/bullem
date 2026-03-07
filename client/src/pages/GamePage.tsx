@@ -83,6 +83,24 @@ export function GamePage() {
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
 
+  // Unstick "next round starting" overlay after app switch. When the page
+  // becomes visible again, if the transition deadline has passed, the server
+  // may have already started the next round while the tab was backgrounded.
+  // Clear the stale transition state so the UI isn't stuck.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (roundTransition && roundTransitionDeadline && Date.now() > roundTransitionDeadline) {
+        // The deadline expired while the tab was hidden — the transition
+        // timer fired in the background or was paused. Emit continue to
+        // ensure the server knows we're ready, then clear the overlay.
+        clearRoundResult();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [roundTransition, roundTransitionDeadline, clearRoundResult]);
+
   // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
     if (winnerId && !roundResult) navigate(`/results/${roomCode}`);
@@ -90,6 +108,18 @@ export function GamePage() {
 
   useEffect(() => {
     if (gameState || !roomCode || rejoinAttemptedRef.current) return;
+
+    // If we already have a playerId set (e.g., from matchmaking auto-join),
+    // we're already in the room on the server side. Don't attempt a rejoin
+    // that will fail with "Room is full" or "Game already in progress" —
+    // just wait for the server to send game:state when the game starts.
+    if (playerId) {
+      rejoinAttemptedRef.current = true;
+      // Safety timeout: if game state never arrives, redirect home
+      const timeout = setTimeout(() => navigate('/'), 15000);
+      return () => clearTimeout(timeout);
+    }
+
     const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (!storedName) {
       // No stored name means we can't rejoin — redirect home instead of
@@ -118,7 +148,7 @@ export function GamePage() {
           navigate('/');
         }
       });
-  }, [gameState, roomCode, joinRoom, navigate]);
+  }, [gameState, roomCode, joinRoom, navigate, playerId]);
 
   useEffect(() => {
     if (!gameState && roomState?.gamePhase === 'lobby' && roomCode) {
@@ -150,6 +180,10 @@ export function GamePage() {
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isSpectator = !myPlayer;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
+  // True when the player is at max cards and one more loss means elimination
+  const isAtMaxCards = !isEliminated && !isSpectator && myPlayer
+    ? myPlayer.cardCount >= gameState.maxCards
+    : false;
 
   // Show a one-time prominent notification when the player gets eliminated,
   // but only if the game is still in progress (no winner yet).
@@ -473,7 +507,7 @@ export function GamePage() {
             {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
 
             {/* Quick Draw suggestion chips */}
-            {quickDrawOpen && canRaise && !handSelectorOpen && quickDrawSuggestions.length > 0 && (
+            {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}
@@ -584,6 +618,11 @@ export function GamePage() {
             disabled={!isEliminated && !isSpectator && !roundResult && !roundTransition && !winnerId}
             label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
           />
+        )}
+
+        {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}
+        {isAtMaxCards && (
+          <div className="max-cards-warning-glow" aria-hidden="true" />
         )}
 
         {/* Reconnecting overlay — shown when own connection drops */}

@@ -106,7 +106,15 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
           .map(p => ({ userId: p.userId!, finishPosition: p.finishPosition }));
 
         if (rankedPlayers.length >= 2) {
-          updateRatingsAfterGame(rankedMode, rankedPlayers, gameId).catch(() => {
+          // Calculate bot fraction: proportion of opponents that are bots.
+          // Only count non-authenticated players as bots for weighting purposes.
+          const totalPlayers = record.players.length;
+          const humanPlayers = rankedPlayers.length;
+          const botCount = totalPlayers - humanPlayers;
+          // Each human's opponents = totalPlayers - 1; botFraction = bots / opponents
+          const botFraction = totalPlayers > 1 ? botCount / (totalPlayers - 1) : 0;
+
+          updateRatingsAfterGame(rankedMode, rankedPlayers, gameId, botFraction).catch(() => {
             // Error already logged inside updateRatingsAfterGame
           });
         }
@@ -130,6 +138,14 @@ export async function computeRatingChanges(
 
   const rankedMode = room.settings.rankedMode;
   const result: Record<PlayerId, RatingChange> = {};
+
+  // Calculate bot weight for preview deltas (same logic as persistCompletedGame)
+  const BOT_MATCH_WEIGHT = 0.5;
+  const totalPlayerCount = room.players.size;
+  const authenticatedCount = [...room.players.keys()].filter(pid => room.playerUserIds.get(pid)).length;
+  const botCount = totalPlayerCount - authenticatedCount;
+  const botFraction = totalPlayerCount > 1 ? botCount / (totalPlayerCount - 1) : 0;
+  const weight = botFraction > 0 ? 1 - botFraction * (1 - BOT_MATCH_WEIGHT) : 1;
 
   try {
     // Build finish positions
@@ -174,8 +190,10 @@ export async function computeRatingChanges(
         { rating: loserElo, gamesPlayed: loserGames },
       );
 
-      result[winner.playerId] = { mode: 'heads_up', before: winnerElo, after: winResult.newRating, delta: winResult.delta };
-      result[loser.playerId] = { mode: 'heads_up', before: loserElo, after: loseResult.newRating, delta: loseResult.delta };
+      const weightedWinDelta = Math.round(winResult.delta * weight);
+      const weightedLoseDelta = Math.round(loseResult.delta * weight);
+      result[winner.playerId] = { mode: 'heads_up', before: winnerElo, after: winnerElo + weightedWinDelta, delta: weightedWinDelta };
+      result[loser.playerId] = { mode: 'heads_up', before: loserElo, after: loserElo + weightedLoseDelta, delta: weightedLoseDelta };
     } else {
       // Multiplayer — OpenSkill
       const ratingsData = await Promise.all(
@@ -195,11 +213,13 @@ export async function computeRatingChanges(
       const openSkillResults = calculateOpenSkill(openSkillInput);
 
       for (const p of ratingsData) {
-        const before = p.rating?.mode === 'multiplayer'
-          ? openSkillDisplayRating(p.rating.mu)
-          : openSkillDisplayRating(OPENSKILL_DEFAULT_MU);
+        const beforeMu = p.rating?.mode === 'multiplayer' ? p.rating.mu : OPENSKILL_DEFAULT_MU;
+        const before = openSkillDisplayRating(beforeMu);
         const osResult = openSkillResults.find(r => r.userId === p.userId);
-        const after = osResult ? openSkillDisplayRating(osResult.mu) : before;
+        // Apply bot weight to the mu delta
+        const rawDelta = osResult ? osResult.mu - beforeMu : 0;
+        const weightedMu = beforeMu + rawDelta * weight;
+        const after = openSkillDisplayRating(weightedMu);
         result[p.playerId] = { mode: 'multiplayer', before, after, delta: after - before };
       }
     }
