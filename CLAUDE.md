@@ -210,6 +210,7 @@ bull-em/
 │   │   ├── hands.ts     # Hand rankings and comparison (pure functions)
 │   │   └── constants.ts # Game configuration constants
 │   └── vitest.config.ts
+├── scripts/             # Dev scripts (merge-to-develop.sh)
 ├── .github/workflows/   # CI/CD (ci.yml + deploy.yml)
 ├── Dockerfile           # Multi-stage production build
 ├── fly.toml             # Fly.io deployment config
@@ -305,17 +306,25 @@ fly deploy
 
 ### Branching Strategy
 
-- **`develop`** — integration branch. Feature branches are **automatically merged** into `develop` after CI passes (via `.github/workflows/auto-merge-develop.yml`).
+- **`develop`** — integration branch. Feature branches are merged into `develop` locally using `scripts/merge-to-develop.sh` after build + tests pass.
 - **`main`** — production branch. Merges to `main` are **always manual** — the maintainer reviews, tests locally, and merges when ready.
 
-### Auto-merge to `develop`
+### Merging to `develop`
 
-When you push code to a feature branch (e.g., `claude/*`), the `auto-merge-develop.yml` workflow will:
-1. Run full CI (build + tests + Docker build)
-2. If CI passes, automatically merge the branch into `develop` with a merge commit
-3. No manual intervention required
+After finishing work on a feature branch, merge it into `develop` using the local script:
 
-This ensures `develop` always has the latest passing code integrated.
+```bash
+./scripts/merge-to-develop.sh          # build + test + merge + push
+./scripts/merge-to-develop.sh --skip-ci  # skip build/tests (merge only)
+```
+
+The script will:
+1. Run `npm run build` and `npm test` locally
+2. If all checks pass, merge the feature branch into `develop` (no-ff)
+3. Push `develop` to origin
+4. Delete the feature branch (local + remote)
+
+This replaces the old `auto-merge-develop.yml` GitHub Action to avoid consuming CI minutes.
 
 ### Merges to `main`
 
@@ -328,9 +337,6 @@ When you finish work on a PR targeting `main` (code changes committed and pushed
 Use the GitHub REST API with `curl` (since `gh` CLI may not be available):
 
 ```bash
-# Create a PR targeting develop (auto-merged by CI)
-# Not usually needed — feature branches auto-merge to develop after CI passes
-
 # Create a PR targeting main (manual merge only)
 curl -s -X POST \
   -H "Authorization: token $GH_TOKEN" \
@@ -343,7 +349,7 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 
 ### Rules
 
-- **Auto-merge to `develop`** — feature branches merge automatically after CI passes.
+- **Merge to `develop` locally** — use `./scripts/merge-to-develop.sh` after completing a feature branch.
 - **Never auto-merge to `main`** — leave PRs open for the maintainer to review and test locally.
 - **Squash merge** is the preferred merge strategy for `main` (when the maintainer merges).
 - Always include a clear summary and test plan in PR descriptions targeting `main`.
