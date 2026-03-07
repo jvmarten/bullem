@@ -198,7 +198,7 @@ export function LocalGamePage() {
     if (!quickDrawOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]')) return;
+      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="action-area"]')) return;
       setQuickDrawOpen(false);
     };
     document.addEventListener('mousedown', handleOutside);
@@ -407,12 +407,12 @@ export function LocalGamePage() {
                   onBull={callBull}
                   onTrue={callTrue}
                   onLastChancePass={lastChancePass}
-                  onExpand={closeHandSelector}
+                  onExpand={() => { closeHandSelector(); setQuickDrawOpen(false); }}
                 />
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
-                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
+                      onClick={() => { play('uiClick'); setQuickDrawOpen(false); setHandSelectorOpen(true); }}
                       className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="R"
                     >
