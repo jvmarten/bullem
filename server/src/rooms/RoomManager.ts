@@ -6,6 +6,7 @@ import {
 import type { RoomListing, LiveGameListing, ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { Room } from './Room.js';
 import type { RedisStore } from './RedisStore.js';
+import { cleanupRoundStartTime } from '../socket/roundTransition.js';
 import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -144,6 +145,9 @@ export class RoomManager {
       }
       room.cleanup();
     }
+    // Clean up round-start metric tracking for this room. Without this,
+    // rooms deleted mid-game (stale cleanup, host delete) leak an entry.
+    cleanupRoundStartTime(roomCode);
     this.rooms.delete(roomCode);
     this.cachedPlayerNames = null;
     // Remove from Redis persistence

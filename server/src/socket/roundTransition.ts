@@ -24,6 +24,13 @@ export function recordRoundStart(roomCode: string): void {
   roundStartTimes.set(roomCode, Date.now());
 }
 
+/** Clean up the round start time entry for a room. Called when a room is
+ *  deleted (stale cleanup, host delete) to prevent orphaned entries from
+ *  games that never resolved a round. */
+export function cleanupRoundStartTime(roomCode: string): void {
+  roundStartTimes.delete(roomCode);
+}
+
 /** Observe the round duration for metrics and clean up the start time entry. */
 function observeRoundDuration(roomCode: string): void {
   const startTime = roundStartTimes.get(roomCode);
