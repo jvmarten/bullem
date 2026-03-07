@@ -172,9 +172,10 @@ export function LocalGamePage() {
     setHandSelectorOpen(false);
   }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
 
-  // Stable callback reference so ActionButtons' React.memo isn't broken by
-  // an inline arrow function creating a new reference on every render.
+  // Stable callback references so ActionButtons' React.memo isn't broken by
+  // inline arrow functions creating new references on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
+  const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
 
   // Close hand selector on tap outside — same pattern as ActionButtons
   useEffect(() => {
@@ -408,12 +409,12 @@ export function LocalGamePage() {
                   onBull={callBull}
                   onTrue={callTrue}
                   onLastChancePass={lastChancePass}
-                  onExpand={() => { closeHandSelector(); setQuickDrawOpen(false); }}
+                  onExpand={handleActionExpand}
                 />
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
-                      onClick={() => { play('uiClick'); setQuickDrawOpen(false); setHandSelectorOpen(true); }}
+                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                       className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="R"
                     >

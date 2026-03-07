@@ -26,7 +26,7 @@ function getChipCards(hand: QuickDrawSuggestion['hand']): Card[] {
     case HandType.THREE_OF_A_KIND:
       return suits.slice(0, 3).map(s => ({ rank: hand.rank, suit: s }));
     case HandType.FLUSH:
-      return [{ rank: 'A', suit: hand.suit }, { rank: 'K', suit: hand.suit }, { rank: 'Q', suit: hand.suit }] as Card[];
+      return [{ rank: 'A', suit: hand.suit }] as Card[];
     case HandType.STRAIGHT: {
       const high = RANK_VALUES[hand.highRank];
       return Array.from({ length: 5 }, (_, i) => {
@@ -76,6 +76,7 @@ export const QuickDrawChips = memo(function QuickDrawChips({
     >
       {suggestions.map((s, i) => {
         const cards = getChipCards(s.hand);
+        const isSuitOnly = s.hand.type === HandType.FLUSH;
         return (
           <button
             key={`${s.tier}-${i}`}
@@ -86,7 +87,7 @@ export const QuickDrawChips = memo(function QuickDrawChips({
           >
             <span className="quick-draw-chip-cards">
               {cards.map((card, ci) => (
-                <CardDisplay key={ci} card={card} small />
+                <CardDisplay key={ci} card={card} small suitOnly={isSuitOnly} />
               ))}
             </span>
           </button>
