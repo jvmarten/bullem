@@ -131,12 +131,16 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
 }
 
 export function ProfilePage() {
-  const { user, profile, loading, logout, updateAvatar, uploadPhoto } = useAuth();
+  const { user, profile, loading, logout, updateAvatar, uploadPhoto, updateUsername } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -278,6 +282,35 @@ export function ProfilePage() {
     }
   };
 
+  const handleEditUsername = () => {
+    setUsernameInput(profile.username);
+    setUsernameError('');
+    setEditingUsername(true);
+  };
+
+  const handleSaveUsername = async () => {
+    const trimmed = usernameInput.trim();
+    if (trimmed === profile.username) {
+      setEditingUsername(false);
+      return;
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{1,19}$/.test(trimmed)) {
+      setUsernameError('2–20 chars, starts with letter, letters/numbers/underscores only');
+      return;
+    }
+    setSavingUsername(true);
+    setUsernameError('');
+    try {
+      await updateUsername(trimmed);
+      setEditingUsername(false);
+      addToast('Username updated');
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : 'Failed to update username');
+    } finally {
+      setSavingUsername(false);
+    }
+  };
+
   const currentDisplay = avatarDisplay(profile.avatar, profile.displayName);
   const isEmoji = profile.avatar !== null;
 
@@ -309,7 +342,50 @@ export function ProfilePage() {
           >
             {profile.displayName}
           </h1>
-          <p className="text-xs text-[var(--gold-dim)] mt-1">@{profile.username}</p>
+          {editingUsername ? (
+            <div className="mt-1 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-[var(--gold-dim)]">@</span>
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={e => { setUsernameInput(e.target.value); setUsernameError(''); }}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleSaveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
+                  maxLength={20}
+                  autoFocus
+                  disabled={savingUsername}
+                  className="bg-white/5 border border-[var(--gold-dim)] rounded px-2 py-0.5 text-xs text-[var(--gold)] outline-none focus:border-[var(--gold)] w-32"
+                />
+              </div>
+              {usernameError && (
+                <p className="text-[10px] text-red-400">{usernameError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleSaveUsername()}
+                  disabled={savingUsername}
+                  className="text-[10px] text-[var(--gold)] hover:underline"
+                >
+                  {savingUsername ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditingUsername(false)}
+                  disabled={savingUsername}
+                  className="text-[10px] text-[var(--gold-dim)] hover:underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleEditUsername}
+              className="text-xs text-[var(--gold-dim)] mt-1 hover:text-[var(--gold)] transition-colors cursor-pointer"
+              title="Change username"
+            >
+              @{profile.username}
+            </button>
+          )}
           <p className="text-[10px] text-[var(--gold-dim)] mt-0.5">Member since {memberSince}</p>
         </div>
 
