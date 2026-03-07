@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES, RANKED_SETTINGS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, RankedMode } from '@bull-em/shared';
+import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES, RANKED_SETTINGS, RANKED_BEST_OF } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, RankedMode, PlayerId, BestOf } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
 import { broadcastGameState, broadcastRoomState } from '../socket/broadcast.js';
@@ -83,12 +83,11 @@ export class BackgroundGameManager {
       this.roomCode = null;
     }
 
-    // Randomize game configuration
+    // Randomize game configuration: 2 bots = 1v1 (bo3), 3-9 bots = multiplayer (bo1)
     const botCount = MIN_BOTS + Math.floor(Math.random() * (MAX_BOTS - MIN_BOTS + 1));
-    // 1v1 only possible with exactly 2 bots; with more bots, 30% chance of heads_up pair
-    const isHeadsUp = botCount === 2 || Math.random() < 0.3;
+    const isHeadsUp = botCount === 2;
     const rankedMode: RankedMode = isHeadsUp ? 'heads_up' : 'multiplayer';
-    const actualBotCount = isHeadsUp ? 2 : botCount;
+    const actualBotCount = botCount;
 
     const room = this.roomManager.createRoom();
     this.roomCode = room.roomCode;
@@ -107,6 +106,7 @@ export class BackgroundGameManager {
     });
 
     // Try to add ranked bots from the database for leaderboard tracking
+    // (oracle_lvl10 is already excluded from the pool by getRankedBotPool)
     const botPool = await this.fetchBotPool(rankedMode);
     const usedBotUserIds = new Set<string>();
 
@@ -127,6 +127,21 @@ export class BackgroundGameManager {
       this.botManager.addBot(room, profile.name);
     }
 
+    // For 1v1 (heads-up), set up Bo3 series state to match ranked rules
+    if (rankedMode === 'heads_up' && actualBotCount === 2) {
+      const bestOf = RANKED_BEST_OF as BestOf;
+      const playerIds = [...room.players.keys()] as [PlayerId, PlayerId];
+      room.settings.bestOf = bestOf;
+      room.seriesState = {
+        bestOf,
+        currentSet: 1,
+        wins: { [playerIds[0]]: 0, [playerIds[1]]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds,
+      };
+    }
+
     // Start the game
     room.startGame();
     BotPlayer.resetMemory(room.roomCode);
@@ -140,6 +155,7 @@ export class BackgroundGameManager {
       roomCode: room.roomCode,
       botCount: actualBotCount,
       rankedMode,
+      bestOf: rankedMode === 'heads_up' ? RANKED_BEST_OF : 1,
       bots: [...room.players.values()].map(p => p.name),
     }, 'Background game started');
 

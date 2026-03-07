@@ -34,12 +34,14 @@ export function deterministicUserId(username: string): string {
 
 function makeFakeUser(username: string): User {
   const userId = deterministicUserId(username);
+  // DevPlayer gets admin role in dev mode — enables admin features for testing
+  const role = username === 'DevPlayer' ? 'admin' : 'user';
   return {
     id: userId,
     username,
     displayName: username,
     email: `${username.toLowerCase()}@dev.local`,
-    role: 'user',
+    role,
     authProvider: 'email',
     avatar: null,
     photoUrl: null,

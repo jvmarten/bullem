@@ -815,7 +815,7 @@ export function HomePage() {
                 if (!user) { addToast('Sign in to play ranked'); return; }
                 setRankedExpanded(prev => !prev);
               }}
-              className={`w-full btn-gold py-4 text-lg ${!user ? 'opacity-60' : ''}`}
+              className={`w-full btn-danger py-4 text-lg ${!user ? 'opacity-60' : ''}`}
             >
               Ranked Play
             </button>
@@ -831,7 +831,7 @@ export function HomePage() {
                       joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                     }}
                     disabled={joiningRanked !== null && joiningRanked !== 'heads_up'}
-                    className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-orange'}`}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
                   >
                     {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
                   </button>
@@ -844,7 +844,7 @@ export function HomePage() {
                       joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                     }}
                     disabled={joiningRanked !== null && joiningRanked !== 'multiplayer'}
-                    className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-orange'}`}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
                   >
                     {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
                   </button>
@@ -1029,7 +1029,10 @@ export function HomePage() {
             <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
               <li>Added impossible bot toggle to online lobby settings</li>
-              <li>Version bump to 1.2.7</li>
+              <li>Ranked multiplayer bot matches now have random 3-9 player count</li>
+              <li>The Oracle (lvl10) excluded from ranked play</li>
+              <li>Dark cryptic profile for The Oracle with admin view toggle</li>
+              <li>Dev mode admin powers</li>
             </ul>
           </div>
         </div>
