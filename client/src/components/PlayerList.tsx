@@ -92,11 +92,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 }) {
   return (
     <div
-      onClick={() => onPlayerClick?.(p)}
-      role={onPlayerClick ? 'button' : undefined}
-      tabIndex={onPlayerClick ? 0 : undefined}
-      onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
-      className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${onPlayerClick ? 'cursor-pointer' : ''} ${
+      className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
         p.isEliminated
           ? 'glass opacity-40'
           : isMe
@@ -109,7 +105,13 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
       } ${!p.isEliminated && !p.isConnected ? 'player-disconnected' : ''}`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <div className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''}`}>
+        <div
+          onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(p); } : undefined}
+          role={onPlayerClick ? 'button' : undefined}
+          tabIndex={onPlayerClick ? 0 : undefined}
+          onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
+          className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+        >
           {p.isBot ? (BOT_AVATAR_MAP.get(p.name) ?? '\u2699') : playerInitial(p.name)}
         </div>
         <div className="flex flex-col min-w-0">
@@ -159,7 +161,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         )}
         {showRemoveBot && p.isBot && onRemoveBot && (
           <button
-            onClick={() => onRemoveBot(p.id)}
+            onClick={(e) => { e.stopPropagation(); onRemoveBot(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Remove bot"
           >
@@ -168,7 +170,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         )}
         {showKickPlayer && !p.isBot && !p.isHost && onKickPlayer && (
           <button
-            onClick={() => onKickPlayer(p.id)}
+            onClick={(e) => { e.stopPropagation(); onKickPlayer(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Kick player"
           >

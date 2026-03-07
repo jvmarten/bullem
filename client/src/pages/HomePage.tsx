@@ -985,9 +985,8 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
-      {/* Matchmaking Queue Overlay — only shown when NOT on the online menu
-           (e.g. if user navigates away from ranked buttons while in queue) */}
-      {matchmakingStatus && mode !== 'online' && (
+      {/* Matchmaking Queue Overlay */}
+      {matchmakingStatus && (
         <MatchmakingQueue
           status={matchmakingStatus}
           onCancel={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
@@ -1011,7 +1010,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.7
+          v1.2.8
         </button>
       </div>
 
@@ -1025,14 +1024,13 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.7</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.8</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Added impossible bot toggle to online lobby settings</li>
-              <li>Ranked multiplayer bot matches now have random 3-9 player count</li>
-              <li>The Oracle (lvl10) excluded from ranked play</li>
-              <li>Dark cryptic profile for The Oracle with admin view toggle</li>
-              <li>Dev mode admin powers</li>
+              <li>Bot count selector in match settings</li>
+              <li>Fixed bot profile opening when removing bots</li>
+              <li>Fixed matchmaking queue overlay visibility</li>
+              <li>Fixed hook ordering crash during local gameplay</li>
             </ul>
           </div>
         </div>
