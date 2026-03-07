@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
@@ -42,7 +42,33 @@ function RatingChangeDisplay({ change }: { change: RatingChange }) {
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame } = useGameContext();
+  const [watchingAnother, setWatchingAnother] = useState(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  const handleWatchAnother = useCallback(async () => {
+    setWatchingAnother(true);
+    const tryWatch = async (): Promise<void> => {
+      try {
+        const code = await watchRandomGame();
+        leaveRoom();
+        navigate(`/game/${code}`);
+      } catch {
+        // No match available — retry after a short delay
+        retryTimerRef.current = setTimeout(() => {
+          void tryWatch();
+        }, 3000);
+      }
+    };
+    await tryWatch();
+  }, [watchRandomGame, leaveRoom, navigate]);
 
   // When winnerId is cleared (rematch started), navigate back to the game page
   useEffect(() => {
@@ -109,6 +135,21 @@ export function ResultsPage() {
             <p className="text-[var(--gold-dim)] text-sm">
               Waiting for host to start rematch...
             </p>
+          )}
+          {isSpectator && (
+            watchingAnother ? (
+              <div className="flex items-center justify-center gap-2 py-3">
+                <div className="w-4 h-4 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-[var(--gold-dim)]">Waiting for matches to start...</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleWatchAnother}
+                className="btn-gold px-10 py-3 text-lg"
+              >
+                Watch Another Match
+              </button>
+            )
           )}
           {lastReplay && (
             <button

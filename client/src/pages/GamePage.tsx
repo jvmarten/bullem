@@ -652,8 +652,10 @@ export function GamePage() {
           />
         )}
 
-        {/* Emoji reaction button — fixed bottom-left (hidden via settings toggle) */}
-        {emojiEnabled && !isEliminated && !isSpectator && (
+        {/* Emoji reaction button — fixed bottom-left (hidden via settings toggle).
+            Spectators and eliminated players can also react — their reactions are
+            only visible to other spectators/eliminated players. */}
+        {emojiEnabled && (
           <EmojiReactionBar onReaction={sendReaction} />
         )}
 

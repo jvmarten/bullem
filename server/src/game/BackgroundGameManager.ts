@@ -1,14 +1,18 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
+import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES, RANKED_SETTINGS } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, RankedMode } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
 import { broadcastGameState, broadcastRoomState } from '../socket/broadcast.js';
+import { getRankedBotPool } from '../db/botPool.js';
+import type { RankedBotEntry } from '../db/botPool.js';
+import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
-/** Number of bots in the background showcase game. */
-const BACKGROUND_BOT_COUNT = 4;
+/** Min/max bot count for background games (inclusive). */
+const MIN_BOTS = 2;
+const MAX_BOTS = 9;
 
 /** Delay before starting a new game after the previous one ends (ms). */
 const RESTART_DELAY_MS = 8_000;
@@ -16,8 +20,9 @@ const RESTART_DELAY_MS = 8_000;
 /**
  * Maintains an always-running bot-only game so there's always something to
  * spectate via "Watch random game." When the game finishes, it auto-restarts
- * after a brief delay. The room has spectating enabled with cards visible so
- * spectators can see everything.
+ * after a brief delay with a randomized configuration (different bot count,
+ * levels, and game mode). Every background match is ranked so bot ratings
+ * feed into the leaderboard.
  */
 export class BackgroundGameManager {
   private roomCode: string | null = null;
@@ -36,7 +41,7 @@ export class BackgroundGameManager {
   /** Create the background room and start the first game. */
   start(): void {
     this.stopped = false;
-    this.createAndStartGame();
+    void this.createAndStartGame();
   }
 
   /** Clean up all timers, intervals, and the background room on shutdown. */
@@ -62,7 +67,7 @@ export class BackgroundGameManager {
     return this.roomCode ?? undefined;
   }
 
-  private createAndStartGame(): void {
+  private async createAndStartGame(): Promise<void> {
     if (this.stopped) return;
 
     // Clean up previous watch interval
@@ -78,25 +83,48 @@ export class BackgroundGameManager {
       this.roomCode = null;
     }
 
+    // Randomize game configuration
+    const botCount = MIN_BOTS + Math.floor(Math.random() * (MAX_BOTS - MIN_BOTS + 1));
+    // 1v1 only possible with exactly 2 bots; with more bots, 30% chance of heads_up pair
+    const isHeadsUp = botCount === 2 || Math.random() < 0.3;
+    const rankedMode: RankedMode = isHeadsUp ? 'heads_up' : 'multiplayer';
+    const actualBotCount = isHeadsUp ? 2 : botCount;
+
     const room = this.roomManager.createRoom();
     this.roomCode = room.roomCode;
     room.isBackgroundGame = true;
 
-    // Configure for spectating
+    // Configure for spectating + ranked play
     room.updateSettings({
-      maxCards: 5,
-      turnTimer: 0,
+      maxCards: RANKED_SETTINGS.maxCards,
+      turnTimer: 0, // No timer for bots — they play at botSpeed pace
       allowSpectators: true,
       spectatorsCanSeeCards: true,
       botSpeed: BotSpeed.SLOW,
-      lastChanceMode: 'classic',
+      lastChanceMode: RANKED_SETTINGS.lastChanceMode,
+      ranked: true,
+      rankedMode,
     });
 
-    // Add bots
-    for (let i = 0; i < BACKGROUND_BOT_COUNT; i++) {
-      const name = BOT_PROFILES[i]?.name ?? `Bot ${i + 1}`;
-      const botId = `bg-bot-${i}`;
-      room.addBot(botId, name);
+    // Try to add ranked bots from the database for leaderboard tracking
+    const botPool = await this.fetchBotPool(rankedMode);
+    const usedBotUserIds = new Set<string>();
+
+    for (let i = 0; i < actualBotCount; i++) {
+      if (botPool.length > 0) {
+        // Pick a random bot from the pool for variety (not closest-rated)
+        const available = botPool.filter(b => !usedBotUserIds.has(b.userId));
+        if (available.length > 0) {
+          const bot = available[Math.floor(Math.random() * available.length)]!;
+          this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig);
+          usedBotUserIds.add(bot.userId);
+          continue;
+        }
+      }
+
+      // Fallback: pick a random bot profile from the shared matrix (anonymous, not rated)
+      const profile = BOT_PROFILES[Math.floor(Math.random() * BOT_PROFILES.length)]!;
+      this.botManager.addBot(room, profile.name);
     }
 
     // Start the game
@@ -108,8 +136,25 @@ export class BackgroundGameManager {
     broadcastRoomState(this.io, room);
     broadcastGameState(this.io, room);
 
+    logger.info({
+      roomCode: room.roomCode,
+      botCount: actualBotCount,
+      rankedMode,
+      bots: [...room.players.values()].map(p => p.name),
+    }, 'Background game started');
+
     // Watch for game over to auto-restart
     this.watchForGameOver();
+  }
+
+  /** Fetch ranked bot pool, gracefully falling back to empty on DB errors. */
+  private async fetchBotPool(mode: RankedMode): Promise<RankedBotEntry[]> {
+    try {
+      return await getRankedBotPool(mode);
+    } catch (err) {
+      logger.warn({ err }, 'Failed to fetch ranked bot pool for background game — using anonymous bots');
+      return [];
+    }
   }
 
   /** Poll the room's game phase to detect game over and trigger restart.
@@ -148,7 +193,7 @@ export class BackgroundGameManager {
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
-      this.createAndStartGame();
+      void this.createAndStartGame();
     }, RESTART_DELAY_MS);
     this.restartTimer.unref();
   }
