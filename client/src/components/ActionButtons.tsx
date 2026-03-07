@@ -52,6 +52,13 @@ export const ActionButtons = memo(function ActionButtons({
     };
   }, [expanded, handleOutsideClick]);
 
+  // Prevent document-level outside-click handlers (e.g. quick draw close)
+  // from intercepting mousedown/touchstart on ghost buttons, which can
+  // interfere with the subsequent click event that expands the real buttons.
+  const stopBubble = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+  }, []);
+
   if (!isMyTurn) return null;
 
   const handleClick = (action: () => void, sound: 'uiClick' | 'bullCalled' = 'uiClick') => {
@@ -59,13 +66,6 @@ export const ActionButtons = memo(function ActionButtons({
     setExpanded(false);
     action();
   };
-
-  // Prevent document-level outside-click handlers (e.g. quick draw close)
-  // from intercepting mousedown/touchstart on ghost buttons, which can
-  // interfere with the subsequent click event that expands the real buttons.
-  const stopBubble = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-  }, []);
 
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     if (!expanded) {
