@@ -672,7 +672,7 @@ export function HomePage() {
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
         {/* Player name / auth display — centered */}
-        {mode === 'menu' && (
+        {(mode === 'menu' || mode === 'online') && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
             {user ? (
               /* Signed-in: show user icon + username linking to profile */
