@@ -113,8 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'PATCH',
       body: JSON.stringify({ username }),
     });
-    setUser(prev => prev ? { ...prev, username: data.username } : null);
-    setProfile(prev => prev ? { ...prev, username: data.username } : null);
+    setUser(prev => prev ? { ...prev, username: data.username, displayName: data.username } : null);
+    setProfile(prev => prev ? { ...prev, username: data.username, displayName: data.username } : null);
   }, []);
 
   const value: AuthContextValue = useMemo(() => ({
