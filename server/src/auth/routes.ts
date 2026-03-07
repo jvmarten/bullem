@@ -669,7 +669,7 @@ router.patch('/username', requireAuth, async (req, res) => {
 
     try {
       await pool.query(
-        'UPDATE users SET username = $1 WHERE id = $2',
+        'UPDATE users SET username = $1, display_name = $1 WHERE id = $2',
         [trimmed, userId],
       );
     } catch (err: unknown) {
