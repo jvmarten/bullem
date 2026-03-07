@@ -13,6 +13,10 @@ import {
   MATCHMAKING_BOT_BACKFILL_SECONDS,
   MATCHMAKING_FOUND_COUNTDOWN_MS,
   MATCHMAKING_STATUS_INTERVAL_MS,
+  MATCHMAKING_MULTIPLAYER_TARGET,
+  MATCHMAKING_MULTIPLAYER_MIN,
+  MATCHMAKING_MULTIPLAYER_MAX,
+  MATCHMAKING_MULTIPLAYER_ELO_SPREAD,
   ELO_DEFAULT,
   OPENSKILL_DEFAULT_MU,
   OPENSKILL_DEFAULT_SIGMA,
@@ -168,6 +172,7 @@ export class InMemoryMatchmakingQueue {
 
   private runMatchingPass(): void {
     this.matchHeadsUp();
+    this.matchMultiplayer();
   }
 
   private matchHeadsUp(): void {
@@ -201,6 +206,130 @@ export class InMemoryMatchmakingQueue {
         return;
       }
     }
+  }
+
+  private matchMultiplayer(): void {
+    if (this.multiplayerQueue.length === 0) return;
+
+    const now = Date.now();
+
+    // Try to find a compatible group of players
+    if (this.multiplayerQueue.length >= MATCHMAKING_MULTIPLAYER_MIN) {
+      const group = this.findCompatibleGroup(this.multiplayerQueue, now);
+      if (group.length >= MATCHMAKING_MULTIPLAYER_MIN) {
+        for (const entry of group) this.removeFromQueue(entry);
+        this.createMultiplayerMatch(group);
+        return;
+      }
+    }
+
+    // Bot backfill for long-waiting players (even a single player)
+    if (this.multiplayerQueue.length >= 1) {
+      const longestWaiter = this.multiplayerQueue.reduce((a, b) => a.joinedAt < b.joinedAt ? a : b);
+      const waitSeconds = (now - longestWaiter.joinedAt) / 1000;
+      if (waitSeconds >= MATCHMAKING_BOT_BACKFILL_SECONDS) {
+        // Take all waiting players and fill the rest with bots
+        const players = [...this.multiplayerQueue];
+        for (const entry of players) this.removeFromQueue(entry);
+        this.createMultiplayerMatch(players);
+      }
+    }
+  }
+
+  private findCompatibleGroup(entries: QueueEntry[], now: number): QueueEntry[] {
+    if (entries.length < MATCHMAKING_MULTIPLAYER_MIN) return [];
+
+    let bestGroup: QueueEntry[] = [];
+
+    for (let start = 0; start < entries.length; start++) {
+      const group: QueueEntry[] = [entries[start]!];
+
+      for (let end = start + 1; end < entries.length && group.length < MATCHMAKING_MULTIPLAYER_MAX; end++) {
+        const candidate = entries[end]!;
+        const spread = candidate.rating - entries[start]!.rating;
+        const hasLongWaiter = group.some(e => (now - e.joinedAt) / 1000 >= MATCHMAKING_WIDEN_AFTER_SECONDS);
+        const maxSpread = hasLongWaiter
+          ? Math.floor(MATCHMAKING_MULTIPLAYER_ELO_SPREAD * 1.5)
+          : MATCHMAKING_MULTIPLAYER_ELO_SPREAD;
+        if (spread <= maxSpread) {
+          group.push(candidate);
+        } else {
+          break;
+        }
+      }
+
+      if (group.length > bestGroup.length && group.length >= MATCHMAKING_MULTIPLAYER_MIN) {
+        bestGroup = group;
+      }
+      if (bestGroup.length >= MATCHMAKING_MULTIPLAYER_TARGET) break;
+    }
+
+    return bestGroup.slice(0, MATCHMAKING_MULTIPLAYER_MAX);
+  }
+
+  private createMultiplayerMatch(humanPlayers: QueueEntry[]): void {
+    const room = this.roomManager.createRoom();
+    room.settings = {
+      maxCards: RANKED_SETTINGS.maxCards,
+      turnTimer: RANKED_SETTINGS.turnTimer,
+      lastChanceMode: RANKED_SETTINGS.lastChanceMode,
+      maxPlayers: RANKED_SETTINGS.maxPlayers,
+      ranked: true,
+      rankedMode: 'multiplayer',
+      allowSpectators: true,
+      spectatorsCanSeeCards: false,
+    };
+
+    const matchedInfo: MatchmakingFound[] = [];
+
+    for (const entry of humanPlayers) {
+      const playerId = randomUUID();
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
+      room.setPlayerUserId(playerId, entry.userId);
+      this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
+      this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
+
+      const socket = this.io.sockets.sockets.get(entry.socketId);
+      if (socket) {
+        socket.join(room.roomCode);
+        if (socket.data.role === 'admin') player.isAdmin = true;
+      }
+
+      matchedInfo.push({ roomCode: room.roomCode, opponents: [], reconnectToken, playerId });
+    }
+
+    // Fill remaining slots with bots
+    const botsNeeded = Math.max(0, MATCHMAKING_MULTIPLAYER_TARGET - humanPlayers.length);
+    const avgRating = humanPlayers.reduce((sum, p) => sum + p.rating, 0) / humanPlayers.length;
+    const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] = [];
+
+    for (let i = 0; i < botsNeeded; i++) {
+      const botId = this.botManager.addBot(room, 'Ranked Bot');
+      this.roomManager.assignPlayerToRoom(botId, room.roomCode);
+      const botName = room.players.get(botId)!.name;
+      botEntries.push({ name: botName, rating: Math.round(avgRating), tier: getRankTier(Math.round(avgRating)) });
+    }
+
+    // Build opponent lists and notify players
+    for (let i = 0; i < humanPlayers.length; i++) {
+      const opponents = [
+        ...humanPlayers
+          .filter((_, j) => j !== i)
+          .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating) })),
+        ...botEntries,
+      ];
+      matchedInfo[i]!.opponents = opponents;
+
+      const socket = this.io.sockets.sockets.get(humanPlayers[i]!.socketId);
+      if (socket) socket.emit('matchmaking:found', matchedInfo[i]!);
+    }
+
+    logger.info(
+      { roomCode: room.roomCode, mode: 'multiplayer', humanCount: humanPlayers.length, botCount: botsNeeded },
+      'In-memory multiplayer match created',
+    );
+
+    setTimeout(() => this.startMatchedGame(room.roomCode), MATCHMAKING_FOUND_COUNTDOWN_MS);
   }
 
   private getEffectiveWindow(entry: QueueEntry, now: number): number {

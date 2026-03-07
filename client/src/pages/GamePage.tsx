@@ -113,23 +113,44 @@ export function GamePage() {
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
+  const { addToast } = useToast();
 
   const rejoinAttemptedRef = useRef(false);
+  const wasEliminatedRef = useRef(false);
+  const lastResultRef = useRef(roundResult);
+
+  // All useState hooks — must be called unconditionally (before any early return)
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
+  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+
+  // Derived state — safe to compute with null gameState
+  const myPlayer = gameState?.players.find(p => p.id === playerId) ?? null;
+  const isEliminated = myPlayer?.isEliminated ?? false;
+  const isSpectator = gameState ? !myPlayer : false;
+  const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated && !isSpectator : false;
+  const isAtMaxCards = !isEliminated && !isSpectator && myPlayer && gameState
+    ? myPlayer.cardCount >= gameState.maxCards
+    : false;
+  const isLastChanceCaller = gameState
+    ? gameState.roundPhase === RoundPhase.LAST_CHANCE && gameState.lastCallerId === playerId
+    : false;
+  const canCallHand = isMyTurn && gameState && (
+    gameState.roundPhase === RoundPhase.CALLING
+    || gameState.roundPhase === RoundPhase.BULL_PHASE
+  );
+  const canRaise = canCallHand || isLastChanceCaller;
 
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
 
-  // Unstick "next round starting" overlay after app switch. When the page
-  // becomes visible again, if the transition deadline has passed, the server
-  // may have already started the next round while the tab was backgrounded.
-  // Clear the stale transition state so the UI isn't stuck.
+  // Unstick "next round starting" overlay after app switch
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
       if (roundTransition && roundTransitionDeadline && Date.now() > roundTransitionDeadline) {
-        // The deadline expired while the tab was hidden — the transition
-        // timer fired in the background or was paused. Emit continue to
-        // ensure the server knows we're ready, then clear the overlay.
         clearRoundResult();
       }
     };
@@ -158,15 +179,11 @@ export function GamePage() {
 
     const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
     if (!storedName) {
-      // No stored name means we can't rejoin — redirect home instead of
-      // showing the loading spinner forever.
       navigate('/');
       return;
     }
     rejoinAttemptedRef.current = true;
 
-    // Timeout: if the rejoin doesn't resolve within 8 seconds (socket buffering,
-    // server unreachable, etc.), redirect home instead of trapping in loading state.
     let settled = false;
     const timeout = setTimeout(() => {
       if (!settled) {
@@ -192,39 +209,7 @@ export function GamePage() {
     }
   }, [gameState, roomState?.gamePhase, roomCode, navigate]);
 
-  const handleLeave = () => {
-    if (window.confirm('Leave this game? You will lose your spot.')) {
-      leaveRoom();
-      navigate('/');
-    }
-  };
-
-  if (!gameState) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center pt-16">
-          <div className="text-center space-y-3">
-            <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-[var(--gold-dim)]">Loading game&hellip;</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
-  const myPlayer = gameState.players.find(p => p.id === playerId);
-  const isEliminated = myPlayer?.isEliminated ?? false;
-  const isSpectator = !myPlayer;
-  const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated && !isSpectator;
-  // True when the player is at max cards and one more loss means elimination
-  const isAtMaxCards = !isEliminated && !isSpectator && myPlayer
-    ? myPlayer.cardCount >= gameState.maxCards
-    : false;
-
-  // Show a one-time prominent notification when the player gets eliminated,
-  // but only if the game is still in progress (no winner yet).
-  const { addToast } = useToast();
-  const wasEliminatedRef = useRef(isEliminated);
+  // Show a one-time prominent notification when the player gets eliminated
   useEffect(() => {
     if (isEliminated && !wasEliminatedRef.current && !winnerId) {
       addToast("You've been eliminated! You're now spectating.", 'info');
@@ -232,65 +217,51 @@ export function GamePage() {
     wasEliminatedRef.current = isEliminated;
   }, [isEliminated, winnerId, addToast]);
 
-  // Show a toast for every player eliminated this round (including other players).
-  // Fires when roundResult arrives so the notification coincides with the reveal overlay.
-  const lastResultRef = useRef(roundResult);
+  // Show a toast for every player eliminated this round
   useEffect(() => {
-    if (roundResult && roundResult !== lastResultRef.current) {
+    if (roundResult && roundResult !== lastResultRef.current && gameState) {
       for (const eliminatedId of roundResult.eliminatedPlayerIds) {
-        if (eliminatedId === playerId) continue; // already handled above
+        if (eliminatedId === playerId) continue;
         const name = gameState.players.find(p => p.id === eliminatedId)?.name ?? 'A player';
         addToast(`${name} has been eliminated!`, 'info');
       }
     }
     lastResultRef.current = roundResult;
-  }, [roundResult, playerId, gameState.players, addToast]);
+  }, [roundResult, playerId, gameState, addToast]);
 
   const cardStats = useMemo(() => {
+    if (!gameState) return { total: 0, pct: 0 };
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
     return { total, pct: Math.round((total / 52) * 100) };
-  }, [gameState.players]);
+  }, [gameState]);
 
   const cardCounts = useMemo(() => {
+    if (!gameState) return {};
     const counts: Record<string, number> = {};
     for (const p of gameState.players) counts[p.id] = p.cardCount;
     return counts;
-  }, [gameState.players]);
-  const isLastChanceCaller = gameState.roundPhase === RoundPhase.LAST_CHANCE
-    && gameState.lastCallerId === playerId;
+  }, [gameState]);
 
-  const canCallHand = isMyTurn && (
-    gameState.roundPhase === RoundPhase.CALLING
-    || gameState.roundPhase === RoundPhase.BULL_PHASE
-  );
-
-  const canRaise = canCallHand || isLastChanceCaller;
-  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
-  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
-  const [pendingValid, setPendingValid] = useState(false);
-  const [quickDrawOpen, setQuickDrawOpen] = useState(false);
-  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) setSelectedBotName(player.name);
   }, []);
 
   const quickDrawSuggestions = useMemo(() => {
-    if (!quickDrawOpen || !canRaise) return [];
+    if (!quickDrawOpen || !canRaise || !gameState) return [];
     return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
-  }, [quickDrawOpen, canRaise, gameState.myCards, gameState.currentHand]);
+  }, [quickDrawOpen, canRaise, gameState]);
 
   // Tapping own cards: toggle Quick Draw chips
   const handleCardTap = useCallback((_card: Card) => {
-    if (!quickDrawEnabled || !canRaise) return;
+    if (!quickDrawEnabled || !canRaise || !gameState) return;
     play('uiClick');
-    // If Quick Draw produces no suggestions, go straight to hand selector
     const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
     if (suggestions.length === 0) {
       setHandSelectorOpen(true);
     } else {
       setQuickDrawOpen(prev => !prev);
     }
-  }, [quickDrawEnabled, canRaise, play, gameState.myCards, gameState.currentHand]);
+  }, [quickDrawEnabled, canRaise, play, gameState]);
 
   const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
     play('callMade');
@@ -319,6 +290,7 @@ export function GamePage() {
 
   // Quick raise — immediately submit the minimum valid raise
   const handleQuickRaise = useCallback(() => {
+    if (!gameState) return;
     const current = gameState.currentHand;
     if (!current) return;
     const minRaise = getMinimumRaise(current);
@@ -329,19 +301,17 @@ export function GamePage() {
       callHand(minRaise);
     }
     setHandSelectorOpen(false);
-  }, [gameState.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
+  }, [gameState, isLastChanceCaller, lastChanceRaise, callHand]);
 
-  // Stable callback references so ActionButtons' React.memo isn't broken by
-  // inline arrow functions creating new references on every render.
+  // Stable callback references so ActionButtons' React.memo isn't broken
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
   const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
 
-  // Close hand selector on tap outside — same pattern as ActionButtons
+  // Close hand selector on tap outside
   useEffect(() => {
     if (!handSelectorOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      // Keep open if tapping inside the hand selector, action area, or own cards
       if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]')) return;
       setHandSelectorOpen(false);
     };
@@ -370,15 +340,16 @@ export function GamePage() {
   }, [quickDrawOpen]);
 
   // Close hand selector and quick draw when turn changes
+  const roundPhase = gameState?.roundPhase;
   useEffect(() => {
     setHandSelectorOpen(false);
     setQuickDrawOpen(false);
-  }, [isMyTurn, gameState.roundPhase]);
+  }, [isMyTurn, roundPhase]);
 
   // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
-  const showBull = isMyTurn && gameState.currentHand !== null
-    && (gameState.roundPhase === RoundPhase.CALLING || gameState.roundPhase === RoundPhase.BULL_PHASE);
-  const showTrue = isMyTurn && gameState.roundPhase === RoundPhase.BULL_PHASE;
+  const showBull = isMyTurn && gameState?.currentHand !== null
+    && (gameState?.roundPhase === RoundPhase.CALLING || gameState?.roundPhase === RoundPhase.BULL_PHASE);
+  const showTrue = isMyTurn && gameState?.roundPhase === RoundPhase.BULL_PHASE;
   const showPass = isMyTurn && isLastChanceCaller;
   const overlayActive = !!roundResult || !!roundTransition;
 
@@ -395,6 +366,27 @@ export function GamePage() {
         : null,
     overlayActive,
   });
+
+  const handleLeave = () => {
+    if (window.confirm('Leave this game? You will lose your spot.')) {
+      leaveRoom();
+      navigate('/');
+    }
+  };
+
+  // ── Early return: loading state (all hooks called above) ──────────────
+  if (!gameState) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center pt-16">
+          <div className="text-center space-y-3">
+            <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-[var(--gold-dim)]">Loading game&hellip;</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   const seriesInfo = gameState.seriesInfo;
 
