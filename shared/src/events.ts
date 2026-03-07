@@ -2,7 +2,7 @@ import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
-export const ALLOWED_EMOJIS = ['\u{1F602}', '\u{1F624}', '\u{1F525}', '\u{1F5FF}', '\u{1F44F}'] as const;
+export const ALLOWED_EMOJIS = ['\u{1F602}', '\u{1F624}', '\u{1F525}', '\u{1F5FF}', '\u{1F44F}', '\u{1F60E}'] as const;
 export type GameEmoji = typeof ALLOWED_EMOJIS[number];
 
 /** Data broadcast when a player sends an emoji reaction. */
