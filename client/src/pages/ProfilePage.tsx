@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
@@ -133,11 +133,13 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
 }
 
 export function ProfilePage() {
-  const { user, profile, loading, logout, updateAvatar } = useAuth();
+  const { user, profile, loading, logout, updateAvatar, uploadPhoto } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
@@ -227,6 +229,57 @@ export function ProfilePage() {
     }
   };
 
+  const isAdmin = user.role === 'admin';
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      addToast('Only JPEG, PNG, and WebP images are allowed');
+      return;
+    }
+
+    // Validate file size (~1.5 MB raw)
+    if (file.size > 1.5 * 1024 * 1024) {
+      addToast('Photo must be under 1.5 MB');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+      await uploadPhoto(dataUrl);
+      setShowAvatarPicker(false);
+      addToast('Profile photo updated');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+      // Reset file input so re-selecting the same file triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setUploadingPhoto(true);
+    try {
+      await uploadPhoto(null);
+      addToast('Profile photo removed');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to remove photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const currentDisplay = avatarDisplay(profile.avatar, profile.displayName);
   const isEmoji = profile.avatar !== null;
 
@@ -293,6 +346,37 @@ export function ProfilePage() {
               >
                 Remove avatar (use initial)
               </button>
+            )}
+            {isAdmin && (
+              <div className="mt-3 pt-3 border-t border-white/10">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                  Upload Photo
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="w-full glass py-2 px-3 text-xs text-[var(--gold)] hover:border-[var(--gold-dim)] transition-colors border border-transparent"
+                >
+                  {uploadingPhoto ? 'Uploading...' : 'Choose from device'}
+                </button>
+                {profile.photoUrl && (
+                  <button
+                    onClick={handleRemovePhoto}
+                    disabled={uploadingPhoto}
+                    className="w-full mt-1 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
