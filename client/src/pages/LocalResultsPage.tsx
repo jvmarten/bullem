@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
+import { playerInitial, playerColor } from '../utils/cardUtils.js';
 
 export function LocalResultsPage() {
   const navigate = useNavigate();
@@ -14,7 +15,9 @@ export function LocalResultsPage() {
     if (!winnerId && !gameState) navigate('/local');
   }, [winnerId, gameState, navigate]);
 
-  const winnerName = gameState?.players.find((p) => p.id === winnerId)?.name ?? 'Unknown';
+  const winnerIndex = gameState?.players.findIndex((p) => p.id === winnerId) ?? -1;
+  const winnerPlayer = winnerIndex >= 0 ? gameState!.players[winnerIndex]! : null;
+  const winnerName = winnerPlayer?.name ?? 'Unknown';
   const isWinner = winnerId === playerId;
 
   useWinConfetti(isWinner);
@@ -25,8 +28,11 @@ export function LocalResultsPage() {
     <Layout>
       <div className="results-content flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
         <div className="results-left">
-        <div className="text-5xl animate-float">
-          {isWinner ? '\uD83C\uDFC6' : '\uD83D\uDE14'}
+        <div className="animate-float">
+          <div className={`avatar ${playerColor(winnerIndex >= 0 ? winnerIndex : 0)} flex items-center justify-center`}
+               style={{ width: '4rem', height: '4rem', fontSize: '1.75rem' }}>
+            {winnerPlayer?.isBot ? '\u2699' : playerInitial(winnerName)}
+          </div>
         </div>
 
         <div>
