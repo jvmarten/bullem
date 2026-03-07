@@ -1,7 +1,11 @@
 {
   "name": "bull-em",
   "private": true,
-  "workspaces": ["shared", "server", "client"],
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "npm run build -w shared && concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
@@ -9,6 +13,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
