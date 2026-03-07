@@ -427,6 +427,67 @@ app.get('/api/stats/:userId/advanced', async (req, res) => {
   }
 });
 
+/** GET /api/users/:userId/profile — fetch public profile for any user. */
+app.get('/api/users/:userId/profile', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const userResult = await query<{
+      id: string; username: string; display_name: string;
+      avatar: string | null; photo_url: string | null; created_at: string;
+      is_bot: boolean; bot_profile: string | null;
+    }>(
+      'SELECT id, username, display_name, avatar, photo_url, created_at, is_bot, bot_profile FROM users WHERE id = $1',
+      [userId],
+    );
+    if (!userResult || userResult.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const row = userResult.rows[0]!;
+    const statsResult = await query<{
+      games_played: string; games_won: string;
+      total_correct_bulls: string; total_bulls_called: string;
+      total_bluffs_successful: string; total_calls_made: string;
+    }>(
+      `SELECT COUNT(*)::text AS games_played,
+       COUNT(*) FILTER (WHERE finish_position = 1)::text AS games_won,
+       COALESCE(SUM((stats->>'correctBulls')::int), 0)::text AS total_correct_bulls,
+       COALESCE(SUM((stats->>'bullsCalled')::int), 0)::text AS total_bulls_called,
+       COALESCE(SUM((stats->>'bluffsSuccessful')::int), 0)::text AS total_bluffs_successful,
+       COALESCE(SUM((stats->>'callsMade')::int), 0)::text AS total_calls_made
+      FROM game_players WHERE user_id = $1`,
+      [userId],
+    );
+    const stats = statsResult?.rows[0];
+    const bullsCalled = stats ? parseInt(stats.total_bulls_called, 10) : 0;
+    const correctBulls = stats ? parseInt(stats.total_correct_bulls, 10) : 0;
+    const callsMade = stats ? parseInt(stats.total_calls_made, 10) : 0;
+    const bluffsSuccessful = stats ? parseInt(stats.total_bluffs_successful, 10) : 0;
+
+    res.json({
+      id: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar,
+      photoUrl: row.photo_url,
+      createdAt: row.created_at,
+      gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
+      gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
+      bullAccuracy: bullsCalled > 0 ? Math.round((correctBulls / bullsCalled) * 100) : null,
+      bluffSuccessRate: callsMade > 0 ? Math.round((bluffsSuccessful / callsMade) * 100) : null,
+      isBot: row.is_bot,
+      botProfile: row.bot_profile,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch user profile');
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
 // Rating routes
 import { getUserRatings as fetchUserRatings } from './db/ratings.js';
 

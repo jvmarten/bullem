@@ -11,6 +11,8 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
+import { BotProfileModal } from '../components/BotProfileModal.js';
+
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -18,7 +20,7 @@ import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { HandCall, Card } from '@bull-em/shared';
+import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -115,6 +117,10 @@ export function LocalGamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const handlePlayerClick = useCallback((player: Player) => {
+    if (player.isBot) setSelectedBotName(player.name);
+  }, []);
 
   const quickDrawSuggestions = useMemo(() => {
     if (!quickDrawOpen || !canRaise) return [];
@@ -331,6 +337,7 @@ export function LocalGamePage() {
                 roundNumber={gameState.roundNumber}
                 turnHistory={gameState.turnHistory}
                 collapsible
+                onPlayerClick={handlePlayerClick}
               />
             </div>
             {/* Call history in sidebar — landscape only */}
@@ -508,6 +515,9 @@ export function LocalGamePage() {
           </div>
         )}
       </div>
+      {selectedBotName && (
+        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      )}
     </Layout>
   );
 }

@@ -5,7 +5,7 @@ import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
 import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
-import type { LastChanceMode } from '@bull-em/shared';
+import type { LastChanceMode, BotLevelCategory } from '@bull-em/shared';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -19,6 +19,7 @@ export function HostPage() {
   const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(false);
   const [botSpeed, setBotSpeed] = useState<BotSpeed>(BotSpeed.NORMAL);
   const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>('classic');
+  const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>('normal');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +46,7 @@ export function HostPage() {
     setLoading(true);
     try {
       const roomCode = await createRoom(playerName);
-      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode });
+      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');
@@ -88,6 +89,19 @@ export function HostPage() {
           <div className="flex gap-1.5">{([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
             <button key={speed} onClick={() => { play('uiSoft'); setBotSpeed(speed); }} className={`flex-1 px-2 py-2 text-sm rounded capitalize ${botSpeed===speed ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{speed}</button>
           ))}</div>
+        </div>
+
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Bot Level</p>
+          <div className="flex gap-1.5">{(['easy', 'normal', 'hard', 'mixed'] as const).map(cat => (
+            <button key={cat} onClick={() => { play('uiSoft'); setBotLevelCategory(cat); }} className={`flex-1 px-2 py-2 text-sm rounded capitalize ${botLevelCategory===cat ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{cat}</button>
+          ))}</div>
+          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+            {botLevelCategory === 'easy' ? 'Levels 1-3 — beginner bots' :
+             botLevelCategory === 'normal' ? 'Levels 4-6 — standard difficulty' :
+             botLevelCategory === 'hard' ? 'Levels 7-9 — expert bots' :
+             'Levels 1-9 — all skill levels'}
+          </p>
         </div>
 
         <div className="glass px-4 py-3">

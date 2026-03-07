@@ -162,6 +162,9 @@ export enum BotDifficulty {
   IMPOSSIBLE = 'impossible',
 }
 
+/** Bot level categories for match settings. Controls which bot levels (1-9) are used. */
+export type BotLevelCategory = 'easy' | 'normal' | 'hard' | 'mixed';
+
 export enum BotSpeed {
   SLOW = 'slow',
   NORMAL = 'normal',
@@ -200,6 +203,10 @@ export interface GameSettings {
    *  Unranked 1v1 (maxPlayers=2): host can choose Bo1/Bo3/Bo5. Default Bo1.
    *  Multiplayer (3+): always single game (ignored). */
   bestOf?: BestOf;
+  /** Bot level category — controls which personality bot levels are used.
+   *  'easy' = lvl 1-3, 'normal' = lvl 4-6, 'hard' = lvl 7-9, 'mixed' = lvl 1-9.
+   *  Defaults to 'normal'. */
+  botLevelCategory?: BotLevelCategory;
 }
 
 // ── Series (Best-of) types ────────────────────────────────────────────

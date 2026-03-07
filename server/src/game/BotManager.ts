@@ -1,9 +1,11 @@
 import type { Server } from 'socket.io';
 import {
-  GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX, BOT_NAMES,
+  GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
   maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
+  pickRandomBot, IMPOSSIBLE_BOT,
 } from '@bull-em/shared';
+import type { BotLevelCategory } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId, BotProfileConfig } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
@@ -394,9 +396,12 @@ export class BotManager {
     const usedNames = new Set(
       [...room.players.values()].map(p => p.name)
     );
-    for (const name of BOT_NAMES) {
-      if (!usedNames.has(name)) return name;
-    }
+    const category: BotLevelCategory = room.settings.botLevelCategory ?? 'normal';
+    const bot = pickRandomBot(category, usedNames);
+    if (bot) return bot.name;
+    // Fallback: try any category if the specific one is exhausted
+    const anyBot = pickRandomBot('mixed', usedNames);
+    if (anyBot) return anyBot.name;
     return `Bot ${botCounter + 1}`;
   }
 }
