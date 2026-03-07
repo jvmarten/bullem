@@ -50,7 +50,7 @@ const SUBTITLES: SubtitleEntry[] = (() => {
 const SPEAKER_COLORS: Record<string, string> = {
   'Joker': '#ffffff',
   'Halla-Aho': '#e8c56e',
-  'Batman': '#e8c56e',
+  'Batman': '#7eb8da',
 };
 
 function getSpeakerColor(speaker: string): string {
