@@ -384,10 +384,16 @@ export function HomePage() {
   const [rankedExpanded, setRankedExpanded] = useState(false);
   const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
 
-  // Clear joining state once the matchmaking overlay takes over
+  // Sync joining state with matchmaking status — keep the queue mode visible
+  // so the 1v1/multiplayer buttons maintain their in-queue appearance
   useEffect(() => {
-    if (matchmakingStatus) setJoiningRanked(null);
-  }, [matchmakingStatus]);
+    if (matchmakingStatus) {
+      setJoiningRanked(matchmakingStatus.mode === 'heads_up' ? 'heads_up' : 'multiplayer');
+      setRankedExpanded(true);
+    } else if (!matchmakingFound) {
+      setJoiningRanked(null);
+    }
+  }, [matchmakingStatus, matchmakingFound]);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -814,33 +820,43 @@ export function HomePage() {
               Ranked Play
             </button>
             {rankedExpanded && user && (
-              <div className="flex gap-2 w-full animate-fade-in -mt-1">
-                <button
-                  onClick={() => {
-                    if (joiningRanked) return;
-                    play('uiSoft');
-                    getOnlinePlayerName();
-                    setJoiningRanked('heads_up');
-                    joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
-                  }}
-                  disabled={joiningRanked !== null}
-                  className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : 'btn-orange'}`}
-                >
-                  {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
-                </button>
-                <button
-                  onClick={() => {
-                    if (joiningRanked) return;
-                    play('uiSoft');
-                    getOnlinePlayerName();
-                    setJoiningRanked('multiplayer');
-                    joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
-                  }}
-                  disabled={joiningRanked !== null}
-                  className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : 'btn-orange'}`}
-                >
-                  {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
-                </button>
+              <div className="flex flex-col gap-2 w-full animate-fade-in -mt-1">
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => {
+                      if (joiningRanked) return;
+                      play('uiSoft');
+                      getOnlinePlayerName();
+                      setJoiningRanked('heads_up');
+                      joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
+                    }}
+                    disabled={joiningRanked !== null && joiningRanked !== 'heads_up'}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-orange'}`}
+                  >
+                    {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (joiningRanked) return;
+                      play('uiSoft');
+                      getOnlinePlayerName();
+                      setJoiningRanked('multiplayer');
+                      joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
+                    }}
+                    disabled={joiningRanked !== null && joiningRanked !== 'multiplayer'}
+                    className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-orange'}`}
+                  >
+                    {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
+                  </button>
+                </div>
+                {joiningRanked && (
+                  <button
+                    onClick={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
+                    className="btn-ghost text-sm py-2"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             )}
             <button
@@ -969,8 +985,9 @@ export function HomePage() {
         )}
         </div>{/* end home-right */}
       </div>
-      {/* Matchmaking Queue Overlay */}
-      {matchmakingStatus && (
+      {/* Matchmaking Queue Overlay — only shown when NOT on the online menu
+           (e.g. if user navigates away from ranked buttons while in queue) */}
+      {matchmakingStatus && mode !== 'online' && (
         <MatchmakingQueue
           status={matchmakingStatus}
           onCancel={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
@@ -994,7 +1011,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.4
+          v1.2.5
         </button>
       </div>
 
@@ -1008,12 +1025,12 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.4</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.5</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Fixed ranked matchmaking stability</li>
-              <li>Fixed multiplayer ranked bot backfill</li>
-              <li>Improved connection and reconnection reliability</li>
+              <li>Fixed queue tile state during matchmaking</li>
+              <li>Added spectator emoji reactions and spectate-another-match flow</li>
+              <li>Improved background bot match variety</li>
             </ul>
           </div>
         </div>

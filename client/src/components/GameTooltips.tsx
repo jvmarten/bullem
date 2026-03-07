@@ -112,12 +112,14 @@ export function GameTooltips({ gameActive }: GameTooltipsProps) {
       setStepIndex(prev => prev + 1);
     } else {
       markFirstGameTooltipsShown();
+      setVisible(false);
       setDismissed(true);
     }
   }, [stepIndex]);
 
   const dismiss = useCallback(() => {
     markFirstGameTooltipsShown();
+    setVisible(false);
     setDismissed(true);
   }, []);
 

@@ -198,6 +198,7 @@ export function TutorialOverlay({
           border: '1px solid var(--gold-dim)',
           boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>
