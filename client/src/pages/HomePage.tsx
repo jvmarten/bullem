@@ -284,9 +284,7 @@ export function HomePage() {
   const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-    const base = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
-    fetch(`${base}/api/dev-status`, { credentials: 'include' })
+    fetch('/api/dev-status', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setDevStatus(data as { devAuth: boolean }); })
       .catch(() => { /* server not running yet — ignore */ });
