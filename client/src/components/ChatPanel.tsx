@@ -143,7 +143,7 @@ export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps)
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         title={label ?? 'Chat'}
       >
-        <span className="text-xl leading-none" role="img" aria-hidden="true">💬</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>
         {!isOpen && unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-[var(--danger)] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
