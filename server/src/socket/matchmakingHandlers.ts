@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents, RankedMode } from '@bull-em/shared';
 import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
+import type { InMemoryMatchmakingQueue } from '../dev/InMemoryMatchmakingQueue.js';
 import { getCorrelatedLogger } from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -11,7 +12,7 @@ const VALID_MODES: ReadonlySet<string> = new Set(['heads_up', 'multiplayer']);
 export function registerMatchmakingHandlers(
   _io: TypedServer,
   socket: TypedSocket,
-  matchmakingQueue: MatchmakingQueue,
+  matchmakingQueue: MatchmakingQueue | InMemoryMatchmakingQueue,
 ): void {
   socket.on('matchmaking:join', async (data, callback) => {
     const log = getCorrelatedLogger();
