@@ -386,12 +386,21 @@ app.get('/api/leaderboard/:mode', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
     const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
 
+    const VALID_PLAYER_FILTERS = ['all', 'players', 'bots'] as const;
+    type PlayerFilter = typeof VALID_PLAYER_FILTERS[number];
+    const playerFilter = (req.query.playerFilter as string) ?? 'all';
+    if (!VALID_PLAYER_FILTERS.includes(playerFilter as PlayerFilter)) {
+      res.status(400).json({ error: 'Invalid playerFilter. Must be "all", "players", or "bots".' });
+      return;
+    }
+
     const result = await getLeaderboard(
       mode as RankedMode,
       period as LeaderboardPeriod,
       limit,
       offset,
       req.user?.userId,
+      playerFilter as PlayerFilter,
     );
 
     if (!result) {

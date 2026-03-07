@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, PlayerId, SeriesState } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -339,6 +339,13 @@ export function registerLobbyHandlers(
       return;
     }
 
+    // Validate bestOf against allowed values (only relevant for 1v1)
+    const bestOf = data.settings.bestOf;
+    if (bestOf !== undefined && !(BEST_OF_OPTIONS as readonly number[]).includes(bestOf)) {
+      socket.emit('room:error', 'Invalid best-of setting');
+      return;
+    }
+
     // Build a validated settings object — only pick known fields to prevent
     // unexpected properties from leaking into game state.
     const ranked = data.settings.ranked === true;
@@ -353,6 +360,7 @@ export function registerLobbyHandlers(
           spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
           botSpeed: botSpeed as BotSpeed | undefined,
           ranked: true,
+          // bestOf is set server-side for ranked (Bo3 for 1v1)
           // rankedMode is set server-side at game start based on actual player count
         }
       : {
@@ -363,6 +371,7 @@ export function registerLobbyHandlers(
           spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
           botSpeed: botSpeed as BotSpeed | undefined,
           lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
+          bestOf: bestOf as BestOf | undefined,
         };
 
     room.updateSettings(validated);
@@ -500,11 +509,31 @@ export function registerLobbyHandlers(
         return;
       }
       room.settings.rankedMode = humanCount === 2 ? 'heads_up' : 'multiplayer';
+      // Ranked 1v1 is always Bo3
+      if (room.settings.rankedMode === 'heads_up') {
+        room.settings.bestOf = RANKED_BEST_OF;
+      }
+    }
+
+    // Initialize series state for 1v1 best-of matches
+    const bestOf = room.settings.bestOf ?? 1;
+    if (bestOf > 1 && room.playerCount === 2) {
+      const playerIds = [...room.players.keys()] as [PlayerId, PlayerId];
+      room.seriesState = {
+        bestOf: bestOf as BestOf,
+        currentSet: 1,
+        wins: { [playerIds[0]]: 0, [playerIds[1]]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds,
+      };
+    } else {
+      room.seriesState = null;
     }
 
     room.startGame();
     recordRoundStart(room.roomCode);
-    log.info({ roomCode: room.roomCode, playerCount: room.playerCount, ranked: room.settings.ranked ?? false }, 'Game started');
+    log.info({ roomCode: room.roomCode, playerCount: room.playerCount, ranked: room.settings.ranked ?? false, bestOf }, 'Game started');
     track('game:started', {
       roomCode: room.roomCode,
       playerCount: room.playerCount,

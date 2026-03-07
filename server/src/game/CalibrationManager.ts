@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILE_KEYS, RANKED_SETTINGS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, RankedMode } from '@bull-em/shared';
+import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILE_KEYS, RANKED_SETTINGS, RANKED_BEST_OF } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, RankedMode, PlayerId, BestOf } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
 import { getRankedBotPool } from '../db/botPool.js';
@@ -346,10 +346,22 @@ export class CalibrationManager {
       lastChanceMode: RANKED_SETTINGS.lastChanceMode,
       ranked: true,
       rankedMode: 'heads_up',
+      bestOf: RANKED_BEST_OF as BestOf,
     });
 
-    this.botManager.addRankedBot(room, botA.userId, botA.displayName, botA.profileConfig);
-    this.botManager.addRankedBot(room, botB.userId, botB.displayName, botB.profileConfig);
+    const botAId = this.botManager.addRankedBot(room, botA.userId, botA.displayName, botA.profileConfig);
+    const botBId = this.botManager.addRankedBot(room, botB.userId, botB.displayName, botB.profileConfig);
+
+    // Initialize series state for Bo3
+    const playerIds = [botAId, botBId] as [PlayerId, PlayerId];
+    room.seriesState = {
+      bestOf: RANKED_BEST_OF as BestOf,
+      currentSet: 1,
+      wins: { [botAId]: 0, [botBId]: 0 },
+      winsNeeded: Math.ceil(RANKED_BEST_OF / 2),
+      seriesWinnerId: null,
+      playerIds,
+    };
 
     room.startGame();
     BotPlayer.resetMemory(room.roomCode);

@@ -20,11 +20,20 @@ export function broadcastRoomState(io: TypedServer, room: Room): void {
 }
 
 export function broadcastGameState(io: TypedServer, room: Room): void {
+  const seriesInfo = room.seriesState ? {
+    bestOf: room.seriesState.bestOf,
+    currentSet: room.seriesState.currentSet,
+    wins: { ...room.seriesState.wins },
+    winsNeeded: room.seriesState.winsNeeded,
+    seriesWinnerId: room.seriesState.seriesWinnerId,
+  } : null;
+
   for (const [playerId] of room.players) {
     const socketId = room.getSocketId(playerId);
     if (!socketId) continue;
     const state = room.getClientGameState(playerId);
     if (state) {
+      state.seriesInfo = seriesInfo;
       io.to(socketId).emit('game:state', state);
     }
   }
@@ -32,6 +41,7 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
   if (room.spectatorSockets.size > 0) {
     const spectatorState = room.getSpectatorGameState();
     if (spectatorState) {
+      spectatorState.seriesInfo = seriesInfo;
       for (const sid of room.spectatorSockets) {
         io.to(sid).emit('game:state', spectatorState);
       }
@@ -40,11 +50,20 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
 }
 
 export function broadcastNewRound(io: TypedServer, room: Room): void {
+  const seriesInfo = room.seriesState ? {
+    bestOf: room.seriesState.bestOf,
+    currentSet: room.seriesState.currentSet,
+    wins: { ...room.seriesState.wins },
+    winsNeeded: room.seriesState.winsNeeded,
+    seriesWinnerId: room.seriesState.seriesWinnerId,
+  } : null;
+
   for (const [playerId] of room.players) {
     const socketId = room.getSocketId(playerId);
     if (!socketId) continue;
     const state = room.getClientGameState(playerId);
     if (state) {
+      state.seriesInfo = seriesInfo;
       io.to(socketId).emit('game:newRound', state);
     }
   }
@@ -52,6 +71,7 @@ export function broadcastNewRound(io: TypedServer, room: Room): void {
   if (room.spectatorSockets.size > 0) {
     const spectatorState = room.getSpectatorGameState();
     if (spectatorState) {
+      spectatorState.seriesInfo = seriesInfo;
       for (const sid of room.spectatorSockets) {
         io.to(sid).emit('game:newRound', spectatorState);
       }

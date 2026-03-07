@@ -10,7 +10,7 @@ import type { RoomManager } from '../rooms/RoomManager.js';
 import type { TurnResult } from './GameEngine.js';
 import { BotPlayer } from './BotPlayer.js';
 import { broadcastGameState, broadcastGameReplay } from '../socket/broadcast.js';
-import { beginRoundResultPhase } from '../socket/roundTransition.js';
+import { beginRoundResultPhase, handleSetOver } from '../socket/roundTransition.js';
 import { persistCompletedGame } from '../socket/persistGame.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -351,11 +351,9 @@ export class BotManager {
           io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
           room.recordEliminations(result.finalRoundResult.eliminatedPlayerIds);
         }
-        room.gamePhase = GamePhase.GAME_OVER;
         room.cancelRoundContinueWindow();
-        broadcastGameReplay(io, room, result.winnerId);
-        io.to(room.roomCode).emit('game:over', result.winnerId, room.game!.getGameStats());
-        persistCompletedGame(room, result.winnerId);
+        // Use series-aware handler which checks if the match continues
+        handleSetOver(io, room, this.roomManager, this, result.winnerId);
         break;
     }
     // Persist after every bot action that mutated game state

@@ -1,4 +1,4 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo } from './types.js';
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
@@ -71,6 +71,7 @@ export interface ServerToClientEvents {
   'game:over': (winnerId: PlayerId, gameStats: GameStats, ratingChanges?: Record<PlayerId, RatingChange>) => void;
   'game:replay': (replay: GameReplay) => void;
   'game:rematchStarting': () => void;
+  'game:seriesSetResult': (data: { setWinnerId: PlayerId; seriesInfo: SeriesInfo }) => void;
   'player:disconnected': (playerId: PlayerId, disconnectDeadline: number) => void;
   'player:reconnected': (playerId: PlayerId) => void;
   'server:playerCount': (count: number) => void;

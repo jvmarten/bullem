@@ -30,6 +30,40 @@ import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useUISettings } from '../components/VolumeControl.js';
 
+function SeriesBanner({ seriesInfo, players, playerId }: {
+  seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
+  players: { id: string; name: string }[];
+  playerId: string | null;
+}) {
+  const playerIds = Object.keys(seriesInfo.wins);
+  const getLabel = (pid: string) => {
+    if (pid === playerId) return 'You';
+    return players.find(p => p.id === pid)?.name ?? '?';
+  };
+
+  return (
+    <div
+      className="glass flex items-center justify-center gap-3 py-1 px-3 text-xs"
+      style={{ borderBottom: '1px solid rgba(212,168,67,0.15)' }}
+    >
+      <span className="text-[var(--gold-dim)] uppercase tracking-widest font-semibold text-[10px]">
+        Bo{seriesInfo.bestOf}
+      </span>
+      <span className="text-[var(--gold-dim)]">|</span>
+      <span className="text-[var(--gold-dim)]">Set {seriesInfo.currentSet}</span>
+      <span className="text-[var(--gold-dim)]">|</span>
+      {playerIds.map((pid, i) => (
+        <span key={pid} className="text-[var(--gold)]">
+          {i > 0 && <span className="text-[var(--gold-dim)] mx-1">-</span>}
+          <span className={pid === playerId ? 'font-bold' : ''}>{getLabel(pid)}</span>
+          {' '}
+          <span className="font-mono font-bold">{seriesInfo.wins[pid] ?? 0}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
   const [remaining, setRemaining] = useState(() =>
     deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0,
@@ -355,12 +389,19 @@ export function GamePage() {
     overlayActive,
   });
 
+  const seriesInfo = gameState.seriesInfo;
+
   /* Landscape/desktop: merge game info into the Layout header bar */
   const headerLeftExtra = (
     <>
       <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
         Round {gameState.roundNumber}
       </span>
+      {seriesInfo && seriesInfo.bestOf > 1 && (
+        <span className="text-[var(--gold-dim)] font-mono text-xs">
+          Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
+        </span>
+      )}
       <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
         {cardStats.total}/52 ({cardStats.pct}%)
       </span>
@@ -426,6 +467,11 @@ export function GamePage() {
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">ONLINE</span>
           </div>
         </div>
+
+        {/* Series banner — shows best-of info, set number, and series score */}
+        {seriesInfo && seriesInfo.bestOf > 1 && (
+          <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} />
+        )}
 
         {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter.
             Hidden when winnerId is set because the match is over (no active game to spectate). */}

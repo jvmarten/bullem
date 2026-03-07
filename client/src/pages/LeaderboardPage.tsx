@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RankBadge } from '../components/RankBadge.js';
 import { avatarDisplay } from './ProfilePage.js';
-import type { RankedMode, LeaderboardPeriod, LeaderboardResponse, LeaderboardEntry } from '@bull-em/shared';
+import type { RankedMode, LeaderboardPeriod, LeaderboardResponse, LeaderboardEntry, LeaderboardPlayerFilter } from '@bull-em/shared';
 
 const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
 const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
@@ -81,12 +81,13 @@ export function LeaderboardPage() {
   const { user } = useAuth();
   const [mode, setMode] = useState<RankedMode>('heads_up');
   const [period, setPeriod] = useState<LeaderboardPeriod>('all_time');
+  const [playerFilter, setPlayerFilter] = useState<LeaderboardPlayerFilter>('all');
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
-  const fetchLeaderboard = useCallback(async (m: RankedMode, p: LeaderboardPeriod, o: number) => {
+  const fetchLeaderboard = useCallback(async (m: RankedMode, p: LeaderboardPeriod, o: number, pf: LeaderboardPlayerFilter) => {
     setLoading(true);
     setError(null);
     try {
@@ -94,6 +95,7 @@ export function LeaderboardPage() {
         period: p,
         limit: String(PAGE_SIZE),
         offset: String(o),
+        playerFilter: pf,
       });
       const res = await fetch(`${API_BASE}/api/leaderboard/${m}?${params}`, {
         credentials: 'include',
@@ -112,8 +114,8 @@ export function LeaderboardPage() {
   }, []);
 
   useEffect(() => {
-    void fetchLeaderboard(mode, period, offset);
-  }, [mode, period, offset, fetchLeaderboard]);
+    void fetchLeaderboard(mode, period, offset, playerFilter);
+  }, [mode, period, offset, playerFilter, fetchLeaderboard]);
 
   const handleModeChange = (newMode: RankedMode) => {
     setMode(newMode);
@@ -122,6 +124,11 @@ export function LeaderboardPage() {
 
   const handlePeriodChange = (newPeriod: LeaderboardPeriod) => {
     setPeriod(newPeriod);
+    setOffset(0);
+  };
+
+  const handlePlayerFilterChange = (newFilter: LeaderboardPlayerFilter) => {
+    setPlayerFilter(newFilter);
     setOffset(0);
   };
 
@@ -178,6 +185,27 @@ export function LeaderboardPage() {
           ))}
         </div>
 
+        {/* Player type filter */}
+        <div className="flex gap-2 w-full justify-center">
+          {([
+            ['all', 'All'],
+            ['players', 'Players Only'],
+            ['bots', 'Bots Only'],
+          ] as const).map(([f, label]) => (
+            <button
+              key={f}
+              onClick={() => handlePlayerFilterChange(f)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                playerFilter === f
+                  ? 'bg-[var(--gold)] text-[#1a1a1a]'
+                  : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Current user rank card */}
         {data?.currentUser && (
           <div
@@ -201,7 +229,7 @@ export function LeaderboardPage() {
           <div className="glass w-full px-4 py-6 text-center rounded-xl">
             <p className="text-sm text-red-400">{error}</p>
             <button
-              onClick={() => fetchLeaderboard(mode, period, offset)}
+              onClick={() => fetchLeaderboard(mode, period, offset, playerFilter)}
               className="mt-2 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Retry
@@ -306,9 +334,18 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
         {avatarDisplay(entry.avatar, entry.displayName)}
       </div>
 
-      {/* Name + tier */}
+      {/* Name + tier + bot badge */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
+          {entry.isBot && (
+            <span
+              className="text-[10px] shrink-0"
+              title="Bot"
+              style={{ opacity: 0.6 }}
+            >
+              &#9881;
+            </span>
+          )}
           <span
             className={`text-sm truncate ${isCurrentUser ? 'font-bold text-[var(--gold)]' : 'text-[#e8e0d4]'}`}
           >

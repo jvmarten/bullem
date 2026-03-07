@@ -67,10 +67,10 @@ describe('CalibrationManager', () => {
 
   // Fake bot pool with 4 bots
   const fakeBotPool: RankedBotEntry[] = [
-    makeBotEntry('the_rock', '00000000-0000-4000-b000-000000000001'),
-    makeBotEntry('maverick', '00000000-0000-4000-b000-000000000002'),
-    makeBotEntry('the_grinder', '00000000-0000-4000-b000-000000000003'),
-    makeBotEntry('wildcard', '00000000-0000-4000-b000-000000000004'),
+    makeBotEntry('rock_lvl9', '00000000-0000-4000-b000-000000000001'),
+    makeBotEntry('bluffer_lvl9', '00000000-0000-4000-b000-000000000002'),
+    makeBotEntry('grinder_lvl9', '00000000-0000-4000-b000-000000000003'),
+    makeBotEntry('wildcard_lvl9', '00000000-0000-4000-b000-000000000004'),
   ];
 
   beforeEach(() => {
@@ -131,10 +131,10 @@ describe('CalibrationManager', () => {
       // Verify all bots are represented
       expect(status.bots).toHaveLength(4);
       const profileKeys = status.bots.map(b => b.profileKey);
-      expect(profileKeys).toContain('the_rock');
-      expect(profileKeys).toContain('maverick');
-      expect(profileKeys).toContain('the_grinder');
-      expect(profileKeys).toContain('wildcard');
+      expect(profileKeys).toContain('rock_lvl9');
+      expect(profileKeys).toContain('bluffer_lvl9');
+      expect(profileKeys).toContain('grinder_lvl9');
+      expect(profileKeys).toContain('wildcard_lvl9');
     });
   });
 
