@@ -79,6 +79,8 @@ export interface BotProfileDefinition {
   name: string;
   /** Short personality description for the UI. */
   personality: string;
+  /** Emoji avatar for this bot personality. Not available to human users. */
+  avatar: string;
   /** Decision parameter overrides for BotPlayer. */
   config: BotProfileConfig;
   /** In-character quips for various game events. */
@@ -107,6 +109,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'the_rock',
     name: 'The Rock',
     personality: 'Ultra-conservative. Almost never bluffs. Only calls bull when very confident.',
+    avatar: '\u{1FAA8}',
     config: {
       bluffFrequency: 0.15,
       bullThreshold: 0.7,
@@ -131,6 +134,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'maverick',
     name: 'Maverick',
     personality: 'Aggressive bluffer. High bull call rate. Plays fast and loose.',
+    avatar: '\u{1F920}',
     config: {
       bluffFrequency: 1.8,
       bullThreshold: 0.3,
@@ -155,6 +159,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'the_grinder',
     name: 'The Grinder',
     personality: 'Minimal risk. Prefers small incremental raises. Wins by patience.',
+    avatar: '\u{26CF}\u{FE0F}',
     config: {
       bluffFrequency: 0.5,
       bullThreshold: 0.55,
@@ -179,6 +184,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'wildcard',
     name: 'Wildcard',
     personality: 'Unpredictable. Random-feeling mix of strategies. Keeps opponents guessing.',
+    avatar: '\u{1F3B2}',
     config: {
       bluffFrequency: 1.2,
       bullThreshold: 0.45,
@@ -203,6 +209,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'the_professor',
     name: 'The Professor',
     personality: 'Probability-optimal. Closest to theoretically correct play.',
+    avatar: '\u{1F393}',
     config: {
       bluffFrequency: 1.0,
       bullThreshold: 0.5,
@@ -227,6 +234,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'shark',
     name: 'Shark',
     personality: 'Reads opponents heavily. Adjusts strategy based on opponent memory.',
+    avatar: '\u{1F988}',
     config: {
       bluffFrequency: 0.9,
       bullThreshold: 0.45,
@@ -251,6 +259,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'loose_cannon',
     name: 'Loose Cannon',
     personality: 'Loves big hand-type jumps. Goes for straights and full houses early.',
+    avatar: '\u{1F4A3}',
     config: {
       bluffFrequency: 1.5,
       bullThreshold: 0.4,
@@ -275,6 +284,7 @@ export const BOT_PROFILES: readonly BotProfileDefinition[] = [
     key: 'ice_queen',
     name: 'Ice Queen',
     personality: 'Very tight player. Rarely acts unless the math is strongly in her favor.',
+    avatar: '\u{2744}\u{FE0F}',
     config: {
       bluffFrequency: 0.25,
       bullThreshold: 0.65,
@@ -304,3 +314,22 @@ export const BOT_PROFILE_MAP: ReadonlyMap<string, BotProfileDefinition> = new Ma
 
 /** All valid profile keys. */
 export const BOT_PROFILE_KEYS: readonly string[] = BOT_PROFILES.map(p => p.key);
+
+/**
+ * Map from bot display name → avatar emoji for rendering in the player list.
+ * Includes both personality-based bots (from BOT_PROFILES) and generic bots (from BOT_NAMES).
+ * These avatars are NOT available to human users — they don't appear in AVATAR_OPTIONS.
+ */
+export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
+  // Personality bots
+  ...BOT_PROFILES.map(p => [p.name, p.avatar] as const),
+  // Generic bots (from BOT_NAMES in constants.ts)
+  ['Bot Brady', '\u{1F916}'],      // 🤖
+  ['RoboBluff', '\u{1F3AD}'],      // 🎭
+  ['CPU Carl', '\u{1F4BB}'],       // 💻
+  ['Digital Dave', '\u{1F4DF}'],    // 📟
+  ['Silicon Sam', '\u{1F50C}'],     // 🔌
+  ['Byte Betty', '\u{1F9EE}'],     // 🧮
+  ['Chip Charlie', '\u{1F3B0}'],   // 🎰
+  ['Data Diana', '\u{1F4CA}'],     // 📊
+]);

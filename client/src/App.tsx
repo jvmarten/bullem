@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { AuthProvider } from './context/AuthContext.js';
@@ -6,6 +6,7 @@ import { ToastProvider } from './context/ToastContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
+import { waitForAudioReady } from './hooks/soundEngine.js';
 
 // Eagerly loaded — the home page is the entry point most users hit first
 import { HomePage } from './pages/HomePage.js';
@@ -61,7 +62,39 @@ function RouteLoadingFallback() {
   );
 }
 
+/** Splash screen shown while audio assets are loading on first visit. */
+function SplashScreen() {
+  return (
+    <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-4 animate-fade-in">
+        <h1
+          className="text-4xl font-bold text-[var(--gold)]"
+          style={{ fontFamily: "'Cormorant Garamond', serif" }}
+        >
+          Bull &apos;Em
+        </h1>
+        <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm text-[var(--gold-dim)]">Loading assets&hellip;</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const [assetsReady, setAssetsReady] = useState(false);
+
+  useEffect(() => {
+    // Wait for audio files to decode, but cap at 4s so a slow network
+    // doesn't block the app indefinitely.
+    const timeout = setTimeout(() => setAssetsReady(true), 4000);
+    waitForAudioReady().then(() => {
+      clearTimeout(timeout);
+      setAssetsReady(true);
+    });
+    return () => clearTimeout(timeout);
+  }, []);
+
+  if (!assetsReady) return <SplashScreen />;
   return (
     <ErrorBoundary>
     <AuthProvider>

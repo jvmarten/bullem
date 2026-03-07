@@ -75,9 +75,13 @@ export function useGameSounds(
   playerId: string | null,
 ) {
   const { play } = useSound();
-  const prevHistoryLenRef = useRef(0);
-  const prevRoundNumberRef = useRef(0);
-  const prevCurrentPlayerRef = useRef<string | null>(null);
+  // Use -1 as sentinel: "not yet initialized from game state". On the first
+  // game state we receive, we record the current values without playing any
+  // sounds. This prevents stale sounds on mount, refresh, and reconnection
+  // (where the full turn history arrives in bulk).
+  const prevHistoryLenRef = useRef(-1);
+  const prevRoundNumberRef = useRef(-1);
+  const prevCurrentPlayerRef = useRef<string | null | undefined>(undefined);
   const prevRoundResultRef = useRef<RoundResult | null>(null);
   const prevWinnerRef = useRef<PlayerId | null>(null);
 
@@ -96,6 +100,13 @@ export function useGameSounds(
 
     const history = gs.turnHistory;
     const prevLen = prevHistoryLenRef.current;
+
+    // First time receiving state — just record lengths, don't play sounds.
+    // This handles mount, refresh, and reconnection where history arrives in bulk.
+    if (prevLen === -1) {
+      prevHistoryLenRef.current = history.length;
+      return;
+    }
 
     if (history.length > prevLen) {
       // Play sound for each new entry
@@ -121,11 +132,14 @@ export function useGameSounds(
   }, [historyLen, play, playerId]);
 
   // React to new round starting (card deal).
-  // Skip the sound on the initial mount (prevRoundNumber is 0) so that
-  // spectators joining mid-game don't hear a stale deal sound.
   const roundNumber = gameState?.roundNumber ?? 0;
   useEffect(() => {
-    if (prevRoundNumberRef.current > 0 && roundNumber > prevRoundNumberRef.current) {
+    // First time receiving state — just record, don't play sound
+    if (prevRoundNumberRef.current === -1) {
+      prevRoundNumberRef.current = roundNumber;
+      return;
+    }
+    if (roundNumber > prevRoundNumberRef.current) {
       play('cardDeal');
     }
     prevRoundNumberRef.current = roundNumber;
@@ -135,6 +149,12 @@ export function useGameSounds(
   const currentPlayer = gameState?.currentPlayerId ?? null;
   useEffect(() => {
     if (!currentPlayer || !playerId) return;
+
+    // First time receiving state — just record, don't play sound
+    if (prevCurrentPlayerRef.current === undefined) {
+      prevCurrentPlayerRef.current = currentPlayer;
+      return;
+    }
 
     if (
       currentPlayer === playerId

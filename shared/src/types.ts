@@ -314,6 +314,9 @@ export interface PlayerStatsResponse {
   wins: number;
   winRate: number | null;
   avgFinishPosition: number | null;
+  /** Normalized finish percentile (0–100). 100 = always 1st, 0 = always last.
+   *  Accounts for game size so 2nd/2 isn't equated with 2nd/8. */
+  avgFinishPercentile?: number | null;
   bullAccuracy: number | null;
   trueAccuracy: number | null;
   bluffSuccessRate: number | null;
