@@ -344,6 +344,12 @@ export function ProfilePage() {
           </h1>
           {editingUsername ? (
             <div className="mt-1 flex flex-col items-center gap-1">
+              {/* Show cooldown policy notice after the 3-day grace period */}
+              {Date.now() - new Date(profile.createdAt).getTime() > 3 * 24 * 60 * 60 * 1000 && (
+                <p className="text-[10px] text-[var(--gold-dim)] italic max-w-[200px]">
+                  Usernames can be changed once every 27 days.
+                </p>
+              )}
               <div className="flex items-center gap-1">
                 <span className="text-xs text-[var(--gold-dim)]">@</span>
                 <input

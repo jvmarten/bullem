@@ -657,8 +657,8 @@ router.patch('/username', requireAuth, async (req, res) => {
     }
 
     // Check current username — skip if unchanged
-    const currentResult = await query<{ username: string }>(
-      'SELECT username FROM users WHERE id = $1',
+    const currentResult = await query<{ username: string; created_at: string; last_username_change_at: string | null }>(
+      'SELECT username, created_at, last_username_change_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -667,9 +667,37 @@ router.patch('/username', requireAuth, async (req, res) => {
       return;
     }
 
+    // Enforce username change cooldown:
+    // - First 3 days after signup: unlimited changes
+    // - After that: once every 27 days
+    if (currentResult && currentResult.rows.length > 0) {
+      const row = currentResult.rows[0]!;
+      const createdAt = new Date(row.created_at);
+      const now = new Date();
+      const gracePeriodMs = 3 * 24 * 60 * 60 * 1000; // 3 days
+      const cooldownMs = 27 * 24 * 60 * 60 * 1000; // 27 days
+      const accountAgeMs = now.getTime() - createdAt.getTime();
+
+      if (accountAgeMs > gracePeriodMs && row.last_username_change_at) {
+        const lastChange = new Date(row.last_username_change_at);
+        const timeSinceChange = now.getTime() - lastChange.getTime();
+        if (timeSinceChange < cooldownMs) {
+          const nextChangeDate = new Date(lastChange.getTime() + cooldownMs);
+          const daysRemaining = Math.ceil((cooldownMs - timeSinceChange) / (24 * 60 * 60 * 1000));
+          res.status(429).json({
+            error: `You can change your username once every 27 days. Next change available on ${nextChangeDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+            cooldown: true,
+            nextChangeAt: nextChangeDate.toISOString(),
+            daysRemaining,
+          });
+          return;
+        }
+      }
+    }
+
     try {
       await pool.query(
-        'UPDATE users SET username = $1, display_name = $1 WHERE id = $2',
+        'UPDATE users SET username = $1, display_name = $1, last_username_change_at = NOW() WHERE id = $2',
         [trimmed, userId],
       );
     } catch (err: unknown) {
