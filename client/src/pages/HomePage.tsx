@@ -6,7 +6,7 @@ import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
-import { HandType, handToString } from '@bull-em/shared';
+import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
@@ -215,6 +215,11 @@ function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; po
         <p className="text-sm text-[var(--gold-dim)] font-mono">{elapsedStr}</p>
         {status.position > 0 && (
           <p className="text-xs text-[var(--gold-dim)]">Position: #{status.position}</p>
+        )}
+        {elapsed < MATCHMAKING_BOT_BACKFILL_SECONDS && (
+          <p className="text-xs text-[var(--gold-dim)]">
+            Max wait: {MATCHMAKING_BOT_BACKFILL_SECONDS - elapsed}s
+          </p>
         )}
         <button
           onClick={onCancel}
@@ -977,7 +982,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.1
+          v1.2.2
         </button>
       </div>
 
@@ -991,12 +996,12 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.1</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.2</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Bot level categories &amp; impossible mode settings</li>
-              <li>Player profiles for all 81 bots</li>
-              <li>Player tile navigation to profiles</li>
+              <li>Ranked matchmaking fixes &amp; waiting time display</li>
+              <li>Avatar list cleanup</li>
+              <li>Dev mode ranked play fix</li>
             </ul>
           </div>
         </div>

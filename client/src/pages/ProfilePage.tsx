@@ -14,7 +14,6 @@ const AVATAR_ICONS: Record<AvatarId, string> = {
   ace: '\u{1F0CF}',
   crown: '\u{1F451}',
   diamond: '\u{1F48E}',
-  flame: '\u{1F525}',
   skull: '\u{1F480}',
   star: '\u{2B50}',
   wolf: '\u{1F43A}',
@@ -22,7 +21,6 @@ const AVATAR_ICONS: Record<AvatarId, string> = {
   lion: '\u{1F981}',
   fox: '\u{1F98A}',
   bear: '\u{1F43B}',
-  sunglasses: '\u{1F60E}',
 };
 
 /** Returns the emoji for a given avatar ID, or the user's initial as fallback. */
