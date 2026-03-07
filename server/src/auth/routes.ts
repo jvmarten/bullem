@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
@@ -409,6 +409,65 @@ router.patch('/avatar', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to update avatar');
     res.status(500).json({ error: 'Failed to update avatar' });
+  }
+});
+
+// ── POST /auth/upload-photo ──────────────────────────────────────────
+// Allows admin users to upload a profile photo from their device.
+// Accepts JSON { photo: "<base64 data URL>" } and stores it in photo_url.
+// TODO(scale): Migrate to S3/R2 object storage when photo count or payload size warrants it.
+
+/** Max allowed photo payload size: 2 MB base64 (~1.5 MB raw image). */
+const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const DATA_URL_REGEX = /^data:(image\/(?:jpeg|png|webp));base64,/;
+
+router.post('/upload-photo', express.json({ limit: '3mb' }), requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const role = req.user!.role;
+
+    if (role !== 'admin') {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+
+    const { photo } = req.body as { photo?: string | null };
+
+    // Allow null to clear photo
+    if (photo === null || photo === undefined || photo === '') {
+      await query('UPDATE users SET photo_url = NULL WHERE id = $1', [userId]);
+      res.json({ ok: true, photoUrl: null });
+      return;
+    }
+
+    if (typeof photo !== 'string') {
+      res.status(400).json({ error: 'Photo must be a base64 data URL string' });
+      return;
+    }
+
+    // Validate data URL format
+    const match = DATA_URL_REGEX.exec(photo);
+    if (!match) {
+      res.status(400).json({
+        error: `Invalid photo format. Allowed types: ${ALLOWED_PHOTO_TYPES.join(', ')}`,
+      });
+      return;
+    }
+
+    // Check size (base64 string length is a reasonable proxy)
+    if (photo.length > MAX_PHOTO_SIZE_BYTES) {
+      res.status(400).json({ error: 'Photo too large. Maximum size is ~1.5 MB.' });
+      return;
+    }
+
+    await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photo, userId]);
+
+    logger.info({ userId }, 'Admin uploaded profile photo');
+    res.json({ ok: true, photoUrl: photo });
+  } catch (err) {
+    logger.error({ err }, 'Failed to upload photo');
+    res.status(500).json({ error: 'Failed to upload photo' });
   }
 });
 
