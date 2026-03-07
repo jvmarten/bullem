@@ -393,7 +393,7 @@ export function GamePage() {
 
   return (
     <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
-      <div className={`game-layout ${isEliminated || isSpectator ? 'spectating' : ''}`}>
+      <div className={`game-layout ${(isEliminated || isSpectator) && !winnerId ? 'spectating' : ''}`}>
         {/* Top bar — portrait only (merged into header in landscape) */}
         <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
@@ -427,8 +427,9 @@ export function GamePage() {
           </div>
         </div>
 
-        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter */}
-        {(isEliminated || isSpectator) && (
+        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter.
+            Hidden when winnerId is set because the match is over (no active game to spectate). */}
+        {(isEliminated || isSpectator) && !winnerId && (
           <div className="text-center glass p-2 animate-fade-in spectator-banner">
             <p className="text-xs font-semibold uppercase tracking-widest">
               {isEliminated ? (

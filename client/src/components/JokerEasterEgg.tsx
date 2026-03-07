@@ -50,7 +50,16 @@ export function useJokerEasterEgg() {
   }, [phase]);
 
   useEffect(() => {
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      // Stop audio on unmount — when the Layout component unmounts during
+      // navigation (e.g. home → game), the ref is lost but the audio element
+      // would keep playing in memory without this explicit cleanup.
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   /** Stop audio and reset state — call when navigating away from the home page. */
