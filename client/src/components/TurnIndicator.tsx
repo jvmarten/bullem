@@ -128,7 +128,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
           ? isWarning
             ? `glass-raised border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
             : roundPhase === RoundPhase.LAST_CHANCE
-              ? 'glass-raised animate-pulse-glow border-[var(--danger)]'
+              ? 'glass-danger animate-pulse-glow-red border-[var(--danger)]'
               : 'glass-me animate-pulse-glow-blue border-[var(--info)]'
           : 'glass'
       }`}>
