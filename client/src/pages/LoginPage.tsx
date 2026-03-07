@@ -17,6 +17,16 @@ export function LoginPage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Dev auth detection — one-tap login in dev mode
+  const [devAuth, setDevAuth] = useState(false);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    fetch(`${API_BASE}/api/dev-status`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.devAuth) setDevAuth(true); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (searchParams.get('error') === 'oauth_failed') {
       setError('Sign-in failed. Please try again.');
@@ -60,6 +70,33 @@ export function LoginPage() {
           <div className="w-full glass px-4 py-3 text-sm text-red-400 border border-red-400/30 mb-4">
             {error}
           </div>
+        )}
+
+        {/* One-tap dev login — only in dev mode without DB */}
+        {devAuth && (
+          <button
+            type="button"
+            onClick={async () => {
+              setSubmitting(true);
+              try {
+                await login('DevPlayer', 'dev');
+                navigate('/');
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Dev login failed');
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            disabled={submitting}
+            className="w-full py-3 rounded-lg font-medium transition-colors mb-4"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,200,0,0.2), rgba(255,200,0,0.1))',
+              border: '1px solid rgba(255,200,0,0.4)',
+              color: 'var(--gold)',
+            }}
+          >
+            {submitting ? 'Signing in\u2026' : '\u26A1 Dev Login (any credentials)'}
+          </button>
         )}
 
         {/* OAuth buttons — primary sign-in method */}
