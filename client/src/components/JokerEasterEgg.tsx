@@ -61,6 +61,7 @@ const DISMISS_MS = 600;
 
 export function useJokerEasterEgg() {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [audioReady, setAudioReady] = useState(false);
   const countRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -80,12 +81,14 @@ export function useJokerEasterEgg() {
       import('../assets/sounds/stubbin-full.mp3').then(({ default: url }) => {
         const audio = new Audio(url);
         audioRef.current = audio;
+        setAudioReady(true);
         // Dismiss the joker card when the audio finishes playing
         audio.addEventListener('ended', () => {
           setPhase('dismiss');
           setTimeout(() => {
             setPhase('idle');
             audioRef.current = null;
+            setAudioReady(false);
           }, DISMISS_MS);
         });
         audio.play().catch(() => {});
@@ -118,12 +121,13 @@ export function useJokerEasterEgg() {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    setAudioReady(false);
     countRef.current = 0;
     clearTimeout(timerRef.current);
     setPhase('idle');
   }, []);
 
-  return { phase, setPhase, handleLogoClick, audioRef, stopEasterEgg };
+  return { phase, setPhase, handleLogoClick, audioRef, audioReady, stopEasterEgg };
 }
 
 /** Catmull-Rom spline interpolation for continuous, smooth curves through waypoints */
@@ -164,10 +168,11 @@ function randomWaypoint(): Waypoint {
   };
 }
 
-export function JokerOverlay({ phase, setPhase, audioRef }: {
+export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
   phase: Phase;
   setPhase: (p: Phase) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  audioReady: boolean;
 }) {
   const { volume, muted, hapticsEnabled } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -184,7 +189,10 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
     active: false, startTime: 0, duration: 0, rx: 0, ry: 0, rz: 0, baseRx: 0, baseRy: 0, baseRz: 0,
   });
 
-  // Track audio currentTime to show synced subtitles
+  // Track audio currentTime to show synced subtitles.
+  // audioReady is needed as a dependency because the audio element is loaded
+  // asynchronously — phase switches to 'flying' before audioRef.current is set,
+  // so without audioReady this effect would exit early and never attach the listener.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || phase !== 'flying') {
@@ -207,7 +215,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     return () => audio.removeEventListener('timeupdate', onTimeUpdate);
-  }, [phase, audioRef]);
+  }, [phase, audioRef, audioReady]);
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {

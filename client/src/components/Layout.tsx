@@ -78,7 +78,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef, stopEasterEgg: jokerStop } = useJokerEasterEgg();
+  const { phase: jokerPhase, setPhase: setJokerPhase, handleLogoClick: jokerClick, audioRef: jokerAudioRef, audioReady: jokerAudioReady, stopEasterEgg: jokerStop } = useJokerEasterEgg();
 
   // Stop joker easter egg audio when navigating to a different route
   useEffect(() => {
@@ -192,7 +192,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
         </div>
       )}
       <main className="max-w-6xl mx-auto px-4 py-3">{children}</main>
-      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} />
+      <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} audioReady={jokerAudioReady} />
     </div>
   );
 }
