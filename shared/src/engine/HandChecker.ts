@@ -2,6 +2,12 @@ import { RANK_VALUES } from '../constants.js';
 import type { Card, HandCall, OwnedCard, Rank, Suit } from '../types.js';
 import { HandType } from '../types.js';
 
+/** Reverse mapping from rank numeric value to Rank string.
+ *  Pre-computed once at module load for O(1) lookups in getStraightRanks(). */
+const VALUE_TO_RANK = new Map<number, Rank>(
+  Object.entries(RANK_VALUES).map(([rank, val]) => [val, rank as Rank])
+);
+
 /**
  * Pure static methods for checking whether poker hands exist in a pool of cards.
  *
@@ -159,7 +165,7 @@ function getStraightRanks(highRank: Rank): Rank[] | null {
   }
   const ranks: Rank[] = [];
   for (let v = highVal - 4; v <= highVal; v++) {
-    const rank = Object.entries(RANK_VALUES).find(([, val]) => val === v)?.[0] as Rank;
+    const rank = VALUE_TO_RANK.get(v);
     if (!rank) return null;
     ranks.push(rank);
   }

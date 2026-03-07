@@ -20,7 +20,7 @@ import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
 import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
-import { optionalAuth, requireAuth } from './auth/middleware.js';
+import { optionalAuth, requireAuth, requireAdmin } from './auth/middleware.js';
 import { createAdminRouter } from './admin/routes.js';
 import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from './db/index.js';
@@ -589,8 +589,7 @@ app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
 });
 
 // ── Calibration status endpoint ─────────────────────────────────────────
-// TODO: add admin auth — currently unauthenticated for dev/monitoring convenience
-app.get('/api/admin/calibration', (_req, res) => {
+app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
   res.json(calibrationManager.getStatus());
 });
 
