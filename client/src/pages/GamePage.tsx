@@ -675,7 +675,7 @@ export function GamePage() {
         )}
 
         {/* Reconnecting overlay — shown when own connection drops */}
-        {!isConnected && hasConnected && <ReconnectOverlay />}
+        {!isConnected && hasConnected && <ReconnectOverlay onLeave={() => { leaveRoom(); navigate('/'); }} />}
       </div>
       {selectedBotName && (
         <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />

@@ -680,6 +680,28 @@ router.patch('/username', requireAuth, async (req, res) => {
       throw err;
     }
 
+    // Update denormalized player names in match history so old games
+    // reflect the new username. These are best-effort — don't block the
+    // response if any fail.
+    try {
+      await Promise.all([
+        query(
+          'UPDATE game_players SET player_name = $1 WHERE user_id = $2',
+          [trimmed, userId],
+        ),
+        query(
+          'UPDATE games SET winner_name = $1 WHERE winner_id = $2',
+          [trimmed, userId],
+        ),
+        query(
+          'UPDATE ranked_match_players SET display_name = $1 WHERE user_id = $2::uuid AND is_bot = false',
+          [trimmed, userId],
+        ),
+      ]);
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to update denormalized player names in match history');
+    }
+
     // Issue a new JWT with the updated username
     const userResult = await query<{ role: string }>(
       'SELECT role FROM users WHERE id = $1',
