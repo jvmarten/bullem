@@ -143,13 +143,49 @@ export function LocalLobbyPage() {
           onPlayerClick={handlePlayerClick}
         />
 
-        <button
-          onClick={() => addBot().catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'))}
-          disabled={!canAddBot}
-          className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-        >
-          + Add Bot
-        </button>
+        {/* Bot count selector — quick add/remove bots */}
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+            Bots
+          </p>
+          <div className="flex gap-1.5">
+            {Array.from({ length: dynamicMaxPlayers }, (_, i) => i).map(n => {
+              const currentBotCount = roomState.players.filter(p => p.isBot).length;
+              return (
+                <button
+                  key={n}
+                  onClick={() => {
+                    play('uiSoft');
+                    const bots = roomState.players.filter(p => p.isBot);
+                    if (n > bots.length) {
+                      // Add bots
+                      const toAdd = n - bots.length;
+                      for (let i = 0; i < toAdd; i++) {
+                        addBot().catch(() => {});
+                      }
+                    } else if (n < bots.length) {
+                      // Remove bots from the end
+                      const toRemove = bots.length - n;
+                      for (let i = 0; i < toRemove; i++) {
+                        removeBot(bots[bots.length - 1 - i]!.id);
+                      }
+                    }
+                  }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    currentBotCount === n
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+            {roomState.players.filter(p => p.isBot).length} bot{roomState.players.filter(p => p.isBot).length !== 1 ? 's' : ''} at the table
+          </p>
+        </div>
 
         <div className="flex flex-col gap-3 lobby-start-actions">
           <button

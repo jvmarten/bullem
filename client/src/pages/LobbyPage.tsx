@@ -236,15 +236,49 @@ export function LobbyPage() {
           onPlayerClick={handlePlayerClick}
         />
 
-        {isHost && (
-          <button
-            onClick={() => addBot().catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'))}
-            disabled={roomState.players.length >= effectiveMaxPlayers}
-            className="w-full glass px-4 py-2.5 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-          >
-            + Add Bot
-          </button>
-        )}
+        {isHost && (() => {
+          const bots = roomState.players.filter(p => p.isBot);
+          const humanCount = roomState.players.length - bots.length;
+          const maxBots = effectiveMaxPlayers - humanCount;
+          return (
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Bots
+              </p>
+              <div className="flex gap-1.5">
+                {Array.from({ length: maxBots + 1 }, (_, i) => i).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => {
+                      play('uiSoft');
+                      if (n > bots.length) {
+                        const toAdd = n - bots.length;
+                        for (let i = 0; i < toAdd; i++) {
+                          addBot().catch(() => {});
+                        }
+                      } else if (n < bots.length) {
+                        const toRemove = bots.length - n;
+                        for (let i = 0; i < toRemove; i++) {
+                          removeBot(bots[bots.length - 1 - i]!.id);
+                        }
+                      }
+                    }}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      bots.length === n
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {bots.length} bot{bots.length !== 1 ? 's' : ''} in lobby
+              </p>
+            </div>
+          );
+        })()}
         </div>{/* end lobby-left */}
 
         {/* Right panel in landscape: settings + actions */}
