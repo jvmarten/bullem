@@ -60,11 +60,20 @@ export const ActionButtons = memo(function ActionButtons({
     action();
   };
 
+  // Prevent document-level outside-click handlers (e.g. quick draw close)
+  // from intercepting mousedown/touchstart on ghost buttons, which can
+  // interfere with the subsequent click event that expands the real buttons.
+  const stopBubble = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+  }, []);
+
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     if (!expanded) {
       return (
         <div className="flex justify-start animate-slide-up" data-action-buttons>
           <button
+            onMouseDown={stopBubble}
+            onTouchStart={stopBubble}
             onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
             className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary"
           >
@@ -91,6 +100,8 @@ export const ActionButtons = memo(function ActionButtons({
     return (
       <div className="flex justify-start animate-slide-up" data-action-buttons>
         <button
+          onMouseDown={stopBubble}
+          onTouchStart={stopBubble}
           onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
           className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary whitespace-nowrap shrink-0"
         >
