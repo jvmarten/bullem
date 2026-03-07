@@ -1,5 +1,5 @@
 import { STARTING_CARDS, MAX_CARDS, DEFAULT_GAME_SETTINGS, DECK_SIZE } from '../constants.js';
-import { isHigherHand } from '../hands.js';
+import { isHigherHand, getMinimumRaise } from '../hands.js';
 import {
   GamePhase, RoundPhase, TurnAction,
 } from '../types.js';
@@ -196,8 +196,9 @@ export class GameEngine {
     this.gameStats.playerStats[playerId]!.callsMade++;
     this.trackHandCall(playerId, hand.type);
 
-    // A raise resets the bull phase
-    this.roundPhase = RoundPhase.CALLING;
+    // A raise resets the bull phase — unless the hand is unraiseable (e.g. royal flush),
+    // in which case go straight to BULL_PHASE so the next player can also call true.
+    this.roundPhase = getMinimumRaise(hand) === null ? RoundPhase.BULL_PHASE : RoundPhase.CALLING;
     this.respondedPlayers.clear();
     this.respondedPlayers.add(playerId);
     this.advanceTurn();
