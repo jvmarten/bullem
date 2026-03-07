@@ -17,8 +17,8 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

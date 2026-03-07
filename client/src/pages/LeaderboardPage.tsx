@@ -5,8 +5,8 @@ import { RankBadge } from '../components/RankBadge.js';
 import { avatarDisplay } from './ProfilePage.js';
 import type { RankedMode, LeaderboardPeriod, LeaderboardResponse, LeaderboardEntry, LeaderboardPlayerFilter } from '@bull-em/shared';
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 const PAGE_SIZE = 50;
 

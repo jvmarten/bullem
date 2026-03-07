@@ -1,8 +1,9 @@
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const URL = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '/';
+// In dev, Vite's proxy forwards /socket.io to localhost:3001, so '/' works
+// from any device on the LAN (phone, tablet). In prod, same-origin serves it.
+const URL = '/';
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL, {
   autoConnect: false,

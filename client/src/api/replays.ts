@@ -1,7 +1,7 @@
 import type { GameReplay, ReplayListEntry } from '@bull-em/shared';
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 /**
  * Fetch the replay list from the server API.

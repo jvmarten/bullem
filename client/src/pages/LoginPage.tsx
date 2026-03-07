@@ -3,8 +3,8 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 export function LoginPage() {
   const [identifier, setIdentifier] = useState('');

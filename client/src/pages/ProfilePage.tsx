@@ -31,8 +31,8 @@ export function avatarDisplay(avatar: AvatarId | null | undefined, fallbackName:
   return fallbackName.charAt(0).toUpperCase();
 }
 
-const isCodespaces = typeof window !== 'undefined' && window.location.hostname.includes('.app.github.dev');
-const API_BASE = import.meta.env.DEV && !isCodespaces ? 'http://localhost:3001' : '';
+// Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
+const API_BASE = '';
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
