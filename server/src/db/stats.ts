@@ -7,6 +7,7 @@ interface StatsAggRow {
   games_played: string;
   games_won: string;
   avg_finish: string | null;
+  avg_finish_pct: string | null;
   total_bulls_called: string;
   total_correct_bulls: string;
   total_trues_called: string;
@@ -51,6 +52,15 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
         THEN AVG(gp.finish_position)::text
         ELSE NULL
       END AS avg_finish,
+      CASE WHEN COUNT(*) > 0
+        THEN AVG(
+          CASE WHEN g.player_count > 1
+            THEN (1.0 - (gp.finish_position - 1)::float / (g.player_count - 1)::float) * 100
+            ELSE 100
+          END
+        )::text
+        ELSE NULL
+      END AS avg_finish_pct,
       COALESCE(SUM((gp.stats->>'bullsCalled')::int), 0)::text AS total_bulls_called,
       COALESCE(SUM((gp.stats->>'correctBulls')::int), 0)::text AS total_correct_bulls,
       COALESCE(SUM((gp.stats->>'truesCalled')::int), 0)::text AS total_trues_called,
@@ -58,6 +68,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
       COALESCE(SUM((gp.stats->>'callsMade')::int), 0)::text AS total_calls_made,
       COALESCE(SUM((gp.stats->>'bluffsSuccessful')::int), 0)::text AS total_bluffs_successful
     FROM game_players gp
+    JOIN games g ON g.id = gp.game_id
     WHERE gp.user_id = $1`,
     [userId],
   );
@@ -134,6 +145,10 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
       }))
     : [];
 
+  // Normalized finish percentile: 100% = always 1st, 0% = always last.
+  // Accounts for game size so finishing 2nd/2 isn't equated with 2nd/8.
+  const avgFinishPct = row.avg_finish_pct !== null ? Math.round(parseFloat(row.avg_finish_pct)) : null;
+  // Keep raw avg finish for backwards compat but prefer the normalized version
   const avgFinish = row.avg_finish !== null ? parseFloat(parseFloat(row.avg_finish).toFixed(1)) : null;
 
   return {
@@ -142,6 +157,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
     wins,
     winRate: gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : null,
     avgFinishPosition: avgFinish,
+    avgFinishPercentile: avgFinishPct,
     bullAccuracy: bullsCalled > 0 ? Math.round((correctBulls / bullsCalled) * 100) : null,
     trueAccuracy: truesCalled > 0 ? Math.round((correctTrues / truesCalled) * 100) : null,
     bluffSuccessRate: callsMade > 0 ? Math.round((bluffsSuccessful / callsMade) * 100) : null,

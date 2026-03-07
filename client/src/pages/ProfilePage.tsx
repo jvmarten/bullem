@@ -446,7 +446,7 @@ export function ProfilePage() {
               />
               <StatCard
                 label="Avg Finish"
-                value={stats.avgFinishPosition !== null ? `${stats.avgFinishPosition}` : '\u2014'}
+                value={stats.avgFinishPercentile != null ? `${stats.avgFinishPercentile}%` : stats.avgFinishPosition !== null ? `${stats.avgFinishPosition}` : '\u2014'}
               />
               <StatCard
                 label="Bull Accuracy"

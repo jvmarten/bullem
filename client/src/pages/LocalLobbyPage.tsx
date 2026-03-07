@@ -22,6 +22,9 @@ export function LocalLobbyPage() {
   useErrorToast(error, clearError);
   const initializedRef = useRef(false);
   const quickPlayStartedRef = useRef(false);
+  // Tracks whether the game was started from this lobby session.
+  // Prevents stale restored game state from triggering an immediate redirect.
+  const gameStartedRef = useRef(false);
   // Guard against ghost taps: on mobile, the "Play Offline" tap can pass through
   // to "Start Game" if it occupies the same screen position after navigation.
   // 500ms covers slow devices; pointer-events:none on the button provides an
@@ -31,6 +34,15 @@ export function LocalLobbyPage() {
   useEffect(() => {
     const timer = setTimeout(() => setInteractionReady(true), 500);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Clear any restored in-progress game from a previous session.
+  // The lobby should always start fresh when the user explicitly navigates here.
+  useEffect(() => {
+    if (gameState && !gameStartedRef.current) {
+      leaveRoom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const maxCards = gameSettings?.maxCards ?? MAX_CARDS;
@@ -55,12 +67,13 @@ export function LocalLobbyPage() {
     if (!isQuickPlay || quickPlayStartedRef.current) return;
     if (!roomState || roomState.players.length < 2) return;
     quickPlayStartedRef.current = true;
+    gameStartedRef.current = true;
     startGame();
   }, [isQuickPlay, roomState, startGame]);
 
-  // Navigate to game when it starts
+  // Navigate to game when it starts — only if started from this lobby session
   useEffect(() => {
-    if (gameState) {
+    if (gameState && gameStartedRef.current) {
       navigate('/local/game');
     }
   }, [gameState, navigate]);
@@ -126,7 +139,7 @@ export function LocalLobbyPage() {
 
         <div className="flex flex-col gap-3 lobby-start-actions">
           <button
-            onClick={startGame}
+            onClick={() => { gameStartedRef.current = true; startGame(); }}
             disabled={!canStart || !interactionReady}
             className="w-full btn-gold py-3 text-lg"
             style={!interactionReady ? { pointerEvents: 'none' } : undefined}

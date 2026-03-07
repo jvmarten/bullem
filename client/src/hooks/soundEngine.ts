@@ -486,4 +486,16 @@ export function createSoundController(): SoundController {
   return controller;
 }
 
+/**
+ * Returns a Promise that resolves when all audio files have been pre-loaded
+ * and decoded. Use this to gate a loading screen so sounds are ready before
+ * the user interacts with the app.
+ */
+export function waitForAudioReady(): Promise<void> {
+  const promises = Object.values(AUDIO_FILE_SOUNDS)
+    .filter(Boolean)
+    .map(entry => loadAudioBuffer(entry!.url));
+  return Promise.all(promises).then(() => {});
+}
+
 export type { SoundName };
