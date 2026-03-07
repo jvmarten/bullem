@@ -14,6 +14,8 @@ export interface AuthContextValue {
   updateAvatar: (avatar: AvatarId | null) => Promise<void>;
   /** Upload a profile photo from device (admin only). Pass null to remove. */
   uploadPhoto: (photoDataUrl: string | null) => Promise<void>;
+  /** Change the current user's username. */
+  updateUsername: (username: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -106,6 +108,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(prev => prev ? { ...prev, photoUrl: photoDataUrl } : null);
   }, []);
 
+  const updateUsername = useCallback(async (username: string) => {
+    const data = await apiFetch<{ ok: boolean; username: string }>('/auth/username', {
+      method: 'PATCH',
+      body: JSON.stringify({ username }),
+    });
+    setUser(prev => prev ? { ...prev, username: data.username } : null);
+    setProfile(prev => prev ? { ...prev, username: data.username } : null);
+  }, []);
+
   const value: AuthContextValue = useMemo(() => ({
     user,
     profile,
@@ -116,7 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshProfile,
     updateAvatar,
     uploadPhoto,
-  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar, uploadPhoto]);
+    updateUsername,
+  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar, uploadPhoto, updateUsername]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

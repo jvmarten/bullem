@@ -630,4 +630,71 @@ router.post('/reset-password', authRateLimit, async (req, res) => {
   }
 });
 
+// ── PATCH /auth/username ─────────────────────────────────────────────────
+
+router.patch('/username', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { username } = req.body as { username?: string };
+
+    if (!username) {
+      res.status(400).json({ error: 'Username is required' });
+      return;
+    }
+
+    const trimmed = username.trim();
+
+    if (!USERNAME_REGEX.test(trimmed)) {
+      res.status(400).json({
+        error: 'Username must be 2–20 characters, start with a letter, and contain only letters, numbers, and underscores',
+      });
+      return;
+    }
+
+    if (!pool) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    // Check current username — skip if unchanged
+    const currentResult = await query<{ username: string }>(
+      'SELECT username FROM users WHERE id = $1',
+      [userId],
+    );
+
+    if (currentResult && currentResult.rows.length > 0 && currentResult.rows[0]!.username === trimmed) {
+      res.json({ ok: true, username: trimmed });
+      return;
+    }
+
+    try {
+      await pool.query(
+        'UPDATE users SET username = $1 WHERE id = $2',
+        [trimmed, userId],
+      );
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
+        res.status(409).json({ error: 'Username already taken' });
+        return;
+      }
+      throw err;
+    }
+
+    // Issue a new JWT with the updated username
+    const userResult = await query<{ role: string }>(
+      'SELECT role FROM users WHERE id = $1',
+      [userId],
+    );
+    const role = userResult?.rows[0]?.role as 'user' | 'admin' ?? 'user';
+    const token = signToken({ userId, username: trimmed, role });
+    res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
+
+    track('player:username_changed', {}, userId);
+    res.json({ ok: true, username: trimmed });
+  } catch (err) {
+    logger.error({ err }, 'Failed to update username');
+    res.status(500).json({ error: 'Failed to update username' });
+  }
+});
+
 export { router as authRouter };
