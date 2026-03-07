@@ -5,6 +5,56 @@ import cardBack from '../assets/images/joker-card-back.svg';
 
 type Phase = 'idle' | 'flying' | 'dismiss';
 
+/* ── Subtitle data synced to stubbin-full.mp3 ─────────────────────────── */
+
+interface SubtitleEntry {
+  time: number;
+  speaker: string;
+  text: string;
+}
+
+const SUBTITLE_RAW: { time: number; speaker?: string; text: string }[] = [
+  { time: 2.0,  speaker: 'A', text: 'Nonnih, Stubbin on talossa, Stubbin on talossa' },
+  { time: 6.0,  text: 'Mika Aaltola hieno puku' },
+  { time: 8.0,  text: 'Haluaako joku nähdä TikTokin, jossa matkustan junalla?' },
+  { time: 12.0, text: 'Oliko kertonut teille, että poikani on armeijassa, jokaisessa haastattelussa?' },
+  { time: 17.0, text: 'Okei' },
+  { time: 21.0, text: 'Sari, kato tätä' },
+  { time: 26.0, text: 'Jutta, don\'t quit your day job' },
+  { time: 28.0, text: 'hei Halla-aho, oletko nähnyt pelottavia muslimeja viime aikoina?' },
+  { time: 32.0, speaker: 'B', text: 'Joo' },
+  { time: 32.5, speaker: 'A', text: 'Hieno poika' },
+  { time: 35.0, text: 'Olli Rehn' },
+  { time: 37.0, text: 'en tiedä mitä sanoisin sinulle' },
+  { time: 40.0, speaker: 'B', text: 'Alexander' },
+  { time: 41.0, speaker: 'A', text: 'Pekka?' },
+  { time: 46.0, text: 'Mene pois Pekka, mulla on Li Andersson' },
+  { time: 49.0, speaker: 'B', text: 'En välitä, en ole vasemmistolainen' },
+  { time: 53.0, speaker: 'A', text: 'Älä viitsi, Pekka' },
+  { time: 54.0, text: 'se on ongelma, sinä välität, minä en' },
+  { time: 62.0, speaker: 'B', text: 'Li' },
+  { time: 63.0, text: 'kiitos taktisista äänistä' },
+];
+
+// Resolve inherited speakers and build the final subtitle list
+const SUBTITLES: SubtitleEntry[] = (() => {
+  let lastSpeaker = 'A';
+  return SUBTITLE_RAW.map((entry) => {
+    const speaker = entry.speaker ?? lastSpeaker;
+    lastSpeaker = speaker;
+    return { time: entry.time, speaker, text: entry.text };
+  });
+})();
+
+const SPEAKER_COLORS: Record<string, string> = {
+  A: '#ffffff',
+  B: '#e8c56e',
+};
+
+function getSpeakerColor(speaker: string): string {
+  return SPEAKER_COLORS[speaker] ?? '#b0c4de'; // light steel blue fallback for extra speakers
+}
+
 const TAP_THRESHOLD = 53;
 const TAP_TIMEOUT_MS = 2000;
 const DISMISS_MS = 600;
@@ -122,6 +172,7 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   const { volume, muted, hapticsEnabled } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const animRef = useRef<number>(0);
+  const [currentSubtitle, setCurrentSubtitle] = useState<SubtitleEntry | null>(null);
   // Sliding window of 4 waypoints for Catmull-Rom spline interpolation.
   // The card always travels along the curve between waypoints[1] and waypoints[2],
   // using waypoints[0] and waypoints[3] as tangent guides.
@@ -132,6 +183,31 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
   const spinRef = useRef<{ active: boolean; startTime: number; duration: number; rx: number; ry: number; rz: number; baseRx: number; baseRy: number; baseRz: number }>({
     active: false, startTime: 0, duration: 0, rx: 0, ry: 0, rz: 0, baseRx: 0, baseRy: 0, baseRz: 0,
   });
+
+  // Track audio currentTime to show synced subtitles
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || phase !== 'flying') {
+      setCurrentSubtitle(null);
+      return;
+    }
+
+    const onTimeUpdate = () => {
+      const t = audio.currentTime;
+      // Find the last subtitle whose time <= currentTime
+      let active: SubtitleEntry | null = null;
+      for (let i = SUBTITLES.length - 1; i >= 0; i--) {
+        if (SUBTITLES[i]!.time <= t) {
+          active = SUBTITLES[i]!;
+          break;
+        }
+      }
+      setCurrentSubtitle(active);
+    };
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    return () => audio.removeEventListener('timeupdate', onTimeUpdate);
+  }, [phase, audioRef]);
 
   // Sync volume/mute to the audio element whenever they change
   useEffect(() => {
@@ -330,6 +406,24 @@ export function JokerOverlay({ phase, setPhase, audioRef }: {
           />
         </div>
       </div>
+
+      {/* Synced subtitles — fixed at bottom center */}
+      {phase === 'flying' && (
+        <div
+          className="fixed bottom-8 left-0 right-0 z-[10000] flex justify-center pointer-events-none"
+        >
+          <div
+            key={currentSubtitle?.time ?? 'empty'}
+            className="joker-subtitle"
+            style={{
+              color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
+              opacity: currentSubtitle ? 1 : 0,
+            }}
+          >
+            {currentSubtitle?.text ?? ''}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
