@@ -30,6 +30,14 @@ export function useJokerEasterEgg() {
       import('../assets/sounds/stubbin-full.mp3').then(({ default: url }) => {
         const audio = new Audio(url);
         audioRef.current = audio;
+        // Dismiss the joker card when the audio finishes playing
+        audio.addEventListener('ended', () => {
+          setPhase('dismiss');
+          setTimeout(() => {
+            setPhase('idle');
+            audioRef.current = null;
+          }, DISMISS_MS);
+        });
         audio.play().catch(() => {});
       }).catch(() => {});
 

@@ -288,6 +288,16 @@ export function HomePage() {
     }
   }, [user?.displayName]);
 
+  // Auto-redirect to an active game when the user returns after browser close.
+  // The GameContext connect handler rejoins from localStorage, which sets
+  // roomState and gameState. If we detect an active in-progress game, navigate
+  // directly to the game page instead of showing the home menu.
+  useEffect(() => {
+    if (roomState && roomState.gamePhase !== 'lobby') {
+      navigate(`/game/${roomState.roomCode}`);
+    }
+  }, [roomState, navigate]);
+
   // Shuffle card positions on interval while hovering (not when cards are dealt and showing)
   const isShuffling = isHovered && !isDealing && !dealtCards;
   useEffect(() => {
@@ -787,6 +797,7 @@ export function HomePage() {
                 <button
                   onClick={() => {
                     play('uiSoft');
+                    getOnlinePlayerName();
                     joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
                   }}
                   className="flex-1 btn-orange py-3 text-sm"
@@ -796,6 +807,7 @@ export function HomePage() {
                 <button
                   onClick={() => {
                     play('uiSoft');
+                    getOnlinePlayerName();
                     joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
                   }}
                   className="flex-1 btn-orange py-3 text-sm"
@@ -955,7 +967,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.1.0
+          v1.1.1
         </button>
       </div>
 
@@ -969,7 +981,7 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.1.0</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.1.1</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 6, 2026</p>
             {/* TODO(scale): Add link to patch notes page once changelog route exists */}
           </div>

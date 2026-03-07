@@ -127,12 +127,14 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
         isMyTurn
           ? isWarning
             ? `glass-raised border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
-            : 'glass-me animate-pulse-glow-blue border-[var(--info)]'
+            : roundPhase === RoundPhase.LAST_CHANCE
+              ? 'glass-raised animate-pulse-glow border-[var(--danger)]'
+              : 'glass-me animate-pulse-glow-blue border-[var(--info)]'
           : 'glass'
       }`}>
-        <p className={`font-display text-base font-bold ${isMyTurn ? isWarning ? 'text-[var(--danger)]' : 'text-[var(--info)]' : ''}`}>
+        <p className={`font-display text-base font-bold ${isMyTurn ? (isWarning || roundPhase === RoundPhase.LAST_CHANCE) ? 'text-[var(--danger)]' : 'text-[var(--info)]' : ''}`}>
           {isTimedOut ? "Time\u2019s up!" : turnLabel}
-          <span className={`text-xs font-normal ml-2 ${isWarning ? 'text-[var(--danger)]' : isMyTurn ? 'text-[rgba(74,144,217,0.7)]' : 'text-[var(--gold-dim)]'}`}>
+          <span className={`text-xs font-normal ml-2 ${isWarning || (isMyTurn && roundPhase === RoundPhase.LAST_CHANCE) ? 'text-[var(--danger)]' : isMyTurn ? 'text-[rgba(74,144,217,0.7)]' : 'text-[var(--gold-dim)]'}`}>
             {phaseLabel}
           </span>
           {showTimer && (
