@@ -382,6 +382,12 @@ export function HomePage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
   const [rankedExpanded, setRankedExpanded] = useState(false);
+  const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
+
+  // Clear joining state once the matchmaking overlay takes over
+  useEffect(() => {
+    if (matchmakingStatus) setJoiningRanked(null);
+  }, [matchmakingStatus]);
   const handleQuickStart = async () => {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     if (creatingRoom) return;
@@ -811,23 +817,29 @@ export function HomePage() {
               <div className="flex gap-2 w-full animate-fade-in -mt-1">
                 <button
                   onClick={() => {
+                    if (joiningRanked) return;
                     play('uiSoft');
                     getOnlinePlayerName();
-                    joinMatchmaking('heads_up').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                    setJoiningRanked('heads_up');
+                    joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                   }}
-                  className="flex-1 btn-orange py-3 text-sm"
+                  disabled={joiningRanked !== null}
+                  className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : 'btn-orange'}`}
                 >
-                  1v1
+                  {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
                 </button>
                 <button
                   onClick={() => {
+                    if (joiningRanked) return;
                     play('uiSoft');
                     getOnlinePlayerName();
-                    joinMatchmaking('multiplayer').catch(e => addToast(e instanceof Error ? e.message : 'Failed to join queue'));
+                    setJoiningRanked('multiplayer');
+                    joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                   }}
-                  className="flex-1 btn-orange py-3 text-sm"
+                  disabled={joiningRanked !== null}
+                  className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : 'btn-orange'}`}
                 >
-                  Multiplayer
+                  {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
                 </button>
               </div>
             )}
@@ -982,7 +994,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.2
+          v1.2.3
         </button>
       </div>
 
@@ -996,12 +1008,10 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.2</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.3</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 7, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Ranked matchmaking fixes &amp; waiting time display</li>
-              <li>Avatar list cleanup</li>
-              <li>Dev mode ranked play fix</li>
+              <li>Instant queue feedback on ranked play buttons</li>
             </ul>
           </div>
         </div>
