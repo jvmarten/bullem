@@ -303,8 +303,8 @@ export interface RoomListing {
 
 /** Pre-defined avatar template identifiers users can choose from. */
 export const AVATAR_OPTIONS = [
-  'bull', 'ace', 'crown', 'diamond', 'flame', 'skull',
-  'star', 'wolf', 'eagle', 'lion', 'fox', 'bear', 'sunglasses',
+  'bull', 'ace', 'crown', 'diamond', 'skull',
+  'star', 'wolf', 'eagle', 'lion', 'fox', 'bear',
 ] as const;
 
 export type AvatarId = typeof AVATAR_OPTIONS[number];

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { User, PublicProfile, AvatarId } from '@bull-em/shared';
+import { socket } from '../socket.js';
 
 export interface AuthContextValue {
   user: User | null;
@@ -60,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ identifier, password }),
     });
     setUser(data.user);
+    // Reconnect socket so the handshake middleware picks up the new auth cookie.
+    // Without this, socket.data.userId stays empty and ranked matchmaking rejects.
+    socket.disconnect().connect();
     // Fetch full profile with stats
     await refreshProfile();
   }, [refreshProfile]);
@@ -70,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ username, email, password }),
     });
     setUser(data.user);
+    // Reconnect socket so the handshake middleware picks up the new auth cookie
+    socket.disconnect().connect();
     await refreshProfile();
   }, [refreshProfile]);
 
@@ -77,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiFetch<{ ok: boolean }>('/auth/logout', { method: 'POST' });
     setUser(null);
     setProfile(null);
+    // Reconnect socket so the handshake drops the cleared auth cookie
+    socket.disconnect().connect();
   }, []);
 
   const updateAvatar = useCallback(async (avatar: AvatarId | null) => {
