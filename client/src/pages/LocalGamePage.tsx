@@ -63,6 +63,10 @@ export function LocalGamePage() {
   const myPlayer = gameState.players.find(p => p.id === playerId);
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isMyTurn = gameState.currentPlayerId === playerId && !isEliminated;
+  // True when the player is at max cards and one more loss means elimination
+  const isAtMaxCards = !isEliminated && myPlayer
+    ? myPlayer.cardCount >= gameState.maxCards
+    : false;
 
   // Show a one-time prominent notification when the player gets eliminated
   const { addToast } = useToast();
@@ -456,6 +460,11 @@ export function LocalGamePage() {
 
         {/* First-game contextual tooltips */}
         <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
+
+        {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}
+        {isAtMaxCards && (
+          <div className="max-cards-warning-glow" aria-hidden="true" />
+        )}
 
         {/* Round transition overlay */}
         {roundTransition && !roundResult && (

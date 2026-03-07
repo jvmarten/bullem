@@ -126,7 +126,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
       <div className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
         isMyTurn
           ? isWarning
-            ? `glass-raised border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
+            ? `glass-danger border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
             : roundPhase === RoundPhase.LAST_CHANCE
               ? 'glass-danger animate-pulse-glow-red border-[var(--danger)]'
               : 'glass-me animate-pulse-glow-blue border-[var(--info)]'
