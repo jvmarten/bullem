@@ -102,10 +102,14 @@ function positionLabel(position: number): string {
 }
 
 function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
+  const navigate = useNavigate();
   const isWin = game.finishPosition === 1;
   const is1v1 = game.playerCount === 2;
   return (
-    <div className="glass px-4 py-3 flex items-center justify-between gap-3">
+    <button
+      onClick={() => navigate(`/replay?id=${encodeURIComponent(game.id)}`)}
+      className="glass px-4 py-3 flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
+    >
       <div className="flex items-center gap-3 min-w-0">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
           isWin
@@ -126,7 +130,7 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
       <div className="text-right shrink-0">
         <p className="text-[10px] text-[var(--gold-dim)]">{formatDate(game.endedAt)}</p>
       </div>
-    </div>
+    </button>
   );
 }
 

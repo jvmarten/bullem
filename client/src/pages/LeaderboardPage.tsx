@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RankBadge } from '../components/RankBadge.js';
@@ -306,13 +307,15 @@ export function LeaderboardPage() {
 // ── Row component ───────────────────────────────────────────────────────
 
 function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isCurrentUser: boolean }) {
+  const navigate = useNavigate();
   const bgStyle = isCurrentUser
     ? { background: 'rgba(212,168,67,0.08)', borderLeft: '3px solid var(--gold)' }
     : {};
 
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/5"
+    <button
+      onClick={() => navigate(`/profile/${entry.userId}`)}
+      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/5 w-full text-left cursor-pointer bg-transparent border-none active:scale-[0.99] min-h-[44px]"
       style={{
         borderBottom: '1px solid rgba(212,168,67,0.06)',
         ...bgStyle,
@@ -364,6 +367,6 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
       <div className="w-12 text-right">
         <span className="text-xs text-[var(--gold-dim)]">{entry.gamesPlayed}</span>
       </div>
-    </div>
+    </button>
   );
 }
