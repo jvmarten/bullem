@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay, SeriesInfo, BestOf } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
-  saveReplay, pickRandomBot,
+  saveReplay, pickRandomBot, DEFAULT_BEST_OF,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
@@ -23,6 +23,15 @@ const noopSendReaction = () => {};
 const EMPTY_CHAT_MESSAGES: import('@bull-em/shared').ChatMessage[] = [];
 const noopSendChatMessage = () => {};
 
+interface LocalSeriesState {
+  bestOf: BestOf;
+  currentSet: number;
+  wins: Record<PlayerId, number>;
+  winsNeeded: number;
+  seriesWinnerId: PlayerId | null;
+  playerIds: [PlayerId, PlayerId];
+}
+
 interface LocalGameSave {
   engineSnapshot: GameEngineSnapshot;
   players: ServerPlayer[];
@@ -30,6 +39,7 @@ interface LocalGameSave {
   gameSettings: GameSettings;
   roundResult: RoundResult | null;
   botCounter: number;
+  seriesState?: LocalSeriesState | null;
 }
 
 function saveLocalGame(save: LocalGameSave): void {
@@ -102,9 +112,22 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       spectatorCount: 0,
     } : null,
   );
-  const [gameState, setGameState] = useState<ClientGameState | null>(
-    initialRestore ? initialRestore.engine.getClientState(HUMAN_ID) : null,
-  );
+  const [gameState, setGameState] = useState<ClientGameState | null>(() => {
+    if (!initialRestore) return null;
+    const state = initialRestore.engine.getClientState(HUMAN_ID);
+    // Inject series info from saved state
+    const s = initialRestore.save.seriesState;
+    if (s && s.bestOf > 1) {
+      state.seriesInfo = {
+        bestOf: s.bestOf,
+        currentSet: s.currentSet,
+        wins: { ...s.wins },
+        winsNeeded: s.winsNeeded,
+        seriesWinnerId: s.seriesWinnerId,
+      };
+    }
+    return state;
+  });
   const [roundResult, setRoundResult] = useState<RoundResult | null>(
     initialRestore?.save.roundResult ?? null,
   );
@@ -123,6 +146,11 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const [isPaused, setIsPaused] = useState(false);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
+
+  // Series state for best-of matches (1v1 only)
+  const seriesStateRef = useRef<LocalSeriesState | null>(
+    initialRestore?.save.seriesState ?? null,
+  );
 
   const engineRef = useRef<GameEngine | null>(initialRestore?.engine ?? null);
   const playersRef = useRef<ServerPlayer[]>(initialRestore?.save.players ?? []);
@@ -203,12 +231,26 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       gameSettings: gameSettingsRef.current,
       roundResult: rr,
       botCounter: botCounter.current,
+      seriesState: seriesStateRef.current,
     });
+  }, []);
+
+  const getSeriesInfo = useCallback((): SeriesInfo | null => {
+    const s = seriesStateRef.current;
+    if (!s || s.bestOf <= 1) return null;
+    return {
+      bestOf: s.bestOf,
+      currentSet: s.currentSet,
+      wins: { ...s.wins },
+      winsNeeded: s.winsNeeded,
+      seriesWinnerId: s.seriesWinnerId,
+    };
   }, []);
 
   const broadcastState = useCallback(() => {
     if (!engineRef.current) return;
     const state = engineRef.current.getClientState(HUMAN_ID);
+    state.seriesInfo = getSeriesInfo();
     setGameState(state);
     setRoundResult(null);
     setRoundTransition(false);
@@ -217,7 +259,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       roundResultTimerRef.current = null;
     }
     persistGame(null);
-  }, [persistGame]);
+  }, [persistGame, getSeriesInfo]);
 
   const computeBotDelay = useCallback((): number => {
     const engine = engineRef.current;
@@ -330,6 +372,40 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     saveReplay(replay);
   }, []);
 
+  const pendingNextSetRef = useRef(false);
+
+  const startNextSet = useCallback(() => {
+    // Reset all players to starting state for the next set
+    for (const p of playersRef.current) {
+      p.cardCount = STARTING_CARDS;
+      p.isEliminated = false;
+      p.cards = [];
+    }
+
+    // Shuffle seating order
+    const shuffled = [...playersRef.current];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = temp;
+    }
+
+    const settings = gameSettingsRef.current;
+    const engine = new GameEngine(shuffled, settings);
+    engineRef.current = engine;
+    engine.startRound();
+    BotPlayer.resetMemory('local');
+
+    setRoundResult(null);
+    setRoundTransition(false);
+
+    setRoomState(prev => prev ? { ...prev, players: playersRef.current.map(toPublicPlayer) } : null);
+    scheduleBotTurn();
+    scheduleHumanTimer();
+    broadcastState();
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
+
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -362,22 +438,59 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
         persistGame(result.result);
         break;
 
-      case 'game_over':
+      case 'game_over': {
         engine.setTurnDeadline(null);
-        clearLocalGameSave();
-        buildAndSaveReplay(result.winnerId);
-        if (result.finalRoundResult) {
-          // Show the final round result overlay before navigating to results
-          setGameState(engine.getClientState(HUMAN_ID));
-          setRoundResult(result.finalRoundResult);
-          pendingWinnerRef.current = { winnerId: result.winnerId };
+        const series = seriesStateRef.current;
+
+        if (series && series.bestOf > 1 && !series.seriesWinnerId) {
+          // Record the set winner
+          series.wins[result.winnerId] = (series.wins[result.winnerId] ?? 0) + 1;
+
+          if (series.wins[result.winnerId]! >= series.winsNeeded) {
+            // Series decided — this player wins the match
+            series.seriesWinnerId = result.winnerId;
+            clearLocalGameSave();
+            buildAndSaveReplay(result.winnerId);
+            if (result.finalRoundResult) {
+              const state = engine.getClientState(HUMAN_ID);
+              state.seriesInfo = getSeriesInfo();
+              setGameState(state);
+              setRoundResult(result.finalRoundResult);
+              pendingWinnerRef.current = { winnerId: result.winnerId };
+            } else {
+              setWinnerId(result.winnerId);
+              if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+            }
+          } else {
+            // Series continues — show round result, then start next set
+            series.currentSet++;
+            if (result.finalRoundResult) {
+              const state = engine.getClientState(HUMAN_ID);
+              state.seriesInfo = getSeriesInfo();
+              setGameState(state);
+              setRoundResult(result.finalRoundResult);
+              pendingNextSetRef.current = true;
+            } else {
+              startNextSet();
+            }
+          }
         } else {
-          setWinnerId(result.winnerId);
-          if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+          // No series — normal game over
+          clearLocalGameSave();
+          buildAndSaveReplay(result.winnerId);
+          if (result.finalRoundResult) {
+            setGameState(engine.getClientState(HUMAN_ID));
+            setRoundResult(result.finalRoundResult);
+            pendingWinnerRef.current = { winnerId: result.winnerId };
+          } else {
+            setWinnerId(result.winnerId);
+            if (engineRef.current) setGameStats(engineRef.current.getGameStats());
+          }
         }
         break;
+      }
     }
-  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame, buildAndSaveReplay]);
+  }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame, buildAndSaveReplay, getSeriesInfo, startNextSet]);
 
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
@@ -509,6 +622,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     clearLocalGameSave();
     engineRef.current = null;
     playersRef.current = [];
+    seriesStateRef.current = null;
     setRoomState(null);
     setGameState(null);
     setRoundResult(null);
@@ -543,6 +657,21 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     engine.startRound();
     // Clear cross-round bot memory for the local game scope
     BotPlayer.resetMemory('local');
+
+    // Initialize series state for 1v1 best-of matches
+    const bestOf = (settings.bestOf ?? DEFAULT_BEST_OF) as BestOf;
+    if (bestOf > 1 && shuffled.length === 2) {
+      seriesStateRef.current = {
+        bestOf,
+        currentSet: 1,
+        wins: { [shuffled[0]!.id]: 0, [shuffled[1]!.id]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds: [shuffled[0]!.id, shuffled[1]!.id],
+      };
+    } else {
+      seriesStateRef.current = null;
+    }
 
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
     scheduleBotTurn();
@@ -587,6 +716,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       roundResultTimerRef.current = null;
     }
 
+    // If a series set ended and the next set is pending, start it
+    if (pendingNextSetRef.current) {
+      pendingNextSetRef.current = false;
+      startNextSet();
+      return;
+    }
+
     // If a game_over was deferred until the round result was dismissed, apply it now
     const pending = pendingWinnerRef.current;
     if (pending) {
@@ -609,7 +745,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       scheduleHumanTimer();
       broadcastState();
     }
-  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer]);
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer, startNextSet]);
 
   const botCounter = useRef(initialRestore?.save.botCounter ?? 0);
 
@@ -688,6 +824,21 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     engineRef.current = engine;
     engine.startRound();
     BotPlayer.resetMemory('local');
+
+    // Re-initialize series state if bestOf > 1 and still 1v1
+    const bestOf = (settings.bestOf ?? DEFAULT_BEST_OF) as BestOf;
+    if (bestOf > 1 && shuffled.length === 2) {
+      seriesStateRef.current = {
+        bestOf,
+        currentSet: 1,
+        wins: { [shuffled[0]!.id]: 0, [shuffled[1]!.id]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds: [shuffled[0]!.id, shuffled[1]!.id],
+      };
+    } else {
+      seriesStateRef.current = null;
+    }
 
     setWinnerId(null);
     setGameStats(null);

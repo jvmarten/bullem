@@ -2,8 +2,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT } from '@bull-em/shared';
-import type { BotLevelCategory } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF } from '@bull-em/shared';
+import type { BotLevelCategory, BestOf } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useToast } from '../context/ToastContext.js';
@@ -84,6 +84,7 @@ export function LocalLobbyPage() {
             ...(saved.botLevelCategory && { botLevelCategory: saved.botLevelCategory as BotLevelCategory }),
             ...(saved.botSpeed && { botSpeed: saved.botSpeed as BotSpeed }),
             ...(saved.lastChanceMode && { lastChanceMode: saved.lastChanceMode as 'classic' | 'strict' }),
+            ...(saved.bestOf != null && { bestOf: saved.bestOf as BestOf }),
           });
         }
       }
@@ -106,6 +107,7 @@ export function LocalLobbyPage() {
       botLevelCategory: gameSettings.botLevelCategory,
       botSpeed: gameSettings.botSpeed,
       lastChanceMode: gameSettings.lastChanceMode,
+      bestOf: gameSettings.bestOf,
     });
   }, [gameSettings]);
 
@@ -448,6 +450,35 @@ export function LocalLobbyPage() {
               {(gameSettings.lastChanceMode ?? 'classic') === 'classic'
                 ? 'After LCR, all players can bull, true, or raise'
                 : 'After LCR, next player must bull or raise — no true option'}
+            </p>
+          </div>
+        )}
+
+        {/* Match Format — only for 1v1 (2 players total) */}
+        {setGameSettings && gameSettings && playerCount === 2 && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Match Format
+            </p>
+            <div className="flex gap-1.5">
+              {BEST_OF_OPTIONS.map(bo => (
+                <button
+                  key={bo}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, bestOf: bo as BestOf }); }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    (gameSettings.bestOf ?? DEFAULT_BEST_OF) === bo
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {bo === 1 ? 'Bo1' : `Bo${bo}`}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {(gameSettings.bestOf ?? DEFAULT_BEST_OF) === 1
+                ? 'Single game — winner takes all'
+                : `Best of ${gameSettings.bestOf ?? DEFAULT_BEST_OF} — first to ${Math.ceil((gameSettings.bestOf ?? DEFAULT_BEST_OF) / 2)} wins`}
             </p>
           </div>
         )}

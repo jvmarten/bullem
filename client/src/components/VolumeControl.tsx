@@ -67,6 +67,7 @@ interface SavedMatchSettings {
   botLevelCategory?: string;
   botSpeed?: string;
   lastChanceMode?: string;
+  bestOf?: number;
 }
 
 /** Save the current match settings to localStorage. */

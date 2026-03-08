@@ -28,6 +28,40 @@ import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { useUISettings } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 
+function SeriesBanner({ seriesInfo, players, playerId }: {
+  seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
+  players: { id: string; name: string }[];
+  playerId: string | null;
+}) {
+  const playerIds = Object.keys(seriesInfo.wins);
+  const getLabel = (pid: string) => {
+    if (pid === playerId) return 'You';
+    return players.find(p => p.id === pid)?.name ?? '?';
+  };
+
+  return (
+    <div
+      className="flex items-center justify-center gap-2 text-xs py-1.5 px-3"
+      style={{ borderBottom: '1px solid rgba(212,168,67,0.15)' }}
+    >
+      <span className="text-[var(--gold-dim)] uppercase tracking-widest font-semibold text-[10px]">
+        Bo{seriesInfo.bestOf}
+      </span>
+      <span className="text-[var(--gold-dim)]">|</span>
+      <span className="text-[var(--gold-dim)]">Set {seriesInfo.currentSet}</span>
+      <span className="text-[var(--gold-dim)]">|</span>
+      {playerIds.map((pid, i) => (
+        <span key={pid} className="text-[var(--gold)]">
+          {i > 0 && <span className="text-[var(--gold-dim)] mx-1">-</span>}
+          <span className={pid === playerId ? 'font-bold' : ''}>{getLabel(pid)}</span>
+          {' '}
+          <span className="font-mono font-bold">{seriesInfo.wins[pid] ?? 0}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function LocalGamePage() {
   const navigate = useNavigate();
   const {
@@ -275,11 +309,18 @@ export function LocalGamePage() {
     </button>
   ) : null;
 
+  const seriesInfo = gameState.seriesInfo;
+
   const headerLeftExtra = (
     <>
       <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
         Round {gameState.roundNumber}
       </span>
+      {seriesInfo && seriesInfo.bestOf > 1 && (
+        <span className="text-[var(--gold-dim)] font-mono text-xs">
+          Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
+        </span>
+      )}
       <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
         {cardStats.total}/52 ({cardStats.pct}%)
       </span>
@@ -327,6 +368,11 @@ export function LocalGamePage() {
             <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
           </div>
         </div>
+
+        {/* Series banner — shows best-of info, set number, and series score */}
+        {seriesInfo && seriesInfo.bestOf > 1 && (
+          <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} />
+        )}
 
         {/* Floating spectator pill — unobtrusive indicator at top of screen.
             Hidden when winnerId is set because the match is over (no active game to spectate). */}
