@@ -10,7 +10,7 @@ import { TutorialOverlay } from '../components/TutorialOverlay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { useSound } from '../hooks/useSound.js';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
-import { markTutorialCompleted, getTutorialStepReached, setTutorialStepReached } from '../utils/tutorialProgress.js';
+import { markTutorialCompleted, setTutorialStepReached, clearTutorialStepProgress } from '../utils/tutorialProgress.js';
 
 /* ── Scripted game data ────────────────────────────────── */
 
@@ -422,11 +422,7 @@ const STEPS: TutorialStep[] = [
 export function TutorialPage() {
   const navigate = useNavigate();
   const { play } = useSound();
-  const [stepIndex, setStepIndex] = useState(() => {
-    // Resume from the last reached step (but cap at the last non-final step)
-    const saved = getTutorialStepReached();
-    return Math.min(saved, STEPS.length - 1);
-  });
+  const [stepIndex, setStepIndex] = useState(0);
   const [playerHand, setPlayerHand] = useState<HandCall | null>(null);
   const [playerHandValid, setPlayerHandValid] = useState(false);
   const [quizAnswer, setQuizAnswer] = useState<'flush' | 'three' | null>(null);
@@ -813,13 +809,13 @@ export function TutorialPage() {
                     {isLastStep ? (
                       <div className="flex gap-2 ml-auto">
                         <button
-                          onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/local'); }}
+                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/local'); }}
                           className="btn-ghost px-4 py-1.5 text-sm font-semibold"
                         >
                           Play Offline
                         </button>
                         <button
-                          onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
+                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
                           className="btn-gold px-4 py-1.5 text-sm font-semibold"
                         >
                           Play Online
@@ -841,7 +837,7 @@ export function TutorialPage() {
         <div className="flex justify-center gap-4">
           {!isLastStep && (
             <button
-              onClick={() => navigate('/')}
+              onClick={() => { clearTutorialStepProgress(); navigate('/'); }}
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Skip Tutorial
@@ -849,7 +845,7 @@ export function TutorialPage() {
           )}
           {isLastStep && (
             <button
-              onClick={() => { markTutorialCompleted(); navigate('/'); }}
+              onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); navigate('/'); }}
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Back to Home
