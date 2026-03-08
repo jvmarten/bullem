@@ -343,6 +343,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
       case 'continue':
       case 'last_chance':
+        // Clear stale deadline before scheduling the next turn — mirrors
+        // server-side handleResult which does setTurnDeadline(null) first.
+        // Without this, the human's deadline leaks into subsequent bot turns,
+        // causing the TileMeter to show a shared countdown instead of
+        // resetting per player.
+        engine.setTurnDeadline(null);
         scheduleBotTurn();
         scheduleHumanTimer();
         broadcastState();
