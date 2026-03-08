@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { GamePhase, validateHandCall, ALLOWED_EMOJIS, CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PATTERN, CHAT_RATE_LIMIT_MS } from '@bull-em/shared';
+import { GamePhase, validateHandCall, sanitizeHandCall, ALLOWED_EMOJIS, CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PATTERN, CHAT_RATE_LIMIT_MS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameEmoji, ChatChannel } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { RoomManager } from '../rooms/RoomManager.js';
@@ -28,10 +28,11 @@ export function registerGameHandlers(
     if (!ctx) return;
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
+    const hand = sanitizeHandCall(data.hand as Record<string, unknown>);
     gameActionsTotal.inc('call');
-    log.info({ handType: data.hand.type }, 'Player called hand');
+    log.info({ handType: hand.type }, 'Player called hand');
     botManager.clearTurnTimer(ctx.room.roomCode);
-    const result = ctx.game.handleCall(ctx.playerId, data.hand);
+    const result = ctx.game.handleCall(ctx.playerId, hand);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 
@@ -63,10 +64,11 @@ export function registerGameHandlers(
     if (!ctx) return;
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
+    const hand = sanitizeHandCall(data.hand as Record<string, unknown>);
     gameActionsTotal.inc('lastChanceRaise');
-    log.info({ handType: data.hand.type }, 'Player raised on last chance');
+    log.info({ handType: hand.type }, 'Player raised on last chance');
     botManager.clearTurnTimer(ctx.room.roomCode);
-    const result = ctx.game.handleLastChanceRaise(ctx.playerId, data.hand);
+    const result = ctx.game.handleLastChanceRaise(ctx.playerId, hand);
     handleResult(io, ctx.room, result, socket, roomManager, botManager);
   });
 

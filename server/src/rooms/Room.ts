@@ -105,6 +105,7 @@ export class Room {
     this.playerToSocket.delete(playerId);
     this.players.delete(playerId);
     this.reconnectTokens.delete(playerId);
+    this.playerUserIds.delete(playerId);
 
     // Reassign host if needed
     if (playerId === this.hostId && this.players.size > 0) {

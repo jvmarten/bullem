@@ -59,6 +59,8 @@ export function validateHandCall(hand: unknown): string | null {
       if (!isSuit(h.suit)) return 'Invalid suit';
       if (!isRank(h.highRank)) return 'Invalid highRank';
       if (RANK_VALUES[h.highRank as Rank] < 5) return 'Straight flush highRank must be 5 or above';
+      // Ace-high straight flush is a Royal Flush — must use HandType.ROYAL_FLUSH
+      if (h.highRank === 'A') return 'Ace-high straight flush must be called as Royal Flush';
       break;
 
     case HandType.ROYAL_FLUSH:
@@ -70,6 +72,40 @@ export function validateHandCall(hand: unknown): string | null {
   }
 
   return null;
+}
+
+/**
+ * Construct a clean HandCall from a validated input, stripping any extra properties.
+ * Call this AFTER validateHandCall() returns null (i.e., the input is structurally valid).
+ * Prevents prototype pollution and extraneous data from flowing into game state.
+ */
+export function sanitizeHandCall(hand: Record<string, unknown>): HandCall {
+  const type = hand.type as HandType;
+  switch (type) {
+    case HandType.HIGH_CARD:
+      return { type, rank: hand.rank as Rank };
+    case HandType.PAIR:
+      return { type, rank: hand.rank as Rank };
+    case HandType.TWO_PAIR:
+      return { type, highRank: hand.highRank as Rank, lowRank: hand.lowRank as Rank };
+    case HandType.THREE_OF_A_KIND:
+      return { type, rank: hand.rank as Rank };
+    case HandType.FLUSH:
+      return { type, suit: hand.suit as Suit };
+    case HandType.STRAIGHT:
+      return { type, highRank: hand.highRank as Rank };
+    case HandType.FULL_HOUSE:
+      return { type, threeRank: hand.threeRank as Rank, twoRank: hand.twoRank as Rank };
+    case HandType.FOUR_OF_A_KIND:
+      return { type, rank: hand.rank as Rank };
+    case HandType.STRAIGHT_FLUSH:
+      return { type, suit: hand.suit as Suit, highRank: hand.highRank as Rank };
+    case HandType.ROYAL_FLUSH:
+      return { type, suit: hand.suit as Suit };
+    default:
+      // Should never reach here if validateHandCall passed
+      throw new Error(`Unknown hand type: ${type}`);
+  }
 }
 
 /**

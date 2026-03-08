@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, PlayerId, SeriesState } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -351,6 +351,14 @@ export function registerLobbyHandlers(
       return;
     }
 
+    // Validate botLevelCategory against the known literal values
+    const VALID_BOT_LEVEL_CATEGORIES = ['easy', 'normal', 'hard', 'mixed'] as const;
+    const botLevelCategory = data.settings.botLevelCategory;
+    if (botLevelCategory !== undefined && !VALID_BOT_LEVEL_CATEGORIES.includes(botLevelCategory)) {
+      socket.emit('room:error', 'Invalid bot level category');
+      return;
+    }
+
     // Build a validated settings object — only pick known fields to prevent
     // unexpected properties from leaking into game state.
     const ranked = data.settings.ranked === true;
@@ -364,6 +372,7 @@ export function registerLobbyHandlers(
           allowSpectators: data.settings.allowSpectators === true,
           spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
           botSpeed: botSpeed as BotSpeed | undefined,
+          botLevelCategory: botLevelCategory as BotLevelCategory | undefined,
           ranked: true,
           // bestOf is set server-side for ranked (Bo3 for 1v1)
           // rankedMode is set server-side at game start based on actual player count
@@ -375,6 +384,7 @@ export function registerLobbyHandlers(
           allowSpectators: data.settings.allowSpectators === true,
           spectatorsCanSeeCards: data.settings.spectatorsCanSeeCards === true,
           botSpeed: botSpeed as BotSpeed | undefined,
+          botLevelCategory: botLevelCategory as BotLevelCategory | undefined,
           lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
           bestOf: bestOf as BestOf | undefined,
         };
