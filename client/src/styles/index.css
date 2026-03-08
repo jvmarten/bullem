@@ -450,6 +450,7 @@ body {
   pointer-events: none;
   overflow: visible;
   border-radius: 0.5rem;
+  z-index: 2;
 }
 .tile-timer-border rect {
   transition: stroke 0.3s ease;
