@@ -171,6 +171,16 @@ export function DeckDrawPage() {
     setShowHighlight(false);
     play('cardReveal');
 
+    const doLocalDraw = () => {
+      const { result, updatedStats } = executeDraw(stats, wager, isFreeDraw);
+      setLastResult(result);
+      setStats(updatedStats);
+      saveGuestStats(updatedStats);
+      if (result.hand.type === HandType.ROYAL_FLUSH) {
+        setTimeout(() => play('fanfare'), 600);
+      }
+    };
+
     if (user) {
       // Server-authoritative draw for logged-in users
       try {
@@ -181,33 +191,30 @@ export function DeckDrawPage() {
           body: JSON.stringify({ wager: isFreeDraw ? 0 : wager, isFreeDraw }),
         });
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Draw failed' }));
-          addToast((err as { error: string }).error || 'Draw failed');
-          setIsDealing(false);
-          return;
-        }
-        const data = await res.json() as { result: DeckDrawResult; stats: DeckDrawStats };
-        setLastResult(data.result);
-        setStats(data.stats);
+          if (res.status === 503) {
+            // Database unavailable — fall back to client-side draw
+            doLocalDraw();
+          } else {
+            const err = await res.json().catch(() => ({ error: 'Draw failed' }));
+            addToast((err as { error: string }).error || 'Draw failed');
+            setIsDealing(false);
+            return;
+          }
+        } else {
+          const data = await res.json() as { result: DeckDrawResult; stats: DeckDrawStats };
+          setLastResult(data.result);
+          setStats(data.stats);
 
-        if (data.result.hand.type === HandType.ROYAL_FLUSH) {
-          setTimeout(() => play('fanfare'), 600);
+          if (data.result.hand.type === HandType.ROYAL_FLUSH) {
+            setTimeout(() => play('fanfare'), 600);
+          }
         }
       } catch {
-        addToast('Network error — try again');
-        setIsDealing(false);
-        return;
+        // Network error — fall back to client-side draw
+        doLocalDraw();
       }
     } else {
-      // Guest mode: client-side draw with localStorage
-      const { result, updatedStats } = executeDraw(stats, wager, isFreeDraw);
-      setLastResult(result);
-      setStats(updatedStats);
-      saveGuestStats(updatedStats);
-
-      if (result.hand.type === HandType.ROYAL_FLUSH) {
-        setTimeout(() => play('fanfare'), 600);
-      }
+      doLocalDraw();
     }
 
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
