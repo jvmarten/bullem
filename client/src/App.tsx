@@ -67,12 +67,12 @@ function SplashScreen() {
   return (
     <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
       <div className="text-center space-y-4 animate-fade-in">
-        <h1
-          className="text-4xl font-bold text-[var(--gold)]"
-          style={{ fontFamily: "'Cormorant Garamond', serif" }}
-        >
-          Bull &apos;Em
-        </h1>
+        <img
+          src="/bullem-text-transparent.png"
+          alt="Bull 'Em"
+          className="h-16 mx-auto"
+          draggable={false}
+        />
         <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-sm text-[var(--gold-dim)]">Loading assets&hellip;</p>
       </div>

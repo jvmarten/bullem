@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -246,6 +247,7 @@ function TodaySessionCard({ session }: { session: TodaySession }) {
 // ── Opponent Records ────────────────────────────────────────────────────
 
 function OpponentRecordsSection({ records }: { records: OpponentRecord[] }) {
+  const navigate = useNavigate();
   if (records.length === 0) return null;
 
   return (
@@ -255,7 +257,11 @@ function OpponentRecordsSection({ records }: { records: OpponentRecord[] }) {
       </p>
       <div className="flex flex-col gap-2">
         {records.map(r => (
-          <div key={r.opponentId} className="glass px-4 py-2.5 flex items-center gap-3">
+          <button
+            key={r.opponentId}
+            onClick={() => navigate(`/profile/${r.opponentId}`)}
+            className="glass px-4 py-2.5 flex items-center gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
+          >
             <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-sm shrink-0">
               {avatarDisplay(r.opponentAvatar, r.opponentName)}
             </div>
@@ -268,7 +274,7 @@ function OpponentRecordsSection({ records }: { records: OpponentRecord[] }) {
                 {r.wins}W - {r.losses}L
               </p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
