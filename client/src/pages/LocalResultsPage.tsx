@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
+import { PlayerRankingReveal } from '../components/PlayerRankingReveal.js';
+import { ShareCard } from '../components/ShareCard.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -9,6 +11,7 @@ import { playerInitial, playerColor } from '../utils/cardUtils.js';
 export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, lastReplay } = useGameContext();
+  const [rankingDone, setRankingDone] = useState(false);
 
   // If state is gone (page refresh), redirect to lobby
   useEffect(() => {
@@ -21,6 +24,10 @@ export function LocalResultsPage() {
   const isWinner = winnerId === playerId;
 
   useWinConfetti(isWinner);
+
+  const handleRankingComplete = useCallback(() => {
+    setRankingDone(true);
+  }, []);
 
   if (!winnerId && !gameState) return null;
 
@@ -46,19 +53,40 @@ export function LocalResultsPage() {
           </p>
         </div>
 
-        {gameStats && gameState && (
-          <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+        {/* Animated ranking reveal */}
+        {gameStats && gameState && gameState.players.length > 1 && (
+          <PlayerRankingReveal
+            players={gameState.players}
+            winnerId={winnerId}
+            stats={gameStats}
+            onRevealComplete={handleRankingComplete}
+          />
+        )}
+
+        {/* Stats shown after ranking animation completes */}
+        {rankingDone && gameStats && gameState && (
+          <div className="animate-slide-up w-full">
+            <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+          </div>
         )}
         </div>{/* end results-left */}
 
         <div className="results-right">
-        <div className="flex flex-col gap-3 w-full max-w-xs">
+        <div className="flex flex-col gap-3 w-full max-w-xs items-center">
           <button
             onClick={() => { requestRematch(); navigate('/local/game'); }}
-            className="btn-gold px-10 py-3 text-lg"
+            className="btn-gold px-10 py-3 text-lg w-full"
           >
-            Rematch
+            Play Again
           </button>
+
+          {/* Share card */}
+          {rankingDone && gameStats && gameState && (
+            <div className="animate-slide-up">
+              <ShareCard players={gameState.players} winnerId={winnerId} stats={gameStats} />
+            </div>
+          )}
+
           {lastReplay && (
             <button
               onClick={() => navigate('/local/replay')}

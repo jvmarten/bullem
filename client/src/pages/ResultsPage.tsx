@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
+import { PlayerRankingReveal } from '../components/PlayerRankingReveal.js';
+import { ShareCard } from '../components/ShareCard.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { RankBadge } from '../components/RankBadge.js';
@@ -44,6 +46,7 @@ export function ResultsPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame } = useGameContext();
   const [watchingAnother, setWatchingAnother] = useState(false);
+  const [rankingDone, setRankingDone] = useState(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up retry timer on unmount
@@ -87,6 +90,10 @@ export function ResultsPage() {
 
   useWinConfetti(isWinner);
 
+  const handleRankingComplete = useCallback(() => {
+    setRankingDone(true);
+  }, []);
+
   return (
     <Layout>
       <div className="results-content flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
@@ -116,19 +123,33 @@ export function ResultsPage() {
           <RatingChangeDisplay change={ratingChanges[playerId]} />
         )}
 
-        {gameStats && gameState && (
-          <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+        {/* Animated ranking reveal */}
+        {gameStats && gameState && gameState.players.length > 1 && (
+          <PlayerRankingReveal
+            players={gameState.players}
+            winnerId={winnerId}
+            stats={gameStats}
+            onRevealComplete={handleRankingComplete}
+          />
+        )}
+
+        {/* Stats shown after ranking animation completes */}
+        {rankingDone && gameStats && gameState && (
+          <div className="animate-slide-up w-full">
+            <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+          </div>
         )}
         </div>{/* end results-left */}
 
         <div className="results-right">
-        <div className="flex flex-col gap-3 w-full max-w-xs">
+        <div className="flex flex-col gap-3 w-full max-w-xs items-center">
+          {/* Prominent rematch button */}
           {isHost && !isSpectator && (
             <button
               onClick={requestRematch}
-              className="btn-gold px-10 py-3 text-lg"
+              className="btn-gold px-10 py-3 text-lg w-full"
             >
-              Rematch
+              Play Again
             </button>
           )}
           {!isHost && !isSpectator && (
@@ -151,6 +172,14 @@ export function ResultsPage() {
               </button>
             )
           )}
+
+          {/* Share card */}
+          {rankingDone && gameStats && gameState && (
+            <div className="animate-slide-up">
+              <ShareCard players={gameState.players} winnerId={winnerId} stats={gameStats} />
+            </div>
+          )}
+
           {lastReplay && (
             <button
               onClick={() => navigate('/replay')}
