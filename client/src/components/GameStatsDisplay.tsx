@@ -1,3 +1,4 @@
+import { HandType } from '@bull-em/shared';
 import type { GameStats, Player, PlayerId } from '@bull-em/shared';
 
 interface Award {
@@ -79,6 +80,36 @@ function computeAwards(stats: GameStats, players: Player[], winnerId: PlayerId |
   return awards;
 }
 
+const HAND_TYPE_LABELS: Record<number, string> = {
+  [HandType.HIGH_CARD]: 'High Card',
+  [HandType.PAIR]: 'Pair',
+  [HandType.TWO_PAIR]: 'Two Pair',
+  [HandType.FLUSH]: 'Flush',
+  [HandType.THREE_OF_A_KIND]: 'Three of a Kind',
+  [HandType.STRAIGHT]: 'Straight',
+  [HandType.FULL_HOUSE]: 'Full House',
+  [HandType.FOUR_OF_A_KIND]: 'Four of a Kind',
+  [HandType.STRAIGHT_FLUSH]: 'Straight Flush',
+  [HandType.ROYAL_FLUSH]: 'Royal Flush',
+};
+
+/** Aggregate hand breakdown across all players to get match-level existence counts. */
+function aggregateHandExistence(stats: GameStats): { handType: number; called: number; existed: number }[] {
+  const totals = new Map<number, { called: number; existed: number }>();
+  for (const s of Object.values(stats.playerStats)) {
+    if (!s.handBreakdown) continue;
+    for (const entry of s.handBreakdown) {
+      const t = totals.get(entry.handType) ?? { called: 0, existed: 0 };
+      t.called += entry.called;
+      t.existed += entry.existed;
+      totals.set(entry.handType, t);
+    }
+  }
+  return [...totals.entries()]
+    .map(([handType, { called, existed }]) => ({ handType, called, existed }))
+    .sort((a, b) => a.handType - b.handType);
+}
+
 interface Props {
   stats: GameStats;
   players: Player[];
@@ -87,6 +118,7 @@ interface Props {
 
 export function GameStatsDisplay({ stats, players, winnerId }: Props) {
   const awards = computeAwards(stats, players, winnerId);
+  const handExistence = aggregateHandExistence(stats);
 
   return (
     <div className="w-full space-y-4">
@@ -102,6 +134,27 @@ export function GameStatsDisplay({ stats, players, winnerId }: Props) {
                 <p className="text-[10px] text-[var(--gold-dim)]">{award.detail}</p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hand existence stats */}
+      {handExistence.length > 0 && (
+        <div>
+          <h3 className="font-display text-sm font-bold text-[var(--gold)] mb-2 text-center">Hands That Existed</h3>
+          <div className="glass p-3">
+            <div className="flex flex-col gap-1.5">
+              {handExistence.map(({ handType, called, existed }) => (
+                <div key={handType} className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--gold-dim)]">
+                    {HAND_TYPE_LABELS[handType] ?? `Type ${handType}`}
+                  </span>
+                  <span className="text-[#e8e0d4] font-semibold">
+                    {existed}/{called} called
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

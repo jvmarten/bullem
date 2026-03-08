@@ -21,6 +21,8 @@ interface Props {
   players: Player[];
   myPlayerId?: PlayerId;
   onDismiss: () => void;
+  /** When false, no countdown timer is shown and auto-dismiss is disabled. Defaults to true. */
+  autoCountdown?: boolean;
 }
 
 function actionLabel(entry: TurnEntry): string {
@@ -43,7 +45,7 @@ function actionLabel(entry: TurnEntry): string {
 // Memoized: props are stable for the duration of the overlay. Without memo,
 // parent re-renders (e.g. from the countdown timer in the game page) would
 // re-render the entire overlay including flip-card animations.
-export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss }: Props) {
+export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
   const [showBeat2, setShowBeat2] = useState(false);
@@ -80,9 +82,10 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
   }, [beat1]);
 
   // Single interval instead of chained timeouts — avoids creating 30 timeout
-  // closures and re-running the effect on every tick.
+  // closures and re-running the effect on every tick. Disabled when autoCountdown is false.
   const mountedAtRef = useRef(Date.now());
   useEffect(() => {
+    if (!autoCountdown) return;
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - mountedAtRef.current) / 1000);
       const remaining = Math.max(0, 30 - elapsed);
@@ -90,7 +93,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
       if (remaining <= 0) clearInterval(interval);
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [autoCountdown]);
 
   // Memoize card grouping — result.revealedCards doesn't change once the
   // overlay is shown, so this avoids re-running the reduce on every countdown tick.
@@ -208,8 +211,8 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
         </div>
 
         <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-[var(--surface-raised)] to-transparent">
-          <button onClick={onDismiss} className={`w-full btn-gold py-3 transition-all ${countdown > 0 && countdown <= 5 ? 'animate-pulse-glow' : ''}`}>
-            {countdown > 0 ? (
+          <button onClick={onDismiss} className={`w-full btn-gold py-3 transition-all ${autoCountdown && countdown > 0 && countdown <= 5 ? 'animate-pulse-glow' : ''}`}>
+            {autoCountdown && countdown > 0 ? (
               <>
                 Continue{' '}
                 <span className={`inline-block transition-all ${

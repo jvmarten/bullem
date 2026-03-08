@@ -98,9 +98,14 @@ export function registerLobbyHandlers(
     if (room.playerCount >= effectiveMax) return callback({ error: 'Room is full' });
     if (room.gamePhase !== GamePhase.LOBBY) return callback({ error: 'Game already in progress' });
 
-    // Prevent duplicate names within the same room — confusing for all players
+    // Prevent duplicate names within the same room — confusing for all players.
+    // Exclude disconnected players: they will be removed when their disconnect
+    // timer fires. This prevents a false "name already taken" error when a
+    // player leaves and tries to rejoin before the old entry is cleaned up.
     const nameLower = name.toLowerCase();
-    const nameExists = [...room.players.values()].some(p => p.name.toLowerCase() === nameLower);
+    const nameExists = [...room.players.values()].some(
+      p => p.name.toLowerCase() === nameLower && p.isConnected,
+    );
     if (nameExists) return callback({ error: 'Name already taken in this room' });
 
     const playerId = randomUUID();

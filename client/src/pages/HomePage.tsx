@@ -526,7 +526,7 @@ export function HomePage() {
     : new Set<number>();
 
   return (
-    <Layout largeTitle>
+    <Layout largeTitle={mode === 'menu'}>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
         {/* Tagline — orients first-time visitors */}
         {mode === 'menu' && (
@@ -535,8 +535,8 @@ export function HomePage() {
           </p>
         )}
 
-        {/* Left panel in landscape: deck demo */}
-        <div className="home-left">
+        {/* Left panel in landscape: deck demo — only on main menu */}
+        {mode === 'menu' && <div className="home-left">
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">
           <div
@@ -684,7 +684,7 @@ export function HomePage() {
             )}
           </div>
         </div>
-        </div>{/* end home-left */}
+        </div>}{/* end home-left */}
 
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
@@ -1015,7 +1015,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.14
+          v1.2.15
         </button>
       </div>
 
@@ -1029,11 +1029,13 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.14</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.15</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Impossible bot toggle moved to top-right settings menu</li>
-              <li>Improved subtitle readability for easter eggs</li>
+              <li>Settings menu text labels now toggle settings on tap</li>
+              <li>Cleaner chat and emoji button icons</li>
+              <li>Match stats show hand type existence counts</li>
+              <li>Offline game uses manual continue between rounds</li>
             </ul>
           </div>
         </div>

@@ -40,7 +40,12 @@ export const EmojiReactionBar = memo(function EmojiReactionBar({ onReaction }: P
         title="Emoji reactions"
         aria-label={open ? 'Hide emoji reactions' : 'Show emoji reactions'}
       >
-        <span style={{ fontSize: '20px', lineHeight: 1 }} aria-hidden="true">{'\u{1F600}'}</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+          <line x1="9" y1="9" x2="9.01" y2="9"/>
+          <line x1="15" y1="9" x2="15.01" y2="9"/>
+        </svg>
       </button>
     </div>
   );

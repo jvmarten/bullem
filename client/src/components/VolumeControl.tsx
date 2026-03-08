@@ -142,12 +142,14 @@ export function VolumeControl() {
           </div>
 
           {/* Haptics toggle */}
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20">
+          <button
+            onClick={toggleHaptics}
+            className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+          >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Haptics
             </span>
-            <button
-              onClick={toggleHaptics}
+            <span
               className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!hapticsEnabled ? 'opacity-40' : ''}`}
               title={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
             >
@@ -164,16 +166,18 @@ export function VolumeControl() {
                   <line x1="2" y1="2" x2="22" y2="22" />
                 </svg>
               )}
-            </button>
-          </div>
+            </span>
+          </button>
 
           {/* Chat toggle */}
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+          <button
+            onClick={toggleChatEnabled}
+            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+          >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Chat
             </span>
-            <button
-              onClick={toggleChatEnabled}
+            <span
               className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!chatOn ? 'opacity-40' : ''}`}
               title={chatOn ? 'Hide chat button' : 'Show chat button'}
             >
@@ -181,16 +185,18 @@ export function VolumeControl() {
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 {!chatOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
 
           {/* Emoji toggle */}
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+          <button
+            onClick={toggleEmojiEnabled}
+            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+          >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Emoji
             </span>
-            <button
-              onClick={toggleEmojiEnabled}
+            <span
               className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!emojiOn ? 'opacity-40' : ''}`}
               title={emojiOn ? 'Hide emoji button' : 'Show emoji button'}
             >
@@ -201,16 +207,18 @@ export function VolumeControl() {
                 <line x1="15" y1="9" x2="15.01" y2="9"/>
                 {!emojiOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
 
           {/* Quick Draw toggle */}
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+          <button
+            onClick={toggleQuickDrawEnabled}
+            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+          >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Quick Draw
             </span>
-            <button
-              onClick={toggleQuickDrawEnabled}
+            <span
               className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!quickDrawOn ? 'opacity-40' : ''}`}
               title={quickDrawOn ? 'Disable quick draw suggestions' : 'Enable quick draw suggestions'}
             >
@@ -218,16 +226,18 @@ export function VolumeControl() {
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 {!quickDrawOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
 
           {/* Impossible Bot toggle */}
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+          <button
+            onClick={toggleImpossibleBotEnabled}
+            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+          >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Impossible Bot
             </span>
-            <button
-              onClick={toggleImpossibleBotEnabled}
+            <span
               className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!impossibleBotOn ? 'opacity-40' : ''}`}
               title={impossibleBotOn ? 'Disable impossible bot option' : 'Enable impossible bot option'}
             >
@@ -237,8 +247,8 @@ export function VolumeControl() {
                 <circle cx="12" cy="12" r="3" />
                 {!impossibleBotOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
       )}
     </div>

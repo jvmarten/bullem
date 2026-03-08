@@ -585,17 +585,6 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, clearHumanTimer]);
 
-  // Auto-dismiss round result after 30 seconds
-  useEffect(() => {
-    if (!roundResult) return;
-    roundResultTimerRef.current = setTimeout(() => {
-      clearRoundResult();
-    }, 30000);
-    return () => {
-      if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
-    };
-  }, [roundResult, clearRoundResult]);
-
   const botCounter = useRef(initialRestore?.save.botCounter ?? 0);
 
   const addBot = useCallback(async (botName?: string): Promise<string> => {
