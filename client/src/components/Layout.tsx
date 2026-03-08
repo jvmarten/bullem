@@ -141,7 +141,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
     <div className="felt-bg text-[#e8e0d4]">
       <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
-        <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start gap-0.5' : 'items-center gap-2'} min-w-0`}>
+        <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch' : 'items-center gap-2'} min-w-0`}>
           {isConnected && (
             <div ref={popupRef} className="relative flex-shrink-0">
               <button
@@ -179,7 +179,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
-          <div className={largeTitle ? 'mt-auto' : 'self-end'}>
+          <div className={largeTitle ? 'mt-auto pb-0.5' : 'self-end'}>
             <AuthLink />
           </div>
           {headerLeftExtra && (
