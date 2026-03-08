@@ -13,7 +13,7 @@ export function registerPushHandlers(
   roomManager: RoomManager,
   pushManager: PushManager,
 ): void {
-  socket.on('push:subscribe', (subscription, callback) => {
+  socket.on('push:subscribe', async (subscription, callback) => {
     const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     const playerId = room?.getPlayerId(socket.id);
@@ -40,12 +40,12 @@ export function registerPushHandlers(
       return;
     }
 
-    pushManager.subscribe(playerId, subscription);
+    await pushManager.subscribe(playerId, subscription);
     log.info({ playerId }, 'Player subscribed to push notifications');
     callback({ ok: true });
   });
 
-  socket.on('push:unsubscribe', (callback) => {
+  socket.on('push:unsubscribe', async (callback) => {
     const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     const playerId = room?.getPlayerId(socket.id);
@@ -54,7 +54,7 @@ export function registerPushHandlers(
       return;
     }
 
-    pushManager.unsubscribe(playerId);
+    await pushManager.unsubscribe(playerId);
     log.info({ playerId }, 'Player unsubscribed from push notifications');
     callback({ ok: true });
   });
