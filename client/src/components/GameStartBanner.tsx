@@ -63,6 +63,8 @@ export function GameStartBanner() {
   const isHost = playerId === roomState?.hostId;
   const gameStarted = roomState?.gamePhase === GamePhase.PLAYING && gameState !== null;
   const roomCode = roomState?.roomCode;
+  // Only show for actual players — spectators (no playerId or not in the player list) should never see this
+  const isPlayer = playerId !== null && gameState ? gameState.players.some(p => p.id === playerId) : false;
 
   // Check if the user is already on the game page for this room
   const onGamePage = roomCode
@@ -74,7 +76,7 @@ export function GameStartBanner() {
     ? location.pathname === `/room/${roomCode}`
     : false;
 
-  const shouldShow = gameStarted && !isHost && !onGamePage && !onLobbyPage && !dismissed;
+  const shouldShow = gameStarted && isPlayer && !isHost && !onGamePage && !onLobbyPage && !dismissed;
 
   // Reset dismissed state and countdown when the game start condition changes
   useEffect(() => {

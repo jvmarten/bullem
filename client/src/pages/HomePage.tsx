@@ -386,6 +386,7 @@ export function HomePage() {
 
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
+  const [showRecentPlayers, setShowRecentPlayers] = useState(false);
   const [rankedExpanded, setRankedExpanded] = useState(false);
   const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
 
@@ -744,7 +745,7 @@ export function HomePage() {
             </Link>
             <Link
               to="/draw"
-              className="w-full btn-slate py-4 text-lg text-center block"
+              className="w-full btn-purple py-4 text-lg text-center block"
             >
               Deck Draw
             </Link>
@@ -758,7 +759,20 @@ export function HomePage() {
         )}
 
         {mode === 'menu' && (
-          <RecentPlayers />
+          <div className="w-full">
+            <button
+              onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
+              className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+            >
+              <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className={`transition-transform ${showRecentPlayers ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {showRecentPlayers && <RecentPlayers />}
+          </div>
         )}
 
         {mode === 'online' && (
@@ -1021,7 +1035,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.3.2
+          v1.3.3
         </button>
       </div>
 
@@ -1035,12 +1049,12 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.3.2</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.3.3</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Leaderboard &amp; matchmaking improvements</li>
-              <li>Click player avatars in match results to view profiles</li>
-              <li>Share match replays from results screen</li>
+              <li>Turn timer visible for all players</li>
+              <li>Spectator experience improvements</li>
+              <li>Sound reliability fixes</li>
             </ul>
           </div>
         </div>

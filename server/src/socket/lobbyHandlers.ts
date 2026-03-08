@@ -275,6 +275,9 @@ export function registerLobbyHandlers(
     const state = room.getSpectatorGameState();
     if (state) socket.emit('game:state', state);
 
+    // Send accumulated game stats so spectator stats show data from the start
+    if (room.game) socket.emit('game:spectatorStats', room.game.getGameStats());
+
     // Notify players that spectator count changed
     broadcastRoomState(io, room);
 
@@ -299,6 +302,9 @@ export function registerLobbyHandlers(
     // Send initial spectator state
     const state = room.getSpectatorGameState();
     if (state) socket.emit('game:state', state);
+
+    // Send accumulated game stats so spectator stats show data from the start
+    if (room.game) socket.emit('game:spectatorStats', room.game.getGameStats());
 
     // Notify players that spectator count changed
     broadcastRoomState(io, room);

@@ -84,7 +84,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   }, []);
 
   useEffect(() => {
-    if (!turnDeadline || !isMyTurn || isResolving) {
+    if (!turnDeadline || isResolving) {
       setSecondsLeft(null);
       lastTickRef.current = null;
       if (meterRef.current) meterRef.current.style.width = '100%';
@@ -103,8 +103,8 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
       setSecondsLeft(secs);
       updateMeter(remainingMs);
 
-      // Play tick + heartbeat each second during last 5 seconds
-      if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
+      // Play tick + heartbeat each second during last 5 seconds (own turn only)
+      if (isMyTurn && secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
         lastTickRef.current = secs;
         play('timerTick');
         play('heartbeat');

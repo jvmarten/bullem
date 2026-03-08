@@ -87,6 +87,8 @@ export interface GameContextValue {
   pendingRejoinRoom: string | null;
   /** Clear the pending rejoin room (after navigation completes). */
   clearPendingRejoinRoom: () => void;
+  /** Initial game stats sent to spectators on join (covers rounds before they joined). */
+  spectatorInitialStats: GameStats | null;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -159,6 +161,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [matchmakingFound, setMatchmakingFound] = useState<MatchmakingFound | null>(null);
   const [pendingRejoinRoom, setPendingRejoinRoom] = useState<string | null>(null);
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
+  const [spectatorInitialStats, setSpectatorInitialStats] = useState<GameStats | null>(null);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -452,6 +455,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('matchmaking:cancelled', () => {
       setMatchmakingStatus(null);
     });
+    socket.on('game:spectatorStats', (stats: GameStats) => {
+      setSpectatorInitialStats(stats);
+    });
 
     return () => {
       socket.off('connect');
@@ -476,6 +482,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('matchmaking:queued');
       socket.off('matchmaking:found');
       socket.off('matchmaking:cancelled');
+      socket.off('game:spectatorStats');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -747,11 +754,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     ratingChanges,
     pendingRejoinRoom,
     clearPendingRejoinRoom,
+    spectatorInitialStats,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     lastReplay, reactions, chatMessages,
-    matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom,
+    matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,

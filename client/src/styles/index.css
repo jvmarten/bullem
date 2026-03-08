@@ -230,6 +230,25 @@ body {
 }
 .btn-slate:active { transform: scale(0.97); }
 
+.btn-purple {
+  background: linear-gradient(180deg, #9b6dcd 0%, #7b4fb8 100%);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.05rem;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(123, 79, 184, 0.3);
+  border: 1px solid #6a3fa3;
+  cursor: pointer;
+}
+.btn-purple:hover {
+  background: linear-gradient(180deg, #ab7dd9 0%, #9b6dcd 100%);
+  box-shadow: 0 4px 16px rgba(123, 79, 184, 0.4);
+  transform: translateY(-1px);
+}
+.btn-purple:active { transform: scale(0.97); }
+
 /* ── Input Fields ────────────────────────────────────── */
 .input-felt {
   background: rgba(0, 0, 0, 0.25);

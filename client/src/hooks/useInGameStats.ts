@@ -8,6 +8,7 @@ import type {
   InGamePlayerStats,
   CardCountSnapshot,
   TurnEntry,
+  GameStats,
 } from '@bull-em/shared';
 
 function emptyPlayerStats(): InGamePlayerStats {
@@ -36,6 +37,7 @@ function ensurePlayer(
 export function useInGameStats(
   gameState: ClientGameState | null,
   roundResult: RoundResult | null,
+  initialServerStats?: GameStats | null,
 ): InGameStats {
   const [stats, setStats] = useState<InGameStats>({
     playerStats: {},
@@ -45,6 +47,30 @@ export function useInGameStats(
 
   const lastProcessedRoundRef = useRef(0);
   const prevRoundNumberRef = useRef(0);
+  const initialStatsAppliedRef = useRef(false);
+
+  // Seed from server-provided stats (spectator joining mid-game)
+  useEffect(() => {
+    if (!initialServerStats || initialStatsAppliedRef.current) return;
+    initialStatsAppliedRef.current = true;
+    // Convert server GameStats (PlayerGameStats) to client InGamePlayerStats
+    const playerStats: Record<PlayerId, InGamePlayerStats> = {};
+    for (const [id, ps] of Object.entries(initialServerStats.playerStats)) {
+      playerStats[id] = {
+        bullsCalled: ps.bullsCalled,
+        truesCalled: ps.truesCalled,
+        callsMade: ps.callsMade,
+        correctBulls: ps.correctBulls,
+        correctTrues: ps.correctTrues,
+        bluffsSuccessful: ps.bluffsSuccessful,
+      };
+    }
+    setStats(prev => ({
+      playerStats: { ...playerStats, ...prev.playerStats },
+      handTypeCalls: prev.handTypeCalls,
+      roundSnapshots: prev.roundSnapshots,
+    }));
+  }, [initialServerStats]);
 
   // Reset when a new game starts
   useEffect(() => {
@@ -53,6 +79,7 @@ export function useInGameStats(
       // New game started
       setStats({ playerStats: {}, handTypeCalls: {}, roundSnapshots: [] });
       lastProcessedRoundRef.current = 0;
+      initialStatsAppliedRef.current = false;
     }
     prevRoundNumberRef.current = gameState.roundNumber;
   }, [gameState?.roundNumber, gameState]);
