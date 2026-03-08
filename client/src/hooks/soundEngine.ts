@@ -20,6 +20,7 @@ import wheelTickUrl from '../assets/sounds/wheel-tick.mp3';
 import wheelTickLowUrl from '../assets/sounds/wheel-tick-low.mp3';
 import wheelSelectUrl from '../assets/sounds/wheel-select.mp3';
 import tuplausUrl from '../assets/sounds/tuplaus.mp3';
+import victoryUrl from '../assets/sounds/victory.mp3';
 
 type SoundName =
   | 'cardDeal'
@@ -43,7 +44,8 @@ type SoundName =
   | 'wheelTick'
   | 'wheelTickLow'
   | 'wheelSelect'
-  | 'deckShuffleLoop';
+  | 'deckShuffleLoop'
+  | 'victory';
 
 interface ToneConfig {
   frequency: number;
@@ -79,6 +81,7 @@ const AUDIO_FILE_SOUNDS: Partial<Record<SoundName, { url: string; gain: number; 
   wheelTickLow: { url: wheelTickLowUrl, gain: 0.35 },
   wheelSelect: { url: wheelSelectUrl, gain: 0.35 },
   deckShuffleLoop: { url: tuplausUrl, gain: 0.1 },
+  victory: { url: victoryUrl, gain: 0.5 },
 };
 
 // Oscillator fallbacks — used only for sounds without an audio file (uiHover)
@@ -109,6 +112,7 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
   wheelSelect: [],
   fanfare: [],
   deckShuffleLoop: [],
+  victory: [],
 };
 
 // Haptic vibration patterns (in ms) for key game events.
@@ -123,6 +127,7 @@ const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
   roundLose:   [80, 30, 120],     // descending buzz
   eliminated:  [200],             // long buzz — you're out
   gameOver:    [40, 30, 40, 30, 40, 60, 100], // big fanfare pattern
+  victory:     [50, 40, 50, 40, 50, 60, 120], // triumphant celebration
   cardDeal:    [15],              // tiny tap
   heartbeat:   [60, 80, 40],     // lub-dub pulse
 };

@@ -200,10 +200,10 @@ export function useGameSounds(
     }
   }, [roundResult, playerId, play]);
 
-  // React to game over
+  // React to game over — play victory sound for the winner, game-over for everyone else
   useEffect(() => {
     if (!winnerId || winnerId === prevWinnerRef.current) return;
     prevWinnerRef.current = winnerId;
-    play('gameOver');
-  }, [winnerId, play]);
+    play(winnerId === playerId ? 'victory' : 'gameOver');
+  }, [winnerId, playerId, play]);
 }
