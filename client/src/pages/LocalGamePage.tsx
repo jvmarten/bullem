@@ -502,6 +502,7 @@ export function LocalGamePage() {
             players={gameState.players}
             myPlayerId={playerId ?? undefined}
             onDismiss={clearRoundResult}
+            autoCountdown={false}
           />
         )}
 
