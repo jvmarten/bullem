@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { loadMatchSettings } from '../components/VolumeControl.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
+import { isTutorialCompleted, isFirstGame } from '../utils/tutorialProgress.js';
 import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
 import type { GameSettings } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
@@ -389,6 +390,12 @@ export function HomePage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
   const [showRecentPlayers, setShowRecentPlayers] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Show welcome modal for first-time visitors who haven't completed the tutorial
+    // and haven't played a game yet, and haven't previously dismissed the modal
+    if (localStorage.getItem('bull-em-welcome-dismissed') === 'true') return false;
+    return !isTutorialCompleted() && isFirstGame();
+  });
   const [rankedExpanded, setRankedExpanded] = useState(false);
   const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
 
@@ -1046,6 +1053,50 @@ export function HomePage() {
             navigate(`/game/${matchmakingFound.roomCode}`);
           }}
         />
+      )}
+
+      {/* First-visit welcome modal — prompts new players to try the tutorial */}
+      {showWelcome && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'var(--overlay)' }}
+          onClick={() => {
+            localStorage.setItem('bull-em-welcome-dismissed', 'true');
+            setShowWelcome(false);
+          }}
+        >
+          <div
+            className="glass p-8 rounded-xl max-w-xs text-center space-y-5 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-[var(--gold)] font-display">Welcome to Bull &apos;Em!</h3>
+            <p className="text-sm text-[var(--gold-dim)] leading-relaxed">
+              New here? Learn the ropes with our interactive tutorial — it only takes a couple of minutes.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Link
+                to="/tutorial"
+                onClick={() => {
+                  play('uiSoft');
+                  localStorage.setItem('bull-em-welcome-dismissed', 'true');
+                }}
+                className="w-full btn-gold py-3 text-lg text-center block"
+              >
+                Start Tutorial
+              </Link>
+              <button
+                onClick={() => {
+                  play('uiSoft');
+                  localStorage.setItem('bull-em-welcome-dismissed', 'true');
+                  setShowWelcome(false);
+                }}
+                className="btn-ghost px-6 py-2 text-sm"
+              >
+                Skip — I know how to play
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Version — bottom right, scrolls with page content */}
