@@ -520,11 +520,25 @@ export function createSoundController(): SoundController {
  * Returns a Promise that resolves when all audio files have been pre-loaded
  * and decoded. Use this to gate a loading screen so sounds are ready before
  * the user interacts with the app.
+ *
+ * @param onProgress Optional callback invoked with a 0–1 fraction as each
+ *   audio file finishes loading. Useful for driving a progress bar on the
+ *   splash screen.
  */
-export function waitForAudioReady(): Promise<void> {
-  const promises = Object.values(AUDIO_FILE_SOUNDS)
-    .filter(Boolean)
-    .map(entry => loadAudioBuffer(entry!.url));
+export function waitForAudioReady(onProgress?: (fraction: number) => void): Promise<void> {
+  const entries = Object.values(AUDIO_FILE_SOUNDS).filter(Boolean);
+  const total = entries.length;
+  if (total === 0) {
+    onProgress?.(1);
+    return Promise.resolve();
+  }
+  let loaded = 0;
+  const promises = entries.map(entry =>
+    loadAudioBuffer(entry!.url).then(() => {
+      loaded++;
+      onProgress?.(loaded / total);
+    }),
+  );
   return Promise.all(promises).then(() => {});
 }
 

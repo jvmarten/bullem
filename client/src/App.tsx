@@ -71,7 +71,8 @@ function RouteLoadingFallback() {
 }
 
 /** Splash screen shown while audio assets are loading on first visit. */
-function SplashScreen() {
+function SplashScreen({ progress }: { progress: number }) {
+  const pct = Math.round(progress * 100);
   return (
     <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
       <div className="text-center space-y-4 animate-fade-in">
@@ -81,8 +82,14 @@ function SplashScreen() {
           className="h-16 mx-auto"
           draggable={false}
         />
-        <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-[var(--gold-dim)]">Loading assets&hellip;</p>
+        {/* Progress bar */}
+        <div className="w-48 h-1.5 rounded-full mx-auto overflow-hidden" style={{ background: 'var(--gold-glow)' }}>
+          <div
+            className="h-full rounded-full transition-[width] duration-200 ease-out"
+            style={{ width: `${pct}%`, background: 'var(--gold)' }}
+          />
+        </div>
+        <p className="text-sm text-[var(--gold-dim)]">Loading assets&hellip; {pct}%</p>
       </div>
     </div>
   );
@@ -90,19 +97,20 @@ function SplashScreen() {
 
 export default function App() {
   const [assetsReady, setAssetsReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   useEffect(() => {
     // Wait for audio files to decode, but cap at 4s so a slow network
     // doesn't block the app indefinitely.
     const timeout = setTimeout(() => setAssetsReady(true), 4000);
-    waitForAudioReady().then(() => {
+    waitForAudioReady((fraction) => setLoadProgress(fraction)).then(() => {
       clearTimeout(timeout);
       setAssetsReady(true);
     });
     return () => clearTimeout(timeout);
   }, []);
 
-  if (!assetsReady) return <SplashScreen />;
+  if (!assetsReady) return <SplashScreen progress={loadProgress} />;
   return (
     <ErrorBoundary>
     <AuthProvider>

@@ -235,10 +235,29 @@ function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; po
   );
 }
 
-function MatchFoundScreen({ match, onNavigate }: { match: { roomCode: string; opponents: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] }; onNavigate: () => void }) {
+function MatchFoundScreen({ match, gameReady, onNavigate }: { match: { roomCode: string; opponents: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] }; gameReady: boolean; onNavigate: () => void }) {
+  const [timerDone, setTimerDone] = useState(false);
+
+  // Minimum display time so the player sees their opponent(s)
   useEffect(() => {
-    const timer = setTimeout(onNavigate, 2500);
+    const timer = setTimeout(() => setTimerDone(true), 2500);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Navigate once both the display timer has elapsed AND the game state is ready.
+  // Fallback: navigate after 5s even if game state hasn't arrived, so the user
+  // isn't stuck on the match-found screen indefinitely.
+  useEffect(() => {
+    if (timerDone && gameReady) {
+      onNavigate();
+    }
+  }, [timerDone, gameReady, onNavigate]);
+
+  useEffect(() => {
+    const fallback = setTimeout(() => {
+      onNavigate();
+    }, 5000);
+    return () => clearTimeout(fallback);
   }, [onNavigate]);
 
   return (
@@ -286,7 +305,7 @@ export function HomePage() {
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, updateSettings, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, gameState, createRoom, deleteRoom, updateSettings, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
   // Dev mode badge state — only checked in dev builds
   const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
@@ -1048,6 +1067,7 @@ export function HomePage() {
       {matchmakingFound && (
         <MatchFoundScreen
           match={matchmakingFound}
+          gameReady={gameState !== null}
           onNavigate={() => {
             clearMatchmakingFound();
             navigate(`/game/${matchmakingFound.roomCode}`);
