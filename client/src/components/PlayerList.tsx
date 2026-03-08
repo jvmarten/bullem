@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -58,8 +58,10 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     }
   }, []);
 
-  // Resize the SVG viewBox to match the parent tile dimensions
-  useEffect(() => {
+  // Resize the SVG viewBox to match the parent tile dimensions.
+  // useLayoutEffect ensures dimensions are set before paint so the
+  // border is visible on the very first frame.
+  useLayoutEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const parent = svg.parentElement;
@@ -124,7 +126,7 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
         rx="7"
         ry="7"
         fill="none"
-        strokeWidth="2"
+        strokeWidth="2.5"
         stroke="var(--gold-dim)"
       />
     </svg>
@@ -198,9 +200,10 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   turnDeadline?: number | null;
 }) {
   // Show timer meter on the current player's tile when it's not me.
-  // Allow 1s grace period so the meter still shows when the deadline
-  // arrives slightly before the next turn starts.
-  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 1000;
+  // Allow 3s grace period so the meter still shows when the deadline
+  // arrives slightly before the next turn starts or the state was
+  // deferred behind a round-result overlay.
+  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
 
   return (
     <div
