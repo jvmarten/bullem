@@ -84,7 +84,10 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   }, []);
 
   useEffect(() => {
-    if (!turnDeadline || isResolving) {
+    // Only show the countdown timer and meter in the TurnIndicator when it's
+    // my turn. Other players' turn timers appear around their player tile
+    // (TileMeter in PlayerList), not here.
+    if (!turnDeadline || isResolving || !isMyTurn) {
       setSecondsLeft(null);
       lastTickRef.current = null;
       if (meterRef.current) meterRef.current.style.width = '100%';
@@ -104,7 +107,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
       updateMeter(remainingMs);
 
       // Play tick + heartbeat each second during last 5 seconds (own turn only)
-      if (isMyTurn && secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
+      if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
         lastTickRef.current = secs;
         play('timerTick');
         play('heartbeat');
