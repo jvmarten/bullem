@@ -10,7 +10,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
-import { useUISettings } from '../components/VolumeControl.js';
+import { useUISettings, loadMatchSettings, saveMatchSettings } from '../components/VolumeControl.js';
 import { isFirstGame } from '../utils/tutorialProgress.js';
 
 export function LocalLobbyPage() {
@@ -69,9 +69,24 @@ export function LocalLobbyPage() {
     initializedRef.current = true;
     const name = sessionStorage.getItem('bull-em-local-name') || localStorage.getItem('bull-em-player-name') || 'Player';
 
-    // First-game mode: default to easy bots so new players aren't overwhelmed
-    if (firstGame && setGameSettings && gameSettings) {
-      setGameSettings({ ...gameSettings, botLevelCategory: 'easy' });
+    // Restore saved match settings from previous session
+    if (setGameSettings && gameSettings) {
+      if (firstGame) {
+        // First-game mode: default to easy bots so new players aren't overwhelmed
+        setGameSettings({ ...gameSettings, botLevelCategory: 'easy' });
+      } else {
+        const saved = loadMatchSettings();
+        if (saved) {
+          setGameSettings({
+            ...gameSettings,
+            ...(saved.maxCards != null && { maxCards: saved.maxCards }),
+            ...(saved.turnTimer != null && { turnTimer: saved.turnTimer }),
+            ...(saved.botLevelCategory && { botLevelCategory: saved.botLevelCategory as BotLevelCategory }),
+            ...(saved.botSpeed && { botSpeed: saved.botSpeed as BotSpeed }),
+            ...(saved.lastChanceMode && { lastChanceMode: saved.lastChanceMode as 'classic' | 'strict' }),
+          });
+        }
+      }
     }
 
     createRoom(name).then(() => {
@@ -81,6 +96,18 @@ export function LocalLobbyPage() {
       addToast(e instanceof Error ? e.message : 'Failed to set up game');
     });
   }, [roomState, createRoom, addBot]);
+
+  // Persist match settings to localStorage whenever they change
+  useEffect(() => {
+    if (!gameSettings) return;
+    saveMatchSettings({
+      maxCards: gameSettings.maxCards,
+      turnTimer: gameSettings.turnTimer,
+      botLevelCategory: gameSettings.botLevelCategory,
+      botSpeed: gameSettings.botSpeed,
+      lastChanceMode: gameSettings.lastChanceMode,
+    });
+  }, [gameSettings]);
 
   // Quick Play: auto-start the game once bots have been added
   useEffect(() => {
@@ -168,41 +195,52 @@ export function LocalLobbyPage() {
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
             Bots
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {Array.from({ length: dynamicMaxPlayers }, (_, i) => i).map(n => {
-              const currentBotCount = roomState.players.filter(p => p.isBot).length;
-              return (
-                <button
-                  key={n}
-                  onClick={() => {
-                    play('uiSoft');
-                    const bots = roomState.players.filter(p => p.isBot);
-                    if (n > bots.length) {
-                      // Add bots
-                      const toAdd = n - bots.length;
-                      for (let i = 0; i < toAdd; i++) {
-                        addBot().catch(() => {});
-                      }
-                    } else if (n < bots.length) {
-                      // Remove bots from the end
-                      const toRemove = bots.length - n;
-                      for (let i = 0; i < toRemove; i++) {
-                        removeBot(bots[bots.length - 1 - i]!.id);
-                      }
-                    }
-                  }}
-                  style={{ minWidth: dynamicMaxPlayers > 7 ? '2.25rem' : undefined }}
-                  className={`flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
-                    currentBotCount === n
-                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
-                  }`}
-                >
-                  {n}
-                </button>
-              );
-            })}
-          </div>
+          {(() => {
+            const allOptions = Array.from({ length: dynamicMaxPlayers }, (_, i) => i);
+            const firstRow = allOptions.filter(n => n <= 5);
+            const secondRow = allOptions.filter(n => n > 5);
+            const currentBotCount = roomState.players.filter(p => p.isBot).length;
+            const handleBotCount = (n: number) => {
+              play('uiSoft');
+              const bots = roomState.players.filter(p => p.isBot);
+              if (n > bots.length) {
+                const toAdd = n - bots.length;
+                for (let j = 0; j < toAdd; j++) {
+                  addBot().catch(() => {});
+                }
+              } else if (n < bots.length) {
+                const toRemove = bots.length - n;
+                for (let j = 0; j < toRemove; j++) {
+                  removeBot(bots[bots.length - 1 - j]!.id);
+                }
+              }
+            };
+            const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
+              currentBotCount === n
+                ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+            }`;
+            return (
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  {firstRow.map(n => (
+                    <button key={n} onClick={() => handleBotCount(n)} className={btnClass(n)}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {secondRow.length > 0 && (
+                  <div className="flex gap-1.5">
+                    {secondRow.map(n => (
+                      <button key={n} onClick={() => handleBotCount(n)} className={btnClass(n)}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
             {roomState.players.filter(p => p.isBot).length} bot{roomState.players.filter(p => p.isBot).length !== 1 ? 's' : ''} at the table
           </p>
@@ -282,7 +320,7 @@ export function LocalLobbyPage() {
                     }
                   }}
                   className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
-                    (gameSettings.botLevelCategory ?? 'normal') === cat
+                    (gameSettings.botLevelCategory ?? 'mixed') === cat
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                   }`}
@@ -292,9 +330,9 @@ export function LocalLobbyPage() {
               ))}
             </div>
             <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              {(gameSettings.botLevelCategory ?? 'normal') === 'easy' ? 'Levels 1-3 — beginner bots' :
-               (gameSettings.botLevelCategory ?? 'normal') === 'normal' ? 'Levels 4-6 — standard difficulty' :
-               (gameSettings.botLevelCategory ?? 'normal') === 'hard' ? 'Levels 7-9 — expert bots' :
+              {(gameSettings.botLevelCategory ?? 'mixed') === 'easy' ? 'Levels 1-3 — beginner bots' :
+               (gameSettings.botLevelCategory ?? 'mixed') === 'normal' ? 'Levels 4-6 — standard difficulty' :
+               (gameSettings.botLevelCategory ?? 'mixed') === 'hard' ? 'Levels 7-9 — expert bots' :
                'Levels 1-9 — all skill levels'}
             </p>
             {impossibleEnabled && (

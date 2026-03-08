@@ -56,6 +56,39 @@ export function toggleImpossibleBotEnabled() {
   notifySettings();
 }
 
+/* ── Match settings persistence ────────────────────────────────── */
+
+const MATCH_SETTINGS_KEY = 'bull-em-match-settings';
+
+/** Partial game settings that are worth remembering across sessions. */
+interface SavedMatchSettings {
+  maxCards?: number;
+  turnTimer?: number;
+  botLevelCategory?: string;
+  botSpeed?: string;
+  lastChanceMode?: string;
+}
+
+/** Save the current match settings to localStorage. */
+export function saveMatchSettings(settings: SavedMatchSettings): void {
+  try {
+    localStorage.setItem(MATCH_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
+
+/** Load saved match settings from localStorage. Returns null if none saved. */
+export function loadMatchSettings(): SavedMatchSettings | null {
+  try {
+    const raw = localStorage.getItem(MATCH_SETTINGS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedMatchSettings;
+  } catch {
+    return null;
+  }
+}
+
 /** Hook to read chat/emoji/quickDraw/impossibleBot visibility settings. */
 export function useUISettings() {
   const chat = useSyncExternalStore(subscribeSettings, getChatEnabled);

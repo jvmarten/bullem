@@ -614,7 +614,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       throw new Error(`Too many players for ${settings.maxCards}-card game. Reduce max cards or remove a player.`);
     }
     const usedNames = new Set(playersRef.current.map(p => p.name));
-    const category: BotLevelCategory = gameSettingsRef.current.botLevelCategory ?? 'normal';
+    const category: BotLevelCategory = gameSettingsRef.current.botLevelCategory ?? 'mixed';
     const pickedBot = pickRandomBot(category, usedNames);
     const name = botName || pickedBot?.name || `Bot ${botCounter.current + 1}`;
     const botId = `bot-${++botCounter.current}`;
