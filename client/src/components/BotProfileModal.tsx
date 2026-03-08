@@ -16,22 +16,22 @@ export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) 
     ? (BOT_AVATAR_MAP.get(player.name) ?? '\u2699')
     : avatarDisplay(player.avatar, player.name);
 
-  // Fetch all-time stats for human players with a userId
+  // Fetch all-time stats for any player with a userId (humans and ranked bots)
   const [allTimeStats, setAllTimeStats] = useState<PlayerStatsResponse | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
   useEffect(() => {
-    if (player.isBot || !player.userId) return;
+    if (!player.userId) return;
     setLoadingStats(true);
     fetch(`/api/stats/${player.userId}`, { credentials: 'include' })
       .then(res => res.ok ? res.json() as Promise<PlayerStatsResponse> : null)
       .then(data => setAllTimeStats(data ?? null))
       .catch(() => setAllTimeStats(null))
       .finally(() => setLoadingStats(false));
-  }, [player.isBot, player.userId]);
+  }, [player.userId]);
 
-  // For bots, show match stats. For humans with userId, show all-time stats.
-  const showAllTime = !player.isBot && !!player.userId;
+  // Show all-time stats for any player with a userId (humans and ranked bots)
+  const showAllTime = !!player.userId;
 
   // Match stats derived values (used for bots)
   const bullAcc = stats && stats.bullsCalled > 0

@@ -250,14 +250,9 @@ export function GamePage() {
   }, [gameState]);
 
   const handlePlayerClick = useCallback((player: Player) => {
-    // Human players with an account → navigate to their public profile (lifetime stats)
-    if (!player.isBot && player.userId) {
-      navigate(`/profile/${player.userId}`);
-      return;
-    }
-    // Bots and guests → show in-game modal with match stats
+    // All players (human, bot, guest) → show in-game overlay with stats
     setSelectedPlayer(player);
-  }, [navigate]);
+  }, []);
 
   const quickDrawSuggestions = useMemo(() => {
     if (!quickDrawOpen || !canRaise || !gameState) return [];
