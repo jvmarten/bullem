@@ -83,4 +83,5 @@ export interface ServerToClientEvents {
   'matchmaking:queued': (status: MatchmakingStatus) => void;
   'matchmaking:found': (match: MatchmakingFound) => void;
   'matchmaking:cancelled': () => void;
+  'game:spectatorStats': (stats: GameStats) => void;
 }

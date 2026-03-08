@@ -110,15 +110,17 @@ export function GamePage() {
     isConnected, hasConnected, disconnectDeadlines,
     reactions, sendReaction,
     chatMessages, sendChatMessage,
+    spectatorInitialStats,
   } = useGameContext();
   const { user } = useAuth();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
   const { play } = useSound();
-  useGameSounds(gameState, roundResult, winnerId, playerId);
+  const isSpectatingForSound = gameState ? !gameState.players.some(p => p.id === playerId) || (gameState.players.find(p => p.id === playerId)?.isEliminated ?? false) : false;
+  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectatingForSound);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
-  const inGameStats = useInGameStats(gameState, roundResult);
+  const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
 
   const rejoinAttemptedRef = useRef(false);
   const wasEliminatedRef = useRef(false);
@@ -248,8 +250,14 @@ export function GamePage() {
   }, [gameState]);
 
   const handlePlayerClick = useCallback((player: Player) => {
+    // Human players with an account → navigate to their public profile (lifetime stats)
+    if (!player.isBot && player.userId) {
+      navigate(`/profile/${player.userId}`);
+      return;
+    }
+    // Bots and guests → show in-game modal with match stats
     setSelectedPlayer(player);
-  }, []);
+  }, [navigate]);
 
   const quickDrawSuggestions = useMemo(() => {
     if (!quickDrawOpen || !canRaise || !gameState) return [];

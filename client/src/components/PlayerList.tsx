@@ -75,7 +75,7 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     if (rectRef.current) {
       const perim = perimRef.current || rectRef.current.getTotalLength();
       perimRef.current = perim;
-      // Clockwise from top-left: visible dash = full perimeter, no gap
+      // Full border visible — no offset needed when at 100%
       rectRef.current.style.strokeDasharray = `${perim} ${perim}`;
       rectRef.current.style.strokeDashoffset = '0';
       rectRef.current.style.stroke = 'var(--gold-dim)';
@@ -89,10 +89,11 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
       const perim = perimRef.current;
       if (t <= 0 || !perim || !rectRef.current) return;
       const pct = remaining / t;
-      // Clockwise from top-left: visible dash shrinks as time runs out
+      // Diminish clockwise: gap grows from top-left by offsetting the dash start
       const visibleLength = perim * pct;
+      const gapLength = perim - visibleLength;
       rectRef.current.style.strokeDasharray = `${visibleLength} ${perim}`;
-      rectRef.current.style.strokeDashoffset = '0';
+      rectRef.current.style.strokeDashoffset = String(-gapLength);
       rectRef.current.style.stroke = pct <= 0.3 ? 'var(--danger)' : 'var(--gold-dim)';
     };
 

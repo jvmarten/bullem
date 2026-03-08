@@ -143,10 +143,19 @@ function vibrate(pattern: number | number[]): void {
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
-  // If the AudioContext exists but has been permanently closed (can happen
-  // on some mobile browsers after extended backgrounding), create a fresh one.
-  if (audioCtx && audioCtx.state === 'closed') {
-    audioCtx = null;
+  // If the AudioContext exists but has been permanently closed or is in an
+  // unrecoverable state, discard it and create a fresh one. iOS Safari can
+  // enter the non-standard 'interrupted' state on phone calls / Siri.
+  if (audioCtx) {
+    const state = audioCtx.state as string;
+    if (state === 'closed') {
+      audioCtx = null;
+      // Buffers decoded by the old context may be stale in edge cases
+      audioBufferCache.clear();
+      audioBufferLoading.clear();
+    } else if (state === 'suspended' || state === 'interrupted') {
+      audioCtx.resume().catch(() => {});
+    }
   }
   if (audioCtx) return audioCtx;
   try {
@@ -163,16 +172,29 @@ function getAudioContext(): AudioContext | null {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && audioCtx) {
-      if (audioCtx.state === 'suspended') {
+      const state = audioCtx.state as string;
+      if (state === 'suspended' || state === 'interrupted') {
         audioCtx.resume().catch(() => {});
+      } else if (state === 'closed') {
+        // Context was permanently closed — force re-creation on next play
+        audioCtx = null;
+        audioBufferCache.clear();
+        audioBufferLoading.clear();
       }
     }
   });
   // Also try resuming on user interaction — covers the case where the
   // browser refuses resume without a gesture (autoplay policy).
   const resumeOnInteraction = () => {
-    if (audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
+    if (audioCtx) {
+      const state = audioCtx.state as string;
+      if (state === 'suspended' || state === 'interrupted') {
+        audioCtx.resume().catch(() => {});
+      } else if (state === 'closed') {
+        audioCtx = null;
+        audioBufferCache.clear();
+        audioBufferLoading.clear();
+      }
     }
   };
   document.addEventListener('touchstart', resumeOnInteraction, { once: false, passive: true });
@@ -219,7 +241,8 @@ function playAudioBuffer(url: string, volume: number, fileGain: number, fadeOut?
   const ctx = getAudioContext();
   if (!ctx) return;
 
-  if (ctx.state === 'suspended') {
+  const state = ctx.state as string;
+  if (state === 'suspended' || state === 'interrupted') {
     ctx.resume().catch(() => {});
   }
 
@@ -260,8 +283,9 @@ function playTones(tones: ToneConfig[], volume: number): void {
   const ctx = getAudioContext();
   if (!ctx) return;
 
-  // Resume if suspended (autoplay policy)
-  if (ctx.state === 'suspended') {
+  // Resume if suspended/interrupted (autoplay policy, iOS interrupts)
+  const state = ctx.state as string;
+  if (state === 'suspended' || state === 'interrupted') {
     ctx.resume().catch(() => {});
   }
 
@@ -412,7 +436,8 @@ export function createSoundController(): SoundController {
       const ctx = getAudioContext();
       if (!ctx) return;
 
-      if (ctx.state === 'suspended') {
+      const loopState = ctx.state as string;
+      if (loopState === 'suspended' || loopState === 'interrupted') {
         ctx.resume().catch(() => {});
       }
 
