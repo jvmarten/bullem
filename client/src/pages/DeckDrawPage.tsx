@@ -123,6 +123,9 @@ export function DeckDrawPage() {
   const [showCustomWager, setShowCustomWager] = useState(false);
   const [customWagerInput, setCustomWagerInput] = useState('');
   const [freeDrawCountdown, setFreeDrawCountdown] = useState(0);
+  // Overrides displayed balance during animation so the result isn't spoiled.
+  // null = show stats.balance; number = show this value instead.
+  const [displayBalance, setDisplayBalance] = useState<number | null>(null);
 
   // Animation state
   const [animPhase, setAnimPhase] = useState<AnimPhase>('idle');
@@ -246,6 +249,7 @@ export function DeckDrawPage() {
         setShowResultText(false);
         setDealtCount(0);
         setRevealedCount(0);
+        setDisplayBalance(null);
         return;
       }
       return;
@@ -298,6 +302,7 @@ export function DeckDrawPage() {
             const err = await res.json().catch(() => ({ error: 'Draw failed' }));
             addToast((err as { error: string }).error || 'Draw failed');
             setAnimPhase('idle');
+            setDisplayBalance(null);
             return;
           }
         } else {
@@ -314,6 +319,7 @@ export function DeckDrawPage() {
 
     if (!drawResult || !updatedStats) {
       setAnimPhase('idle');
+      setDisplayBalance(null);
       return;
     }
 
@@ -321,11 +327,17 @@ export function DeckDrawPage() {
     const result = drawResult;
     const finalStats = updatedStats;
 
+    // Immediately deduct the wager from the displayed balance so the
+    // player sees the cost right away, but do NOT apply winnings yet —
+    // that would spoil the reveal.
+    if (!isFreeDraw) {
+      setDisplayBalance(stats.balance - wager);
+    }
+
     // Phase 2: DEALING (after shuffle, ~800ms)
     scheduleTimer(() => {
       setAnimPhase('dealing');
       setLastResult(result);
-      setStats(finalStats);
 
       // Deal cards one by one face-down (no deal sound in Deck Draw)
       for (let i = 0; i < 5; i++) {
@@ -349,8 +361,11 @@ export function DeckDrawPage() {
         }
 
         // Phase 4: RESULT (after all revealed + last flip finishes)
+        // Now apply the full stats update (including any winnings).
         const totalRevealTime = revealDelays[4]! + 1200;
         scheduleTimer(() => {
+          setStats(finalStats);
+          setDisplayBalance(null);
           setAnimPhase('result');
           setShowHighlight(true);
           setShowResultText(true);
@@ -398,7 +413,7 @@ export function DeckDrawPage() {
         {/* Balance */}
         <div className="glass rounded-xl px-6 py-3 text-center w-full">
           <p className="text-xs uppercase tracking-widest text-[var(--gold-dim)]">Balance</p>
-          <p className="text-3xl font-bold text-[var(--gold)]">{formatNumber(stats.balance)}</p>
+          <p className="text-3xl font-bold text-[var(--gold)]">{formatNumber(displayBalance ?? stats.balance)}</p>
           {!user && (
             <p className="text-[10px] text-[var(--gold-dim)] mt-1">
               <Link to="/login" className="underline hover:text-[var(--gold)]">Sign in</Link> to save progress
