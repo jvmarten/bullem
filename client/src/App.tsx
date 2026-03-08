@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
+import { GameStartBanner } from './components/GameStartBanner.js';
 import { AuthProvider } from './context/AuthContext.js';
 import { ToastProvider } from './context/ToastContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
@@ -40,7 +41,12 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.js').th
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.js').then(m => ({ default: m.ResetPasswordPage })));
 
 function OnlineLayout() {
-  return <GameProvider><Outlet /></GameProvider>;
+  return (
+    <GameProvider>
+      <GameStartBanner />
+      <Outlet />
+    </GameProvider>
+  );
 }
 
 function LocalLayout() {

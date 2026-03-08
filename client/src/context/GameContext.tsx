@@ -474,6 +474,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createRoom = useCallback((playerName: string): Promise<string> => {
+    // Auto-leave previous room if still connected to one
+    const existingRoom = sessionStorage.getItem(ROOM_CODE_KEY);
+    if (existingRoom) {
+      socket.emit('room:leave');
+      setRoomState(null);
+      setGameState(null);
+      sessionStorage.removeItem(PLAYER_ID_KEY);
+      sessionStorage.removeItem(ROOM_CODE_KEY);
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      clearActiveSession();
+    }
     return withTimeout(new Promise((resolve, reject) => {
       socket.emit('room:create', { playerName }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
@@ -487,6 +498,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
+    // Auto-leave previous room if joining a different one
+    const existingRoom = sessionStorage.getItem(ROOM_CODE_KEY);
+    if (existingRoom && existingRoom !== roomCode) {
+      socket.emit('room:leave');
+      setRoomState(null);
+      setGameState(null);
+      sessionStorage.removeItem(PLAYER_ID_KEY);
+      sessionStorage.removeItem(ROOM_CODE_KEY);
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      clearActiveSession();
+    }
     return withTimeout(new Promise((resolve, reject) => {
       // Check sessionStorage first, then fall back to localStorage (browser close scenario)
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? localStorage.getItem(LS_ACTIVE_PLAYER_ID) ?? undefined;
