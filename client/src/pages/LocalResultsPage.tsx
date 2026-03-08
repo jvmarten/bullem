@@ -5,10 +5,16 @@ import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
 
 export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, lastReplay } = useGameContext();
+
+  // Mark that the player has completed their first real game
+  useEffect(() => {
+    if (winnerId) markFirstGamePlayed();
+  }, [winnerId]);
 
   // If state is gone (page refresh), redirect to lobby
   useEffect(() => {

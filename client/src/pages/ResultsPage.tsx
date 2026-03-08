@@ -6,6 +6,7 @@ import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { RankBadge } from '../components/RankBadge.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
 import type { RatingChange } from '@bull-em/shared';
 
 function RatingChangeDisplay({ change }: { change: RatingChange }) {
@@ -69,6 +70,11 @@ export function ResultsPage() {
     };
     await tryWatch();
   }, [watchRandomGame, leaveRoom, navigate]);
+
+  // Mark that the player has completed their first real game
+  useEffect(() => {
+    if (winnerId) markFirstGamePlayed();
+  }, [winnerId]);
 
   // When winnerId is cleared (rematch started), navigate back to the game page
   useEffect(() => {

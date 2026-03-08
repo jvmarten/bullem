@@ -11,6 +11,7 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
 import { useUISettings } from '../components/VolumeControl.js';
+import { isFirstGame } from '../utils/tutorialProgress.js';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
@@ -60,11 +61,19 @@ export function LocalLobbyPage() {
   const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
   const playerCount = roomState?.players.length ?? 0;
 
+  const firstGame = isFirstGame();
+
   // Initialize the local room on mount
   useEffect(() => {
     if (initializedRef.current || roomState) return;
     initializedRef.current = true;
     const name = sessionStorage.getItem('bull-em-local-name') || localStorage.getItem('bull-em-player-name') || 'Player';
+
+    // First-game mode: default to easy bots so new players aren't overwhelmed
+    if (firstGame && setGameSettings && gameSettings) {
+      setGameSettings({ ...gameSettings, botLevelCategory: 'easy' });
+    }
+
     createRoom(name).then(() => {
       // Auto-add 5 bots for a quick start
       return Promise.all([addBot(), addBot(), addBot(), addBot(), addBot()]);
@@ -131,6 +140,19 @@ export function LocalLobbyPage() {
             {playerCount} player{playerCount !== 1 ? 's' : ''} at the table
           </p>
         </div>
+
+        {/* First-game banner — gentle nudge for new players */}
+        {firstGame && (
+          <div className="glass px-4 py-3 rounded-lg animate-fade-in" style={{ border: '1px solid var(--gold-dim)' }}>
+            <p className="text-sm text-[var(--gold)] font-semibold mb-1">
+              Welcome to your first game!
+            </p>
+            <p className="text-xs text-[var(--gold-dim)]">
+              We&apos;ve set the bots to <strong className="text-[var(--gold)]">Easy</strong> difficulty so you can learn the ropes.
+              Remember: <strong className="text-[var(--danger)]">Flush is LOWER than Three of a Kind</strong> in Bull &apos;Em!
+            </p>
+          </div>
+        )}
 
         <PlayerList
           players={roomState.players}

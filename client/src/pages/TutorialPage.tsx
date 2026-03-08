@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HandType, handToString } from '@bull-em/shared';
 import type { Card, HandCall, Player, TurnEntry } from '@bull-em/shared';
@@ -10,7 +10,7 @@ import { TutorialOverlay } from '../components/TutorialOverlay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { useSound } from '../hooks/useSound.js';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
-import { markTutorialCompleted } from '../utils/tutorialProgress.js';
+import { markTutorialCompleted, getTutorialStepReached, setTutorialStepReached } from '../utils/tutorialProgress.js';
 
 /* ── Scripted game data ────────────────────────────────── */
 
@@ -348,6 +348,47 @@ const STEPS: TutorialStep[] = [
     visibleSections: [],
   },
   {
+    id: 'rankings-quiz',
+    title: 'Quick Check!',
+    body: (
+      <>
+        <p className="text-sm text-[#e8e0d4] mb-3">
+          Which hand is <strong className="text-[var(--gold)]">higher</strong> in Bull &apos;Em?
+        </p>
+        <div className="space-y-2" data-tutorial-quiz="rankings">
+          {/* Quiz options are rendered dynamically by the component based on quizAnswer state */}
+        </div>
+      </>
+    ),
+    interactive: true,
+    visibleSections: [],
+  },
+  {
+    id: 'rankings-cheatsheet',
+    title: 'Ranking Cheat Sheet',
+    body: (
+      <>
+        <p className="text-[10px] text-[var(--gold-dim)] mb-2 uppercase tracking-widest font-semibold">Low to High</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+          <span className="text-[var(--gold-dim)]">1. High Card</span>
+          <span className="text-[var(--gold-dim)]">6. Straight</span>
+          <span className="text-[var(--gold-dim)]">2. Pair</span>
+          <span className="text-[var(--gold-dim)]">7. Full House</span>
+          <span className="text-[var(--gold-dim)]">3. Two Pair</span>
+          <span className="text-[var(--gold-dim)]">8. Four of a Kind</span>
+          <span className="text-[var(--danger)] font-semibold">4. Flush</span>
+          <span className="text-[var(--gold-dim)]">9. Straight Flush</span>
+          <span className="text-[var(--danger)] font-semibold">5. Three of a Kind</span>
+          <span className="text-[var(--gold)]">10. Royal Flush</span>
+        </div>
+        <p className="text-[10px] text-[var(--danger)] mt-2 font-semibold">
+          Remember: Flush (#4) is LOWER than Three of a Kind (#5)!
+        </p>
+      </>
+    ),
+    visibleSections: [],
+  },
+  {
     id: 'elimination',
     title: 'Elimination & Winning',
     body: (
@@ -381,12 +422,22 @@ const STEPS: TutorialStep[] = [
 export function TutorialPage() {
   const navigate = useNavigate();
   const { play } = useSound();
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(() => {
+    // Resume from the last reached step (but cap at the last non-final step)
+    const saved = getTutorialStepReached();
+    return Math.min(saved, STEPS.length - 1);
+  });
   const [playerHand, setPlayerHand] = useState<HandCall | null>(null);
   const [playerHandValid, setPlayerHandValid] = useState(false);
+  const [quizAnswer, setQuizAnswer] = useState<'flush' | 'three' | null>(null);
 
   const step = STEPS[stepIndex]!;
   const isLastStep = stepIndex === STEPS.length - 1;
+
+  // Persist step progress
+  useEffect(() => {
+    setTutorialStepReached(stepIndex);
+  }, [stepIndex]);
 
   const advance = useCallback(() => {
     if (isLastStep) return;
@@ -398,6 +449,8 @@ export function TutorialPage() {
     if (stepIndex === 0) return;
     play('uiSoft');
     setStepIndex(prev => prev - 1);
+    // Reset quiz state when navigating back to allow re-answering
+    setQuizAnswer(null);
   }, [stepIndex, play]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
@@ -416,6 +469,15 @@ export function TutorialPage() {
     play('bullCalled');
     // Advance to reveal step
     setStepIndex(prev => prev + 1);
+  }, [play]);
+
+  const handleQuizAnswer = useCallback((answer: 'flush' | 'three') => {
+    setQuizAnswer(answer);
+    if (answer === 'three') {
+      play('callMade');
+    } else {
+      play('uiSoft');
+    }
   }, [play]);
 
   // Build turn history for display
@@ -667,35 +729,110 @@ export function TutorialPage() {
             <h3 className="font-display text-base font-bold text-[var(--gold)] mb-2">
               {step.title}
             </h3>
-            {step.body}
-            {!step.interactive && (
-              <div className="flex justify-between items-center mt-3">
-                {stepIndex > 0 && (
-                  <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
-                    Back
+            {step.id === 'rankings-quiz' ? (
+              /* ── Ranking quiz ─────────────────────────────── */
+              <>
+                <p className="text-sm text-[#e8e0d4] mb-3">
+                  Which hand is <strong className="text-[var(--gold)]">higher</strong> in Bull &apos;Em?
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleQuizAnswer('flush')}
+                    disabled={quizAnswer !== null}
+                    className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
+                      quizAnswer === 'flush'
+                        ? 'border-[var(--danger)] bg-[rgba(220,38,38,0.15)]'
+                        : quizAnswer === 'three'
+                          ? 'opacity-50'
+                          : 'hover:border-[var(--gold)]'
+                    }`}
+                    style={{ border: quizAnswer === 'flush' ? '1px solid var(--danger)' : '1px solid transparent' }}
+                  >
+                    <span className="font-semibold text-[#e8e0d4]">Flush</span>
+                    <span className="text-[var(--gold-dim)] text-xs ml-2">(all same suit)</span>
+                    {quizAnswer === 'flush' && (
+                      <span className="text-[var(--danger)] text-xs ml-2 font-semibold">Not quite!</span>
+                    )}
                   </button>
-                )}
-                {isLastStep ? (
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/local'); }}
-                      className="btn-ghost px-4 py-1.5 text-sm font-semibold"
-                    >
-                      Play Offline
-                    </button>
-                    <button
-                      onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
-                      className="btn-gold px-4 py-1.5 text-sm font-semibold"
-                    >
-                      Play Online
-                    </button>
+                  <button
+                    onClick={() => handleQuizAnswer('three')}
+                    disabled={quizAnswer !== null}
+                    className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
+                      quizAnswer === 'three'
+                        ? 'border-[var(--gold)] bg-[rgba(212,168,67,0.15)]'
+                        : quizAnswer === 'flush'
+                          ? 'opacity-50'
+                          : 'hover:border-[var(--gold)]'
+                    }`}
+                    style={{ border: quizAnswer === 'three' ? '1px solid var(--gold)' : '1px solid transparent' }}
+                  >
+                    <span className="font-semibold text-[#e8e0d4]">Three of a Kind</span>
+                    <span className="text-[var(--gold-dim)] text-xs ml-2">(three same rank)</span>
+                    {quizAnswer === 'three' && (
+                      <span className="text-[var(--gold)] text-xs ml-2 font-semibold">Correct!</span>
+                    )}
+                  </button>
+                </div>
+                {quizAnswer && (
+                  <div className="mt-3 animate-fade-in">
+                    {quizAnswer === 'three' ? (
+                      <p className="text-xs text-[var(--gold)]">
+                        That&apos;s right! In Bull &apos;Em, Three of a Kind (#5) beats Flush (#4).
+                        This is different from standard poker!
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[var(--danger)]">
+                        In standard poker, yes — but in Bull &apos;Em, Flush (#4) is LOWER than
+                        Three of a Kind (#5). This is the #1 mistake new players make!
+                      </p>
+                    )}
+                    <div className="flex justify-between items-center mt-3">
+                      {stepIndex > 0 && (
+                        <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                          Back
+                        </button>
+                      )}
+                      <button onClick={() => { setQuizAnswer(null); advance(); }} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                        Next
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
-                    Next
-                  </button>
                 )}
-              </div>
+              </>
+            ) : (
+              /* ── Standard step body ──────────────────────── */
+              <>
+                {step.body}
+                {!step.interactive && (
+                  <div className="flex justify-between items-center mt-3">
+                    {stepIndex > 0 && (
+                      <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                        Back
+                      </button>
+                    )}
+                    {isLastStep ? (
+                      <div className="flex gap-2 ml-auto">
+                        <button
+                          onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/local'); }}
+                          className="btn-ghost px-4 py-1.5 text-sm font-semibold"
+                        >
+                          Play Offline
+                        </button>
+                        <button
+                          onClick={() => { markTutorialCompleted(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
+                          className="btn-gold px-4 py-1.5 text-sm font-semibold"
+                        >
+                          Play Online
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                        Next
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
