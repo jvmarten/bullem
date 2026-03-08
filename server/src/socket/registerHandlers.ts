@@ -11,9 +11,8 @@ import { registerMatchmakingHandlers } from './matchmakingHandlers.js';
 import type { PushManager } from '../push/PushManager.js';
 import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
 import type { InMemoryMatchmakingQueue } from '../dev/InMemoryMatchmakingQueue.js';
-import { broadcastRoomState, broadcastGameState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
-import { beginRoundResultPhase, checkRoundContinueComplete } from './roundTransition.js';
-import { persistCompletedGame } from './persistGame.js';
+import { broadcastRoomState, broadcastGameState, broadcastPlayerNames } from './broadcast.js';
+import { beginRoundResultPhase, checkRoundContinueComplete, handleSetOver } from './roundTransition.js';
 import { createChildLogger } from '../logger.js';
 import { runWithCorrelation, generateCorrelationId } from '../correlationContext.js';
 import { socketEventsTotal, socketErrorsTotal, rateLimitRejectsTotal } from '../metrics.js';
@@ -164,11 +163,8 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
         switch (elimResult.type) {
           case 'game_over':
             if (room.gamePhase !== GamePhase.GAME_OVER) {
-              room.gamePhase = GamePhase.GAME_OVER;
               room.cancelRoundContinueWindow();
-              broadcastGameReplay(io, room, elimResult.winnerId);
-              io.to(room.roomCode).emit('game:over', elimResult.winnerId, room.game.getGameStats());
-              persistCompletedGame(room, elimResult.winnerId);
+              handleSetOver(io, room, roomManager, botManager, elimResult.winnerId);
             }
             break;
           case 'resolve':

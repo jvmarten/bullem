@@ -4,9 +4,8 @@ import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChan
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
-import { broadcastGameState, broadcastRoomState, broadcastPlayerNames, broadcastGameReplay } from './broadcast.js';
-import { beginRoundResultPhase, checkRoundContinueComplete, recordRoundStart } from './roundTransition.js';
-import { persistCompletedGame } from './persistGame.js';
+import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
+import { beginRoundResultPhase, checkRoundContinueComplete, recordRoundStart, handleSetOver } from './roundTransition.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { roomsCreatedTotal, playersJoinedTotal } from '../metrics.js';
 import { track } from '../analytics/track.js';
@@ -173,11 +172,8 @@ export function registerLobbyHandlers(
 
       switch (result.type) {
         case 'game_over':
-          room.gamePhase = GamePhase.GAME_OVER;
           room.cancelRoundContinueWindow();
-          broadcastGameReplay(io, room, result.winnerId);
-          io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
-          persistCompletedGame(room, result.winnerId);
+          handleSetOver(io, room, roomManager, botManager, result.winnerId);
           break;
         case 'resolve':
           beginRoundResultPhase(io, room, botManager, result.result, roomManager);
@@ -198,11 +194,8 @@ export function registerLobbyHandlers(
       socket.leave(room.roomCode);
 
       if (result.type === 'game_over') {
-        room.gamePhase = GamePhase.GAME_OVER;
         room.cancelRoundContinueWindow();
-        broadcastGameReplay(io, room, result.winnerId);
-        io.to(room.roomCode).emit('game:over', result.winnerId, room.game.getGameStats());
-        persistCompletedGame(room, result.winnerId);
+        handleSetOver(io, room, roomManager, botManager, result.winnerId);
       } else {
         // The leaving player may have been the last one who hadn't pressed Continue.
         // Re-check so the remaining players aren't stuck waiting.
