@@ -49,6 +49,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
   const [showBeat2, setShowBeat2] = useState(false);
+  const [actionsExpanded, setActionsExpanded] = useState(false);
 
   // Determine personalized beat 1 message
   const beat1 = useMemo(() => {
@@ -126,24 +127,49 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
         {/* Two-beat personalized result message */}
         {beat1 ? (
           <div
-            className="py-3 px-4 rounded-xl border-2 animate-cube-roll-in"
+            className="py-3 px-4 rounded-xl border-2 animate-cube-roll-in relative overflow-hidden"
             style={{
               minHeight: '3.5rem',
               borderColor: showBeat2 ? beat2.color : beat1.color,
               background: showBeat2
                 ? (result.handExists ? 'var(--info-bg)' : 'var(--danger-bg)')
                 : (beat1.color === 'var(--safe)' ? 'rgba(40, 167, 69, 0.15)' : 'var(--danger-bg)'),
-              transition: 'border-color 0.3s, background 0.3s',
+              transition: 'border-color 0.5s ease, background 0.5s ease',
             }}
           >
+            {/* Beat 1 text — fades out and scales down */}
             <div
-              className="font-display text-3xl font-bold transition-opacity duration-300"
+              className="font-display text-3xl font-bold"
               style={{
-                color: showBeat2 ? beat2.color : beat1.color,
-                opacity: 1,
+                color: beat1.color,
+                transition: 'opacity 0.4s ease, transform 0.4s ease',
+                opacity: showBeat2 ? 0 : 1,
+                transform: showBeat2 ? 'scale(0.8) translateY(-4px)' : 'scale(1) translateY(0)',
+                position: showBeat2 ? 'absolute' : 'relative',
+                inset: showBeat2 ? 0 : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              {showBeat2 ? beat2.text : beat1.text}
+              {beat1.text}
+            </div>
+            {/* Beat 2 text — fades in and scales up */}
+            <div
+              className="font-display text-3xl font-bold"
+              style={{
+                color: beat2.color,
+                transition: 'opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s',
+                opacity: showBeat2 ? 1 : 0,
+                transform: showBeat2 ? 'scale(1) translateY(0)' : 'scale(1.15) translateY(4px)',
+                position: showBeat2 ? 'relative' : 'absolute',
+                inset: showBeat2 ? undefined : 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {beat2.text}
             </div>
           </div>
         ) : (
@@ -159,22 +185,32 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
 
         {result.turnHistory && result.turnHistory.length > 0 && (
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] mb-2 font-semibold">
-              Round Actions
-            </p>
-            <div className="space-y-1 max-h-24 overflow-y-auto">
-              {result.turnHistory.map((entry, i) => {
-                const name = players.find(p => p.id === entry.playerId)?.name ?? entry.playerName;
-                return (
-                  <div key={i} className="text-xs text-left px-2 py-0.5">
-                    <span className="text-[var(--card-face)]">{name}</span>
-                    <span className="text-[var(--gold-dim)] ml-1">
-                      {actionLabel(entry)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <button
+              onClick={() => setActionsExpanded(v => !v)}
+              className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 bg-transparent border-none p-0 cursor-pointer"
+            >
+              <span>Round Actions</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className={`transition-transform duration-200 ${actionsExpanded ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {actionsExpanded && (
+              <div className="space-y-1 max-h-24 overflow-y-auto animate-fade-in">
+                {result.turnHistory.map((entry, i) => {
+                  const name = players.find(p => p.id === entry.playerId)?.name ?? entry.playerName;
+                  return (
+                    <div key={i} className="text-xs text-left px-2 py-0.5">
+                      <span className="text-[var(--card-face)]">{name}</span>
+                      <span className="text-[var(--gold-dim)] ml-1">
+                        {actionLabel(entry)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

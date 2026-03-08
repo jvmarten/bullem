@@ -13,10 +13,10 @@ export function SpectatorView({ spectatorCards }: SpectatorViewProps) {
       <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold text-center">
         All Players' Cards
       </p>
-      <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {spectatorCards.map(({ playerId, playerName, cards }) => (
-          <div key={playerId} className="glass px-3 py-1.5">
-            <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5">
+          <div key={playerId} className="glass px-2 py-1.5">
+            <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5 truncate">
               {playerName}
             </p>
             <HandDisplay cards={cards} />

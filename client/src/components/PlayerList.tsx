@@ -27,25 +27,67 @@ interface Props {
   turnDeadline?: number | null;
 }
 
-/* Subtle timer meter that wraps around the player tile border — shows
-   remaining turn time as a shrinking border highlight. Updated at 10fps
-   via direct DOM manipulation to avoid React re-renders. */
+/* Full-border timer meter that wraps around the entire player tile.
+   Uses an SVG rect with stroke-dasharray to show remaining turn time
+   as a shrinking border highlight. Updated at 10fps via direct DOM
+   manipulation to avoid React re-renders. The SVG viewBox is set
+   dynamically via ResizeObserver so the rect always matches the tile size. */
 const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
-  const meterRef = useRef<HTMLDivElement>(null);
-  const totalRef = useRef<number | null>(null);
+  const rectRef = useRef<SVGRectElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const totalRef = useRef<number>(0);
+  const perimRef = useRef<number>(0);
+
+  // Resize the SVG viewBox to match the parent tile dimensions
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const parent = svg.parentElement;
+    if (!parent) return;
+
+    const syncSize = () => {
+      const { width, height } = parent.getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      const rect = rectRef.current;
+      if (rect) {
+        rect.setAttribute('x', '1');
+        rect.setAttribute('y', '1');
+        rect.setAttribute('width', String(width - 2));
+        rect.setAttribute('height', String(height - 2));
+        perimRef.current = rect.getTotalLength();
+      }
+    };
+
+    syncSize();
+    const ro = new ResizeObserver(syncSize);
+    ro.observe(parent);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const now = Date.now();
-    totalRef.current = turnDeadline - now;
+    const total = turnDeadline - now;
+    totalRef.current = total;
+
+    // Reset meter to full immediately
+    if (rectRef.current) {
+      const perim = perimRef.current || rectRef.current.getTotalLength();
+      perimRef.current = perim;
+      rectRef.current.style.strokeDasharray = `${perim}`;
+      rectRef.current.style.strokeDashoffset = '0';
+      rectRef.current.style.stroke = 'var(--gold-dim)';
+    }
+
+    if (total <= 0) return;
 
     const update = () => {
       const remaining = Math.max(0, turnDeadline - Date.now());
-      const total = totalRef.current;
-      if (!total || total <= 0 || !meterRef.current) return;
-      const pct = (remaining / total) * 100;
-      meterRef.current.style.setProperty('--meter-pct', `${pct}%`);
-      // Color shift: gold-dim → danger in last 30%
-      meterRef.current.style.color = pct <= 30 ? 'var(--danger)' : 'var(--gold-dim)';
+      const t = totalRef.current;
+      const perim = perimRef.current;
+      if (t <= 0 || !perim || !rectRef.current) return;
+      const pct = remaining / t;
+      rectRef.current.style.strokeDashoffset = `${perim * (1 - pct)}`;
+      rectRef.current.style.stroke = pct <= 0.3 ? 'var(--danger)' : 'var(--gold-dim)';
     };
 
     update();
@@ -54,11 +96,20 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
   }, [turnDeadline]);
 
   return (
-    <div
-      ref={meterRef}
-      className="tile-timer-meter"
+    <svg
+      ref={svgRef}
+      className="tile-timer-border"
       aria-hidden="true"
-    />
+    >
+      <rect
+        ref={rectRef}
+        rx="7"
+        ry="7"
+        fill="none"
+        strokeWidth="2"
+        stroke="var(--gold-dim)"
+      />
+    </svg>
   );
 });
 
@@ -128,8 +179,10 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   onPlayerClick?: (player: Player) => void;
   turnDeadline?: number | null;
 }) {
-  // Show timer meter on the current player's tile when it's not me
-  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now();
+  // Show timer meter on the current player's tile when it's not me.
+  // Allow 1s grace period so the meter still shows when the deadline
+  // arrives slightly before the next turn starts.
+  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 1000;
 
   return (
     <div
