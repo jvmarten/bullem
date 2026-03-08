@@ -59,6 +59,7 @@ export function ReplaysPage() {
   const { addToast } = useToast();
   const [replays, setReplays] = useState<ReplayItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleShare = useCallback(async (replayId: string) => {
@@ -71,36 +72,34 @@ export function ReplaysPage() {
     }
   }, [addToast]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadReplays = useCallback(async () => {
+    setLoading(true);
+    setFetchError(false);
 
-    async function load(): Promise<void> {
-      // Start with localStorage replays as immediate fallback
-      const localReplays = loadAllReplays().map(localReplayToItem);
+    // Start with localStorage replays as immediate fallback
+    const localReplays = loadAllReplays().map(localReplayToItem);
 
-      try {
-        const result = await fetchReplayList(50, 0);
-        if (cancelled) return;
+    try {
+      const result = await fetchReplayList(50, 0);
 
-        const apiReplays = result.replays.map(apiReplayToItem);
+      const apiReplays = result.replays.map(apiReplayToItem);
 
-        // Merge: API replays first, then any localStorage replays not already in API results
-        const apiIds = new Set(apiReplays.map(r => r.id));
-        const uniqueLocal = localReplays.filter(r => !apiIds.has(r.id));
-        setReplays([...apiReplays, ...uniqueLocal]);
-      } catch {
-        // API unavailable — fall back to localStorage only
-        if (!cancelled) {
-          setReplays(localReplays);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      // Merge: API replays first, then any localStorage replays not already in API results
+      const apiIds = new Set(apiReplays.map(r => r.id));
+      const uniqueLocal = localReplays.filter(r => !apiIds.has(r.id));
+      setReplays([...apiReplays, ...uniqueLocal]);
+    } catch {
+      // API unavailable — fall back to localStorage only
+      setReplays(localReplays);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
     }
-
-    void load();
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    void loadReplays();
+  }, [loadReplays]);
 
   const handleDelete = useCallback((id: string) => {
     // Only localStorage replays can be deleted from the client
@@ -130,8 +129,21 @@ export function ReplaysPage() {
           </p>
         </div>
 
+        {/* API error banner */}
+        {fetchError && (
+          <div className="glass px-4 py-3 text-center">
+            <p className="text-sm text-red-400">Failed to load replays from server</p>
+            <button
+              onClick={() => void loadReplays()}
+              className="mt-2 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
         {/* Replay list */}
-        {!loading && replays.length === 0 ? (
+        {!loading && replays.length === 0 && !fetchError ? (
           <div className="glass px-4 py-8 text-center animate-fade-in">
             <p className="text-[var(--gold-dim)] text-sm mb-2">
               No replays yet — play a game to see it here!

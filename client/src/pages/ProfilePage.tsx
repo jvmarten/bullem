@@ -149,6 +149,7 @@ export function ProfilePage() {
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsError, setStatsError] = useState(false);
   const [ratings, setRatings] = useState<UserRatings | null>(null);
   const [deckDrawBalance, setDeckDrawBalance] = useState<number | null>(null);
 
@@ -165,20 +166,24 @@ export function ProfilePage() {
 
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
+    setStatsError(false);
     try {
       const res = await fetch(`${API_BASE}/api/stats/me`, {
         credentials: 'include',
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setStatsError(true);
+        return;
+      }
       const data = await res.json() as PlayerStatsResponse;
       setStats(data);
       setStatsLoaded(true);
     } catch {
-      addToast('Failed to load stats');
+      setStatsError(true);
     } finally {
       setStatsLoading(false);
     }
-  }, [addToast]);
+  }, []);
 
   // Fetch deck draw balance
   useEffect(() => {
@@ -608,6 +613,16 @@ export function ProfilePage() {
               className="btn-gold py-2 px-6 text-sm mt-2"
             >
               Play Now
+            </button>
+          </div>
+        ) : statsError ? (
+          <div className="w-full glass px-4 py-6 text-center mb-6">
+            <p className="text-sm text-red-400">Failed to load stats</p>
+            <button
+              onClick={() => { void fetchStats(); if (profile) void fetchRatings(profile.id); }}
+              className="mt-2 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Try Again
             </button>
           </div>
         ) : null}
