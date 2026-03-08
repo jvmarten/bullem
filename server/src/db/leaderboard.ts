@@ -123,9 +123,11 @@ export async function getLeaderboard(
   const cacheKey = `lb:${mode}:${period}:${limit}:${offset}:${playerFilter}`;
   const cached = getCached<LeaderboardResponse>(cacheKey);
   if (cached) {
-    // If the cached response has no currentUser but we have a userId, we still
-    // need to fetch the user's rank separately (don't return cached for that).
-    if (!currentUserId || cached.currentUser) return cached;
+    // Cache stores entries without currentUser — if the caller is logged in,
+    // fetch only their rank (1 query) instead of re-fetching the full board.
+    if (!currentUserId) return cached;
+    const currentUser = await getUserRank(mode, period, currentUserId);
+    return { ...cached, currentUser };
   }
 
   const rating = ratingExpr(mode);
@@ -173,7 +175,9 @@ export async function getLeaderboard(
   const entries: LeaderboardEntry[] = entriesResult.rows.map(row => {
     const ratingNum = Math.round(parseFloat(row.rating));
     return {
-      rank: parseInt(row.rank, 10) + offset, // ROW_NUMBER starts at 1, adjust for offset
+      // ROW_NUMBER() is computed over the full result set before LIMIT/OFFSET,
+      // so it already reflects the global rank — no offset adjustment needed.
+      rank: parseInt(row.rank, 10),
       userId: row.user_id,
       username: row.username,
       displayName: row.display_name,
@@ -307,7 +311,7 @@ export async function getLeaderboardNearby(
   const entries: LeaderboardEntry[] = result.rows.map(row => {
     const ratingNum = Math.round(parseFloat(row.rating));
     return {
-      rank: parseInt(row.rank, 10) + offset,
+      rank: parseInt(row.rank, 10),
       userId: row.user_id,
       username: row.username,
       displayName: row.display_name,
