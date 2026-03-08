@@ -129,6 +129,10 @@ export function LoginPage() {
           Continue with Apple
         </a>
 
+        <p className="text-xs text-[var(--gold-dim)] opacity-60 mt-2 text-center">
+          No account yet? Sign in with Google or Apple to create one automatically.
+        </p>
+
         {/* Divider */}
         <div className="w-full flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
