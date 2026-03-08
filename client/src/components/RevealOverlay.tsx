@@ -125,7 +125,17 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
 
         {/* Two-beat personalized result message */}
         {beat1 ? (
-          <div className="py-3 rounded-lg relative" style={{ minHeight: '3.5rem' }}>
+          <div
+            className="py-3 px-4 rounded-xl border-2 animate-cube-roll-in"
+            style={{
+              minHeight: '3.5rem',
+              borderColor: showBeat2 ? beat2.color : beat1.color,
+              background: showBeat2
+                ? (result.handExists ? 'var(--info-bg)' : 'var(--danger-bg)')
+                : (beat1.color === 'var(--safe)' ? 'rgba(40, 167, 69, 0.15)' : 'var(--danger-bg)'),
+              transition: 'border-color 0.3s, background 0.3s',
+            }}
+          >
             <div
               className="font-display text-3xl font-bold transition-opacity duration-300"
               style={{
@@ -138,10 +148,10 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
           </div>
         ) : (
           /* Fallback for spectators / no player context */
-          <div className={`text-2xl font-display font-bold py-3 rounded-lg ${
+          <div className={`text-2xl font-display font-bold py-3 px-4 rounded-xl border-2 animate-cube-roll-in ${
             result.handExists
-              ? 'text-[var(--info)] bg-[var(--info-bg)] border border-[var(--info)]'
-              : 'text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)]'
+              ? 'text-[var(--info)] bg-[var(--info-bg)] border-[var(--info)]'
+              : 'text-[var(--danger)] bg-[var(--danger-bg)] border-[var(--danger)]'
           }`}>
             {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
           </div>
