@@ -23,6 +23,18 @@ export interface OpponentProfile {
   correctBulls: number;
   /** Recent hand types called — used to detect patterns (max 5 entries). */
   lastHandTypes: HandType[];
+  /** Raises that jump to a different hand type (e.g., pair → straight). */
+  escalationsByType: number;
+  /** Raises within same hand type (e.g., pair of 5s → pair of 9s). */
+  escalationsByRank: number;
+  /** Bluffs caught when the player was at high card count (4+). */
+  desperationBluffs: number;
+  /** Total calls made when the player was at high card count (4+). */
+  desperationCalls: number;
+  /** Bull calls made as first reactor (no prior bull/true in round). */
+  earlyBulls: number;
+  /** Bull calls made after other players already reacted. */
+  lateBulls: number;
 }
 
 /** Maximum number of opponent profiles stored per scope (room/game).
@@ -39,19 +51,35 @@ const MAX_PROFILES_PER_SCOPE = 50;
  *   via cross-round {@link OpponentProfile} memory scoped per room.
  * - **IMPOSSIBLE** — sees all human players' cards (but not other bots').
  */
+/** Bot's own action history — used to vary play and avoid predictability. */
+interface BotSelfImage {
+  /** Last 8 decisions: true = bluffed, false = truthful/legitimate. */
+  recentBluffs: boolean[];
+  /** Rounds since this bot was caught bluffing (high = safe to bluff again). */
+  roundsSinceCaught: number;
+}
+
 export class BotPlayer {
   // Cross-round opponent memory — scoped per room/game to prevent leaking
   // between concurrent games. Outer key is the scope (room code or game ID).
   private static scopedMemory = new Map<string, Map<string, OpponentProfile>>();
+
+  // Per-bot self-image for table image / meta-strategy. Key = `${scope}:${botId}`.
+  private static selfImageMap = new Map<string, BotSelfImage>();
 
   /** Clear opponent memory for a specific scope (room/game). If no scope is
    *  provided, clears ALL scopes (useful for tests). */
   static resetMemory(scope?: string): void {
     if (!scope) {
       this.scopedMemory.clear();
+      this.selfImageMap.clear();
       return;
     }
     this.scopedMemory.delete(scope);
+    // Clear self-image entries for this scope
+    for (const key of this.selfImageMap.keys()) {
+      if (key.startsWith(`${scope}:`)) this.selfImageMap.delete(key);
+    }
   }
 
   /** Get the memory map for a given scope, creating it if needed. */
@@ -66,8 +94,9 @@ export class BotPlayer {
   }
 
   /** Update opponent profiles from a round result. Call after each round resolves.
-   *  @param scope — room code or game ID to scope this memory to. */
-  static updateMemory(roundResult: RoundResult, scope?: string): void {
+   *  @param scope — room code or game ID to scope this memory to.
+   *  @param callerCardCount — the caller's card count at time of the call (for desperation tracking). */
+  static updateMemory(roundResult: RoundResult, scope?: string, callerCardCount?: number): void {
     const { callerId, handExists, turnHistory } = roundResult;
     if (!turnHistory) return;
 
@@ -89,13 +118,60 @@ export class BotPlayer {
       }
     }
 
-    // Track bull callers and whether they were correct
+    // Track desperation behavior: bluffs when at high card count
+    if (callerCardCount !== undefined && callerCardCount >= 4) {
+      callerProfile.desperationCalls = (callerProfile.desperationCalls ?? 0) + 1;
+      if (!handExists) {
+        callerProfile.desperationBluffs = (callerProfile.desperationBluffs ?? 0) + 1;
+      }
+    }
+
+    // Track escalation patterns from turn history
+    let previousCallType: HandType | null = null;
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.CALL && entry.hand) {
+        const profile = this.getOrCreateProfileFrom(mem, entry.playerId);
+        if (previousCallType !== null) {
+          if (entry.hand.type !== previousCallType) {
+            profile.escalationsByType = (profile.escalationsByType ?? 0) + 1;
+          } else {
+            profile.escalationsByRank = (profile.escalationsByRank ?? 0) + 1;
+          }
+        }
+        previousCallType = entry.hand.type;
+      }
+    }
+
+    // Track bull callers: timing (early vs late) and accuracy
+    let bullOrTrueSeenBefore = false;
     for (const entry of turnHistory) {
       if (entry.action === TurnAction.BULL) {
         const bullProfile = this.getOrCreateProfileFrom(mem, entry.playerId);
         bullProfile.bullCallsMade++;
         if (!handExists) {
           bullProfile.correctBulls++;
+        }
+        if (bullOrTrueSeenBefore) {
+          bullProfile.lateBulls = (bullProfile.lateBulls ?? 0) + 1;
+        } else {
+          bullProfile.earlyBulls = (bullProfile.earlyBulls ?? 0) + 1;
+        }
+      }
+      if (entry.action === TurnAction.BULL || entry.action === TurnAction.TRUE) {
+        bullOrTrueSeenBefore = true;
+      }
+    }
+
+    // Update self-image for any bots that were the caller
+    if (scope) {
+      for (const key of this.selfImageMap.keys()) {
+        if (!key.startsWith(`${scope}:`)) continue;
+        const botId = key.slice(scope.length + 1);
+        const img = this.selfImageMap.get(key)!;
+        if (callerId === botId && !handExists) {
+          img.roundsSinceCaught = 0;
+        } else {
+          img.roundsSinceCaught++;
         }
       }
     }
@@ -118,6 +194,12 @@ export class BotPlayer {
         bullCallsMade: 0,
         correctBulls: 0,
         lastHandTypes: [],
+        escalationsByType: 0,
+        escalationsByRank: 0,
+        desperationBluffs: 0,
+        desperationCalls: 0,
+        earlyBulls: 0,
+        lateBulls: 0,
       };
       mem.set(playerId, profile);
     }
@@ -138,16 +220,48 @@ export class BotPlayer {
    * Get truthfulness adjustment for a specific player based on memory.
    * Returns a multiplier (0..1) for the truthfulness boost.
    * 1.0 = full trust, 0.5 = reduced trust, 0.0 = no trust.
+   *
+   * Enhanced: also factors in desperation bluff rate and escalation tendencies.
    */
-  private static getPlayerTrustFactor(playerId: string | null, mem: Map<string, OpponentProfile>): number {
+  private static getPlayerTrustFactor(
+    playerId: string | null,
+    mem: Map<string, OpponentProfile>,
+    callerDesperate?: boolean,
+  ): number {
     if (!playerId) return 1.0;
     const profile = mem.get(playerId);
     if (!profile || profile.totalCalls < 2) return 1.0;
 
     const bluffRate = profile.bluffsCaught / profile.totalCalls;
-    if (bluffRate > 0.5) return 0.0;
-    if (bluffRate > 0.3) return 0.5;
-    return 1.0;
+
+    // Base trust from overall bluff rate
+    let trust: number;
+    if (bluffRate > 0.5) trust = 0.0;
+    else if (bluffRate > 0.3) trust = 0.5;
+    else trust = 1.0;
+
+    // Adjust trust based on desperation behavior patterns:
+    // If this player bluffs more when desperate and they ARE currently desperate, reduce trust further.
+    // If they're honest even when desperate, slightly increase trust.
+    if (callerDesperate && (profile.desperationCalls ?? 0) >= 2) {
+      const despBluffRate = (profile.desperationBluffs ?? 0) / (profile.desperationCalls ?? 1);
+      if (despBluffRate > 0.5) {
+        trust *= 0.6; // They bluff a lot when desperate — reduce trust significantly
+      } else if (despBluffRate < 0.2) {
+        trust = Math.min(1.0, trust * 1.2); // Honest under pressure — slightly more trustworthy
+      }
+    }
+
+    // Adjust based on escalation patterns: frequent type-jumpers are more likely bluffing
+    const totalEscalations = (profile.escalationsByType ?? 0) + (profile.escalationsByRank ?? 0);
+    if (totalEscalations >= 3) {
+      const typeJumpRate = (profile.escalationsByType ?? 0) / totalEscalations;
+      if (typeJumpRate > 0.6) {
+        trust *= 0.85; // Frequently jumps hand types — slightly suspicious
+      }
+    }
+
+    return Math.max(0, Math.min(1, trust));
   }
 
   /**
@@ -563,57 +677,70 @@ export class BotPlayer {
     const totalCards = this.getTotalCards(state);
     const numOpponents = state.players.filter(p => !p.isEliminated && p.id !== botId).length;
     const mem = this.getScopedMemory(scope);
+    const botDesperate = this.isBotDesperate(botId, state);
 
     // LAST_CHANCE phase — everyone called bull on our hand.
-    // If we pass, the hand is checked: if it exists, the bullers are penalized (we win).
-    // If we raise, the cycle restarts with the new (higher) hand.
     if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
       if (currentHand) {
-        const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards);
+        // Use Bayesian beliefs for better plausibility estimation
+        const beliefs = this.buildCardBeliefs(state.turnHistory, botId, state, mem);
+        const plausibility = this.estimatePlausibilityHard(currentHand, botCards, totalCards, beliefs.rankBeliefs);
         const truthBoost = this.getTruthfulnessBoost(currentHand);
-        const adjustedP = Math.min(1, plausibility + truthBoost);
+        // Chain consistency boosts confidence the hand is real
+        const chainBonus = (beliefs.chainConsistency - 0.5) * 0.1;
+        const adjustedP = Math.min(1, plausibility + truthBoost + chainBonus);
 
         // If the hand very likely exists, pass — the bullers will be penalized
         if (adjustedP > 0.55) {
+          this.recordSelfAction(scope, botId, false);
           return { action: 'lastChancePass' };
         }
 
         // Moderate plausibility — still favor passing but occasionally raise.
-        // lastChanceBluffRate controls willingness to raise: higher = less likely to pass here.
         const passChance = 1.0 - cfg.lastChanceBluffRate;
         if (adjustedP > 0.35 && Math.random() < passChance) {
+          this.recordSelfAction(scope, botId, false);
           return { action: 'lastChancePass' };
         }
 
         // Hand probably doesn't exist — try to raise to escape the penalty
         const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-        if (higher) return { action: 'lastChanceRaise', hand: higher };
+        if (higher) {
+          this.recordSelfAction(scope, botId, false);
+          return { action: 'lastChanceRaise', hand: higher };
+        }
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-        if (bluff) return { action: 'lastChanceRaise', hand: bluff };
+        if (bluff) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'lastChanceRaise', hand: bluff };
+        }
         // Last resort bluff — only if plausibility is very low (passing almost guarantees loss)
         if (adjustedP < 0.2) {
           const desperateBluff = this.makeBluffHandHard(currentHand, totalCards);
           if (isHigherHand(desperateBluff, currentHand)) {
+            this.recordSelfAction(scope, botId, true);
             return { action: 'lastChanceRaise', hand: desperateBluff };
           }
         }
       }
+      this.recordSelfAction(scope, botId, false);
       return { action: 'lastChancePass' };
     }
 
-    // Opening call — card-pool-aware strategy
+    // Opening call — card-pool-aware strategy with desperation and table image
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
-      return this.handleHardOpening(botCards, totalCards, cfg);
+      const action = this.handleHardOpening(botCards, totalCards, cfg, botDesperate, scope, botId);
+      return action;
     }
 
     // Calling phase — EV-driven raise vs bull with GTO bluff frequency
     if (roundPhase === RoundPhase.CALLING && currentHand) {
-      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId, mem, cfg);
+      return this.handleHardCallingPhase(currentHand, botCards, totalCards, botCards.length, numOpponents, state.turnHistory, botId, lastCallerId, mem, cfg, state, scope);
     }
 
     // Bull phase — probability threshold with position-aware adjustment
     if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId, mem, cfg);
+      return this.handleHardBullPhase(currentHand, botCards, totalCards, botCards.length, state.turnHistory, botId, lastCallerId, mem, cfg, state, scope);
     }
 
     // Fallback
@@ -622,14 +749,15 @@ export class BotPlayer {
   }
 
   /**
-   * Opening: card-pool-aware strategy.
+   * Opening: card-pool-aware strategy with desperation awareness and table image.
    *
    * - Many cards in play (>=10): Open with a mid-range truthful hand (upper half).
    *   Preserves room to raise later.
    * - Few cards in play (<6): Open conservatively with the lowest truthful hand.
-   * - Bluff frequency: 8% (down from 15%). Only bluff hands with P > 0.3.
+   * - Desperation: when near elimination, open more aggressively with harder-to-challenge hands.
+   * - Table image: adjust bluff frequency based on bot's own recent history.
    */
-  private static handleHardOpening(botCards: Card[], totalCards: number, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG): BotAction {
+  private static handleHardOpening(botCards: Card[], totalCards: number, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG, botDesperate: boolean = false, scope?: string, botId?: string): BotAction {
     const candidates: HandCall[] = [];
     const rankCounts = this.getRankCounts(botCards);
 
@@ -672,14 +800,26 @@ export class BotPlayer {
       return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
     }
 
-    // Strategic bluff opening — only if the bluff is plausible
-    if (Math.random() < cfg.openingBluffRate) {
+    // Strategic bluff opening — table image adjusts bluff frequency
+    const tableImageAdj = botId ? this.getTableImageBluffAdjustment(scope, botId) : 0;
+    const effectiveBluffRate = Math.max(0, Math.min(0.5, cfg.openingBluffRate + tableImageAdj));
+    if (Math.random() < effectiveBluffRate) {
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
       if (bluffP > cfg.bluffPlausibilityGate) {
+        if (botId) this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
       }
       // Bluff not plausible enough — fall through to truthful opening
+    }
+
+    // When desperate, open with higher hands to make them harder to challenge
+    if (botDesperate && candidates.length > 1) {
+      // Pick from upper range of truthful candidates
+      const upperStart = Math.max(0, candidates.length - Math.ceil(candidates.length * 0.4));
+      const idx = upperStart + Math.floor(Math.random() * (candidates.length - upperStart));
+      if (botId) this.recordSelfAction(scope, botId, false);
+      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)]! };
     }
 
     if (totalCards >= 10) {
@@ -725,72 +865,99 @@ export class BotPlayer {
     lastCallerId: string | null,
     mem: Map<string, OpponentProfile>,
     cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG,
+    state?: ClientGameState,
+    scope?: string,
   ): BotAction {
     const desperate = cardCount >= 4;
 
-    // Infer cards from call history to adjust probability
-    const inferred = this.inferCardsFromHistory(turnHistory, botId);
-    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
+    // Bayesian card beliefs — richer inference from full turn history
+    const beliefs = state
+      ? this.buildCardBeliefs(turnHistory, botId, state, mem)
+      : { rankBeliefs: this.inferCardsFromHistory(turnHistory, botId), chainConsistency: 0.5 };
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, beliefs.rankBeliefs);
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
 
-    // Truthfulness prior: callers usually hold cards related to their call.
-    // Adjust by how much we trust this specific caller based on memory.
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem) * cfg.trustMultiplier;
+    // Truthfulness prior adjusted by caller trust, desperation, and profile trust multiplier
+    const callerDesperate = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
+    const callerDesperateFlag = state !== undefined && callerDesperate < 1.0;
+    const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate;
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
-    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
+
+    // Call chain consistency: consistent chains are more believable
+    const chainBonus = (beliefs.chainConsistency - 0.5) * 0.12;
+
+    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj + chainBonus));
 
     // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
     const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2;
 
     // Confident bull: hand is very unlikely to exist
     if (adjustedP < confidentBullThreshold && !desperate) {
+      this.recordSelfAction(scope, botId, false);
       return { action: 'bull' };
     }
 
     // We have a legitimate higher hand — value raise
     if (higher) {
       // Even with a legitimate hand, sometimes call bull on very implausible hands
-      // aggressionBias > 0.5 makes this less likely (prefers raising)
       const bullOnImplausibleChance = 0.4 * (1.0 - cfg.aggressionBias);
       if (adjustedP < 0.12 && Math.random() < bullOnImplausibleChance) {
+        this.recordSelfAction(scope, botId, false);
         return { action: 'bull' };
       }
+      this.recordSelfAction(scope, botId, false);
       return { action: 'call', hand: higher };
     }
 
     // No legitimate hand — decide whether to bluff raise or call bull.
-    const bluffFreq = this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency;
+    // Table image adjusts bluff frequency
+    const tableImageAdj = scope ? this.getTableImageBluffAdjustment(scope, botId) : 0;
+    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency + tableImageAdj);
 
     if (adjustedP > 0.45) {
       // Hand is probably real — bluff raise to avoid a bull penalty
       if (Math.random() < bluffFreq * 1.3) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-        if (bluff) return { action: 'call', hand: bluff };
+        if (bluff) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluff };
+        }
       }
       // Very likely real — try harder to find any viable raise
       if (adjustedP > 0.55) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-        if (bluff) return { action: 'call', hand: bluff };
+        if (bluff) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluff };
+        }
       }
+      this.recordSelfAction(scope, botId, false);
       return { action: 'bull' };
     }
 
     // adjustedP in uncertain zone
     if (desperate) {
-      // When desperate, bluff more aggressively to avoid elimination
+      // When desperate, bluff more aggressively to avoid elimination — best survival strategy
       if (Math.random() < bluffFreq * 2.0) {
         const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-        if (bluff) return { action: 'call', hand: bluff };
+        if (bluff) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluff };
+        }
       }
     } else if (Math.random() < bluffFreq * 0.7) {
-      // Even when not desperate, occasionally bluff in uncertain zone
       const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
-      if (bluff) return { action: 'call', hand: bluff };
+      if (bluff) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: bluff };
+      }
     }
 
     // Default: call bull
+    this.recordSelfAction(scope, botId, false);
     return { action: 'bull' };
   }
 
@@ -815,34 +982,47 @@ export class BotPlayer {
     lastCallerId: string | null,
     mem: Map<string, OpponentProfile>,
     cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG,
+    state?: ClientGameState,
+    scope?: string,
   ): BotAction {
-    // Infer cards from call history
-    const inferred = this.inferCardsFromHistory(turnHistory, botId);
-    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, inferred);
+    // Bayesian card beliefs — richer inference from full turn history
+    const beliefs = state
+      ? this.buildCardBeliefs(turnHistory, botId, state, mem)
+      : { rankBeliefs: this.inferCardsFromHistory(turnHistory, botId), chainConsistency: 0.5 };
+    const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, beliefs.rankBeliefs);
 
-    // Truthfulness prior, adjusted by memory-based trust and profile trust multiplier
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * this.getPlayerTrustFactor(lastCallerId, mem) * cfg.trustMultiplier;
+    // Truthfulness prior with desperation-aware trust and profile multiplier
+    const callerDespTrust = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
+    const callerDesperateFlag = state !== undefined && callerDespTrust < 1.0;
+    const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust;
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
 
+    // Position-aware reaction signal: what did other players think?
+    const reactionSignal = this.getReactionPositionSignal(turnHistory, botId);
+
+    // Call chain consistency: consistent chains are more believable
+    const chainBonus = (beliefs.chainConsistency - 0.5) * 0.12;
+
     // Counter-bluff detection: was the current hand raised during bull phase?
-    // This is suspicious — apply additional penalty.
     const bullPhaseRaisePenalty = this.detectBullPhaseRaise(turnHistory) ? 0.15 : 0;
 
-    let adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj));
+    let adjustedP = Math.max(0, Math.min(1,
+      pRaw + truthBoost - positionAdj + chainBonus + reactionSignal * 0.1,
+    ));
     adjustedP *= (1 - bullPhaseRaisePenalty);
 
     // Consider raising in bull phase — only with a legitimate higher hand
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
     if (higher) {
-      // Only raise if the current hand is suspicious (plausibility < 0.5)
       if (adjustedP < 0.5) {
-        // Profile bullPhaseRaiseRate controls raise frequency; desperate bots raise more
         const raiseChance = cardCount >= 4
-          ? cfg.bullPhaseRaiseRate * 1.67 // ~25% at default 0.15
+          ? cfg.bullPhaseRaiseRate * 1.67
           : cfg.bullPhaseRaiseRate;
         if (Math.random() < raiseChance) {
+          this.recordSelfAction(scope, botId, false);
           return { action: 'call', hand: higher };
         }
       }
@@ -850,7 +1030,6 @@ export class BotPlayer {
 
     // Asymmetric cost-aware threshold based on card count, shifted by profile bullThreshold
     const baseThreshold = this.getDynamicBullThreshold(cardCount);
-    // bullThreshold > 0.5 shifts threshold up (calls bull less), < 0.5 shifts down (calls bull more)
     const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15;
     const noise = cfg.noiseBand;
 
@@ -905,6 +1084,7 @@ export class BotPlayer {
   /**
    * Infer cards likely held by other players based on their call history.
    * Returns estimated { rank, count } pairs for ranks likely held by opponents.
+   * @deprecated Use buildCardBeliefs for hard mode — this exists for backward compatibility.
    */
   private static inferCardsFromHistory(
     turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
@@ -919,22 +1099,17 @@ export class BotPlayer {
       const hand = entry.hand;
       switch (hand.type) {
         case HandType.HIGH_CARD:
-          // Caller likely holds this rank
           inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
           break;
         case HandType.PAIR:
-          // Caller likely holds at least one of this rank
           inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
           break;
         case HandType.THREE_OF_A_KIND:
-          // Caller likely holds at least one of this rank
           inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
           break;
         case HandType.FOUR_OF_A_KIND:
-          // Caller likely holds at least one of this rank
           inferred.set(hand.rank, (inferred.get(hand.rank) ?? 0) + 1);
           break;
-        // Flush: we could infer suit, but rank-based inference is what we adjust the pool with
         default:
           break;
       }
@@ -942,10 +1117,330 @@ export class BotPlayer {
 
     const result: { rank: Rank; count: number }[] = [];
     for (const [rank, count] of inferred) {
-      // Cap inferred count at 1 per player call to avoid over-counting
       result.push({ rank, count: Math.min(count, 2) });
     }
     return result;
+  }
+
+  // ─── BAYESIAN CARD BELIEF SYSTEM ──────────────────────────────────────
+  // Builds a rich belief state from the full turn history, replacing the
+  // simple inferCardsFromHistory with weighted inference that accounts for:
+  // - Who called what (with per-player trust weighting)
+  // - "True" calls as supporting evidence
+  // - Call chain consistency (same rank across raises)
+  // - Desperation-based bluff likelihood
+  // - Revealed cards from previous round results
+
+  /** Result of Bayesian card belief analysis. */
+  private static buildCardBeliefs(
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+    botId: string,
+    state: ClientGameState,
+    mem: Map<string, OpponentProfile>,
+  ): { rankBeliefs: { rank: Rank; count: number }[]; chainConsistency: number } {
+    const rankWeights = new Map<Rank, number>();
+
+    // 1. Analyze all actions — each provides a signal about card holdings
+    for (const entry of turnHistory) {
+      if (entry.playerId === botId) continue;
+
+      // Per-player trust weight based on their bluff history
+      const callerPlayer = state.players.find(p => p.id === entry.playerId);
+      const callerDesperate = callerPlayer !== undefined && callerPlayer.cardCount >= 4;
+
+      // Desperate players are less trustworthy (more likely bluffing)
+      const desperationDiscount = callerDesperate ? 0.5 : 1.0;
+
+      // Memory-based trust
+      const profile = mem.get(entry.playerId);
+      let baseTrust = 0.8; // Default moderate trust for unknown players
+      if (profile && profile.totalCalls >= 3) {
+        baseTrust = 1.0 - (profile.bluffsCaught / profile.totalCalls);
+        // Factor in desperation-specific bluff rate
+        if (callerDesperate && (profile.desperationCalls ?? 0) >= 2) {
+          const despRate = (profile.desperationBluffs ?? 0) / (profile.desperationCalls ?? 1);
+          baseTrust *= (1.0 - despRate * 0.5);
+        }
+      }
+
+      const weight = desperationDiscount * Math.max(0.1, baseTrust);
+
+      // CALL actions: caller likely holds cards supporting their claim
+      if (entry.action === TurnAction.CALL && entry.hand) {
+        this.addHandBeliefWeights(entry.hand, rankWeights, weight);
+      }
+
+      // TRUE calls: the player believes the hand exists, so they likely hold
+      // cards that support it. Weaker signal than a CALL but still informative.
+      if (entry.action === TurnAction.TRUE) {
+        const lastHand = this.findLastCalledHand(turnHistory, entry);
+        if (lastHand) {
+          this.addHandBeliefWeights(lastHand, rankWeights, weight * 0.5);
+        }
+      }
+    }
+
+    // 2. Analyze call chain consistency
+    const chainConsistency = this.analyzeCallChainConsistency(turnHistory, botId);
+
+    // 3. Convert to output format, capping per rank at 3
+    const result: { rank: Rank; count: number }[] = [];
+    for (const [rank, w] of rankWeights) {
+      result.push({ rank, count: Math.min(w, 3) });
+    }
+
+    return { rankBeliefs: result, chainConsistency };
+  }
+
+  /**
+   * Add belief weight for a hand call's implied card holdings.
+   * Different hand types imply different levels of confidence about specific ranks.
+   */
+  private static addHandBeliefWeights(
+    hand: HandCall,
+    rankWeights: Map<Rank, number>,
+    weight: number,
+  ): void {
+    switch (hand.type) {
+      case HandType.HIGH_CARD:
+        rankWeights.set(hand.rank, (rankWeights.get(hand.rank) ?? 0) + weight);
+        break;
+      case HandType.PAIR:
+        // Caller probably holds 1+ of this rank — stronger signal
+        rankWeights.set(hand.rank, (rankWeights.get(hand.rank) ?? 0) + weight * 1.2);
+        break;
+      case HandType.TWO_PAIR:
+        rankWeights.set(hand.highRank, (rankWeights.get(hand.highRank) ?? 0) + weight);
+        rankWeights.set(hand.lowRank, (rankWeights.get(hand.lowRank) ?? 0) + weight);
+        break;
+      case HandType.THREE_OF_A_KIND:
+        // Strong signal — caller probably holds 1-2 of this rank
+        rankWeights.set(hand.rank, (rankWeights.get(hand.rank) ?? 0) + weight * 1.5);
+        break;
+      case HandType.FOUR_OF_A_KIND:
+        rankWeights.set(hand.rank, (rankWeights.get(hand.rank) ?? 0) + weight * 1.5);
+        break;
+      case HandType.STRAIGHT: {
+        // Caller likely holds some of the required ranks
+        const highVal = RANK_VALUES[hand.highRank];
+        for (let v = highVal - 4; v <= highVal; v++) {
+          const actualV = v < 2 ? 14 : v;
+          const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+          if (rank) rankWeights.set(rank, (rankWeights.get(rank) ?? 0) + weight * 0.4);
+        }
+        break;
+      }
+      case HandType.FULL_HOUSE:
+        rankWeights.set(hand.threeRank, (rankWeights.get(hand.threeRank) ?? 0) + weight * 1.3);
+        rankWeights.set(hand.twoRank, (rankWeights.get(hand.twoRank) ?? 0) + weight);
+        break;
+      default:
+        // Flush, straight flush, royal flush — primarily suit-based, rank inference is weak
+        break;
+    }
+  }
+
+  /**
+   * Find the last called hand before a given entry in the turn history.
+   * Used to determine what hand a TRUE call is supporting.
+   */
+  private static findLastCalledHand(
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+    beforeEntry: { playerId: string; action: TurnAction },
+  ): HandCall | null {
+    let lastHand: HandCall | null = null;
+    for (const entry of turnHistory) {
+      if (entry === beforeEntry) break;
+      if (entry.action === TurnAction.CALL && entry.hand) {
+        lastHand = entry.hand;
+      }
+    }
+    return lastHand;
+  }
+
+  /**
+   * Analyze the consistency of the call chain (sequence of raises).
+   *
+   * When multiple players raise on the same rank (pair of 7s → three 7s),
+   * the rank is very likely real. When a chain jumps to a completely different
+   * rank/type, the latest caller is more suspicious.
+   *
+   * Returns 0..1 where higher = more consistent (more believable).
+   */
+  private static analyzeCallChainConsistency(
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+    botId: string,
+  ): number {
+    const calls = turnHistory.filter(
+      e => e.action === TurnAction.CALL && e.hand && e.playerId !== botId,
+    );
+    if (calls.length < 2) return 0.5; // Neutral with insufficient data
+
+    let consistencyScore = 0.5;
+
+    for (let i = 1; i < calls.length; i++) {
+      const prev = calls[i - 1]!.hand!;
+      const curr = calls[i]!.hand!;
+
+      const prevRank = this.getHandRank(prev);
+      const currRank = this.getHandRank(curr);
+
+      if (prevRank && currRank && prevRank === currRank) {
+        // Same rank maintained across raises — very consistent, probably real
+        consistencyScore += 0.15;
+      } else if (curr.type === prev.type && prevRank && currRank) {
+        // Same type, different rank — moderate consistency
+        consistencyScore += 0.05;
+      } else if (curr.type - prev.type >= 3) {
+        // Big jump in hand type — suspicious
+        consistencyScore -= 0.1;
+      } else if (curr.type !== prev.type) {
+        // Small type jump — mildly suspicious
+        consistencyScore -= 0.03;
+      }
+    }
+
+    return Math.max(0, Math.min(1, consistencyScore));
+  }
+
+  /**
+   * Extract the primary rank from a hand call.
+   */
+  private static getHandRank(hand: HandCall): Rank | null {
+    switch (hand.type) {
+      case HandType.HIGH_CARD:
+      case HandType.PAIR:
+      case HandType.THREE_OF_A_KIND:
+      case HandType.FOUR_OF_A_KIND:
+        return hand.rank;
+      case HandType.TWO_PAIR:
+        return hand.highRank;
+      case HandType.FULL_HOUSE:
+        return hand.threeRank;
+      default:
+        return null;
+    }
+  }
+
+  // ─── POSITION-AWARE REACTION SIGNAL ───────────────────────────────────
+
+  /**
+   * In bull phase, count bull vs true calls from other players before the bot's turn.
+   * Returns -1..1: negative = others think the hand is fake, positive = others think it's real.
+   * This is a powerful signal: if two players already called "true," the hand is likely real.
+   */
+  private static getReactionPositionSignal(
+    turnHistory: { playerId: string; action: TurnAction }[],
+    botId: string,
+  ): number {
+    let bullCount = 0;
+    let trueCount = 0;
+    let inBullPhase = false;
+
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.BULL || entry.action === TurnAction.TRUE) {
+        inBullPhase = true;
+      }
+      if (!inBullPhase) continue;
+      if (entry.playerId === botId) continue;
+
+      if (entry.action === TurnAction.BULL) bullCount++;
+      if (entry.action === TurnAction.TRUE) trueCount++;
+    }
+
+    const total = bullCount + trueCount;
+    if (total === 0) return 0;
+
+    // Range -1..1: more true calls = positive, more bull calls = negative
+    return (trueCount - bullCount) / total;
+  }
+
+  // ─── DESPERATION TRUST FACTOR ──────────────────────────────────────────
+
+  /**
+   * Assess how much to trust the caller based on their card count.
+   * Desperate players (near elimination) bluff more aggressively.
+   *
+   * Returns a trust multiplier: 1.0 = normal trust, < 1.0 = reduced trust.
+   */
+  private static getDesperationTrustFactor(
+    callerId: string | null,
+    state: ClientGameState,
+  ): number {
+    if (!callerId) return 1.0;
+    const player = state.players.find(p => p.id === callerId);
+    if (!player) return 1.0;
+
+    if (player.cardCount >= 4) return 0.6;  // Near elimination — high bluff likelihood
+    if (player.cardCount >= 3) return 0.8;  // Getting risky
+    return 1.0;
+  }
+
+  /**
+   * Check if the bot itself is desperate (near elimination).
+   */
+  private static isBotDesperate(botId: string, state: ClientGameState): boolean {
+    const bot = state.players.find(p => p.id === botId);
+    return bot !== undefined && bot.cardCount >= state.maxCards - 1;
+  }
+
+  // ─── TABLE IMAGE / META-STRATEGY ──────────────────────────────────────
+
+  /** Get self-image for a bot, creating if needed. */
+  private static getSelfImage(key: string): BotSelfImage {
+    let img = this.selfImageMap.get(key);
+    if (!img) {
+      img = { recentBluffs: [], roundsSinceCaught: 99 };
+      this.selfImageMap.set(key, img);
+    }
+    return img;
+  }
+
+  /**
+   * Get a bluff frequency adjustment based on the bot's own recent play history.
+   *
+   * After a streak of honest calls → increase bluff frequency (opponents trust us now).
+   * After getting caught bluffing → tighten up for a few rounds.
+   * Random variation prevents predictability.
+   *
+   * Returns a multiplier adjustment: positive = bluff more, negative = bluff less.
+   */
+  private static getTableImageBluffAdjustment(scope: string | undefined, botId: string): number {
+    if (!scope) return 0;
+    const key = `${scope}:${botId}`;
+    const img = this.getSelfImage(key);
+
+    if (img.recentBluffs.length < 2) return 0; // Not enough history
+
+    const recentHonest = img.recentBluffs.filter(b => !b).length;
+    const recentBluffs = img.recentBluffs.filter(b => b).length;
+
+    let adjustment = 0;
+
+    // After a streak of honest calls, increase bluff frequency
+    if (recentHonest >= 3 && recentBluffs <= 1) {
+      adjustment += 0.15;
+    }
+
+    // After getting caught recently, tighten up
+    if (img.roundsSinceCaught <= 1) {
+      adjustment -= 0.20;
+    } else if (img.roundsSinceCaught <= 2) {
+      adjustment -= 0.10;
+    }
+
+    return adjustment;
+  }
+
+  /**
+   * Record the bot's own action for table image tracking.
+   */
+  private static recordSelfAction(scope: string | undefined, botId: string, wasBluff: boolean): void {
+    if (!scope) return;
+    const key = `${scope}:${botId}`;
+    const img = this.getSelfImage(key);
+    img.recentBluffs.push(wasBluff);
+    if (img.recentBluffs.length > 8) img.recentBluffs.shift();
   }
 
   /**
