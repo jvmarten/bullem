@@ -13,17 +13,19 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 // ── Configuration ──────────────────────────────────────────────────────
 
-/** Minimum games per heads-up pairing before moving on. */
-const HEADS_UP_GAMES_PER_PAIRING = 10;
+/** Target number of concurrent heads-up games. */
+const TARGET_HEADS_UP_GAMES = 9;
+/** Target number of concurrent multiplayer games. */
+const TARGET_MULTIPLAYER_GAMES = 9;
 
 /** Min player count for multiplayer calibration games. */
 const MULTIPLAYER_MIN_PLAYERS = 3;
 /** Max player count for multiplayer calibration games. */
 const MULTIPLAYER_MAX_PLAYERS = 9;
 
-/** Delay between calibration games (ms) — continuous mode. */
+/** Delay before starting a replacement game (ms) — continuous mode. */
 const GAME_DELAY_CONTINUOUS_MS = 2_000;
-/** Delay between calibration games (ms) — converged/slow mode. */
+/** Delay before starting a replacement game (ms) — converged/slow mode. */
 const GAME_DELAY_SLOW_MS = 3 * 60 * 1_000; // 3 minutes
 
 /** Interval between poll checks for game completion (ms). */
@@ -39,6 +41,9 @@ const OPENSKILL_CONVERGENCE_SIGMA = 2.0;
 
 /** How often to log calibration progress (every N games). */
 const LOG_INTERVAL_GAMES = 10;
+
+/** Random jitter range (Elo points) added to ratings when pairing heads-up games. */
+const HEADS_UP_PAIRING_JITTER = 50;
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -65,17 +70,19 @@ interface BotCalibrationState {
   multiplayerConverged: boolean;
 }
 
-/** Heads-up pairing for round-robin scheduling. */
-interface HeadsUpPairing {
-  profileA: string;
-  profileB: string;
-  gamesPlayed: number;
+/** Tracks an active calibration game room. */
+interface ActiveGame {
+  roomCode: string;
+  mode: RankedMode;
+  watchInterval: ReturnType<typeof setInterval>;
 }
 
 export interface CalibrationStatus {
   enabled: boolean;
   running: boolean;
   totalGamesPlayed: number;
+  activeHeadsUpGames: number;
+  activeMultiplayerGames: number;
   headsUpConverged: boolean;
   multiplayerConverged: boolean;
   bots: Array<{
@@ -95,32 +102,30 @@ export interface CalibrationStatus {
 // ── CalibrationManager ─────────────────────────────────────────────────
 
 /**
- * Runs a continuous cycle of bot-vs-bot ranked games to calibrate bot ratings
- * before humans enter the ranked pool. Creates rooms, fills them with bots
- * from the profile pool, runs the games, and lets the existing persistGame
- * flow update their ratings via updateRatingsAfterGame.
+ * Runs 18 concurrent bot-vs-bot ranked games (9 heads-up + 9 multiplayer)
+ * to calibrate bot ratings before humans enter the ranked pool. When any
+ * game finishes, a replacement is immediately started to maintain the
+ * 9+9 split.
  *
- * Separate from BackgroundGameManager — these rooms are not visible to
- * spectators and run silently in the background.
+ * Heads-up matchmaking pairs bots by closest Elo rating with small random
+ * jitter. Multiplayer matchmaking groups bots by similar rating using
+ * contiguous slices of rating-sorted pools.
+ *
+ * Bots can participate in multiple simultaneous games.
  */
 export class CalibrationManager {
   private stopped = true;
-  private roomCode: string | null = null;
-  private watchInterval: ReturnType<typeof setInterval> | null = null;
-  private nextGameTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** All currently active calibration games, keyed by room code. */
+  private activeGames = new Map<string, ActiveGame>();
+
+  /** Timers for scheduling replacement games after completion. */
+  private replacementTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /** Per-bot calibration state, keyed by profile key. */
   private botStates = new Map<string, BotCalibrationState>();
   /** Bot pool fetched from DB at startup. */
   private botPool: RankedBotEntry[] = [];
-
-  /** Heads-up round-robin pairings with game counts. */
-  private headsUpPairings: HeadsUpPairing[] = [];
-  /** Index into headsUpPairings for the next game. */
-  private headsUpPairingIndex = 0;
-
-  /** Current calibration mode — alternates between heads_up and multiplayer. */
-  private currentMode: RankedMode = 'heads_up';
 
   /** Total calibration games completed across both modes. */
   private totalGamesPlayed = 0;
@@ -131,7 +136,7 @@ export class CalibrationManager {
     private readonly botManager: BotManager,
   ) {}
 
-  /** Start the calibration loop. Fetches bot pool, initializes state, begins games. */
+  /** Start the calibration loop. Fetches bot pool, initializes state, launches all games. */
   async start(): Promise<void> {
     this.stopped = false;
 
@@ -146,36 +151,32 @@ export class CalibrationManager {
     // Initialize per-bot state
     await this.initializeBotStates();
 
-    // Build heads-up round-robin pairings
-    this.buildHeadsUpPairings();
-
     logger.info(
-      { botCount: this.botPool.length, pairingCount: this.headsUpPairings.length },
-      'CalibrationManager started — beginning bot calibration',
+      { botCount: this.botPool.length },
+      'CalibrationManager started — launching concurrent calibration games',
     );
 
-    // Start with heads-up calibration
-    this.currentMode = 'heads_up';
-    this.scheduleNextGame(GAME_DELAY_CONTINUOUS_MS);
+    // Launch all initial games
+    this.fillGameSlots();
   }
 
-  /** Stop all calibration activity and clean up resources. */
+  /** Stop all calibration activity and clean up all active games. */
   stop(): void {
     this.stopped = true;
 
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
-      this.watchInterval = null;
+    // Clear all replacement timers
+    for (const timer of this.replacementTimers) {
+      clearTimeout(timer);
     }
-    if (this.nextGameTimer) {
-      clearTimeout(this.nextGameTimer);
-      this.nextGameTimer = null;
+    this.replacementTimers.clear();
+
+    // Clean up all active games
+    for (const game of this.activeGames.values()) {
+      clearInterval(game.watchInterval);
+      this.botManager.clearTurnTimer(game.roomCode);
+      this.roomManager.deleteRoom(game.roomCode);
     }
-    if (this.roomCode) {
-      this.botManager.clearTurnTimer(this.roomCode);
-      this.roomManager.deleteRoom(this.roomCode);
-      this.roomCode = null;
-    }
+    this.activeGames.clear();
 
     logger.info({ totalGamesPlayed: this.totalGamesPlayed }, 'CalibrationManager stopped');
   }
@@ -204,10 +205,19 @@ export class CalibrationManager {
       });
     }
 
+    let activeHeadsUp = 0;
+    let activeMultiplayer = 0;
+    for (const game of this.activeGames.values()) {
+      if (game.mode === 'heads_up') activeHeadsUp++;
+      else activeMultiplayer++;
+    }
+
     return {
       enabled: !this.stopped,
-      running: this.roomCode !== null,
+      running: this.activeGames.size > 0,
       totalGamesPlayed: this.totalGamesPlayed,
+      activeHeadsUpGames: activeHeadsUp,
+      activeMultiplayerGames: activeMultiplayer,
       headsUpConverged: this.isModeConverged('heads_up'),
       multiplayerConverged: this.isModeConverged('multiplayer'),
       bots,
@@ -237,109 +247,58 @@ export class CalibrationManager {
     }
   }
 
-  /** Build all unique pairs of bot profiles for round-robin heads-up play. */
-  private buildHeadsUpPairings(): void {
-    const keys = this.botPool.map(b => b.botProfile);
-    this.headsUpPairings = [];
+  // ── Slot management ─────────────────────────────────────────────────
 
-    for (let i = 0; i < keys.length; i++) {
-      for (let j = i + 1; j < keys.length; j++) {
-        this.headsUpPairings.push({
-          profileA: keys[i]!,
-          profileB: keys[j]!,
-          gamesPlayed: 0,
-        });
-      }
+  /** Count active games by mode. */
+  private countActiveByMode(mode: RankedMode): number {
+    let count = 0;
+    for (const game of this.activeGames.values()) {
+      if (game.mode === mode) count++;
     }
-    this.headsUpPairingIndex = 0;
+    return count;
   }
 
-  // ── Game scheduling ──────────────────────────────────────────────────
-
-  private scheduleNextGame(delayMs: number): void {
+  /** Launch games to fill all empty slots up to 9 HU + 9 MP. */
+  private fillGameSlots(): void {
     if (this.stopped) return;
 
-    if (this.nextGameTimer) clearTimeout(this.nextGameTimer);
-    this.nextGameTimer = setTimeout(() => {
-      this.nextGameTimer = null;
-      void this.runNextGame();
-    }, delayMs);
-    this.nextGameTimer.unref();
+    const headsUpNeeded = TARGET_HEADS_UP_GAMES - this.countActiveByMode('heads_up');
+    const multiplayerNeeded = TARGET_MULTIPLAYER_GAMES - this.countActiveByMode('multiplayer');
+
+    for (let i = 0; i < headsUpNeeded; i++) {
+      this.launchGame('heads_up');
+    }
+    for (let i = 0; i < multiplayerNeeded; i++) {
+      this.launchGame('multiplayer');
+    }
   }
 
-  private async runNextGame(): Promise<void> {
+  /** Launch a single calibration game of the given mode. */
+  private launchGame(mode: RankedMode): void {
     if (this.stopped) return;
 
-    // Decide which mode to run based on convergence state
-    const headsUpDone = this.isModeConverged('heads_up');
-    const multiplayerDone = this.isModeConverged('multiplayer');
-
-    if (headsUpDone && multiplayerDone) {
-      // Both converged — run a maintenance game in alternating modes
-      this.currentMode = this.currentMode === 'heads_up' ? 'multiplayer' : 'heads_up';
-      this.createCalibrationGame();
-      return;
-    }
-
-    // Alternate between non-converged modes, favoring the one with fewer games
-    if (!headsUpDone && !multiplayerDone) {
-      // Pick the mode where bots have played fewer total games
-      const headsUpTotal = this.getTotalGamesForMode('heads_up');
-      const multiplayerTotal = this.getTotalGamesForMode('multiplayer');
-      this.currentMode = headsUpTotal <= multiplayerTotal ? 'heads_up' : 'multiplayer';
-    } else if (!headsUpDone) {
-      this.currentMode = 'heads_up';
-    } else {
-      this.currentMode = 'multiplayer';
-    }
-
-    this.createCalibrationGame();
-  }
-
-  // ── Game creation ────────────────────────────────────────────────────
-
-  private createCalibrationGame(): void {
-    if (this.stopped) return;
-
-    // Clean up previous room
-    if (this.roomCode) {
-      this.botManager.clearTurnTimer(this.roomCode);
-      this.roomManager.deleteRoom(this.roomCode);
-      this.roomCode = null;
-    }
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
-      this.watchInterval = null;
-    }
-
-    if (this.currentMode === 'heads_up') {
+    if (mode === 'heads_up') {
       this.createHeadsUpGame();
     } else {
       this.createMultiplayerGame();
     }
   }
 
-  private createHeadsUpGame(): void {
-    // Find next pairing that needs more games
-    const pairing = this.getNextHeadsUpPairing();
-    if (!pairing) {
-      // All pairings have enough games — switch to multiplayer
-      this.currentMode = 'multiplayer';
-      this.createMultiplayerGame();
-      return;
-    }
+  // ── Game creation ────────────────────────────────────────────────────
 
-    const botA = this.botPool.find(b => b.botProfile === pairing.profileA);
-    const botB = this.botPool.find(b => b.botProfile === pairing.profileB);
+  private createHeadsUpGame(): void {
+    if (this.stopped) return;
+    if (this.botPool.length < 2) return;
+
+    const [botA, botB] = this.selectHeadsUpPair();
     if (!botA || !botB) return;
 
     const room = this.roomManager.createRoom();
-    this.roomCode = room.roomCode;
-    room.isBackgroundGame = true; // Exempt from stale-room cleanup
+    room.isBackgroundGame = true;
 
     room.updateSettings({
       maxCards: RANKED_SETTINGS.maxCards,
-      turnTimer: 0, // No turn timer for bot games
+      turnTimer: 0,
       allowSpectators: false,
       spectatorsCanSeeCards: false,
       botSpeed: BotSpeed.FAST,
@@ -367,29 +326,22 @@ export class CalibrationManager {
     BotPlayer.resetMemory(room.roomCode);
     this.botManager.scheduleBotTurn(room, this.io);
 
-    pairing.gamesPlayed++;
-
-    this.watchForGameOver();
+    this.registerActiveGame(room.roomCode, 'heads_up');
   }
 
   private createMultiplayerGame(): void {
-    // Randomize player count between 3 and min(9, botPool.length)
+    if (this.stopped) return;
+
     const maxPlayers = Math.min(MULTIPLAYER_MAX_PLAYERS, this.botPool.length);
-    if (maxPlayers < MULTIPLAYER_MIN_PLAYERS) {
-      // Not enough bots for multiplayer — skip
-      this.currentMode = 'heads_up';
-      this.scheduleNextGame(GAME_DELAY_CONTINUOUS_MS);
-      return;
-    }
+    if (maxPlayers < MULTIPLAYER_MIN_PLAYERS) return;
 
     const playerCount = MULTIPLAYER_MIN_PLAYERS +
       Math.floor(Math.random() * (maxPlayers - MULTIPLAYER_MIN_PLAYERS + 1));
 
-    // Randomly select bot profiles, ensuring roughly equal play
     const selectedBots = this.selectBotsForMultiplayer(playerCount);
+    if (selectedBots.length < MULTIPLAYER_MIN_PLAYERS) return;
 
     const room = this.roomManager.createRoom();
-    this.roomCode = room.roomCode;
     room.isBackgroundGame = true;
 
     room.updateSettings({
@@ -411,23 +363,69 @@ export class CalibrationManager {
     BotPlayer.resetMemory(room.roomCode);
     this.botManager.scheduleBotTurn(room, this.io);
 
-    this.watchForGameOver();
+    this.registerActiveGame(room.roomCode, 'multiplayer');
+  }
+
+  // ── Matchmaking ─────────────────────────────────────────────────────
+
+  /**
+   * Select a heads-up pair by closest Elo rating with random jitter.
+   * Sorts bots by (currentElo + random jitter), then picks the two closest.
+   */
+  private selectHeadsUpPair(): [RankedBotEntry, RankedBotEntry] | [undefined, undefined] {
+    if (this.botPool.length < 2) return [undefined, undefined];
+
+    // Build array of bots with jittered ratings
+    const jittered = this.botPool.map(bot => {
+      const state = this.botStates.get(bot.botProfile);
+      const baseElo = state?.currentElo ?? 1200;
+      const jitter = (Math.random() - 0.5) * 2 * HEADS_UP_PAIRING_JITTER;
+      return { bot, jitteredElo: baseElo + jitter };
+    });
+
+    // Sort by jittered Elo
+    jittered.sort((a, b) => a.jitteredElo - b.jitteredElo);
+
+    // Find the pair with smallest gap between adjacent entries
+    let bestGap = Infinity;
+    let bestIdx = 0;
+    for (let i = 0; i < jittered.length - 1; i++) {
+      const gap = Math.abs(jittered[i + 1]!.jitteredElo - jittered[i]!.jitteredElo);
+      if (gap < bestGap) {
+        bestGap = gap;
+        bestIdx = i;
+      }
+    }
+
+    return [jittered[bestIdx]!.bot, jittered[bestIdx + 1]!.bot];
   }
 
   /**
-   * Select bots for a multiplayer game, preferring bots with fewer games
-   * to ensure roughly equal calibration across all profiles.
+   * Select bots for a multiplayer game by grouping bots with similar ratings.
+   * Sorts bots by current OpenSkill mu (with small jitter), then takes a
+   * contiguous slice of the requested size.
    */
   private selectBotsForMultiplayer(count: number): RankedBotEntry[] {
-    // Sort by multiplayer games played (ascending) to prioritize under-played bots
-    const sorted = [...this.botPool].sort((a, b) => {
-      const stateA = this.botStates.get(a.botProfile);
-      const stateB = this.botStates.get(b.botProfile);
-      return (stateA?.multiplayerGamesPlayed ?? 0) - (stateB?.multiplayerGamesPlayed ?? 0);
-    });
+    if (this.botPool.length < count) {
+      count = this.botPool.length;
+    }
 
-    // Take the bots with fewest games, then shuffle to avoid deterministic seating
-    const selected = sorted.slice(0, count);
+    // Sort by mu with small jitter to vary groupings
+    const jittered = this.botPool.map(bot => {
+      const state = this.botStates.get(bot.botProfile);
+      const baseMu = state?.currentMu ?? 25;
+      const jitter = (Math.random() - 0.5) * 4; // ±2 mu jitter
+      return { bot, jitteredMu: baseMu + jitter };
+    });
+    jittered.sort((a, b) => a.jitteredMu - b.jitteredMu);
+
+    // Pick a random starting index for the contiguous slice
+    const maxStart = jittered.length - count;
+    const startIdx = Math.floor(Math.random() * (maxStart + 1));
+
+    const selected = jittered.slice(startIdx, startIdx + count).map(j => j.bot);
+
+    // Shuffle seating order
     for (let i = selected.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [selected[i], selected[j]] = [selected[j]!, selected[i]!];
@@ -435,49 +433,35 @@ export class CalibrationManager {
     return selected;
   }
 
-  // ── Game completion ──────────────────────────────────────────────────
+  // ── Active game tracking & completion ───────────────────────────────
 
-  /**
-   * Poll the room's game phase to detect game over.
-   * The existing persistCompletedGame flow handles rating updates automatically
-   * because the room is configured with ranked=true and rankedMode set.
-   */
-  private watchForGameOver(): void {
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
-    }
-
-    this.watchInterval = setInterval(() => {
-      if (this.stopped || !this.roomCode) {
-        if (this.watchInterval) {
-          clearInterval(this.watchInterval);
-          this.watchInterval = null;
-        }
+  /** Register a new active game and start watching it for completion. */
+  private registerActiveGame(roomCode: string, mode: RankedMode): void {
+    const watchInterval = setInterval(() => {
+      if (this.stopped) {
+        clearInterval(watchInterval);
         return;
       }
 
-      const room = this.roomManager.getRoom(this.roomCode);
+      const room = this.roomManager.getRoom(roomCode);
       if (!room || room.gamePhase === GamePhase.GAME_OVER || room.gamePhase === GamePhase.FINISHED) {
-        if (this.watchInterval) {
-          clearInterval(this.watchInterval);
-          this.watchInterval = null;
-        }
-        void this.onGameCompleted();
+        clearInterval(watchInterval);
+        this.activeGames.delete(roomCode);
+        void this.onGameCompleted(roomCode, mode);
       }
     }, WATCH_INTERVAL_MS);
-    this.watchInterval.unref();
+    watchInterval.unref();
+
+    this.activeGames.set(roomCode, { roomCode, mode, watchInterval });
   }
 
-  /** Called when a calibration game finishes. Updates tracking, checks convergence, schedules next. */
-  private async onGameCompleted(): Promise<void> {
+  /** Called when a calibration game finishes. Cleans up, refreshes ratings, starts replacement. */
+  private async onGameCompleted(roomCode: string, mode: RankedMode): Promise<void> {
     this.totalGamesPlayed++;
 
-    // Clean up current room
-    if (this.roomCode) {
-      this.botManager.clearTurnTimer(this.roomCode);
-      this.roomManager.deleteRoom(this.roomCode);
-      this.roomCode = null;
-    }
+    // Clean up the finished room
+    this.botManager.clearTurnTimer(roomCode);
+    this.roomManager.deleteRoom(roomCode);
 
     // Refresh ratings from DB and update convergence state
     await this.refreshBotRatings();
@@ -487,14 +471,23 @@ export class CalibrationManager {
       this.logCalibrationProgress();
     }
 
-    // Determine delay for next game based on convergence
+    if (this.stopped) return;
+
+    // Schedule a replacement game to maintain the 9+9 split
     const headsUpDone = this.isModeConverged('heads_up');
     const multiplayerDone = this.isModeConverged('multiplayer');
     const delay = (headsUpDone && multiplayerDone)
       ? GAME_DELAY_SLOW_MS
       : GAME_DELAY_CONTINUOUS_MS;
 
-    this.scheduleNextGame(delay);
+    const timer = setTimeout(() => {
+      this.replacementTimers.delete(timer);
+      if (!this.stopped) {
+        this.launchGame(mode);
+      }
+    }, delay);
+    timer.unref();
+    this.replacementTimers.add(timer);
   }
 
   // ── Convergence detection ────────────────────────────────────────────
@@ -547,29 +540,6 @@ export class CalibrationManager {
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  /** Get the next heads-up pairing that still needs more games. */
-  private getNextHeadsUpPairing(): HeadsUpPairing | null {
-    if (this.headsUpPairings.length === 0) return null;
-
-    // Scan from current index, wrapping around
-    const start = this.headsUpPairingIndex;
-    for (let i = 0; i < this.headsUpPairings.length; i++) {
-      const idx = (start + i) % this.headsUpPairings.length;
-      const pairing = this.headsUpPairings[idx]!;
-      if (pairing.gamesPlayed < HEADS_UP_GAMES_PER_PAIRING) {
-        this.headsUpPairingIndex = (idx + 1) % this.headsUpPairings.length;
-        return pairing;
-      }
-    }
-
-    // All pairings have enough games — reset for another cycle
-    for (const p of this.headsUpPairings) {
-      p.gamesPlayed = 0;
-    }
-    this.headsUpPairingIndex = 0;
-    return this.headsUpPairings[0] ?? null;
-  }
-
   /** Get total calibration games played across all bots for a mode. */
   private getTotalGamesForMode(mode: RankedMode): number {
     let total = 0;
@@ -598,6 +568,8 @@ export class CalibrationManager {
     logger.info(
       {
         totalGames: this.totalGamesPlayed,
+        activeHeadsUp: this.countActiveByMode('heads_up'),
+        activeMultiplayer: this.countActiveByMode('multiplayer'),
         headsUpConverged: this.isModeConverged('heads_up'),
         multiplayerConverged: this.isModeConverged('multiplayer'),
         botRatings,
