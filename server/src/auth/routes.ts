@@ -1,4 +1,4 @@
-import express, { Router } from 'express';
+import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
@@ -422,7 +422,7 @@ const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const DATA_URL_REGEX = /^data:(image\/(?:jpeg|png|webp));base64,/;
 
-router.post('/upload-photo', express.json({ limit: '3mb' }), requireAuth, async (req, res) => {
+router.post('/upload-photo', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const role = req.user!.role;

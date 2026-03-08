@@ -228,8 +228,10 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   }
 })();
 
-// Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies
-app.use(express.json());
+// Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies.
+// Limit raised from the default 100KB to 3MB to support admin photo uploads
+// (base64 data URLs for profile photos can be up to ~2MB).
+app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
