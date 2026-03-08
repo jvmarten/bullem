@@ -111,7 +111,7 @@ function getResultSound(handType: HandType): 'fanfare' | 'roundWin' | 'trueCalle
 }
 
 export function DeckDrawPage() {
-  const { play, startLoop, stopLoop } = useSound();
+  const { play } = useSound();
   const { user } = useAuth();
   const { addToast } = useToast();
 
@@ -129,9 +129,10 @@ export function DeckDrawPage() {
   const [dealtCount, setDealtCount] = useState(0);    // cards dealt face-down (0-5)
   const [revealedCount, setRevealedCount] = useState(0); // cards revealed (0-5)
   const [showResultText, setShowResultText] = useState(false);
-  const [shuffleAngle, setShuffleAngle] = useState(0);
+  const [shuffleOrder, setShuffleOrder] = useState([0, 1, 2, 3, 4]);
 
   const animTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearAnimTimers = useCallback(() => {
     for (const t of animTimersRef.current) clearTimeout(t);
@@ -139,7 +140,10 @@ export function DeckDrawPage() {
   }, []);
 
   // Cleanup on unmount
-  useEffect(() => () => { clearAnimTimers(); stopLoop('deckShuffleLoop'); }, [clearAnimTimers, stopLoop]);
+  useEffect(() => () => {
+    clearAnimTimers();
+    if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current);
+  }, [clearAnimTimers]);
 
   const isAnimating = animPhase !== 'idle' && animPhase !== 'result';
 
@@ -193,15 +197,34 @@ export function DeckDrawPage() {
     return () => clearInterval(interval);
   }, [stats.lastFreeDrawAt]);
 
-  // Shuffle wiggle animation
+  // Shuffle riffle animation — same visual as home screen
   useEffect(() => {
-    if (animPhase !== 'shuffling') return;
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame++;
-      setShuffleAngle(Math.sin(frame * 0.8) * 12 * Math.max(0, 1 - frame / 20));
-    }, 50);
-    return () => clearInterval(interval);
+    if (animPhase !== 'shuffling') {
+      setShuffleOrder([0, 1, 2, 3, 4]);
+      if (shuffleIntervalRef.current) {
+        clearInterval(shuffleIntervalRef.current);
+        shuffleIntervalRef.current = null;
+      }
+      return;
+    }
+    // Fisher-Yates shuffle for card order
+    const shuffle = (arr: number[]): number[] => {
+      const result = [...arr];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = result[i]!;
+        result[i] = result[j]!;
+        result[j] = temp;
+      }
+      return result;
+    };
+    setShuffleOrder(prev => shuffle(prev));
+    shuffleIntervalRef.current = setInterval(() => {
+      setShuffleOrder(prev => shuffle(prev));
+    }, 700);
+    return () => {
+      if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current);
+    };
   }, [animPhase]);
 
   const canFreeDraw = isFreeDrawAvailable(stats.lastFreeDrawAt);
@@ -241,10 +264,9 @@ export function DeckDrawPage() {
     setDealtCount(0);
     setRevealedCount(0);
 
-    // Phase 1: SHUFFLE
+    // Phase 1: SHUFFLE — play one-shot shuffle sound (no tuplaus loop)
     setAnimPhase('shuffling');
     play('deckShuffle');
-    startLoop('deckShuffleLoop');
 
     // Resolve the draw while shuffle animation plays
     let drawResult: DeckDrawResult | null = null;
@@ -259,12 +281,16 @@ export function DeckDrawPage() {
 
     if (user) {
       try {
+        const abortCtrl = new AbortController();
+        const fetchTimeout = setTimeout(() => abortCtrl.abort(), 8000);
         const res = await fetch('/api/deck-draw/draw', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ wager: isFreeDraw ? 0 : wager, isFreeDraw }),
+          signal: abortCtrl.signal,
         });
+        clearTimeout(fetchTimeout);
         if (!res.ok) {
           if (res.status === 503) {
             doLocalDraw();
@@ -272,7 +298,6 @@ export function DeckDrawPage() {
             const err = await res.json().catch(() => ({ error: 'Draw failed' }));
             addToast((err as { error: string }).error || 'Draw failed');
             setAnimPhase('idle');
-            stopLoop('deckShuffleLoop');
             return;
           }
         } else {
@@ -289,7 +314,6 @@ export function DeckDrawPage() {
 
     if (!drawResult || !updatedStats) {
       setAnimPhase('idle');
-      stopLoop('deckShuffleLoop');
       return;
     }
 
@@ -299,7 +323,6 @@ export function DeckDrawPage() {
 
     // Phase 2: DEALING (after shuffle, ~800ms)
     scheduleTimer(() => {
-      stopLoop('deckShuffleLoop');
       setAnimPhase('dealing');
       setLastResult(result);
       setStats(finalStats);
@@ -338,7 +361,7 @@ export function DeckDrawPage() {
         }, totalRevealTime);
       }, 5 * 150 + 200);
     }, 800);
-  }, [isAnimating, animPhase, canWager, clearAnimTimers, play, startLoop, stopLoop, stats, wager, user, addToast, scheduleTimer]);
+  }, [isAnimating, animPhase, canWager, clearAnimTimers, play, stats, wager, user, addToast, scheduleTimer]);
 
   const isDealt = dealtCount > 0;
   const isRoyal = lastResult?.hand.type === HandType.ROYAL_FLUSH;
@@ -392,28 +415,36 @@ export function DeckDrawPage() {
             className="relative flex justify-center items-center"
             style={{ height: '100px', width: '280px' }}
           >
-            {/* Shuffle animation: stacked deck wiggling */}
-            {animPhase === 'shuffling' && (
-              <div
-                className="absolute"
-                style={{
-                  transform: `rotate(${shuffleAngle}deg)`,
-                  transition: 'transform 0.05s linear',
-                }}
-              >
-                {/* Stack of cards */}
-                {Array.from({ length: 5 }, (_, i) => (
+            {/* Shuffle animation: riffle — same visual as home screen */}
+            {animPhase === 'shuffling' && Array.from({ length: 5 }, (_, i) => {
+              const pos = shuffleOrder[i]!;
+              const stackX = pos * 0.5;
+              const stackY = -pos * 1.2;
+              const stackAngle = (pos - 2) * 1.5;
+              const riffleDir = i % 2 === 0 ? -1 : 1;
+
+              return (
+                <div
+                  key={`shuffle-${i}`}
+                  className="absolute"
+                  style={{
+                    transform: `translate(${stackX}px, ${stackY}px) rotate(${stackAngle}deg)`,
+                    transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                    zIndex: pos,
+                  }}
+                >
                   <div
-                    key={i}
-                    className="deck-card-back absolute"
+                    className="deck-shuffle-anim"
                     style={{
-                      top: -i * 1.5,
-                      left: i * 0.5,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+                      '--shuffle-dir': riffleDir,
+                      animationDelay: `${i * 0.08}s`,
+                    } as React.CSSProperties}
+                  >
+                    <div className="deck-card-back" />
+                  </div>
+                </div>
+              );
+            })}
 
             {/* Card display: dealing + revealing phases */}
             {animPhase !== 'shuffling' && Array.from({ length: 5 }, (_, i) => {
@@ -634,7 +665,7 @@ export function DeckDrawPage() {
             <button
               onClick={() => { play('uiSoft'); performDraw(false); }}
               disabled={isAnimating || !canWager}
-              className="flex-1 btn-gold py-3 text-base disabled:opacity-50"
+              className={`flex-1 py-3 text-base disabled:opacity-50 ${animPhase === 'result' ? 'btn-ghost' : 'btn-gold'}`}
             >
               {animPhase === 'result' ? 'Draw Again' : `Draw (${formatNumber(wager)})`}
             </button>
