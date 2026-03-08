@@ -132,16 +132,39 @@ export function useGameSounds(
     prevHistoryLenRef.current = history.length;
   }, [historyLen, play, playerId]);
 
-  // Track roundNumber for internal bookkeeping (no deal sound — removed in v1.3.5).
+  // React to new round starting (card deal).
+  // Track roundNumber changes but defer the sound until the round result overlay
+  // has been dismissed, so the deal sound plays when the new round is visually
+  // starting — not when the previous round's result is still on screen.
   const roundNumber = gameState?.roundNumber ?? 0;
+  const pendingDealSoundRef = useRef(false);
 
   useEffect(() => {
+    // First time receiving state — just record, don't play sound
     if (prevRoundNumberRef.current === -1) {
       prevRoundNumberRef.current = roundNumber;
       return;
     }
+    if (roundNumber > prevRoundNumberRef.current) {
+      if (roundResult && !isSpectating) {
+        // Result overlay is showing — defer the sound (players only)
+        pendingDealSoundRef.current = true;
+      } else {
+        // For spectators: play immediately when new round state arrives,
+        // even if the round result overlay is still showing
+        play('cardDeal');
+      }
+    }
     prevRoundNumberRef.current = roundNumber;
-  }, [roundNumber]);
+  }, [roundNumber, play, roundResult, isSpectating]);
+
+  // Play deferred card deal sound when round result overlay is dismissed
+  useEffect(() => {
+    if (!roundResult && pendingDealSoundRef.current) {
+      pendingDealSoundRef.current = false;
+      play('cardDeal');
+    }
+  }, [roundResult, play]);
 
   // React to it becoming your turn
   const currentPlayer = gameState?.currentPlayerId ?? null;

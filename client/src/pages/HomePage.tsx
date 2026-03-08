@@ -1054,7 +1054,7 @@ export function HomePage() {
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
               <li>Player avatar now opens quick-view overlay</li>
               <li>Bot avatars show lifetime stats</li>
-              <li>Removed card deal sound effect</li>
+              <li>Removed deck draw card sound effect</li>
             </ul>
           </div>
         </div>

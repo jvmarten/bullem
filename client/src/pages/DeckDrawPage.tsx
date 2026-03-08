@@ -327,10 +327,9 @@ export function DeckDrawPage() {
       setLastResult(result);
       setStats(finalStats);
 
-      // Deal cards one by one face-down
+      // Deal cards one by one face-down (no deal sound in Deck Draw)
       for (let i = 0; i < 5; i++) {
         scheduleTimer(() => {
-          play('cardDeal');
           setDealtCount(i + 1);
         }, i * 150);
       }
