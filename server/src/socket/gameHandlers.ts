@@ -5,9 +5,8 @@ import { randomUUID } from 'crypto';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
-import { broadcastGameState, broadcastGameReplay, sendTurnPushNotification } from './broadcast.js';
-import { beginRoundResultPhase, markContinueReady } from './roundTransition.js';
-import { persistCompletedGame, computeRatingChanges } from './persistGame.js';
+import { broadcastGameState, sendTurnPushNotification } from './broadcast.js';
+import { beginRoundResultPhase, markContinueReady, handleSetOver } from './roundTransition.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { gameActionsTotal, gamesCompletedTotal } from '../metrics.js';
 import type { RateLimiter } from '../rateLimit.js';
@@ -303,22 +302,16 @@ function handleResult(
       gamesCompletedTotal.inc();
       log.info({ winnerId: result.winnerId }, 'Game over');
       if (result.finalRoundResult) {
-        // Show the final round result before ending the game
+        // Show the final round result before ending the game/set
         if (room.game) room.game.setTurnDeadline(null);
         broadcastGameState(io, room);
         io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
         room.recordEliminations(result.finalRoundResult.eliminatedPlayerIds);
       }
-      room.gamePhase = GamePhase.GAME_OVER;
       room.cancelRoundContinueWindow();
-      broadcastGameReplay(io, room, result.winnerId);
-      const gameOverStats = room.game!.getGameStats();
-      computeRatingChanges(room, result.winnerId).then(ratingChanges => {
-        io.to(room.roomCode).emit('game:over', result.winnerId, gameOverStats, ratingChanges);
-      }).catch(() => {
-        io.to(room.roomCode).emit('game:over', result.winnerId, gameOverStats);
-      });
-      persistCompletedGame(room, result.winnerId);
+      // Route through handleSetOver so best-of series logic is respected.
+      // For single games (no series), this calls finalizeGameOver directly.
+      handleSetOver(io, room, roomManager, botManager, result.winnerId);
       break;
   }
   room.touch();
