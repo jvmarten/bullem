@@ -32,6 +32,7 @@ const ReplayPage = lazy(() => import('./pages/ReplayPage.js').then(m => ({ defau
 const ReplaysPage = lazy(() => import('./pages/ReplaysPage.js').then(m => ({ default: m.ReplaysPage })));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage.js').then(m => ({ default: m.LeaderboardPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
+const DeckDrawPage = lazy(() => import('./pages/DeckDrawPage.js').then(m => ({ default: m.DeckDrawPage })));
 
 // Auth pages
 const LoginPage = lazy(() => import('./pages/LoginPage.js').then(m => ({ default: m.LoginPage })));
@@ -120,6 +121,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/replays" element={<ReplaysPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/draw" element={<DeckDrawPage />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>

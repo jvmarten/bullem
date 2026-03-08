@@ -7,3 +7,4 @@ export * from './engine/index.js';
 export * from './replay.js';
 export * from './rating.js';
 export * from './botProfiles.js';
+export * from './deckDraw.js';
