@@ -240,38 +240,50 @@ export function LobbyPage() {
           const bots = roomState.players.filter(p => p.isBot);
           const humanCount = roomState.players.length - bots.length;
           const maxBots = effectiveMaxPlayers - humanCount;
+          const allOptions = Array.from({ length: maxBots + 1 }, (_, i) => i);
+          const firstRow = allOptions.filter(n => n <= 5);
+          const secondRow = allOptions.filter(n => n > 5);
+          const handleBotCount = (n: number) => {
+            play('uiSoft');
+            if (n > bots.length) {
+              const toAdd = n - bots.length;
+              for (let i = 0; i < toAdd; i++) {
+                addBot().catch(() => {});
+              }
+            } else if (n < bots.length) {
+              const toRemove = bots.length - n;
+              for (let i = 0; i < toRemove; i++) {
+                removeBot(bots[bots.length - 1 - i]!.id);
+              }
+            }
+          };
+          const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
+            bots.length === n
+              ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+              : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+          }`;
           return (
             <div className="glass px-4 py-3">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
                 Bots
               </p>
-              <div className="flex gap-1.5">
-                {Array.from({ length: maxBots + 1 }, (_, i) => i).map(n => (
-                  <button
-                    key={n}
-                    onClick={() => {
-                      play('uiSoft');
-                      if (n > bots.length) {
-                        const toAdd = n - bots.length;
-                        for (let i = 0; i < toAdd; i++) {
-                          addBot().catch(() => {});
-                        }
-                      } else if (n < bots.length) {
-                        const toRemove = bots.length - n;
-                        for (let i = 0; i < toRemove; i++) {
-                          removeBot(bots[bots.length - 1 - i]!.id);
-                        }
-                      }
-                    }}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
-                      bots.length === n
-                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  {firstRow.map(n => (
+                    <button key={n} onClick={() => handleBotCount(n)} className={btnClass(n)}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {secondRow.length > 0 && (
+                  <div className="flex gap-1.5">
+                    {secondRow.map(n => (
+                      <button key={n} onClick={() => handleBotCount(n)} className={btnClass(n)}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
                 {bots.length} bot{bots.length !== 1 ? 's' : ''} in lobby
