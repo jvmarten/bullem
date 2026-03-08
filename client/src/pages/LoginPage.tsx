@@ -6,16 +6,29 @@ import { useAuth } from '../context/AuthContext.js';
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
 
-export function LoginPage() {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+type AuthMode = 'signin' | 'register';
 
+export function LoginPage() {
+  const [searchParams] = useSearchParams();
+  const initialMode: AuthMode = searchParams.get('mode') === 'register' ? 'register' : 'signin';
+
+  // Shared state
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { login, register } = useAuth();
+  const navigate = useNavigate();
+
+  // Sign In fields
+  const [identifier, setIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Create Account fields
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Dev auth detection — one-tap login in dev mode
   const [devAuth, setDevAuth] = useState(false);
@@ -36,15 +49,41 @@ export function LoginPage() {
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Clear error when switching tabs
+  const switchMode = (next: AuthMode) => {
+    setError(null);
+    setMode(next);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(identifier, password);
+      await login(identifier, loginPassword);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (regPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await register(username, email, regPassword);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +96,7 @@ export function LoginPage() {
           className="text-2xl font-bold mb-6 text-[var(--gold)]"
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
-          Sign In
+          Welcome
         </h1>
 
         {successMessage && (
@@ -99,7 +138,7 @@ export function LoginPage() {
           </button>
         )}
 
-        {/* OAuth buttons — primary sign-in method */}
+        {/* OAuth buttons — work for both sign in and registration */}
         <a
           href={`${API_BASE}/auth/google`}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-[#333] font-medium transition-colors"
@@ -140,65 +179,172 @@ export function LoginPage() {
           <div className="flex-1 h-px bg-[var(--gold-dim)] opacity-30" />
         </div>
 
-        {/* Email/password form — always visible for returning users */}
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Username or Email
-            </label>
-            <input
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              required
-              autoComplete="username"
-              className="input-felt"
-              placeholder="username or you@example.com"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              minLength={8}
-              className="input-felt"
-              placeholder="Enter password"
-            />
-          </div>
-
+        {/* Tab toggle — pill-style buttons */}
+        <div className="w-full flex rounded-lg overflow-hidden mb-5" style={{ border: '1px solid var(--felt-border)' }}>
           <button
-            type="submit"
-            disabled={submitting}
-            className="btn-gold py-3 text-lg mt-2"
+            type="button"
+            onClick={() => switchMode('signin')}
+            className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              background: mode === 'signin'
+                ? 'linear-gradient(135deg, var(--gold-dim), var(--gold))'
+                : 'transparent',
+              color: mode === 'signin' ? '#1a1a1a' : 'var(--gold-dim)',
+            }}
           >
-            {submitting ? 'Signing in\u2026' : 'Sign In'}
+            Sign In
           </button>
-        </form>
+          <button
+            type="button"
+            onClick={() => switchMode('register')}
+            className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              background: mode === 'register'
+                ? 'linear-gradient(135deg, var(--gold-dim), var(--gold))'
+                : 'transparent',
+              color: mode === 'register' ? '#1a1a1a' : 'var(--gold-dim)',
+            }}
+          >
+            Create Account
+          </button>
+        </div>
 
-        <Link
-          to="/forgot-password"
-          className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors mt-3"
-        >
-          Forgot password?
-        </Link>
+        {/* Sign In form */}
+        {mode === 'signin' && (
+          <form onSubmit={handleLogin} className="w-full flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Username or Email
+              </label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                required
+                autoComplete="username"
+                className="input-felt"
+                placeholder="username or you@example.com"
+              />
+            </div>
 
-        <p className="text-sm text-[var(--gold-dim)] mt-6">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-[var(--gold)] hover:underline">
-            Create one
-          </Link>
-        </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Password
+              </label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                minLength={8}
+                className="input-felt"
+                placeholder="Enter password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-gold py-3 text-lg mt-2"
+            >
+              {submitting ? 'Signing in\u2026' : 'Sign In'}
+            </button>
+
+            <Link
+              to="/forgot-password"
+              className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-center"
+            >
+              Forgot password?
+            </Link>
+          </form>
+        )}
+
+        {/* Create Account form */}
+        {mode === 'register' && (
+          <form onSubmit={handleRegister} className="w-full flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoComplete="username"
+                maxLength={20}
+                pattern="[a-zA-Z][a-zA-Z0-9_]{1,19}"
+                title="2–20 characters, starts with a letter, letters/numbers/underscores only"
+                className="input-felt"
+                placeholder="Pick a username"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="input-felt"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Password
+              </label>
+              <input
+                type="password"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="input-felt"
+                placeholder="At least 8 characters"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="input-felt"
+                placeholder="Repeat password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-gold py-3 text-lg mt-2"
+            >
+              {submitting ? 'Creating account\u2026' : 'Create Account'}
+            </button>
+          </form>
+        )}
 
         <Link
           to="/"
-          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-4"
+          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-6"
         >
           Back to Home
         </Link>
