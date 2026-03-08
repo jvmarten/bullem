@@ -573,11 +573,12 @@ export function ProfilePage() {
                 value={stats.trueAccuracy !== null ? `${stats.trueAccuracy}%` : '\u2014'}
               />
             </div>
-            <div className="w-full grid grid-cols-1 gap-3 mb-6">
+            <div className="w-full grid grid-cols-2 gap-3 mb-6">
               <StatCard
                 label="Bluff Success"
                 value={stats.bluffSuccessRate !== null ? `${stats.bluffSuccessRate}%` : '\u2014'}
               />
+              <StatCard label="Ranked Games" value={stats.rankedGamesPlayed} />
             </div>
 
             {/* Games by Player Count */}

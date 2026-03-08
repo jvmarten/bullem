@@ -371,6 +371,7 @@ export interface PlayerStatsResponse {
   bullAccuracy: number | null;
   trueAccuracy: number | null;
   bluffSuccessRate: number | null;
+  rankedGamesPlayed: number;
   gamesByPlayerCount: Record<string, number>;
   recentGames: GameHistoryEntry[];
 }
