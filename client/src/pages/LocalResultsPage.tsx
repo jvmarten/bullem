@@ -7,11 +7,17 @@ import { ShareCard } from '../components/ShareCard.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
 
 export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, lastReplay } = useGameContext();
   const [rankingDone, setRankingDone] = useState(false);
+
+  // Mark that the player has completed their first real game
+  useEffect(() => {
+    if (winnerId) markFirstGamePlayed();
+  }, [winnerId]);
 
   // If state is gone (page refresh), redirect to lobby
   useEffect(() => {

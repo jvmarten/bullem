@@ -51,7 +51,15 @@ const TOOLTIP_STEPS: TooltipStep[] = [
     target: '[data-tooltip="hand-selector"]',
     position: 'top',
     title: 'Hand Selector',
-    body: 'Pick a hand type on the left wheel, then choose the rank or suit on the right. Remember: Flush is LOWER than Three of a Kind!',
+    body: 'This is the hand selector — pick a hand higher than the current call. Left wheel = hand type, right wheel = rank or suit.',
+    requiresTarget: true,
+  },
+  {
+    id: 'ranking-reminder',
+    target: '[data-tooltip="hand-selector"]',
+    position: 'top',
+    title: 'Custom Rankings!',
+    body: 'Flush is LOWER than Three of a Kind in Bull \'Em — the opposite of standard poker! This is the #1 mistake new players make.',
     requiresTarget: true,
   },
   {
