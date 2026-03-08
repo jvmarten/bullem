@@ -672,8 +672,10 @@ export function GamePage() {
         <EmojiReactionBar onReaction={sendReaction} />
       )}
       {(isEliminated || isSpectator) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
-          <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto">
+            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
+          </div>
         </div>
       )}
       {chatEnabled && (
