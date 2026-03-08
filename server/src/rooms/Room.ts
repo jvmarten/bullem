@@ -43,6 +43,8 @@ export class Room {
   eliminationOrder: PlayerId[] = [];
   /** Series state for best-of matches. Null for single games. */
   seriesState: SeriesState | null = null;
+  /** Initial turn order captured at game start, used for starting-position analytics. */
+  initialTurnOrder: PlayerId[] = [];
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;

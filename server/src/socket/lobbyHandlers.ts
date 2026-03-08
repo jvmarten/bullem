@@ -555,6 +555,13 @@ export function registerLobbyHandlers(
       settings: { ...room.settings },
       ranked: room.settings.ranked ?? false,
     });
+
+    // Capture initial turn order so we can track starting position vs win rate
+    // at game completion (when we know who won). Store on the room for later use.
+    if (room.game) {
+      room.initialTurnOrder = room.game.getActivePlayers().map(p => p.id);
+    }
+
     // Clear cross-round bot memory for this room's scope
     BotPlayer.resetMemory(room.roomCode);
     // Schedule turn first (sets deadline for human), then broadcast with correct deadline

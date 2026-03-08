@@ -201,6 +201,7 @@ export function beginRoundResultPhase(
           roundNumber,
           currentHandType: result.calledHand.type,
           roomCode: room.roomCode,
+          playerCount: room.playerCount,
         }, room.playerUserIds.get(entry.playerId) ?? null);
       }
     }
@@ -215,6 +216,7 @@ export function beginRoundResultPhase(
       wasCaught,
       roomCode: room.roomCode,
       roundNumber,
+      playerCount: room.playerCount,
     }, room.playerUserIds.get(result.callerId) ?? null);
   }
 

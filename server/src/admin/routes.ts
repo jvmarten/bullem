@@ -3,6 +3,7 @@ import type { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
 import { requireAuth, requireAdmin } from '../auth/middleware.js';
 import { query } from '../db/index.js';
+import { getAnalyticsDashboard, refreshAnalytics } from '../db/analytics.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
 import logger from '../logger.js';
@@ -352,6 +353,43 @@ export function createAdminRouter(
     } catch (err) {
       logger.error({ err }, 'Admin: failed to close room');
       res.status(500).json({ error: 'Failed to close room' });
+    }
+  });
+
+  // ── GET /admin/analytics ──────────────────────────────────────────────
+  // Returns the full analytics dashboard: starting position stats, hand
+  // frequency, game duration, bot performance, and the latest balance snapshot.
+  router.get('/analytics', async (_req, res) => {
+    try {
+      const dashboard = await getAnalyticsDashboard();
+      if (!dashboard) {
+        res.status(503).json({ error: 'Database unavailable' });
+        return;
+      }
+      res.json(dashboard);
+    } catch (err) {
+      logger.error({ err }, 'Admin: failed to fetch analytics dashboard');
+      res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+  });
+
+  // ── POST /admin/analytics/refresh ───────────────────────────────────
+  // Re-computes all analytics aggregation tables from source data.
+  // Safe to call repeatedly (uses UPSERT). May be slow on large datasets.
+  router.post('/analytics/refresh', async (req, res) => {
+    try {
+      logger.info({ adminUserId: req.user!.userId }, 'Admin: refreshing analytics aggregation');
+      const result = await refreshAnalytics();
+      if (!result.success) {
+        res.status(500).json({ error: result.error ?? 'Refresh failed' });
+        return;
+      }
+      // Return fresh dashboard data after refresh
+      const dashboard = await getAnalyticsDashboard();
+      res.json({ refreshed: true, dashboard });
+    } catch (err) {
+      logger.error({ err }, 'Admin: failed to refresh analytics');
+      res.status(500).json({ error: 'Failed to refresh analytics' });
     }
   });
 
