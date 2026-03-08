@@ -8,6 +8,7 @@ import { useSound } from '../hooks/useSound.js';
 import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
 import type { LastChanceMode, BotLevelCategory, BestOf } from '@bull-em/shared';
 import { loadMatchSettings, saveMatchSettings } from '../components/VolumeControl.js';
+import { friendlyError } from '../utils/friendlyErrors.js';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ export function HostPage() {
       saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory }, 'online');
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');
+      addToast(friendlyError(e instanceof Error ? e.message : 'Failed to create room — check your connection'));
     } finally {
       setLoading(false);
     }

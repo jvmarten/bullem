@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '../context/ToastContext.js';
+import { friendlyError } from '../utils/friendlyErrors.js';
 
 /**
  * Bridges a context error string to the toast system.
@@ -12,7 +13,7 @@ export function useErrorToast(error: string | null, clearError: () => void): voi
 
   useEffect(() => {
     if (error && error !== prevErrorRef.current) {
-      addToast(error, 'error');
+      addToast(friendlyError(error), 'error');
       clearError();
     }
     prevErrorRef.current = error;

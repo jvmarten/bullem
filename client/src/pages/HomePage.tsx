@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { loadMatchSettings } from '../components/VolumeControl.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { isTutorialCompleted, isFirstGame } from '../utils/tutorialProgress.js';
+import { friendlyError } from '../utils/friendlyErrors.js';
 import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
 import type { GameSettings } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
@@ -478,7 +479,7 @@ export function HomePage() {
       await spectateGame(code);
       navigate(`/game/${code}`);
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Failed to spectate');
+      addToast(friendlyError(e instanceof Error ? e.message : 'Failed to spectate'));
     }
   };
 
@@ -488,7 +489,7 @@ export function HomePage() {
       const code = await watchRandomGame();
       navigate(`/game/${code}`);
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'No live games to watch');
+      addToast(friendlyError(e instanceof Error ? e.message : 'No live games to watch'));
     }
   };
 
