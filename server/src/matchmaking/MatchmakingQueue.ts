@@ -21,6 +21,7 @@ import {
   GamePhase,
   BotPlayer,
   getRankTier,
+  BOT_PROFILES,
 } from '@bull-em/shared';
 import type {
   RankedMode,
@@ -30,6 +31,7 @@ import type {
   ServerToClientEvents,
   MatchmakingStatus,
   MatchmakingFound,
+  BotProfileConfig,
 } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -551,9 +553,10 @@ export class MatchmakingQueue {
       botDisplayName = rankedBot.displayName;
       botRating = rankedBot.rating;
     } else {
-      // Fallback: anonymous bot (no profile, no persistent identity)
-      botId = this.botManager.addBot(room, this.pickBotName(player.rating));
-      botDisplayName = room.players.get(botId)!.name;
+      // Fallback: use a real bot profile from BOT_PROFILES instead of a generic name
+      const fallbackBot = this.pickFallbackBot(new Set());
+      botId = this.botManager.addRankedBot(room, `fallback-bot-${randomUUID()}`, fallbackBot.name, fallbackBot.config);
+      botDisplayName = fallbackBot.name;
       botRating = player.rating;
     }
     this.roomManager.assignPlayerToRoom(botId, room.roomCode);
@@ -639,6 +642,7 @@ export class MatchmakingQueue {
 
     const botPool = await getRankedBotPool('multiplayer');
     const usedBotUserIds = new Set<string>();
+    const usedFallbackNames = new Set<string>();
 
     for (let i = 0; i < botsNeeded; i++) {
       const rankedBot = pickClosestRatedBot(botPool, avgRating, usedBotUserIds);
@@ -653,8 +657,11 @@ export class MatchmakingQueue {
         botDisplayName = rankedBot.displayName;
         botRating = rankedBot.rating;
       } else {
-        botId = this.botManager.addBot(room, this.pickBotName(avgRating));
-        botDisplayName = room.players.get(botId)!.name;
+        // Fallback: use a real bot profile from BOT_PROFILES instead of a generic name
+        const fallbackBot = this.pickFallbackBot(usedFallbackNames);
+        botId = this.botManager.addRankedBot(room, `fallback-bot-${randomUUID()}`, fallbackBot.name, fallbackBot.config);
+        usedFallbackNames.add(fallbackBot.name);
+        botDisplayName = fallbackBot.name;
         botRating = Math.round(avgRating);
       }
       this.roomManager.assignPlayerToRoom(botId, room.roomCode);
@@ -794,15 +801,15 @@ export class MatchmakingQueue {
     }
   }
 
-  private pickBotName(rating: number): string {
-    // Pick a thematic bot name based on rough rating tier
-    const tierNames: Record<string, string[]> = {
-      low: ['Rookie Bot', 'Novice Bot', 'Learning Bot'],
-      mid: ['Ranked Bot', 'Challenger Bot', 'Competitor Bot'],
-      high: ['Elite Bot', 'Master Bot', 'Champion Bot'],
-    };
-    const tier = rating < 1000 ? 'low' : rating < 1400 ? 'mid' : 'high';
-    const names = tierNames[tier]!;
-    return names[Math.floor(Math.random() * names.length)]!;
+  /**
+   * Pick a random bot profile from BOT_PROFILES, excluding names already in use.
+   * Used as a fallback when the database bot pool is unavailable (e.g., dev mode).
+   */
+  private pickFallbackBot(usedNames: Set<string>): { name: string; config: BotProfileConfig } {
+    const candidates = BOT_PROFILES.filter(p => !usedNames.has(p.name));
+    const pick = candidates.length > 0
+      ? candidates[Math.floor(Math.random() * candidates.length)]!
+      : BOT_PROFILES[Math.floor(Math.random() * BOT_PROFILES.length)]!;
+    return { name: pick.name, config: pick.config };
   }
 }
