@@ -1032,7 +1032,7 @@ export function HomePage() {
             <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.14</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Impossible bot settings toggle in gear menu</li>
+              <li>Impossible bot toggle moved to top-right settings menu</li>
               <li>Improved subtitle readability for easter eggs</li>
             </ul>
           </div>

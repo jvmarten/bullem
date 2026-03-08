@@ -222,7 +222,7 @@ export function PublicProfilePage() {
               {zalgoify('Level 10', 3)} &mdash; {zalgoify('IMPOSSIBLE', 4)}
             </p>
             <p className="text-[10px] mt-2 max-w-[280px] mx-auto" style={{ color: 'rgba(220,53,69,0.4)', lineHeight: '2' }}>
-              {zalgoify('Sees all cards. Perfect play. Cannot be beaten by strategy alone.', 2)}
+              {zalgoify('Perfect play. Cannot be beaten by strategy alone.', 2)}
             </p>
           </div>
 
