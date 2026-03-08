@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { BOT_PROFILE_MAP, BOT_AVATAR_MAP, IMPOSSIBLE_BOT, openSkillDisplayRating } from '@bull-em/shared';
-import type { PlayerStatsResponse, UserRatings, PublicProfile } from '@bull-em/shared';
+import type { PlayerStatsResponse, UserRatings, PublicProfile, GameHistoryEntry } from '@bull-em/shared';
 import { RankBadge } from '../components/RankBadge.js';
 import { avatarDisplay } from './ProfilePage.js';
 import { useAuth } from '../context/AuthContext.js';
+import { AdvancedStats } from '../components/AdvancedStats.js';
 
 const API_BASE = '';
 
@@ -86,6 +87,73 @@ function CorruptedStatCard({ label, value }: { label: string; value: string | nu
         {zalgoify(label, 1)}
       </p>
     </div>
+  );
+}
+
+// ── Game history helpers (shared with ProfilePage) ────────────────────
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 24) {
+    if (diffHours < 1) {
+      const mins = Math.floor(diffMs / (1000 * 60));
+      return mins <= 1 ? 'Just now' : `${mins}m ago`;
+    }
+    return `${Math.floor(diffHours)}h ago`;
+  }
+  if (diffHours < 48) return 'Yesterday';
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function positionLabel(position: number): string {
+  if (position === 1) return '1st';
+  if (position === 2) return '2nd';
+  if (position === 3) return '3rd';
+  return `${position}th`;
+}
+
+function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
+  const navigate = useNavigate();
+  const isWin = game.finishPosition === 1;
+  const is1v1 = game.playerCount === 2;
+  return (
+    <button
+      onClick={() => navigate(`/replay?id=${encodeURIComponent(game.id)}`)}
+      className="glass px-4 py-3 flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+          isWin
+            ? 'bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]'
+            : 'bg-white/5 text-[var(--gold-dim)] border border-white/10'
+        }`}>
+          {positionLabel(game.finishPosition)}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm text-[var(--gold)] truncate">
+            {isWin ? 'Victory' : is1v1 ? 'Loss' : `Won by ${game.winnerName}`}
+          </p>
+          <p className="text-[10px] text-[var(--gold-dim)]">
+            {is1v1 ? '1v1' : `${game.playerCount} players`} &middot; {formatDuration(game.durationSeconds)}
+          </p>
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-[10px] text-[var(--gold-dim)]">{formatDate(game.endedAt)}</p>
+      </div>
+    </button>
   );
 }
 
@@ -430,23 +498,96 @@ export function PublicProfilePage() {
 
         {/* Stats Grid */}
         {stats && stats.gamesPlayed > 0 ? (
-          <div className="w-full grid grid-cols-2 gap-3 mb-6">
-            <StatCard label="Games Played" value={stats.gamesPlayed} />
-            <StatCard label="Wins" value={stats.wins} />
-            <StatCard
-              label="Win Rate"
-              value={stats.winRate !== null ? `${stats.winRate}%` : '\u2014'}
-            />
-            <StatCard
-              label="Bull Accuracy"
-              value={stats.bullAccuracy !== null ? `${stats.bullAccuracy}%` : '\u2014'}
-            />
-          </div>
+          isAdmin ? (
+            /* Admin sees full stats — same as the player's own profile */
+            <>
+              <div className="w-full grid grid-cols-2 gap-3 mb-4">
+                <StatCard label="Games Played" value={stats.gamesPlayed} />
+                <StatCard label="Wins" value={stats.wins} />
+                <StatCard
+                  label="Win Rate"
+                  value={stats.winRate !== null ? `${stats.winRate}%` : '\u2014'}
+                />
+                <StatCard
+                  label="Avg Finish"
+                  value={stats.avgFinishPercentile != null ? `${stats.avgFinishPercentile}%` : stats.avgFinishPosition !== null ? `${stats.avgFinishPosition}` : '\u2014'}
+                />
+                <StatCard
+                  label="Bull Accuracy"
+                  value={stats.bullAccuracy !== null ? `${stats.bullAccuracy}%` : '\u2014'}
+                />
+                <StatCard
+                  label="True Accuracy"
+                  value={stats.trueAccuracy !== null ? `${stats.trueAccuracy}%` : '\u2014'}
+                />
+              </div>
+              <div className="w-full grid grid-cols-1 gap-3 mb-6">
+                <StatCard
+                  label="Bluff Success"
+                  value={stats.bluffSuccessRate !== null ? `${stats.bluffSuccessRate}%` : '\u2014'}
+                />
+              </div>
+
+              {/* Games by Player Count */}
+              {(() => {
+                const playerCountEntries = Object.entries(stats.gamesByPlayerCount)
+                  .sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10));
+                return playerCountEntries.length > 0 ? (
+                  <div className="w-full mb-6">
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
+                      Games by Player Count
+                    </p>
+                    <div className="glass px-4 py-3">
+                      <div className="flex flex-wrap gap-3">
+                        {playerCountEntries.map(([count, num]) => (
+                          <div key={count} className="text-center min-w-[48px]">
+                            <p className="text-sm font-bold text-[var(--gold)]">{num}</p>
+                            <p className="text-[10px] text-[var(--gold-dim)]">{count}p</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </>
+          ) : (
+            /* Non-admin sees limited stats */
+            <div className="w-full grid grid-cols-2 gap-3 mb-6">
+              <StatCard label="Games Played" value={stats.gamesPlayed} />
+              <StatCard label="Wins" value={stats.wins} />
+              <StatCard
+                label="Win Rate"
+                value={stats.winRate !== null ? `${stats.winRate}%` : '\u2014'}
+              />
+              <StatCard
+                label="Bull Accuracy"
+                value={stats.bullAccuracy !== null ? `${stats.bullAccuracy}%` : '\u2014'}
+              />
+            </div>
+          )
         ) : (
           <div className="w-full glass px-4 py-6 text-center mb-6">
             <p className="text-[var(--gold-dim)] text-sm">No games played yet</p>
           </div>
         )}
+
+        {/* Recent Games — admin only */}
+        {isAdmin && stats && stats.recentGames.length > 0 && (
+          <div className="w-full mb-6">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
+              Recent Games ({stats.recentGames.length})
+            </p>
+            <div className="flex flex-col gap-2">
+              {stats.recentGames.map(game => (
+                <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Stats — admin only */}
+        {isAdmin && userId && <AdvancedStats userId={userId} />}
 
         {/* Bot flavor text */}
         {profile.isBot && botProfile && (
