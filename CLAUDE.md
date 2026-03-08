@@ -347,3 +347,15 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 - **Never auto-merge to `main`** — leave PRs open for the maintainer to review and test locally.
 - **Squash merge** is the preferred merge strategy for `main` (when the maintainer merges).
 - Always include a clear summary and test plan in PR descriptions targeting `main`.
+
+### GitHub Actions Constraints
+
+**Do NOT add new GitHub Actions workflows or expand existing ones.** This project runs on GitHub's free tier with limited Actions minutes. The current workflow setup (`auto-merge.yml` + `deploy.yml`) is intentionally minimal and must stay that way.
+
+- **No new workflow files** — do not create additional `.yml` files in `.github/workflows/`
+- **No new CI jobs** — do not add linting, formatting, code coverage, security scanning, or any other automated jobs as GitHub Actions
+- **No scheduled workflows** — no cron-based Actions (dependency updates, stale issue bots, etc.)
+- **No third-party Actions** — do not introduce new marketplace Actions or reusable workflows
+- **Keep existing workflows lean** — do not add steps, matrix builds, or additional triggers to `auto-merge.yml` or `deploy.yml`
+
+If a new feature needs automated checks, implement it as a local script (e.g., `npm run lint`, `npm run check`) that developers run manually or that existing workflows already cover. The bar for adding any GitHub Actions usage is extremely high — discuss with the maintainer first.
