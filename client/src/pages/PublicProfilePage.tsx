@@ -215,6 +215,14 @@ export function PublicProfilePage() {
       <Layout>
         <div className="flex flex-col items-center pt-12 max-w-sm mx-auto text-center">
           <p className="text-[var(--gold-dim)] mb-4">{error ?? 'Player not found'}</p>
+          {error && error !== 'Player not found' && (
+            <button
+              onClick={() => { setError(null); void fetchProfile(); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-4"
+            >
+              Try Again
+            </button>
+          )}
           <Link to="/" className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors">
             Back to Home
           </Link>
