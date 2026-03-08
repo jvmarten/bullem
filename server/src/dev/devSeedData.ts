@@ -261,6 +261,7 @@ export function getDevPlayerStats(userId: string): PlayerStatsResponse {
     bullAccuracy: Math.round((correctBulls / bullsCalled) * 100),
     trueAccuracy: Math.round((correctTrues / truesCalled) * 100),
     bluffSuccessRate: Math.round((bluffsSuccessful / callsMade) * 100),
+    rankedGamesPlayed: rand(0, Math.floor(gamesPlayed * 0.6)),
     gamesByPlayerCount: {
       '2': rand(3, 15),
       '3': rand(2, 12),

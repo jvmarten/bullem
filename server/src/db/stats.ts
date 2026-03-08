@@ -87,6 +87,17 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
   const callsMade = parseInt(row.total_calls_made, 10);
   const bluffsSuccessful = parseInt(row.total_bluffs_successful, 10);
 
+  // Ranked games played (count of ranked_match_players entries for this user)
+  const rankedResult = await query<{ ranked_count: string }>(
+    `SELECT COUNT(*)::text AS ranked_count
+     FROM ranked_match_players
+     WHERE user_id = $1`,
+    [userId],
+  );
+  const rankedGamesPlayed = rankedResult?.rows[0]
+    ? parseInt(rankedResult.rows[0].ranked_count, 10)
+    : 0;
+
   // Games by player count breakdown
   const playerCountResult = await query<PlayerCountRow>(
     `SELECT g.player_count::text, COUNT(*)::text AS count
@@ -161,6 +172,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
     bullAccuracy: bullsCalled > 0 ? Math.round((correctBulls / bullsCalled) * 100) : null,
     trueAccuracy: truesCalled > 0 ? Math.round((correctTrues / truesCalled) * 100) : null,
     bluffSuccessRate: callsMade > 0 ? Math.round((bluffsSuccessful / callsMade) * 100) : null,
+    rankedGamesPlayed,
     gamesByPlayerCount,
     recentGames,
   };
