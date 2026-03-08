@@ -14,7 +14,7 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
-import { useUISettings, toggleImpossibleBotEnabled } from '../components/VolumeControl.js';
+import { useUISettings } from '../components/VolumeControl.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -28,7 +28,6 @@ export function LobbyPage() {
   const [joinName, setJoinName] = useState('');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   const joinAttemptedRef = useRef(false);
   const handlePlayerClick = useCallback((player: Player) => {
@@ -564,58 +563,6 @@ export function LobbyPage() {
           </>
         )}
 
-        {/* Gear icon — advanced settings (available to host) */}
-        {isHost && !settingsLocked && (
-          <>
-            <div className="flex justify-center">
-              <button
-                onClick={() => { play('uiSoft'); setShowAdvancedSettings(v => !v); }}
-                className="w-10 h-10 rounded-full glass flex items-center justify-center text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-                title="Advanced settings"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-              </button>
-            </div>
-
-            {showAdvancedSettings && (
-              <div className="glass px-4 py-3 animate-fade-in">
-                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3">
-                  Advanced Settings
-                </p>
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <span className="text-sm text-[var(--gold-dim)]">Enable Impossible Bot</span>
-                    <p className="text-[10px] text-[var(--gold-dim)] opacity-60">
-                      Adds &quot;The Oracle&quot; (lvl 10) — sees all cards
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      play('uiSoft');
-                      toggleImpossibleBotEnabled();
-                      // If disabling, also remove the impossible bot
-                      if (impossibleEnabled) {
-                        const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
-                        if (oracleBot) removeBot(oracleBot.id);
-                      }
-                    }}
-                    className={`w-11 h-6 rounded-full transition-colors relative border ${
-                      impossibleEnabled
-                        ? 'bg-[var(--danger)] border-[var(--danger)]'
-                        : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
-                    }`}
-                  >
-                    <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
-                      impossibleEnabled ? 'translate-x-[23px]' : 'translate-x-[2px]'
-                    }`} />
-                  </button>
-                </label>
-              </div>
-            )}
-          </>
-        )}
 
         {/* Oracle bot button — shown when impossible mode is enabled */}
         {isHost && impossibleEnabled && (
