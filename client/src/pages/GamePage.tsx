@@ -20,6 +20,7 @@ import { BotProfileModal } from '../components/BotProfileModal.js';
 import { InGameStats } from '../components/InGameStats.js';
 
 import { useGameContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
@@ -110,6 +111,7 @@ export function GamePage() {
     reactions, sendReaction,
     chatMessages, sendChatMessage,
   } = useGameContext();
+  const { user } = useAuth();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
   const { play } = useSound();
@@ -195,7 +197,7 @@ export function GamePage() {
       }
     }, 8000);
 
-    joinRoom(roomCode, storedName)
+    joinRoom(roomCode, storedName, user?.avatar)
       .then(() => { settled = true; clearTimeout(timeout); })
       .catch(() => {
         if (!settled) {

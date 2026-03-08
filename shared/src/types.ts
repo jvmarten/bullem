@@ -60,6 +60,10 @@ export interface Player {
   isHost: boolean;
   isBot?: boolean;
   isAdmin?: boolean;
+  /** Authenticated user ID — present for logged-in players, absent for guests/bots. */
+  userId?: string;
+  /** User-chosen avatar template. Null/undefined for guests or players without an avatar. */
+  avatar?: AvatarId | null;
 }
 
 /** Server-side player with actual cards. Never sent to other players' clients. */

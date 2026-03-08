@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
 import { getRecentPlayers, clearRecentPlayers, type RecentPlayer } from '../utils/recentPlayers.js';
@@ -36,6 +37,7 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [invitingPlayer, setInvitingPlayer] = useState<string | null>(null);
   const { isConnected, createRoom } = useGameContext();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
     try {
       const playerName = localStorage.getItem('bull-em-player-name') ?? 'Player';
       sessionStorage.setItem('bull-em-player-name', playerName);
-      const roomCode = await createRoom(playerName);
+      const roomCode = await createRoom(playerName, user?.avatar);
       const inviteUrl = `${window.location.origin}/room/${roomCode}`;
 
       // Copy invite link to clipboard
