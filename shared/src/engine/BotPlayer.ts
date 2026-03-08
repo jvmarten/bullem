@@ -321,14 +321,15 @@ export class BotPlayer {
     }
 
     // Opening call — no current hand
-    // 85% truthful: call the best hand the bot actually holds.
-    // 15% bluff: call one hand type above what it holds, using a rank it has.
+    // Bluff more in early rounds (few cards = harder to disprove).
+    // Base 15% bluff, up to 30% in round 1 (1 card each).
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const bestHand = this.findBestHandInCards(botCards);
       if (!bestHand) {
         return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
       }
-      if (Math.random() < 0.15) {
+      const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03); // +0.03 per card below 6
+      if (Math.random() < 0.15 + earlyBluffBonus) {
         const bluff = this.makeNormalBluff(botCards, bestHand);
         return { action: 'call', hand: bluff };
       }
@@ -337,16 +338,21 @@ export class BotPlayer {
 
     // Raising in calling phase
     // Has a legitimate higher hand → raise 80%, call bull 20%.
-    // No legitimate raise → 10% bluff raise (one step above current hand), 90% call bull.
+    // No legitimate raise → bluff raise (higher rate in early rounds), else call bull.
     if (roundPhase === RoundPhase.CALLING && currentHand) {
+      // Check if hand is mathematically impossible — always bull
+      const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
+      if (p < 0.01) return { action: 'bull' };
+
       const higher = this.findHandHigherThanSimple(botCards, currentHand);
       if (higher) {
         return Math.random() < 0.80
           ? { action: 'call', hand: higher }
           : { action: 'bull' };
       }
-      // No legitimate raise — 10% bluff
-      if (Math.random() < 0.10) {
+      // No legitimate raise — bluff more in early rounds
+      const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03);
+      if (Math.random() < 0.10 + earlyBluffBonus) {
         const bluff = this.makeNormalBluff(botCards, currentHand);
         if (isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
@@ -371,13 +377,16 @@ export class BotPlayer {
    * 10% chance to raise if bot has a legitimate higher hand.
    */
   private static handleNormalBullPhase(currentHand: HandCall, botCards: Card[], totalCards: number): BotAction {
+    const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
+
+    // If the hand is mathematically impossible, always call bull
+    if (p < 0.01) return { action: 'bull' };
+
     // 10% chance to raise if bot has a legitimate higher hand
     const higher = this.findHandHigherThanSimple(botCards, currentHand);
     if (higher && Math.random() < 0.10) {
       return { action: 'call', hand: higher };
     }
-
-    const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
 
     if (p > 0.6) return { action: 'true' };
     if (p < 0.4) return { action: 'bull' };
@@ -800,9 +809,11 @@ export class BotPlayer {
       return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
     }
 
-    // Strategic bluff opening — table image adjusts bluff frequency
+    // Strategic bluff opening — table image adjusts bluff frequency.
+    // Boost bluff rate in early rounds (few total cards = harder to disprove).
     const tableImageAdj = botId ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const effectiveBluffRate = Math.max(0, Math.min(0.5, cfg.openingBluffRate + tableImageAdj));
+    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.02); // +0.02 per card below 8
+    const effectiveBluffRate = Math.max(0, Math.min(0.5, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
     if (Math.random() < effectiveBluffRate) {
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
@@ -877,11 +888,14 @@ export class BotPlayer {
     const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, beliefs.rankBeliefs);
     const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
 
-    // Truthfulness prior adjusted by caller trust, desperation, and profile trust multiplier
+    // Truthfulness prior adjusted by caller trust, desperation, and profile trust multiplier.
+    // Scale down in early rounds: with few total cards, complex hands are harder to back
+    // with real evidence, so the prior that "callers are honest" is weaker.
     const callerDesperate = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
     const callerDesperateFlag = state !== undefined && callerDesperate < 1.0;
     const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate;
+    const cardPoolScale = Math.min(1.0, totalCards / 12); // Ramp from ~0.17 at 2 cards to 1.0 at 12+
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate * cardPoolScale;
 
     // Factor in position: more raises → more likely someone is bluffing
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
@@ -890,6 +904,15 @@ export class BotPlayer {
     const chainBonus = (beliefs.chainConsistency - 0.5) * 0.12;
 
     const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj + chainBonus));
+
+    // Impossibility override: if raw probability is near zero, the hand is mathematically
+    // impossible or near-impossible given what we can see. Always call bull regardless of
+    // desperation state — no truthfulness boost can override card-count impossibility
+    // (e.g., flush needing 5 suited cards when opponent only has 4 cards total).
+    if (pRaw < 0.005) {
+      this.recordSelfAction(scope, botId, false);
+      return { action: 'bull' };
+    }
 
     // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
     const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2;
@@ -913,9 +936,10 @@ export class BotPlayer {
     }
 
     // No legitimate hand — decide whether to bluff raise or call bull.
-    // Table image adjusts bluff frequency
+    // Table image and early-round bonus adjust bluff frequency.
     const tableImageAdj = scope ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency + tableImageAdj);
+    const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.025); // Bluff more with fewer total cards
+    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency + tableImageAdj + earlyBluffBonus);
 
     if (adjustedP > 0.45) {
       // Hand is probably real — bluff raise to avoid a bull penalty
@@ -991,11 +1015,19 @@ export class BotPlayer {
       : { rankBeliefs: this.inferCardsFromHistory(turnHistory, botId), chainConsistency: 0.5 };
     const pRaw = this.estimatePlausibilityHard(currentHand, botCards, totalCards, beliefs.rankBeliefs);
 
-    // Truthfulness prior with desperation-aware trust and profile multiplier
+    // Impossibility override: if raw probability is near zero, always call bull.
+    // No amount of truthfulness boosting can overcome mathematical impossibility.
+    if (pRaw < 0.005) {
+      return { action: 'bull' };
+    }
+
+    // Truthfulness prior with desperation-aware trust and profile multiplier.
+    // Scale down in early rounds — fewer cards means less evidence backing claims.
     const callerDespTrust = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
     const callerDesperateFlag = state !== undefined && callerDespTrust < 1.0;
     const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust;
+    const cardPoolScale = Math.min(1.0, totalCards / 12);
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust * cardPoolScale;
 
     // Factor in position and escalation patterns
     const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
@@ -1791,6 +1823,9 @@ export class BotPlayer {
       case HandType.PAIR: {
         const count = ownCards.filter(c => c.rank === hand.rank).length;
         if (count >= 2) return 0.95;
+        const pairNeeded = 2 - count;
+        const othersCards = totalCards - ownCards.length;
+        if (pairNeeded > othersCards) return 0.0;
         if (count === 1) return Math.min(0.7, totalCards * 0.05);
         return Math.min(0.4, totalCards * 0.02);
       }
@@ -1799,11 +1834,25 @@ export class BotPlayer {
       case HandType.THREE_OF_A_KIND: {
         const count = ownCards.filter(c => c.rank === hand.rank).length;
         if (count >= 3) return 0.95;
+        const tripleNeeded = 3 - count;
+        const othersCards3 = totalCards - ownCards.length;
+        if (tripleNeeded > othersCards3) return 0.0;
         if (count >= 2) return 0.4;
         return totalCards >= 8 ? 0.2 : 0.1;
       }
-      case HandType.FLUSH:
-        return totalCards >= 10 ? 0.3 : 0.1;
+      case HandType.FLUSH: {
+        const suit = (hand as { type: HandType.FLUSH; suit: Suit }).suit;
+        const ownSuitCount = ownCards.filter(c => c.suit === suit).length;
+        const otherPlayerCards = totalCards - ownCards.length;
+        // If we need more suited cards than opponents could possibly hold, impossible
+        const needed = 5 - ownSuitCount;
+        if (needed > otherPlayerCards) return 0.0;
+        // Scale by how many of the suit we already hold
+        if (ownSuitCount >= 3) return totalCards >= 8 ? 0.5 : 0.25;
+        if (ownSuitCount >= 1) return totalCards >= 10 ? 0.3 : 0.1;
+        // No cards of this suit — unlikely, scale down further
+        return totalCards >= 12 ? 0.2 : 0.05;
+      }
       case HandType.STRAIGHT:
         return totalCards >= 8 ? 0.25 : 0.08;
       case HandType.FULL_HOUSE:
@@ -1910,13 +1959,18 @@ export class BotPlayer {
         const remaining = 13 - ownSuitCount;
         const needed = 5 - ownSuitCount;
         if (needed <= 0) return 0.95;
-        // Proper flush probability with pigeonhole principle.
-        // With many total cards, flushes become near-certain.
+        // If opponents can't possibly hold enough suited cards, impossible
+        if (needed > otherCards) return 0.0;
         const baseP = this.hypergeomAtLeast(unseenCards, remaining, otherCards, needed);
-        // Pigeonhole clamps: with enough cards, some flush almost certainly exists
-        if (totalCards >= 20) return Math.max(baseP, 0.85);
-        if (totalCards >= 15) return Math.max(baseP, 0.70);
-        if (totalCards >= 10) return Math.max(baseP, 0.45);
+        // Pigeonhole clamps: with enough total cards, *some* flush almost certainly
+        // exists — but scale clamp by bot's own suit contribution. When we hold 0
+        // of the called suit, the clamp should be much weaker since the pigeonhole
+        // reasoning applies to "any suit" not this specific one.
+        const suitContribution = Math.min(1.0, ownSuitCount / 2); // 0..1 based on own suit cards
+        const clampScale = 0.3 + 0.7 * suitContribution; // 0.3 at 0 own cards, 1.0 at 2+
+        if (totalCards >= 20) return Math.max(baseP, 0.85 * clampScale);
+        if (totalCards >= 15) return Math.max(baseP, 0.70 * clampScale);
+        if (totalCards >= 10) return Math.max(baseP, 0.45 * clampScale);
         return baseP;
       }
 
