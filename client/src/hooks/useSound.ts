@@ -73,7 +73,6 @@ export function useGameSounds(
   roundResult: RoundResult | null,
   winnerId: PlayerId | null,
   playerId: string | null,
-  isSpectating = false,
 ) {
   const { play } = useSound();
   // Use -1 as sentinel: "not yet initialized from game state". On the first
@@ -146,17 +145,16 @@ export function useGameSounds(
       return;
     }
     if (roundNumber > prevRoundNumberRef.current) {
-      if (roundResult && !isSpectating) {
-        // Result overlay is showing — defer the sound (players only)
+      if (roundResult) {
+        // Result overlay is showing — defer the sound until it's dismissed
+        // so the deal sound plays when the new round is visually starting
         pendingDealSoundRef.current = true;
       } else {
-        // For spectators: play immediately when new round state arrives,
-        // even if the round result overlay is still showing
         play('cardDeal');
       }
     }
     prevRoundNumberRef.current = roundNumber;
-  }, [roundNumber, play, roundResult, isSpectating]);
+  }, [roundNumber, play, roundResult]);
 
   // Play deferred card deal sound when round result overlay is dismissed
   useEffect(() => {
