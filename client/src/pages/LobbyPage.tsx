@@ -14,6 +14,7 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
+import { useUISettings, toggleImpossibleBotEnabled } from '../components/VolumeControl.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -28,9 +29,7 @@ export function LobbyPage() {
   const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [impossibleEnabled, setImpossibleEnabled] = useState(() => {
-    return localStorage.getItem('bull-em-impossible-enabled') === 'true';
-  });
+  const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   const joinAttemptedRef = useRef(false);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) {
@@ -595,11 +594,9 @@ export function LobbyPage() {
                   <button
                     onClick={() => {
                       play('uiSoft');
-                      const next = !impossibleEnabled;
-                      setImpossibleEnabled(next);
-                      localStorage.setItem('bull-em-impossible-enabled', String(next));
+                      toggleImpossibleBotEnabled();
                       // If disabling, also remove the impossible bot
-                      if (!next) {
+                      if (impossibleEnabled) {
                         const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
                         if (oracleBot) removeBot(oracleBot.id);
                       }

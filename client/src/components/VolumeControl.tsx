@@ -6,6 +6,7 @@ import { useSound } from '../hooks/useSound.js';
 const CHAT_KEY = 'bull-em-chat-enabled';
 const EMOJI_KEY = 'bull-em-emoji-enabled';
 const QUICK_DRAW_KEY = 'bull-em-quick-draw';
+const IMPOSSIBLE_BOT_KEY = 'bull-em-impossible-enabled';
 
 let settingsListeners = new Set<() => void>();
 function notifySettings() { settingsListeners.forEach(cb => cb()); }
@@ -23,10 +24,13 @@ function readBool(key: string, fallback: boolean): boolean {
 let chatEnabled = readBool(CHAT_KEY, true);
 let emojiEnabled = readBool(EMOJI_KEY, true);
 let quickDrawEnabled = readBool(QUICK_DRAW_KEY, true);
+// Impossible bot uses 'true'/'false' strings to stay compatible with lobby pages
+let impossibleBotEnabled = localStorage.getItem(IMPOSSIBLE_BOT_KEY) === 'true';
 
 function getChatEnabled() { return chatEnabled; }
 function getEmojiEnabled() { return emojiEnabled; }
 function getQuickDrawEnabled() { return quickDrawEnabled; }
+function getImpossibleBotEnabled() { return impossibleBotEnabled; }
 
 function toggleChatEnabled() {
   chatEnabled = !chatEnabled;
@@ -46,12 +50,19 @@ function toggleQuickDrawEnabled() {
   notifySettings();
 }
 
-/** Hook to read chat/emoji/quickDraw visibility settings. */
+export function toggleImpossibleBotEnabled() {
+  impossibleBotEnabled = !impossibleBotEnabled;
+  localStorage.setItem(IMPOSSIBLE_BOT_KEY, String(impossibleBotEnabled));
+  notifySettings();
+}
+
+/** Hook to read chat/emoji/quickDraw/impossibleBot visibility settings. */
 export function useUISettings() {
   const chat = useSyncExternalStore(subscribeSettings, getChatEnabled);
   const emoji = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const quickDraw = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
-  return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw };
+  const impossibleBot = useSyncExternalStore(subscribeSettings, getImpossibleBotEnabled);
+  return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw, impossibleBotEnabled: impossibleBot };
 }
 
 export function VolumeControl() {
@@ -59,6 +70,7 @@ export function VolumeControl() {
   const chatOn = useSyncExternalStore(subscribeSettings, getChatEnabled);
   const emojiOn = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const quickDrawOn = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
+  const impossibleBotOn = useSyncExternalStore(subscribeSettings, getImpossibleBotEnabled);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -205,6 +217,25 @@ export function VolumeControl() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 {!quickDrawOn && <line x1="2" y1="2" x2="22" y2="22" />}
+              </svg>
+            </button>
+          </div>
+
+          {/* Impossible Bot toggle */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              Impossible Bot
+            </span>
+            <button
+              onClick={toggleImpossibleBotEnabled}
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!impossibleBotOn ? 'opacity-40' : ''}`}
+              title={impossibleBotOn ? 'Disable impossible bot option' : 'Enable impossible bot option'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Eye icon for The Oracle */}
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+                {!impossibleBotOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
             </button>
           </div>

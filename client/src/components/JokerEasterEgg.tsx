@@ -417,14 +417,22 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
         </div>
       </div>
 
-      {/* Synced subtitles — fixed at bottom center, Finnish + English */}
+      {/* Synced subtitles — fixed near center of screen with dark overlay */}
       {phase === 'flying' && (
         <div
-          className="fixed bottom-8 left-0 right-0 z-[10000] flex flex-col items-center gap-1 pointer-events-none"
+          className="fixed left-0 right-0 z-[10000] flex flex-col items-center gap-1 pointer-events-none"
+          style={{ top: '45%', transform: 'translateY(-50%)' }}
         >
+          {/* Dark overlay behind subtitles for readability */}
+          {currentSubtitle && (
+            <div
+              className="absolute inset-0 -inset-x-4 -inset-y-3 rounded-xl"
+              style={{ background: 'rgba(0, 0, 0, 0.55)', margin: '-12px -16px' }}
+            />
+          )}
           <div
             key={`fi-${currentSubtitle?.time ?? 'empty'}`}
-            className="joker-subtitle"
+            className="joker-subtitle relative"
             style={{
               color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
               opacity: currentSubtitle ? 1 : 0,
@@ -434,7 +442,7 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
           </div>
           <div
             key={`en-${currentSubtitle?.time ?? 'empty'}`}
-            className="joker-subtitle"
+            className="joker-subtitle relative"
             style={{
               color: currentSubtitle ? getSpeakerColor(currentSubtitle.speaker) : 'transparent',
               opacity: currentSubtitle ? 0.7 : 0,
