@@ -608,6 +608,22 @@ export function registerLobbyHandlers(
     // Notify clients the rematch is starting (so they can clear results state)
     io.to(room.roomCode).emit('game:rematchStarting');
 
+    // Reset series state for a fresh best-of match (fixes stale set counts after BO3)
+    const bestOf = room.settings.bestOf ?? 1;
+    if (bestOf > 1 && room.playerCount === 2) {
+      const playerIds = [...room.players.keys()] as [PlayerId, PlayerId];
+      room.seriesState = {
+        bestOf: bestOf as BestOf,
+        currentSet: 1,
+        wins: { [playerIds[0]]: 0, [playerIds[1]]: 0 },
+        winsNeeded: Math.ceil(bestOf / 2),
+        seriesWinnerId: null,
+        playerIds,
+      };
+    } else {
+      room.seriesState = null;
+    }
+
     room.resetForRematch();
     recordRoundStart(room.roomCode);
     log.info({ roomCode: room.roomCode }, 'Rematch started');
