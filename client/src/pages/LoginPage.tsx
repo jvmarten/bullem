@@ -29,7 +29,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (searchParams.get('error') === 'oauth_failed') {
-      setError('Sign-in failed. Please try again.');
+      setError('Something went wrong. Please try again.');
     }
     if (searchParams.get('reset') === 'success') {
       setSuccessMessage('Password reset successfully. You can now sign in with your new password.');
