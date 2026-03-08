@@ -142,7 +142,12 @@ function createMockBotManager() {
   return {
     addBot: vi.fn((room: ReturnType<typeof createMockRoom>, name?: string) => {
       const botId = `bot-mm-${++botIdCounter}`;
-      room.addBot(botId, name ?? 'Ranked Bot');
+      room.addBot(botId, name ?? 'Bot');
+      return botId;
+    }),
+    addRankedBot: vi.fn((room: ReturnType<typeof createMockRoom>, _userId: string, name: string) => {
+      const botId = `bot-mm-${++botIdCounter}`;
+      room.addBot(botId, name);
       return botId;
     }),
     scheduleBotTurn: vi.fn(),
@@ -389,9 +394,9 @@ describe('MatchmakingQueue', () => {
       // Player should be removed from queue
       expect(queue.isInQueue('user-1')).toBe(false);
 
-      // Room should be created and bot added
+      // Room should be created and bot added (via addRankedBot with fallback profile)
       expect(mockRoomManager.createRoom).toHaveBeenCalled();
-      expect(mockBotManager.addBot).toHaveBeenCalled();
+      expect(mockBotManager.addRankedBot).toHaveBeenCalled();
 
       // Player should be notified
       expect(s1.emit).toHaveBeenCalledWith('matchmaking:found', expect.objectContaining({
@@ -429,8 +434,8 @@ describe('MatchmakingQueue', () => {
 
       // Room created with bot backfill to reach random target (3-9 total)
       expect(mockRoomManager.createRoom).toHaveBeenCalled();
-      // Random target 3-9, 3 humans, so 0-6 bots needed
-      const botCalls = mockBotManager.addBot.mock.calls.length;
+      // Random target 3-9, 3 humans, so 0-6 bots needed (via addRankedBot with fallback profiles)
+      const botCalls = mockBotManager.addRankedBot.mock.calls.length;
       expect(botCalls).toBeGreaterThanOrEqual(0);
       expect(botCalls).toBeLessThanOrEqual(6);
     });
@@ -471,10 +476,10 @@ describe('MatchmakingQueue', () => {
 
       await (queue as unknown as { matchMultiplayer(): Promise<void> }).matchMultiplayer();
 
-      // Should have created a match with bot backfill
+      // Should have created a match with bot backfill (via addRankedBot with fallback profiles)
       expect(mockRoomManager.createRoom).toHaveBeenCalled();
       // Random target 3-9, 1 human, so 2-8 bots needed
-      const botCalls = mockBotManager.addBot.mock.calls.length;
+      const botCalls = mockBotManager.addRankedBot.mock.calls.length;
       expect(botCalls).toBeGreaterThanOrEqual(2);
       expect(botCalls).toBeLessThanOrEqual(8);
     });
