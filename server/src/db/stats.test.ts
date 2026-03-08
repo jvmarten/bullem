@@ -49,6 +49,8 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    // Ranked games count
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     // Player count breakdown: empty
     mockQuery.mockResolvedValueOnce(makeResult([]));
     // Recent games: empty
@@ -79,6 +81,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
 
@@ -99,6 +102,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '20',
       total_bluffs_successful: '6',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
 
@@ -120,6 +124,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
 
@@ -141,6 +146,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([
       { player_count: '2', count: '3' },
       { player_count: '3', count: '2' },
@@ -168,6 +174,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
     mockQuery.mockResolvedValueOnce(makeResult([
       {
@@ -247,6 +254,7 @@ describe('getPlayerStats', () => {
       total_calls_made: '0',
       total_bluffs_successful: '0',
     }]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ ranked_count: '0' }]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
     mockQuery.mockResolvedValueOnce(makeResult([]));
 
