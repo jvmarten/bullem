@@ -61,6 +61,13 @@ interface CountRow {
 }
 
 /**
+ * Valid bot_profile pattern: {personality}_lvl{1-9}.
+ * Ensures only the 81 matrix bots appear on the leaderboard, filtering out
+ * any orphaned/duplicate bot rows that may exist in the database.
+ */
+const VALID_BOT_PROFILE_PATTERN = "'^(rock|bluffer|grinder|wildcard|professor|shark|cannon|frost|hustler)_lvl[1-9]$'";
+
+/**
  * Build a WHERE clause fragment that filters by player type (all/players/bots).
  */
 function playerTypeFilter(filter: LeaderboardPlayerFilter): string {
@@ -68,7 +75,7 @@ function playerTypeFilter(filter: LeaderboardPlayerFilter): string {
     case 'players':
       return 'AND u.is_bot = false';
     case 'bots':
-      return 'AND u.is_bot = true';
+      return `AND u.is_bot = true AND u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN}`;
     case 'all':
     default:
       return '';

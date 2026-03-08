@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import { useSound } from '../hooks/useSound.js';
 import type { Player, PlayerId, GameStats } from '@bull-em/shared';
@@ -67,6 +68,7 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
 
   const [revealedCount, setRevealedCount] = useState(0);
   const { play } = useSound();
+  const navigate = useNavigate();
 
   const revealNext = useCallback(() => {
     setRevealedCount(prev => prev + 1);
@@ -132,18 +134,27 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
                 {positionLabel(entry.position)}
               </div>
 
-              {/* Player avatar */}
-              <div
-                className={`avatar ${playerColor(entry.originalIndex)} flex items-center justify-center flex-shrink-0`}
-                style={{ width: isWinner ? '2.5rem' : '2rem', height: isWinner ? '2.5rem' : '2rem', fontSize: isWinner ? '1.1rem' : '0.9rem' }}
+              {/* Player avatar + name (clickable if player has a profile) */}
+              <button
+                className={`flex items-center gap-3 min-w-0 ${entry.player.userId ? 'cursor-pointer hover:opacity-80 active:scale-95 transition-all' : 'cursor-default'}`}
+                onClick={() => {
+                  if (entry.player.userId) {
+                    navigate(`/profile/${entry.player.userId}`);
+                  }
+                }}
+                disabled={!entry.player.userId}
+                type="button"
               >
-                {entry.player.isBot ? '\u2699' : playerInitial(entry.player.name)}
-              </div>
-
-              {/* Player name */}
-              <span className={`truncate ${isWinner ? 'font-bold text-[var(--gold)]' : 'text-sm'}`}>
-                {entry.player.name}
-              </span>
+                <div
+                  className={`avatar ${playerColor(entry.originalIndex)} flex items-center justify-center flex-shrink-0`}
+                  style={{ width: isWinner ? '2.5rem' : '2rem', height: isWinner ? '2.5rem' : '2rem', fontSize: isWinner ? '1.1rem' : '0.9rem' }}
+                >
+                  {entry.player.isBot ? '\u2699' : playerInitial(entry.player.name)}
+                </div>
+                <span className={`truncate ${isWinner ? 'font-bold text-[var(--gold)]' : 'text-sm'}`}>
+                  {entry.player.name}
+                </span>
+              </button>
 
               {/* Winner crown */}
               {isWinner && (

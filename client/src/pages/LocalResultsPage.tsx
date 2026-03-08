@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { PlayerRankingReveal } from '../components/PlayerRankingReveal.js';
-import { ShareCard } from '../components/ShareCard.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
+import { useSound } from '../hooks/useSound.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
 
@@ -31,6 +31,15 @@ export function LocalResultsPage() {
   const isWinner = winnerId === playerId;
 
   useWinConfetti(isWinner);
+
+  // Play victory/gameOver sound on mount — this is the "You Win!" screen
+  const { play } = useSound();
+  const victoryPlayedRef = useRef(false);
+  useEffect(() => {
+    if (!winnerId || victoryPlayedRef.current) return;
+    victoryPlayedRef.current = true;
+    play(isWinner ? 'victory' : 'gameOver');
+  }, [winnerId, isWinner, play]);
 
   const handleRankingComplete = useCallback(() => {
     setRankingDone(true);
@@ -101,13 +110,6 @@ export function LocalResultsPage() {
           >
             Play Again
           </button>
-
-          {/* Share card */}
-          {rankingDone && gameStats && gameState && (
-            <div className="animate-slide-up">
-              <ShareCard players={gameState.players} winnerId={winnerId} stats={gameStats} />
-            </div>
-          )}
 
           {lastReplay && (
             <button

@@ -97,7 +97,7 @@ export const MATCHMAKING_ELO_WINDOW = 150;
 /** After this many seconds in queue, widen the matching window by 50%. */
 export const MATCHMAKING_WIDEN_AFTER_SECONDS = 15;
 /** After this many seconds, match with a rated bot instead of waiting. */
-export const MATCHMAKING_BOT_BACKFILL_SECONDS = 45;
+export const MATCHMAKING_BOT_BACKFILL_SECONDS = 30;
 /** Target player count for multiplayer matchmaking. */
 export const MATCHMAKING_MULTIPLAYER_TARGET = 4;
 /** Minimum players to start a multiplayer match (including bot backfill). */
