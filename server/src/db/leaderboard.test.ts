@@ -88,6 +88,25 @@ describe('getLeaderboard', () => {
     expect(first.tier).toBe('platinum');
   });
 
+  it('uses ROW_NUMBER rank directly without adding offset (pagination fix)', async () => {
+    // ROW_NUMBER() is computed over the full result set before LIMIT/OFFSET,
+    // so page 2 (offset=50) should return ranks 51-100, NOT 101-150.
+    // Regression test: previously the code added offset to rank, double-counting it.
+    mockQuery.mockResolvedValueOnce(makeResult([
+      { user_id: USER_A, username: 'a', display_name: 'A', avatar: null, rating: '1400', games_played: '20', rank: '51', is_bot: false },
+      { user_id: USER_B, username: 'b', display_name: 'B', avatar: null, rating: '1350', games_played: '15', rank: '52', is_bot: false },
+      { user_id: USER_C, username: 'c', display_name: 'C', avatar: null, rating: '1300', games_played: '10', rank: '53', is_bot: false },
+    ]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ total: '100' }]));
+
+    const result = await getLeaderboard('heads_up', 'all_time', 50, 50);
+    expect(result!.entries[0]!.rank).toBe(51);
+    expect(result!.entries[1]!.rank).toBe(52);
+    expect(result!.entries[2]!.rank).toBe(53);
+    // Ranks must NOT be offset+rank (e.g., 101, 102, 103)
+    expect(result!.entries[0]!.rank).not.toBe(101);
+  });
+
   it('returns entries in descending rank order', async () => {
     mockQuery.mockResolvedValueOnce(makeResult([
       { user_id: USER_A, username: 'a', display_name: 'A', avatar: null, rating: '1600', games_played: '30', rank: '1' },
