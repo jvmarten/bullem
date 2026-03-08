@@ -17,7 +17,7 @@ export function HostPage() {
   const { play } = useSound();
 
   // Load saved settings from previous session, falling back to sensible defaults
-  const saved = useMemo(() => loadMatchSettings(), []);
+  const saved = useMemo(() => loadMatchSettings('online'), []);
   const [maxCards, setMaxCards] = useState(saved?.maxCards ?? 5);
   const [maxPlayers, setMaxPlayers] = useState(saved?.maxPlayers ?? 6);
   const [turnTimer, setTurnTimer] = useState(() => {
@@ -57,7 +57,7 @@ export function HostPage() {
     try {
       const roomCode = await createRoom(playerName, user?.avatar);
       updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
-      saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
+      saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory }, 'online');
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');

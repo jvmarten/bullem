@@ -409,7 +409,7 @@ export function HomePage() {
     try {
       const roomCode = await createRoom(getOnlinePlayerName(), user?.avatar);
       // Apply saved match settings so the room remembers previous preferences
-      const saved = loadMatchSettings();
+      const saved = loadMatchSettings('online');
       if (saved) {
         const restored: GameSettings = {
           ...DEFAULT_ONLINE_GAME_SETTINGS,
