@@ -63,8 +63,11 @@ export function ResultsPage() {
     setWatchingAnother(true);
     const tryWatch = async (): Promise<void> => {
       try {
-        const code = await watchRandomGame();
+        // Leave old room BEFORE joining new one — watchRandomGame() auto-joins
+        // the socket to the new room on the server, so if leaveRoom() fires
+        // after, it removes the socket from the *new* room instead.
         leaveRoom();
+        const code = await watchRandomGame();
         navigate(`/game/${code}`);
       } catch {
         // No match available — retry after a short delay

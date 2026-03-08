@@ -31,9 +31,10 @@ interface Props {
   stats: InGameStats;
   players: Player[];
   myPlayerId: string | null;
+  label?: string;
 }
 
-export function InGameStats({ stats, players, myPlayerId }: Props) {
+export function InGameStats({ stats, players, myPlayerId, label = 'Stats' }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('players');
 
@@ -116,7 +117,7 @@ export function InGameStats({ stats, players, myPlayerId }: Props) {
         className="btn-ghost border-[var(--gold-dim)] text-[var(--gold-dim)] text-xs px-3 py-1.5 min-h-[44px]"
         title="View match stats"
       >
-        Stats
+        {label}
       </button>
     );
   }

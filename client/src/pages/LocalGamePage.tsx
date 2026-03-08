@@ -408,7 +408,7 @@ export function LocalGamePage() {
 
             {/* Spectator view — eliminated players see all cards */}
             {isEliminated && gameState.spectatorCards && (
-              <SpectatorView spectatorCards={gameState.spectatorCards} />
+              <SpectatorView spectatorCards={gameState.spectatorCards} currentPlayerId={gameState.currentPlayerId} />
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
