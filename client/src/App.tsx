@@ -34,7 +34,6 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ d
 
 // Auth pages
 const LoginPage = lazy(() => import('./pages/LoginPage.js').then(m => ({ default: m.LoginPage })));
-const RegisterPage = lazy(() => import('./pages/RegisterPage.js').then(m => ({ default: m.RegisterPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.js').then(m => ({ default: m.ProfilePage })));
 const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage.js').then(m => ({ default: m.PublicProfilePage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.js').then(m => ({ default: m.ForgotPasswordPage })));
@@ -108,7 +107,6 @@ export default function App() {
           <Route path="/how-to-play" element={<HowToPlayPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:userId" element={<PublicProfilePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
