@@ -278,6 +278,10 @@ export interface GameEngineSnapshot {
   lastCallerId: PlayerId | null;
   turnHistory: TurnEntry[];
   startingPlayerIndex: number;
+  /** ID of the player who started the current round. Added to fix starting
+   *  player rotation when the starter is eliminated mid-round. Optional for
+   *  backwards compatibility with snapshots created before this field existed. */
+  startingPlayerId?: PlayerId;
   respondedPlayers: PlayerId[];
   lastChanceUsed: boolean;
   gameStats: GameStats;

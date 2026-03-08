@@ -195,7 +195,10 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
       logger.error({ err }, 'Failed to restore rooms from Redis on startup');
     }
   }
-  roomManager.startCleanup(io, (roomCode) => botManager.clearTurnTimer(roomCode));
+  roomManager.startCleanup(io, (roomCode, room) => {
+    botManager.clearTurnTimer(roomCode);
+    botManager.cleanupRoomBots(room);
+  });
   backgroundGameManager.start();
 
   // Log dev mode status at startup

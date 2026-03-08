@@ -159,13 +159,17 @@ export function registerLobbyHandlers(
     log.info({ roomCode: room.roomCode }, 'Player left room');
     botManager.clearTurnTimer(room.roomCode);
 
-    // If a game is in progress, eliminate the player in the engine first
+    // If a game is in progress, eliminate the player in the engine first.
+    // Use detachPlayer (not removePlayer) to keep the player in the room's
+    // player Map so their stats and userId are available for game persistence
+    // and rating updates when the game ends. Without this, a player who
+    // leaves mid-game would have no game_players entry, and in ranked games
+    // could exploit this to avoid rating loss.
     if (playerId && room.game && room.gamePhase === GamePhase.PLAYING) {
       room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
 
-      // Remove from room after engine elimination (engine keeps its own player list)
-      room.removePlayer(socket.id);
+      room.detachPlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
       roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
@@ -188,7 +192,7 @@ export function registerLobbyHandlers(
       // Leaving during round result — eliminate in engine, check for game over
       room.recordEliminations([playerId]);
       const result = room.game.eliminatePlayer(playerId);
-      room.removePlayer(socket.id);
+      room.detachPlayer(socket.id);
       roomManager.removeSocketMapping(socket.id);
       roomManager.removePlayerMapping(playerId);
       socket.leave(room.roomCode);
