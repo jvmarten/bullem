@@ -27,12 +27,12 @@ export function LobbyPage() {
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
-  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   const joinAttemptedRef = useRef(false);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) {
-      setSelectedBotName(player.name);
+      setSelectedPlayer(player);
     } else if (player.id === playerId) {
       navigate('/profile');
     }
@@ -706,8 +706,13 @@ export function LobbyPage() {
         </div>
         </div>{/* end lobby-right */}
       </div>
-      {selectedBotName && (
-        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      {selectedPlayer && (
+        <BotProfileModal
+          player={selectedPlayer}
+          playerIndex={roomState?.players.findIndex(p => p.id === selectedPlayer.id) ?? 0}
+          stats={null}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </Layout>
   );

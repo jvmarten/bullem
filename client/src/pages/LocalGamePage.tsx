@@ -47,7 +47,7 @@ export function LocalGamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
-  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   // All useRef hooks — unconditional
   const wasEliminatedRef = useRef(false);
@@ -119,7 +119,7 @@ export function LocalGamePage() {
   }, [gameState]);
 
   const handlePlayerClick = useCallback((player: Player) => {
-    if (player.isBot) setSelectedBotName(player.name);
+    setSelectedPlayer(player);
   }, []);
 
   const quickDrawSuggestions = useMemo(() => {
@@ -230,7 +230,7 @@ export function LocalGamePage() {
   const overlayActive = !!roundResult || !!roundTransition;
 
   useGameKeyboardShortcuts({
-    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onBull: showBull ? () => { callBull(); } : null,
     onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
     onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
     onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
@@ -288,7 +288,7 @@ export function LocalGamePage() {
   const headerRightExtra = (
     <>
       {pauseButton}
-      <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
+      {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -315,7 +315,7 @@ export function LocalGamePage() {
           </div>
           <div className="flex items-center gap-3">
             {pauseButton}
-            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
+            {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -530,8 +530,13 @@ export function LocalGamePage() {
           </div>
         )}
       </div>
-      {selectedBotName && (
-        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      {selectedPlayer && gameState && (
+        <BotProfileModal
+          player={selectedPlayer}
+          playerIndex={gameState.players.findIndex(p => p.id === selectedPlayer.id)}
+          stats={inGameStats.playerStats[selectedPlayer.id] ?? null}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </Layout>
   );

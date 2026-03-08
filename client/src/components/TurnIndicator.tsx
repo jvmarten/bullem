@@ -45,6 +45,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   const [tickPulse, setTickPulse] = useState(false);
   const totalDurationRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
+  const prevPlayerRef = useRef<PlayerId | null>(null);
   // Direct DOM ref for the progress bar — updated at 10fps without triggering
   // React re-renders (re-renders only when secondsLeft changes, ~1/sec).
   const meterRef = useRef<HTMLDivElement>(null);
@@ -52,6 +53,16 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   const glowRef = useRef<HTMLDivElement>(null);
 
   const isResolving = roundPhase === RoundPhase.RESOLVING;
+
+  // Reset total duration when the current player changes (new turn), not when
+  // deadline goes null (e.g. pause). This preserves the correct meter position
+  // when a local game is paused and resumed.
+  useEffect(() => {
+    if (prevPlayerRef.current !== null && currentPlayerId !== prevPlayerRef.current) {
+      totalDurationRef.current = null;
+    }
+    prevPlayerRef.current = currentPlayerId;
+  }, [currentPlayerId]);
 
   const updateMeter = useCallback((remainingMs: number) => {
     const totalMs = totalDurationRef.current;
@@ -75,7 +86,6 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   useEffect(() => {
     if (!turnDeadline || !isMyTurn || isResolving) {
       setSecondsLeft(null);
-      totalDurationRef.current = null;
       lastTickRef.current = null;
       if (meterRef.current) meterRef.current.style.width = '100%';
       if (glowRef.current) glowRef.current.style.opacity = '0';

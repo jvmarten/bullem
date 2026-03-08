@@ -36,10 +36,10 @@ export function LocalLobbyPage() {
   // extra layer of protection against events that sneak past the disabled attr.
   const [interactionReady, setInteractionReady] = useState(false);
   const [showLcrInfo, setShowLcrInfo] = useState(false);
-  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) {
-      setSelectedBotName(player.name);
+      setSelectedPlayer(player);
     }
   }, []);
   const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
@@ -453,8 +453,13 @@ export function LocalLobbyPage() {
         )}
         </div>{/* end lobby-right */}
       </div>
-      {selectedBotName && (
-        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      {selectedPlayer && (
+        <BotProfileModal
+          player={selectedPlayer}
+          playerIndex={roomState?.players.findIndex(p => p.id === selectedPlayer.id) ?? 0}
+          stats={null}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </Layout>
   );

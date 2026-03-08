@@ -29,9 +29,10 @@ interface Props {
 
 /* Full-border timer meter that wraps around the entire player tile.
    Uses an SVG rect with stroke-dasharray to show remaining turn time
-   as a shrinking border highlight. Updated at 10fps via direct DOM
-   manipulation to avoid React re-renders. The SVG viewBox is set
-   dynamically via ResizeObserver so the rect always matches the tile size. */
+   as a shrinking border highlight running clockwise from top-left.
+   Updated at 10fps via direct DOM manipulation to avoid React re-renders.
+   The SVG viewBox is set dynamically via ResizeObserver so the rect
+   always matches the tile size. */
 const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
   const rectRef = useRef<SVGRectElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -73,7 +74,8 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     if (rectRef.current) {
       const perim = perimRef.current || rectRef.current.getTotalLength();
       perimRef.current = perim;
-      rectRef.current.style.strokeDasharray = `${perim}`;
+      // Clockwise from top-left: visible dash = full perimeter, no gap
+      rectRef.current.style.strokeDasharray = `${perim} ${perim}`;
       rectRef.current.style.strokeDashoffset = '0';
       rectRef.current.style.stroke = 'var(--gold-dim)';
     }
@@ -86,7 +88,10 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
       const perim = perimRef.current;
       if (t <= 0 || !perim || !rectRef.current) return;
       const pct = remaining / t;
-      rectRef.current.style.strokeDashoffset = `${perim * (1 - pct)}`;
+      // Clockwise from top-left: visible dash shrinks as time runs out
+      const visibleLength = perim * pct;
+      rectRef.current.style.strokeDasharray = `${visibleLength} ${perim}`;
+      rectRef.current.style.strokeDashoffset = '0';
       rectRef.current.style.stroke = pct <= 0.3 ? 'var(--danger)' : 'var(--gold-dim)';
     };
 

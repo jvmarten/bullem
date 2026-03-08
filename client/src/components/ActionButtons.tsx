@@ -114,7 +114,7 @@ export const ActionButtons = memo(function ActionButtons({
   return (
     <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
       {showBull && (
-        <button onClick={() => handleClick(onBull, 'bullCalled')} className={`btn-danger action-btn-base font-bold ${showTrue ? 'action-btn-secondary' : 'action-btn-primary'} kbd-shortcut`} data-kbd="B">
+        <button onClick={() => handleClick(onBull)} className={`btn-danger action-btn-base font-bold ${showTrue ? 'action-btn-secondary' : 'action-btn-primary'} kbd-shortcut`} data-kbd="B">
           BULL!
         </button>
       )}
