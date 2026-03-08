@@ -88,6 +88,31 @@ export function registerLobbyHandlers(
     const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
 
+    // Check for session transfer — authenticated user already connected in
+    // this room from a different socket (different device/tab, same userId).
+    // This must run before the reconnect check: the player is still connected,
+    // so handleReconnect (which requires isConnected === false) would reject.
+    if (socket.data.userId) {
+      const transfer = room.handleSessionTransfer(socket.id, socket.data.userId);
+      if (transfer) {
+        // Notify the old socket before booting it from the room
+        const oldSocket = io.sockets.sockets.get(transfer.oldSocketId);
+        if (oldSocket) {
+          oldSocket.emit('session:transferred');
+          oldSocket.leave(room.roomCode);
+        }
+        roomManager.removeSocketMapping(transfer.oldSocketId);
+        roomManager.assignSocketToRoom(socket.id, room.roomCode);
+        socket.join(room.roomCode);
+        log.info({ roomCode, playerId: transfer.playerId, oldSocketId: transfer.oldSocketId }, 'Session transferred to new socket');
+        broadcastRoomState(io, room);
+        if (room.game) broadcastGameState(io, room);
+        broadcastPlayerNames(io, roomManager);
+        roomManager.persistRoom(room);
+        return callback({ playerId: transfer.playerId, reconnectToken: transfer.reconnectToken });
+      }
+    }
+
     // Check for reconnection — requires the secret reconnect token
     if (data.playerId) {
       const newToken = room.handleReconnect(socket.id, data.playerId, data.reconnectToken);

@@ -233,6 +233,50 @@ export class Room {
   }
 
 
+  /** Transfer an existing player's session to a new socket. Used when an
+   *  authenticated user connects from a different device/tab while they already
+   *  have an active connection in this room. Returns the old socket ID and a new
+   *  rotated reconnect token on success, or null if no matching player found.
+   *  The caller is responsible for notifying and disconnecting the old socket. */
+  handleSessionTransfer(newSocketId: string, userId: string): { oldSocketId: string; playerId: PlayerId; reconnectToken: string } | null {
+    // Find the player entry with the matching userId
+    let targetPlayerId: PlayerId | null = null;
+    for (const [pid, uid] of this.playerUserIds) {
+      if (uid === userId) {
+        targetPlayerId = pid;
+        break;
+      }
+    }
+    if (!targetPlayerId) return null;
+
+    const player = this.players.get(targetPlayerId);
+    if (!player) return null;
+
+    const oldSocketId = this.playerToSocket.get(targetPlayerId);
+    if (!oldSocketId) return null;
+
+    // Player must be currently connected (otherwise normal reconnect handles it)
+    if (!player.isConnected) return null;
+
+    // Swap socket mappings: remove old, set new
+    this.socketToPlayer.delete(oldSocketId);
+    this.socketToPlayer.set(newSocketId, targetPlayerId);
+    this.playerToSocket.set(targetPlayerId, newSocketId);
+
+    // Clear any existing disconnect timer (shouldn't be one if connected, but be safe)
+    const timer = this.disconnectTimers.get(targetPlayerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(targetPlayerId);
+    }
+
+    // Rotate reconnect token
+    const newToken = randomUUID();
+    this.reconnectTokens.set(targetPlayerId, newToken);
+    this.touch();
+    return { oldSocketId, playerId: targetPlayerId, reconnectToken: newToken };
+  }
+
   beginRoundContinueWindow(timeoutMs: number, onTimeout: () => void): void {
     this.cancelRoundContinueWindow();
     this.roundContinueReady.clear();

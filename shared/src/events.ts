@@ -84,4 +84,8 @@ export interface ServerToClientEvents {
   'matchmaking:found': (match: MatchmakingFound) => void;
   'matchmaking:cancelled': () => void;
   'game:spectatorStats': (stats: GameStats) => void;
+  /** Emitted to the OLD socket when an authenticated user's session is
+   *  transferred to a new connection (same userId, different socket).
+   *  The old client should show a message and stop reconnecting. */
+  'session:transferred': () => void;
 }

@@ -89,6 +89,8 @@ export interface GameContextValue {
   clearPendingRejoinRoom: () => void;
   /** Initial game stats sent to spectators on join (covers rounds before they joined). */
   spectatorInitialStats: GameStats | null;
+  /** True when this socket's session was transferred to another device/tab. */
+  sessionTransferred: boolean;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -162,6 +164,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [pendingRejoinRoom, setPendingRejoinRoom] = useState<string | null>(null);
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const [spectatorInitialStats, setSpectatorInitialStats] = useState<GameStats | null>(null);
+  const [sessionTransferred, setSessionTransferred] = useState(false);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -458,6 +461,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:spectatorStats', (stats: GameStats) => {
       setSpectatorInitialStats(stats);
     });
+    socket.on('session:transferred', () => {
+      setSessionTransferred(true);
+      // Clean up storage so this old tab/device doesn't try to auto-reconnect
+      sessionStorage.removeItem(PLAYER_ID_KEY);
+      sessionStorage.removeItem(PLAYER_NAME_KEY);
+      sessionStorage.removeItem(ROOM_CODE_KEY);
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+      clearActiveSession();
+      // Disconnect this socket entirely — the new device owns the session
+      socket.disconnect();
+    });
 
     return () => {
       socket.off('connect');
@@ -483,6 +498,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('matchmaking:found');
       socket.off('matchmaking:cancelled');
       socket.off('game:spectatorStats');
+      socket.off('session:transferred');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -755,9 +771,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     pendingRejoinRoom,
     clearPendingRejoinRoom,
     spectatorInitialStats,
+    sessionTransferred,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
-    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred,
     lastReplay, reactions, chatMessages,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,

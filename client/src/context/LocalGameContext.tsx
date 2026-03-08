@@ -919,6 +919,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     pendingRejoinRoom: null,
     clearPendingRejoinRoom: () => {},
     spectatorInitialStats: null,
+    sessionTransferred: false,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

@@ -30,8 +30,9 @@ export interface TestContext {
   roomManager: RoomManager;
   botManager: BotManager;
   port: number;
-  /** Connect a new client socket. Must be disconnected manually or via cleanup(). */
-  connectClient: () => Promise<TypedClientSocket>;
+  /** Connect a new client socket. Must be disconnected manually or via cleanup().
+   *  Pass opts.auth to simulate an authenticated user (userId, username). */
+  connectClient: (opts?: { auth?: Record<string, string> }) => Promise<TypedClientSocket>;
   /** Disconnect all clients and shut down the server. */
   cleanup: () => Promise<void>;
 }
@@ -44,6 +45,19 @@ export async function createTestServer(): Promise<TestContext> {
   const httpServer = createServer();
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: { origin: true },
+  });
+
+  // In test mode, allow setting socket.data.userId via the handshake auth payload
+  // to simulate authenticated users without requiring real JWT cookies.
+  io.use((socket, next) => {
+    const auth = socket.handshake.auth as Record<string, unknown>;
+    if (auth?.userId && typeof auth.userId === 'string') {
+      socket.data.userId = auth.userId;
+    }
+    if (auth?.username && typeof auth.username === 'string') {
+      socket.data.username = auth.username;
+    }
+    next();
   });
 
   const roomManager = new RoomManager();
@@ -63,10 +77,11 @@ export async function createTestServer(): Promise<TestContext> {
   const addr = httpServer.address();
   const port = typeof addr === 'object' && addr ? addr.port : 0;
 
-  const connectClient = async (): Promise<TypedClientSocket> => {
+  const connectClient = async (opts?: { auth?: Record<string, string> }): Promise<TypedClientSocket> => {
     const client = ioClient(`http://localhost:${port}`, {
       transports: ['websocket'],
       forceNew: true,
+      auth: opts?.auth,
     }) as TypedClientSocket;
     clients.push(client);
     await new Promise<void>((resolve) => {
