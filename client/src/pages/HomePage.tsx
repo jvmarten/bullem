@@ -169,7 +169,7 @@ const INITIAL_ORDER = [0, 1, 2, 3, 4];
 const PLAYER_NAME_STORAGE_KEY = 'bull-em-player-name';
 
 function generatePlayerName(): string {
-  return `Player${Math.floor(1000 + Math.random() * 9000)}`;
+  return `Guest${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 function getOrCreatePlayerName(): string {
@@ -295,13 +295,18 @@ export function HomePage() {
       .catch(() => { /* server not running yet — ignore */ });
   }, []);
 
-  // Sync player name with auth state — when user signs in, use their display name
+  // Sync player name with auth state — when user signs in, use their display name;
+  // when user signs out, generate a fresh guest name
   useEffect(() => {
     if (user?.displayName) {
       setName(user.displayName);
       localStorage.setItem(PLAYER_NAME_STORAGE_KEY, user.displayName);
+    } else if (!user) {
+      const guestName = generatePlayerName();
+      setName(guestName);
+      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, guestName);
     }
-  }, [user?.displayName]);
+  }, [user]);
 
   // Auto-redirect to an active game when the user returns after browser close.
   // The GameContext connect handler rejoins from localStorage, which sets
@@ -690,19 +695,19 @@ export function HomePage() {
               /* Signed-in: show user icon + username linking to profile */
               <Link
                 to="/profile"
-                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5 min-h-[44px]"
+                className="text-base text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-2 min-h-[44px]"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 <span>{name}</span>
               </Link>
             ) : (
-              /* Not signed in: show PlayerXXXX as a button that navigates to sign-in */
+              /* Not signed in: show GuestXXXX as a button that navigates to sign-in */
               <Link
                 to="/login"
-                className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1.5 min-h-[44px]"
+                className="text-base text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-2 min-h-[44px]"
               >
                 <span>{name}</span>
-                <span className="text-[10px] opacity-60">(sign in)</span>
+                <span className="text-xs opacity-60">(sign in)</span>
               </Link>
             )}
           </div>
@@ -1010,7 +1015,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.10
+          v1.2.11
         </button>
       </div>
 
@@ -1024,11 +1029,11 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.10</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.11</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>OAuth sign-in now creates accounts automatically</li>
-              <li>Ranked play button styling update</li>
+              <li>Fixed sign-out display name reset</li>
+              <li>Improved home page text sizing</li>
             </ul>
           </div>
         </div>
