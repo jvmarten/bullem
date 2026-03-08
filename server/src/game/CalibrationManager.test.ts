@@ -119,35 +119,30 @@ describe('CalibrationManager', () => {
 
       const status = calibrationManager.getStatus();
       expect(status.enabled).toBe(false);
+      expect(status.activeHeadsUpGames).toBe(0);
+      expect(status.activeMultiplayerGames).toBe(0);
     });
   });
 
-  describe('heads-up round-robin pairings', () => {
-    it('creates all unique pairings for 4 bots (C(4,2) = 6)', async () => {
+  describe('concurrent game slots', () => {
+    it('launches up to 18 concurrent games (9 HU + 9 MP) with sufficient bots', async () => {
       await calibrationManager.start();
 
-      const status = calibrationManager.getStatus();
-      // 4 bots = 6 unique pairings
-      // Verify all bots are represented
-      expect(status.bots).toHaveLength(4);
-      const profileKeys = status.bots.map(b => b.profileKey);
-      expect(profileKeys).toContain('rock_lvl9');
-      expect(profileKeys).toContain('bluffer_lvl9');
-      expect(profileKeys).toContain('grinder_lvl9');
-      expect(profileKeys).toContain('wildcard_lvl9');
-    });
-  });
-
-  describe('multiplayer bot selection', () => {
-    it('creates rooms with between 3 and min(9, poolSize) players', async () => {
-      await calibrationManager.start();
-
-      // Advance past the initial delay to trigger game creation
-      await vi.advanceTimersByTimeAsync(3000);
-
-      // The status should show the manager is running and a game may be active
       const status = calibrationManager.getStatus();
       expect(status.enabled).toBe(true);
+      // With only 4 bots, we can still launch 9+9 since bots can be in multiple games
+      expect(status.activeHeadsUpGames).toBe(9);
+      expect(status.activeMultiplayerGames).toBe(9);
+      expect(status.running).toBe(true);
+    });
+
+    it('reports separate counts for heads-up and multiplayer games', async () => {
+      await calibrationManager.start();
+
+      const status = calibrationManager.getStatus();
+      expect(typeof status.activeHeadsUpGames).toBe('number');
+      expect(typeof status.activeMultiplayerGames).toBe('number');
+      expect(status.activeHeadsUpGames + status.activeMultiplayerGames).toBeGreaterThan(0);
     });
   });
 
@@ -172,6 +167,8 @@ describe('CalibrationManager', () => {
       expect(status.enabled).toBe(false);
       expect(status.running).toBe(false);
       expect(status.totalGamesPlayed).toBe(0);
+      expect(status.activeHeadsUpGames).toBe(0);
+      expect(status.activeMultiplayerGames).toBe(0);
       expect(status.bots).toHaveLength(0);
     });
 
@@ -290,6 +287,23 @@ describe('CalibrationManager', () => {
 
       await calibrationManager.start();
       expect(calibrationManager.isModeConverged('multiplayer')).toBe(false);
+    });
+  });
+
+  describe('stop cleanup', () => {
+    it('clears all active games and timers on stop', async () => {
+      await calibrationManager.start();
+
+      // Verify games are active
+      const beforeStatus = calibrationManager.getStatus();
+      expect(beforeStatus.activeHeadsUpGames + beforeStatus.activeMultiplayerGames).toBeGreaterThan(0);
+
+      calibrationManager.stop();
+
+      const afterStatus = calibrationManager.getStatus();
+      expect(afterStatus.activeHeadsUpGames).toBe(0);
+      expect(afterStatus.activeMultiplayerGames).toBe(0);
+      expect(afterStatus.running).toBe(false);
     });
   });
 });
