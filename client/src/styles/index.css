@@ -400,6 +400,32 @@ body {
   50% { box-shadow: 0 0 0 4px rgba(212, 168, 67, 0.5), 0 0 8px 2px rgba(212, 168, 67, 0.25); }
 }
 
+/* ── Tile Timer Meter ────────────────────────────────── */
+/* A subtle bottom-border progress bar on the opponent's player tile.
+   --meter-pct is updated via JS at 10fps. */
+.tile-timer-meter {
+  --meter-pct: 100%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 0 0 0.5rem 0.5rem;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tile-timer-meter::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: var(--meter-pct);
+  border-color: inherit;
+  background: currentColor;
+  color: inherit;
+  border-radius: inherit;
+  transition: width 0.15s linear;
+}
+
 /* ── Reveal Overlay Scroll ──────────────────────────── */
 .reveal-scroll::-webkit-scrollbar { width: 4px; }
 .reveal-scroll::-webkit-scrollbar-track { background: transparent; }

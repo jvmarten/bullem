@@ -16,13 +16,16 @@ interface LayoutProps {
   headerRightExtra?: ReactNode;
 }
 
+function getGuestDisplayName(): string {
+  const stored = localStorage.getItem('bull-em-player-name');
+  if (stored) return stored.toLowerCase();
+  return 'guest';
+}
+
 function AuthLink() {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return null;
-
-  // Home page handles its own auth display in the center — hide the header auth link
-  if (location.pathname === '/') return null;
 
   // When in a game/room session, don't navigate away — it would kick the player out
   const inSession = /^\/(room|game|local|results)/.test(location.pathname);
@@ -44,12 +47,14 @@ function AuthLink() {
     );
   }
 
+  const guestName = getGuestDisplayName();
+
   if (inSession) {
     // Show guest label without navigation to avoid kicking from game
     return (
       <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px]">
         {userIcon}
-        <span>Guest</span>
+        <span>{guestName}</span>
       </span>
     );
   }
@@ -60,7 +65,7 @@ function AuthLink() {
       className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
     >
       {userIcon}
-      <span>Guest</span>
+      <span>{guestName}</span>
     </Link>
   );
 }

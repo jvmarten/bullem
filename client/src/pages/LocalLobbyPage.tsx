@@ -146,7 +146,7 @@ export function LocalLobbyPage() {
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
             Bots
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {Array.from({ length: dynamicMaxPlayers }, (_, i) => i).map(n => {
               const currentBotCount = roomState.players.filter(p => p.isBot).length;
               return (
@@ -169,7 +169,8 @@ export function LocalLobbyPage() {
                       }
                     }
                   }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  style={{ minWidth: dynamicMaxPlayers > 7 ? '2.25rem' : undefined }}
+                  className={`flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
                     currentBotCount === n
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
