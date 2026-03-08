@@ -876,7 +876,7 @@ export function HomePage() {
                 </div>
                 {joiningRanked && (
                   <button
-                    onClick={() => { play('uiBack'); leaveMatchmaking().catch(() => {}); }}
+                    onClick={() => { play('uiBack'); setJoiningRanked(null); leaveMatchmaking().catch(() => {}); }}
                     className="btn-ghost text-sm py-2"
                   >
                     Cancel
