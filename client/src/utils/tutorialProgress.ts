@@ -62,3 +62,8 @@ export function setTutorialStepReached(step: number): void {
     localStorage.setItem(TUTORIAL_STEP_KEY, String(step));
   }
 }
+
+/** Clear saved tutorial step progress so the tutorial starts from the beginning next time. */
+export function clearTutorialStepProgress(): void {
+  localStorage.removeItem(TUTORIAL_STEP_KEY);
+}
