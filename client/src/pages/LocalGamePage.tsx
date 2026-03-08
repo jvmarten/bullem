@@ -500,6 +500,7 @@ export function LocalGamePage() {
           <RevealOverlay
             result={roundResult}
             players={gameState.players}
+            myPlayerId={playerId ?? undefined}
             onDismiss={clearRoundResult}
           />
         )}

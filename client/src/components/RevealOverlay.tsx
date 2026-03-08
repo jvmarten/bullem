@@ -1,5 +1,5 @@
 import { handToString, TurnAction } from '@bull-em/shared';
-import type { RoundResult, Player, OwnedCard, TurnEntry, Card } from '@bull-em/shared';
+import type { RoundResult, Player, OwnedCard, TurnEntry, Card, PlayerId } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 import { useEffect, useRef, useState, useMemo, memo } from 'react';
 
@@ -19,6 +19,7 @@ function FlipCard({ card, delay }: { card: Card; delay: number }) {
 interface Props {
   result: RoundResult;
   players: Player[];
+  myPlayerId?: PlayerId;
   onDismiss: () => void;
 }
 
@@ -42,9 +43,41 @@ function actionLabel(entry: TurnEntry): string {
 // Memoized: props are stable for the duration of the overlay. Without memo,
 // parent re-renders (e.g. from the countdown timer in the game page) would
 // re-render the entire overlay including flip-card animations.
-export const RevealOverlay = memo(function RevealOverlay({ result, players, onDismiss }: Props) {
+export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss }: Props) {
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
+  const [showBeat2, setShowBeat2] = useState(false);
+
+  // Determine personalized beat 1 message
+  const beat1 = useMemo(() => {
+    if (!myPlayerId) return null;
+    const isCaller = myPlayerId === result.callerId;
+    const wasPenalized = result.penalizedPlayerIds.includes(myPlayerId);
+
+    if (isCaller && wasPenalized && !result.handExists) {
+      // Was bluffing and got caught
+      return { text: 'BUSTED', color: 'var(--danger)' };
+    }
+    if (wasPenalized) {
+      return { text: 'WRONG', color: 'var(--danger)' };
+    }
+    return { text: 'SAFE', color: 'var(--safe)' };
+  }, [myPlayerId, result.callerId, result.handExists, result.penalizedPlayerIds]);
+
+  // Beat 2 is always the factual detail about the hand
+  const beat2 = useMemo(() => {
+    if (result.handExists) {
+      return { text: 'The hand exists', color: 'var(--info)' };
+    }
+    return { text: 'Hand is fake', color: 'var(--danger)' };
+  }, [result.handExists]);
+
+  // Transition from beat 1 to beat 2 after a brief moment
+  useEffect(() => {
+    if (!beat1) return;
+    const timer = setTimeout(() => setShowBeat2(true), 1500);
+    return () => clearTimeout(timer);
+  }, [beat1]);
 
   // Single interval instead of chained timeouts — avoids creating 30 timeout
   // closures and re-running the effect on every tick.
@@ -82,20 +115,34 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, onDi
          style={{ background: 'var(--overlay)' }}>
       <div className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in max-h-[90vh] overflow-y-auto reveal-scroll"
            style={{ overscrollBehavior: 'contain' }}>
-        <h2 className="font-display text-2xl font-bold text-[var(--gold)]">Round Over</h2>
-
         <p className="text-[var(--card-face)]">
           {callerName} called:{' '}
           <span className="text-[var(--gold)] font-bold">{handToString(result.calledHand)}</span>
         </p>
 
-        <div className={`text-2xl font-display font-bold py-3 rounded-lg ${
-          result.handExists
-            ? 'text-[var(--info)] bg-[var(--info-bg)] border border-[var(--info)]'
-            : 'text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)]'
-        }`}>
-          {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
-        </div>
+        {/* Two-beat personalized result message */}
+        {beat1 ? (
+          <div className="py-3 rounded-lg relative" style={{ minHeight: '3.5rem' }}>
+            <div
+              className="font-display text-3xl font-bold transition-opacity duration-300"
+              style={{
+                color: showBeat2 ? beat2.color : beat1.color,
+                opacity: 1,
+              }}
+            >
+              {showBeat2 ? beat2.text : beat1.text}
+            </div>
+          </div>
+        ) : (
+          /* Fallback for spectators / no player context */
+          <div className={`text-2xl font-display font-bold py-3 rounded-lg ${
+            result.handExists
+              ? 'text-[var(--info)] bg-[var(--info-bg)] border border-[var(--info)]'
+              : 'text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)]'
+          }`}>
+            {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
+          </div>
+        )}
 
         {result.turnHistory && result.turnHistory.length > 0 && (
           <div>
