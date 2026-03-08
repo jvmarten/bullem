@@ -25,6 +25,19 @@ function getPhaseLabel(roundPhase: RoundPhase, hasCurrentHand: boolean): string 
   }
 }
 
+function getTimeoutAction(roundPhase: RoundPhase, hasCurrentHand: boolean): string {
+  switch (roundPhase) {
+    case RoundPhase.LAST_CHANCE:
+      return 'Auto-pass';
+    case RoundPhase.BULL_PHASE:
+      return 'Auto-bull';
+    case RoundPhase.CALLING:
+      return hasCurrentHand ? 'Auto-bull' : 'Auto-call';
+    case RoundPhase.RESOLVING:
+      return '';
+  }
+}
+
 // Memoized: parent (GamePage/LocalGamePage) re-renders on every turn history
 // update, but TurnIndicator's props are stable within a turn. The internal
 // timer uses direct DOM manipulation (meterRef) at 10fps to avoid React
@@ -124,6 +137,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
   const isWarning = secondsLeft !== null && secondsLeft <= 5;
   const isTimedOut = secondsLeft === 0;
   const showTimer = secondsLeft !== null && secondsLeft > 0;
+  const timeoutAction = getTimeoutAction(roundPhase, hasCurrentHand);
 
   const meterColor = isWarning ? 'var(--danger)' : 'var(--info)';
 
@@ -146,11 +160,11 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
           : 'glass'
       }`}>
         <p className={`font-display text-base font-bold ${isMyTurn ? (isWarning || roundPhase === RoundPhase.LAST_CHANCE) ? 'text-[var(--danger)]' : 'text-[var(--info)]' : ''}`}>
-          {isTimedOut ? "Time\u2019s up!" : turnLabel}
+          {isTimedOut ? `${timeoutAction || "Time\u2019s up!"}` : turnLabel}
           <span className={`text-xs font-normal ml-2 ${isWarning || (isMyTurn && roundPhase === RoundPhase.LAST_CHANCE) ? 'text-[var(--danger)]' : isMyTurn ? 'text-[rgba(74,144,217,0.7)]' : 'text-[var(--gold-dim)]'}`}>
-            {phaseLabel}
+            {isWarning && timeoutAction ? `${timeoutAction} in ${secondsLeft}s` : phaseLabel}
           </span>
-          {showTimer && (
+          {showTimer && !isWarning && (
             <span className={`ml-2 text-sm font-mono ${isWarning ? 'text-[var(--danger)] font-bold' : 'text-[rgba(74,144,217,0.7)]'}`}>
               {secondsLeft}s
             </span>
