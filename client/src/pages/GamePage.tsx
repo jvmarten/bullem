@@ -116,8 +116,7 @@ export function GamePage() {
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
   const { play } = useSound();
-  const isSpectatingForSound = gameState ? !gameState.players.some(p => p.id === playerId) || (gameState.players.find(p => p.id === playerId)?.isEliminated ?? false) : false;
-  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectatingForSound);
+  useGameSounds(gameState, roundResult, winnerId, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
