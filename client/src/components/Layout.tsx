@@ -91,7 +91,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   }, [location.pathname, jokerStop]);
 
   const handleTitleClick = () => {
-    jokerClick();
+    if (largeTitle) jokerClick();
     // In an active game or local session, confirm before leaving
     const inActiveGame = /^\/(game|local|results)/.test(location.pathname);
     if (inActiveGame) {

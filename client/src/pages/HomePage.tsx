@@ -1015,7 +1015,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.2.16
+          v1.2.17
         </button>
       </div>
 
@@ -1029,13 +1029,13 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.16</h3>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.2.17</h3>
             <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
+              <li>Fixed Play Online header interactive behavior</li>
               <li>Opponent turn timer indicator on player tiles</li>
               <li>Offline pause/resume preserves timer progress</li>
               <li>Username always visible in header</li>
-              <li>Cleaner Play Online and sign-in pages</li>
             </ul>
           </div>
         </div>
