@@ -602,8 +602,13 @@ export function ProfilePage() {
           </>
         ) : stats && stats.gamesPlayed === 0 ? (
           <div className="w-full glass px-4 py-6 text-center mb-6">
-            <p className="text-[var(--gold-dim)] text-sm">No games played yet</p>
-            <p className="text-[var(--gold-dim)] text-xs mt-1">Play a game to start tracking your stats!</p>
+            <p className="text-[var(--gold-dim)] text-sm mb-1">Play your first game to see your stats!</p>
+            <button
+              onClick={() => navigate('/')}
+              className="btn-gold py-2 px-6 text-sm mt-2"
+            >
+              Play Now
+            </button>
           </div>
         ) : null}
 
@@ -622,7 +627,7 @@ export function ProfilePage() {
             </div>
           ) : (
             <div className="glass px-4 py-4 text-center">
-              <p className="text-[var(--gold-dim)] text-xs">No games played yet</p>
+              <p className="text-[var(--gold-dim)] text-xs">Play your first game to see your stats!</p>
             </div>
           )}
         </div>
