@@ -259,23 +259,9 @@ export class MatchmakingQueue {
    */
   private async matchHeadsUp(): Promise<void> {
     const key = queueKey('heads_up');
+    // WITHSCORES returns [value, score, value, score, ...] so 1 entry = length 2
     const members = await this.redis.zrange(key, 0, -1, 'WITHSCORES');
-    if (members.length < 2) {
-      // Check for bot backfill on single waiting player
-      if (members.length >= 2) {
-        // members array: [value, score, value, score, ...]
-        // length 2 means 1 entry (value + score)
-      }
-      // Actually, WITHSCORES returns [val, score, val, score, ...], so 1 entry = length 2
-      if (members.length === 2) {
-        const entry = deserializeEntry(members[0]!);
-        const waitSeconds = (Date.now() - entry.joinedAt) / 1000;
-        if (waitSeconds >= MATCHMAKING_BOT_BACKFILL_SECONDS) {
-          await this.createHeadsUpBotMatch(entry, key);
-        }
-      }
-      return;
-    }
+    if (members.length === 0) return;
 
     // Parse entries with their ratings
     const entries: QueueEntry[] = [];
@@ -283,6 +269,16 @@ export class MatchmakingQueue {
       entries.push(deserializeEntry(members[i]!));
     }
     // entries are sorted by rating (ascending) since Redis ZRANGE is ascending
+
+    if (entries.length < 2) {
+      // Only 1 player — check for bot backfill after wait threshold
+      const entry = entries[0]!;
+      const waitSeconds = (Date.now() - entry.joinedAt) / 1000;
+      if (waitSeconds >= MATCHMAKING_BOT_BACKFILL_SECONDS) {
+        await this.createHeadsUpBotMatch(entry, key);
+      }
+      return;
+    }
 
     const now = Date.now();
     let bestPair: [QueueEntry, QueueEntry] | null = null;
@@ -765,7 +761,6 @@ export class MatchmakingQueue {
       const socket = this.io.sockets.sockets.get(entry.socketId);
       if (!socket) continue;
 
-      const waitSeconds = Math.round((Date.now() - entry.joinedAt) / 1000);
       // Rough estimate: position in queue based on index
       const status: MatchmakingStatus = {
         position: i + 1,

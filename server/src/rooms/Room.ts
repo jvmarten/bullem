@@ -306,7 +306,10 @@ export class Room {
     for (const p of this.players.values()) {
       if (p.isEliminated) continue;
       hasActive = true;
-      if (!this.roundContinueReady.has(p.id)) return false;
+      // Disconnected players can't press Continue — don't stall the round
+      // waiting for them. The 3-minute disconnect timer handles their
+      // elimination separately.
+      if (p.isConnected && !p.isBot && !this.roundContinueReady.has(p.id)) return false;
     }
     return hasActive;
   }
