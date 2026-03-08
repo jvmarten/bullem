@@ -10,25 +10,37 @@ import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
-/** Min/max bot count for background games (inclusive). */
-const MIN_BOTS = 2;
-const MAX_BOTS = 9;
+/** Number of concurrent 1v1 (heads-up) background games. */
+const HEADS_UP_SLOTS = 9;
+/** Number of concurrent multiplayer background games. */
+const MULTIPLAYER_SLOTS = 9;
+
+/** Min/max bot count for multiplayer background games (inclusive). */
+const MIN_MULTI_BOTS = 3;
+const MAX_MULTI_BOTS = 9;
 
 /** Delay before starting a new game after the previous one ends (ms). */
 const RESTART_DELAY_MS = 8_000;
 
+/** Stagger game creation to avoid a thundering herd on startup (ms per slot). */
+const STAGGER_DELAY_MS = 500;
+
+/** Tracks the state of a single background game slot. */
+interface GameSlot {
+  roomCode: string | null;
+  watchInterval: ReturnType<typeof setInterval> | null;
+  restartTimer: ReturnType<typeof setTimeout> | null;
+  mode: RankedMode;
+}
+
 /**
- * Maintains an always-running bot-only game so there's always something to
- * spectate via "Watch random game." When the game finishes, it auto-restarts
- * after a brief delay with a randomized configuration (different bot count,
- * levels, and game mode). Every background match is ranked so bot ratings
- * feed into the leaderboard.
+ * Maintains 18 always-running bot-only games (9 heads-up, 9 multiplayer) so
+ * there's always a variety of matches to spectate in the lobby. When a game
+ * finishes, its slot auto-restarts after a brief delay. Every background match
+ * is ranked so bot ratings feed into the leaderboard.
  */
 export class BackgroundGameManager {
-  private roomCode: string | null = null;
-  private restartTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Tracked so stop() can clean it up — prevents orphaned intervals. */
-  private watchInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly slots: GameSlot[] = [];
   /** Set to true on stop() to prevent createAndStartGame from running after shutdown. */
   private stopped = false;
 
@@ -38,59 +50,84 @@ export class BackgroundGameManager {
     private readonly botManager: BotManager,
   ) {}
 
-  /** Create the background room and start the first game. */
+  /** Create all background game slots and stagger their startup. */
   start(): void {
     this.stopped = false;
-    void this.createAndStartGame();
+
+    // Initialize heads-up slots
+    for (let i = 0; i < HEADS_UP_SLOTS; i++) {
+      const slot: GameSlot = { roomCode: null, watchInterval: null, restartTimer: null, mode: 'heads_up' };
+      this.slots.push(slot);
+      const delay = i * STAGGER_DELAY_MS;
+      const timer = setTimeout(() => {
+        if (!this.stopped) void this.createAndStartGame(slot);
+      }, delay);
+      timer.unref();
+    }
+
+    // Initialize multiplayer slots (staggered after heads-up)
+    for (let i = 0; i < MULTIPLAYER_SLOTS; i++) {
+      const slot: GameSlot = { roomCode: null, watchInterval: null, restartTimer: null, mode: 'multiplayer' };
+      this.slots.push(slot);
+      const delay = (HEADS_UP_SLOTS + i) * STAGGER_DELAY_MS;
+      const timer = setTimeout(() => {
+        if (!this.stopped) void this.createAndStartGame(slot);
+      }, delay);
+      timer.unref();
+    }
   }
 
-  /** Clean up all timers, intervals, and the background room on shutdown. */
+  /** Clean up all timers, intervals, and background rooms on shutdown. */
   stop(): void {
     this.stopped = true;
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
-      this.watchInterval = null;
+    for (const slot of this.slots) {
+      if (slot.watchInterval) {
+        clearInterval(slot.watchInterval);
+        slot.watchInterval = null;
+      }
+      if (slot.restartTimer) {
+        clearTimeout(slot.restartTimer);
+        slot.restartTimer = null;
+      }
+      if (slot.roomCode) {
+        this.botManager.clearTurnTimer(slot.roomCode);
+        this.roomManager.deleteRoom(slot.roomCode);
+        slot.roomCode = null;
+      }
     }
-    if (this.restartTimer) {
-      clearTimeout(this.restartTimer);
-      this.restartTimer = null;
-    }
-    if (this.roomCode) {
-      this.botManager.clearTurnTimer(this.roomCode);
-      this.roomManager.deleteRoom(this.roomCode);
-      this.roomCode = null;
-    }
+    this.slots.length = 0;
   }
 
-  /** Returns the background game room code, or undefined if not running. */
-  getRoomCode(): string | undefined {
-    return this.roomCode ?? undefined;
+  /** Returns all active background game room codes. */
+  getRoomCodes(): string[] {
+    return this.slots
+      .map(s => s.roomCode)
+      .filter((code): code is string => code !== null);
   }
 
-  private async createAndStartGame(): Promise<void> {
+  private async createAndStartGame(slot: GameSlot): Promise<void> {
     if (this.stopped) return;
 
-    // Clean up previous watch interval
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
-      this.watchInterval = null;
+    // Clean up previous watch interval for this slot
+    if (slot.watchInterval) {
+      clearInterval(slot.watchInterval);
+      slot.watchInterval = null;
     }
 
     // Clean up previous room if it exists
-    if (this.roomCode) {
-      this.botManager.clearTurnTimer(this.roomCode);
-      this.roomManager.deleteRoom(this.roomCode);
-      this.roomCode = null;
+    if (slot.roomCode) {
+      this.botManager.clearTurnTimer(slot.roomCode);
+      this.roomManager.deleteRoom(slot.roomCode);
+      slot.roomCode = null;
     }
 
-    // Randomize game configuration: 2 bots = 1v1 (bo3), 3-9 bots = multiplayer (bo1)
-    const botCount = MIN_BOTS + Math.floor(Math.random() * (MAX_BOTS - MIN_BOTS + 1));
-    const isHeadsUp = botCount === 2;
-    const rankedMode: RankedMode = isHeadsUp ? 'heads_up' : 'multiplayer';
-    const actualBotCount = botCount;
+    const rankedMode = slot.mode;
+    const botCount = rankedMode === 'heads_up'
+      ? 2
+      : MIN_MULTI_BOTS + Math.floor(Math.random() * (MAX_MULTI_BOTS - MIN_MULTI_BOTS + 1));
 
     const room = this.roomManager.createRoom();
-    this.roomCode = room.roomCode;
+    slot.roomCode = room.roomCode;
     room.isBackgroundGame = true;
 
     // Configure for spectating + ranked play
@@ -110,7 +147,7 @@ export class BackgroundGameManager {
     const botPool = await this.fetchBotPool(rankedMode);
     const usedBotUserIds = new Set<string>();
 
-    for (let i = 0; i < actualBotCount; i++) {
+    for (let i = 0; i < botCount; i++) {
       if (botPool.length > 0) {
         // Pick a random bot from the pool for variety (not closest-rated)
         const available = botPool.filter(b => !usedBotUserIds.has(b.userId));
@@ -128,7 +165,7 @@ export class BackgroundGameManager {
     }
 
     // For 1v1 (heads-up), set up Bo3 series state to match ranked rules
-    if (rankedMode === 'heads_up' && actualBotCount === 2) {
+    if (rankedMode === 'heads_up' && botCount === 2) {
       const bestOf = RANKED_BEST_OF as BestOf;
       const playerIds = [...room.players.keys()] as [PlayerId, PlayerId];
       room.settings.bestOf = bestOf;
@@ -153,14 +190,14 @@ export class BackgroundGameManager {
 
     logger.info({
       roomCode: room.roomCode,
-      botCount: actualBotCount,
+      botCount,
       rankedMode,
       bestOf: rankedMode === 'heads_up' ? RANKED_BEST_OF : 1,
       bots: [...room.players.values()].map(p => p.name),
     }, 'Background game started');
 
-    // Watch for game over to auto-restart
-    this.watchForGameOver();
+    // Watch for game over to auto-restart this slot
+    this.watchForGameOver(slot);
   }
 
   /** Fetch ranked bot pool, gracefully falling back to empty on DB errors. */
@@ -173,44 +210,44 @@ export class BackgroundGameManager {
     }
   }
 
-  /** Poll the room's game phase to detect game over and trigger restart.
+  /** Poll the slot's room game phase to detect game over and trigger restart.
    *  Uses a lightweight interval instead of hooking into game events to
    *  keep the background game decoupled from core game flow. */
-  private watchForGameOver(): void {
+  private watchForGameOver(slot: GameSlot): void {
     // Clean up any previous interval before creating a new one
-    if (this.watchInterval) {
-      clearInterval(this.watchInterval);
+    if (slot.watchInterval) {
+      clearInterval(slot.watchInterval);
     }
 
-    this.watchInterval = setInterval(() => {
-      if (this.stopped || !this.roomCode) {
-        if (this.watchInterval) {
-          clearInterval(this.watchInterval);
-          this.watchInterval = null;
+    slot.watchInterval = setInterval(() => {
+      if (this.stopped || !slot.roomCode) {
+        if (slot.watchInterval) {
+          clearInterval(slot.watchInterval);
+          slot.watchInterval = null;
         }
         return;
       }
 
-      const room = this.roomManager.getRoom(this.roomCode);
+      const room = this.roomManager.getRoom(slot.roomCode);
       if (!room || room.gamePhase === GamePhase.GAME_OVER || room.gamePhase === GamePhase.FINISHED) {
-        if (this.watchInterval) {
-          clearInterval(this.watchInterval);
-          this.watchInterval = null;
+        if (slot.watchInterval) {
+          clearInterval(slot.watchInterval);
+          slot.watchInterval = null;
         }
-        this.scheduleRestart();
+        this.scheduleRestart(slot);
       }
     }, 2000);
     // Don't let this interval prevent process exit
-    this.watchInterval.unref();
+    slot.watchInterval.unref();
   }
 
-  private scheduleRestart(): void {
+  private scheduleRestart(slot: GameSlot): void {
     if (this.stopped) return;
-    if (this.restartTimer) clearTimeout(this.restartTimer);
-    this.restartTimer = setTimeout(() => {
-      this.restartTimer = null;
-      void this.createAndStartGame();
+    if (slot.restartTimer) clearTimeout(slot.restartTimer);
+    slot.restartTimer = setTimeout(() => {
+      slot.restartTimer = null;
+      void this.createAndStartGame(slot);
     }, RESTART_DELAY_MS);
-    this.restartTimer.unref();
+    slot.restartTimer.unref();
   }
 }
