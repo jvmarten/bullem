@@ -6,12 +6,13 @@ import logger from '../logger.js';
  * path, never throws, never affects gameplay. Errors are logged and swallowed.
  *
  * Tracked events:
- *   game:started       — room code, player count, settings, ranked
- *   game:completed     — room code, player count, winner, duration, ranked
- *   bull:called        — player, was it correct, round number, current hand type
- *   bluff:attempted    — player, hand type called, was it caught
- *   player:registered  — auth method (email, google, apple)
- *   player:login       — auth method (email, google, apple)
+ *   game:started                — room code, player count, settings, ranked
+ *   game:completed              — room code, player count, winner, duration, ranked
+ *   game:player_starting_position — player, starting index, player count (for balance analysis)
+ *   bull:called                 — player, was it correct, round number, current hand type, player count
+ *   bluff:attempted             — player, hand type called, was it caught, player count
+ *   player:registered           — auth method (email, google, apple)
+ *   player:login                — auth method (email, google, apple)
  *
  * TODO(scale): matchmaking:queued  — track(mode, rating) when matchmaking queue is implemented
  * TODO(scale): matchmaking:matched — track(mode, ratingSpread, waitTimeMs) when matchmaking queue is implemented

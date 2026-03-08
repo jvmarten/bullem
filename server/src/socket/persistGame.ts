@@ -84,6 +84,21 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
     ranked: room.settings.ranked ?? false,
   }, room.playerUserIds.get(winnerId) ?? null);
 
+  // Track each player's starting position vs outcome for balance analysis.
+  // initialTurnOrder was captured at game start; we now know who won.
+  if (room.initialTurnOrder.length > 0) {
+    for (let i = 0; i < room.initialTurnOrder.length; i++) {
+      const pid = room.initialTurnOrder[i]!;
+      track('game:player_starting_position', {
+        playerId: pid,
+        playerCount: room.initialTurnOrder.length,
+        startingIndex: i,
+        won: pid === winnerId,
+        roomCode: room.roomCode,
+      }, room.playerUserIds.get(pid) ?? null);
+    }
+  }
+
   // Fire-and-forget — game persistence must never block or crash the game
   persistGameResult(record)
     .then((gameId) => {
