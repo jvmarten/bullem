@@ -356,7 +356,7 @@ export function GamePage() {
     setQuickDrawOpen(false);
   }, [isMyTurn, roundPhase]);
 
-  // Keyboard shortcuts (B=bull, T=true, R=raise, Esc=close, Enter=submit, P=pass)
+  // Keyboard shortcuts (B=bull, T=true, C=raise/call, Esc=close, Enter=submit, P=pass)
   const showBull = isMyTurn && gameState?.currentHand !== null
     && (gameState?.roundPhase === RoundPhase.CALLING || gameState?.roundPhase === RoundPhase.BULL_PHASE);
   const showTrue = isMyTurn && gameState?.roundPhase === RoundPhase.BULL_PHASE;
@@ -596,7 +596,7 @@ export function GamePage() {
                     <button
                       onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
                       className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
-                      data-kbd="R"
+                      data-kbd="C"
                     >
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>

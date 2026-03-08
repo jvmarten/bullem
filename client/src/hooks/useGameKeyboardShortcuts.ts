@@ -22,7 +22,7 @@ interface ShortcutActions {
  *
  * - B → Bull
  * - T → True
- * - R → Open raise/call hand selector
+ * - C → Open raise/call hand selector
  * - Enter → Submit selected hand
  * - P → Pass (last chance)
  * - Escape → Close hand selector / dismiss overlay
@@ -64,7 +64,7 @@ export function useGameKeyboardShortcuts({
         case 't':
           if (onTrue) { e.preventDefault(); onTrue(); }
           break;
-        case 'r':
+        case 'c':
           if (onRaise) { e.preventDefault(); onRaise(); }
           break;
         case 'p':
