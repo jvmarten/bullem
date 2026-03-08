@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
+import { useUISettings, toggleImpossibleBotEnabled } from '../components/VolumeControl.js';
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
@@ -41,9 +42,7 @@ export function LocalLobbyPage() {
       setSelectedBotName(player.name);
     }
   }, []);
-  const [impossibleEnabled, setImpossibleEnabled] = useState(() => {
-    return localStorage.getItem('bull-em-impossible-enabled') === 'true';
-  });
+  const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   useEffect(() => {
     const timer = setTimeout(() => setInteractionReady(true), 500);
     return () => clearTimeout(timer);
@@ -420,11 +419,9 @@ export function LocalLobbyPage() {
               <button
                 onClick={() => {
                   play('uiSoft');
-                  const next = !impossibleEnabled;
-                  setImpossibleEnabled(next);
-                  localStorage.setItem('bull-em-impossible-enabled', String(next));
+                  toggleImpossibleBotEnabled();
                   // If disabling, also remove the impossible bot and reset difficulty
-                  if (!next && setBotDifficulty) {
+                  if (impossibleEnabled && setBotDifficulty) {
                     setBotDifficulty(BotDifficulty.HARD);
                     const oracleBot = roomState?.players.find(p => p.name === IMPOSSIBLE_BOT.name);
                     if (oracleBot) removeBot(oracleBot.id);
