@@ -182,7 +182,7 @@ describe('Room disconnect handling', () => {
 
     expect(timedOutId).toBeNull();
 
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(180_000);
     expect(timedOutId).toBe('p1');
 
     vi.useRealTimers();

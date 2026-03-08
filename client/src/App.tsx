@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
-import { GameStartBanner } from './components/GameStartBanner.js';
+import { GameStartBanner, ActiveGameRedirect } from './components/GameStartBanner.js';
 import { AuthProvider } from './context/AuthContext.js';
 import { ToastProvider } from './context/ToastContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
@@ -44,6 +44,7 @@ function OnlineLayout() {
   return (
     <GameProvider>
       <GameStartBanner />
+      <ActiveGameRedirect />
       <Outlet />
     </GameProvider>
   );

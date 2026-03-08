@@ -750,6 +750,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     leaveMatchmaking: async () => {},
     clearMatchmakingFound: () => {},
     ratingChanges: null,
+    pendingRejoinRoom: null,
+    clearPendingRejoinRoom: () => {},
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

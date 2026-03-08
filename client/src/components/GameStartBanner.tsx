@@ -1,8 +1,47 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGameContext } from '../context/GameContext.js';
 import { GamePhase } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
+
+/**
+ * Invisible component that auto-navigates to an active game after the player
+ * reopens the browser (localStorage recovery). When the GameContext connect
+ * handler successfully rejoins via localStorage data, it sets pendingRejoinRoom.
+ * This component consumes that signal and navigates to `/game/:roomCode`.
+ */
+export function ActiveGameRedirect() {
+  const { pendingRejoinRoom, clearPendingRejoinRoom, roomState } = useGameContext();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const didRedirect = useRef(false);
+
+  useEffect(() => {
+    if (!pendingRejoinRoom || didRedirect.current) return;
+
+    // Already on the game page for this room — just clear the flag
+    if (location.pathname === `/game/${pendingRejoinRoom}`) {
+      clearPendingRejoinRoom();
+      return;
+    }
+
+    // Wait until we receive room state (confirms server acknowledged us) before navigating.
+    // This prevents a flash of the game page with no state.
+    if (!roomState) return;
+
+    didRedirect.current = true;
+    clearPendingRejoinRoom();
+
+    // If the game is still in lobby, go to the lobby page instead
+    if (roomState.gamePhase === GamePhase.LOBBY) {
+      navigate(`/room/${pendingRejoinRoom}`, { replace: true });
+    } else {
+      navigate(`/game/${pendingRejoinRoom}`, { replace: true });
+    }
+  }, [pendingRejoinRoom, roomState, location.pathname, navigate, clearPendingRejoinRoom]);
+
+  return null;
+}
 
 const REDIRECT_SECONDS = 5;
 

@@ -43,8 +43,11 @@ export const RANKED_BEST_OF = 3;
 export const SERIES_TRANSITION_DELAY_MS = 5_000;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER };
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS };
-/** How long a disconnected player has to reconnect before being eliminated (ms). */
-export const DISCONNECT_TIMEOUT_MS = 30_000;
+/** How long a disconnected player has to reconnect before being eliminated (ms).
+ *  Set to 3 minutes — generous enough for browser restarts, app switches, and
+ *  brief network outages. The game continues for other players (auto-pass for
+ *  the disconnected player's turns) so this doesn't stall gameplay. */
+export const DISCONNECT_TIMEOUT_MS = 180_000;
 export const ROOM_CODE_LENGTH = 4;
 export const PLAYER_NAME_MAX_LENGTH = 20;
 /** Allowed characters in player names (alphanumeric, spaces, common punctuation). */
