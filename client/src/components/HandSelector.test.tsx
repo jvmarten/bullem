@@ -143,24 +143,17 @@ describe('HandSelector', () => {
       expect(callButton.disabled).toBe(false);
     });
 
-    it('disables submit when new hand is not higher than current hand', () => {
+    it('prevents selecting hand types below the current call', () => {
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(
         <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
       );
+      // Clicking a hand type below the current call should be a no-op —
+      // the wheel clamps to minIndex, so the selected type stays at the
+      // minimum raise (TWO_PAIR) and submit remains enabled.
       clickHandType(container, HandType.HIGH_CARD);
       const callButton = getSubmitButton(container);
-      expect(callButton.disabled).toBe(true);
-    });
-
-    it('"Must be higher" is shown by parent, not HandSelector', () => {
-      const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
-      const { container } = render(
-        <HandSelector currentHand={currentHand} onSubmit={vi.fn()} />
-      );
-      clickHandType(container, HandType.HIGH_CARD);
-      // Validation message moved to parent pages (GamePage / LocalGamePage)
-      expect(container.textContent).not.toContain('Must be higher');
+      expect(callButton.disabled).toBe(false);
     });
 
     it('enables submit when new hand is higher than current hand', () => {
@@ -211,13 +204,17 @@ describe('HandSelector', () => {
       expect(onSubmit).toHaveBeenCalledWith({ type: HandType.STRAIGHT_FLUSH, suit: 'spades', highRank: 'K' });
     });
 
-    it('does not fire onSubmit when button is disabled', () => {
+    it('blocks click on hand types below the current call', () => {
       const onSubmit = vi.fn();
       const currentHand: HandCall = { type: HandType.PAIR, rank: 'A' };
       const { container } = render(<HandSelector currentHand={currentHand} onSubmit={onSubmit} />);
+      // Clicking HIGH_CARD (below PAIR) is blocked — the hand type stays
+      // at the minimum raise (TWO_PAIR), so submit still fires with that hand.
       clickHandType(container, HandType.HIGH_CARD);
       fireEvent.click(getSubmitButton(container));
-      expect(onSubmit).not.toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledOnce();
+      // The submitted hand should NOT be HIGH_CARD
+      expect(onSubmit.mock.calls[0]![0].type).not.toBe(HandType.HIGH_CARD);
     });
 
     it('fires onSubmit with correct HandCall for STRAIGHT with changed rank', () => {

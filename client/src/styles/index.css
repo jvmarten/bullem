@@ -974,9 +974,10 @@ body {
 .hs-type-wheel-item-selected {
   filter: drop-shadow(0 0 5px var(--gold-glow));
 }
-.hs-type-wheel-item-dimmed {
+.hs-type-wheel-item-disabled {
   opacity: 0.15;
   filter: grayscale(0.6);
+  pointer-events: none;
 }
 
 /* ── Rank wheel cards — mini playing card style ──────── */
