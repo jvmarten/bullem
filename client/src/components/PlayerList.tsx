@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -37,8 +37,26 @@ interface Props {
 const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
   const rectRef = useRef<SVGRectElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const totalRef = useRef<number>(0);
   const perimRef = useRef<number>(0);
+
+  /** Measure parent tile and sync SVG viewBox + rect dimensions. */
+  const syncSize = useCallback(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const parent = svg.parentElement;
+    if (!parent) return;
+    const { width, height } = parent.getBoundingClientRect();
+    if (width <= 0 || height <= 0) return;
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    const rect = rectRef.current;
+    if (rect) {
+      rect.setAttribute('x', '1');
+      rect.setAttribute('y', '1');
+      rect.setAttribute('width', String(width - 2));
+      rect.setAttribute('height', String(height - 2));
+      perimRef.current = rect.getTotalLength();
+    }
+  }, []);
 
   // Resize the SVG viewBox to match the parent tile dimensions
   useEffect(() => {
@@ -47,48 +65,41 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     const parent = svg.parentElement;
     if (!parent) return;
 
-    const syncSize = () => {
-      const { width, height } = parent.getBoundingClientRect();
-      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      const rect = rectRef.current;
-      if (rect) {
-        rect.setAttribute('x', '1');
-        rect.setAttribute('y', '1');
-        rect.setAttribute('width', String(width - 2));
-        rect.setAttribute('height', String(height - 2));
-        perimRef.current = rect.getTotalLength();
-      }
-    };
-
     syncSize();
     const ro = new ResizeObserver(syncSize);
     ro.observe(parent);
     return () => ro.disconnect();
-  }, []);
+  }, [syncSize]);
 
   useEffect(() => {
     const now = Date.now();
-    const total = turnDeadline - now;
-    totalRef.current = total;
+    const total = Math.max(0, turnDeadline - now);
+
+    // Ensure perim is computed (handles mount before layout is ready)
+    if (!perimRef.current) syncSize();
 
     // Reset meter to full immediately
     if (rectRef.current) {
-      const perim = perimRef.current || rectRef.current.getTotalLength();
-      perimRef.current = perim;
-      // Full border visible — no offset needed when at 100%
-      rectRef.current.style.strokeDasharray = `${perim} ${perim}`;
-      rectRef.current.style.strokeDashoffset = '0';
-      rectRef.current.style.stroke = 'var(--gold-dim)';
+      const perim = perimRef.current;
+      if (perim > 0) {
+        rectRef.current.style.strokeDasharray = `${perim} ${perim}`;
+        rectRef.current.style.strokeDashoffset = '0';
+        rectRef.current.style.stroke = 'var(--gold-dim)';
+      }
     }
 
     if (total <= 0) return;
 
     const update = () => {
       const remaining = Math.max(0, turnDeadline - Date.now());
-      const t = totalRef.current;
-      const perim = perimRef.current;
-      if (t <= 0 || !perim || !rectRef.current) return;
-      const pct = remaining / t;
+      // Lazy-init perim if it wasn't available at mount time
+      let perim = perimRef.current;
+      if (!perim) {
+        syncSize();
+        perim = perimRef.current;
+      }
+      if (total <= 0 || !perim || !rectRef.current) return;
+      const pct = remaining / total;
       // Diminish clockwise: gap grows from top-left by offsetting the dash start
       const visibleLength = perim * pct;
       const gapLength = perim - visibleLength;
@@ -100,7 +111,7 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline]);
+  }, [turnDeadline, syncSize]);
 
   return (
     <svg
@@ -289,8 +300,8 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           ))}
         </div>
       )}
-      {/* Subtle opponent turn timer meter */}
-      {showMeter && <TileMeter turnDeadline={turnDeadline!} />}
+      {/* Subtle opponent turn timer meter — key forces fresh mount on every turn */}
+      {showMeter && <TileMeter key={turnDeadline} turnDeadline={turnDeadline!} />}
     </div>
   );
 });
@@ -343,6 +354,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
         <div className="grid grid-cols-2 gap-1">
           {currentPlayer && (
             <PlayerCard
+              key={currentPlayer.id}
               p={currentPlayer}
               i={currentIndex >= 0 ? currentIndex : 0}
               isCurrent
@@ -358,6 +370,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
             <PlayerCard
+              key={nextPlayer.id}
               p={nextPlayer}
               i={nextPlayerGlobalIndex >= 0 ? nextPlayerGlobalIndex : 0}
               isCurrent={false}
