@@ -129,6 +129,18 @@ export class BotManager {
     this.botUserIds.delete(botId);
   }
 
+  /** Clean up all bot profile configs and user IDs for bots in a room.
+   *  Call when a room is being deleted to prevent unbounded memory growth
+   *  from ranked bot entries that are never reused. */
+  cleanupRoomBots(room: Room): void {
+    for (const [playerId, player] of room.players) {
+      if (player.isBot) {
+        this.botProfileConfigs.delete(playerId);
+        this.botUserIds.delete(playerId);
+      }
+    }
+  }
+
   /**
    * Check if the current player is a bot, and if so schedule their turn.
    * If the current player is human, schedule their turn timer (if enabled).

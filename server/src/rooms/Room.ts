@@ -120,6 +120,47 @@ export class Room {
     return playerId;
   }
 
+  /** Detach a player's socket without removing them from the room's player
+   *  list. Used when a player intentionally leaves during an active game —
+   *  keeping them in the players Map ensures their stats and userId are
+   *  available for game persistence and rating updates when the game ends. */
+  detachPlayer(socketId: string): PlayerId | null {
+    const playerId = this.socketToPlayer.get(socketId);
+    if (!playerId) return null;
+    const player = this.players.get(playerId);
+    if (player) {
+      player.isConnected = false;
+    }
+    this.socketToPlayer.delete(socketId);
+    this.playerToSocket.delete(playerId);
+    this.reconnectTokens.delete(playerId);
+
+    // Clear any pending disconnect timer
+    const timer = this.disconnectTimers.get(playerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(playerId);
+    }
+
+    // Reassign host if needed — prefer non-bot, non-eliminated players
+    if (playerId === this.hostId) {
+      let newHostId: PlayerId | null = null;
+      for (const p of this.players.values()) {
+        if (p.id !== playerId && !p.isBot && !p.isEliminated && p.isConnected) {
+          newHostId = p.id;
+          break;
+        }
+      }
+      if (newHostId) {
+        const newHost = this.players.get(newHostId)!;
+        if (player) player.isHost = false;
+        newHost.isHost = true;
+        this.hostId = newHostId;
+      }
+    }
+    return playerId;
+  }
+
   handleDisconnect(socketId: string, onTimeout?: (playerId: PlayerId) => void): PlayerId | null {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return null;

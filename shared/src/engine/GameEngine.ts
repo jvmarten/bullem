@@ -35,6 +35,10 @@ export class GameEngine {
   private lastCallerId: PlayerId | null = null;
   private turnHistory: TurnEntry[] = [];
   private startingPlayerIndex = 0;
+  /** ID of the player who started the current round. Used to correctly advance
+   *  the starting player in startNextRound even when the starter is eliminated
+   *  mid-round (which shifts active player indices). */
+  private _startingPlayerId: PlayerId = '';
   private respondedPlayers = new Set<PlayerId>();
   private lastRoundResult: RoundResult | null = null;
   private lastChanceUsed = false;
@@ -114,6 +118,7 @@ export class GameEngine {
     // Starting player rotates each round
     const active = this.getActivePlayers();
     this.startingPlayerIndex = (this.roundNumber - 1) % active.length;
+    this._startingPlayerId = active[this.startingPlayerIndex]?.id ?? '';
     this.currentPlayerIndex = this.startingPlayerIndex;
   }
 
@@ -135,9 +140,11 @@ export class GameEngine {
       return { type: 'game_over', winnerId: active[0]?.id ?? '' };
     }
 
-    // Rotate starting player clockwise, skipping eliminated players
-    const prevStarterId = active[this.startingPlayerIndex % active.length]?.id;
-    const prevStarterGlobalIndex = this.players.findIndex(p => p.id === prevStarterId);
+    // Rotate starting player clockwise, skipping eliminated players.
+    // Use the stored ID (not the index) because eliminations during the
+    // previous round shift active-array indices, causing the old index to
+    // map to the wrong player.
+    const prevStarterGlobalIndex = this.players.findIndex(p => p.id === this._startingPlayerId);
     let nextGlobalIndex = (prevStarterGlobalIndex + 1) % this.players.length;
     while (this.players[nextGlobalIndex]!.isEliminated) {
       nextGlobalIndex = (nextGlobalIndex + 1) % this.players.length;
@@ -171,6 +178,7 @@ export class GameEngine {
     }));
 
     this.startingPlayerIndex = nextStarterActiveIndex;
+    this._startingPlayerId = this.getActivePlayers()[nextStarterActiveIndex]?.id ?? '';
     this.currentPlayerIndex = this.startingPlayerIndex;
 
     return { type: 'new_round' };
@@ -335,7 +343,7 @@ export class GameEngine {
       currentHand: this.currentHand,
       lastCallerId: this.lastCallerId,
       turnHistory: shared.turnHistorySnapshot,
-      startingPlayerId: this.getActivePlayers()[this.startingPlayerIndex]?.id ?? '',
+      startingPlayerId: this._startingPlayerId,
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
     };
@@ -772,6 +780,7 @@ export class GameEngine {
       lastCallerId: this.lastCallerId,
       turnHistory: this.turnHistory.map(t => ({ ...t })),
       startingPlayerIndex: this.startingPlayerIndex,
+      startingPlayerId: this._startingPlayerId,
       respondedPlayers: [...this.respondedPlayers],
       lastChanceUsed: this.lastChanceUsed,
       gameStats: JSON.parse(JSON.stringify(this.gameStats)),
@@ -836,6 +845,9 @@ export class GameEngine {
     engine.lastCallerId = snapshot.lastCallerId;
     engine.turnHistory = snapshot.turnHistory.map(t => ({ ...t }));
     engine.startingPlayerIndex = snapshot.startingPlayerIndex;
+    engine._startingPlayerId = snapshot.startingPlayerId
+      ?? engine.getActivePlayers()[snapshot.startingPlayerIndex]?.id
+      ?? '';
     engine.respondedPlayers = new Set(snapshot.respondedPlayers);
     engine.lastChanceUsed = snapshot.lastChanceUsed;
     engine.gameStats = JSON.parse(JSON.stringify(snapshot.gameStats));

@@ -139,6 +139,8 @@ export class RoomManager {
   deleteRoom(roomCode: string): void {
     const room = this.rooms.get(roomCode);
     if (room) {
+      // Clear bot timers and bot-specific data before destroying the room
+      if (this.onRoomCleanup) this.onRoomCleanup(roomCode, room);
       // Clean up player → room mappings before destroying the room
       for (const playerId of room.players.keys()) {
         this.playerToRoom.delete(playerId);
@@ -248,12 +250,12 @@ export class RoomManager {
   }
 
   private io: TypedServer | null = null;
-  /** Optional callback to clear bot/turn timers when a room is deleted during
-   *  stale-room cleanup. Without this, pending bot timers fire after the room
-   *  is gone, wasting CPU and potentially persisting data for deleted rooms. */
-  private onRoomCleanup: ((roomCode: string) => void) | null = null;
+  /** Optional callback invoked when a room is about to be deleted. Used to
+   *  clear bot turn timers and clean up bot-specific data (profile configs,
+   *  user IDs) that are stored in BotManager outside the room itself. */
+  private onRoomCleanup: ((roomCode: string, room: Room) => void) | null = null;
 
-  startCleanup(io?: TypedServer, onRoomCleanup?: (roomCode: string) => void): void {
+  startCleanup(io?: TypedServer, onRoomCleanup?: (roomCode: string, room: Room) => void): void {
     if (this.cleanupTimer) return;
     if (io) this.io = io;
     if (onRoomCleanup) this.onRoomCleanup = onRoomCleanup;
@@ -278,9 +280,6 @@ export class RoomManager {
       }
     }
     for (const code of staleCodes) {
-      // Clear bot/turn timers before deleting, so pending setTimeout callbacks
-      // don't fire against a deleted room.
-      if (this.onRoomCleanup) this.onRoomCleanup(code);
       // Notify any remaining connected sockets (spectators, players) before
       // deleting the room — otherwise they'll be stuck waiting forever.
       if (this.io) {
