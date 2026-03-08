@@ -197,18 +197,37 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
               </svg>
             </button>
             {actionsExpanded && (
-              <div className="space-y-1 max-h-24 overflow-y-auto animate-fade-in">
-                {result.turnHistory.map((entry, i) => {
-                  const name = players.find(p => p.id === entry.playerId)?.name ?? entry.playerName;
-                  return (
-                    <div key={i} className="text-xs text-left px-2 py-0.5">
-                      <span className="text-[var(--card-face)]">{name}</span>
-                      <span className="text-[var(--gold-dim)] ml-1">
-                        {actionLabel(entry)}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="glass p-2 max-h-24 overflow-y-auto mt-1 animate-fade-in">
+                <div className="flex flex-col-reverse gap-0.5">
+                  {result.turnHistory.map((entry, i) => {
+                    const name = players.find(p => p.id === entry.playerId)?.name ?? entry.playerName;
+                    return (
+                      <div key={i} className="text-xs">
+                        <span className="font-medium text-[var(--gold-light)]">{name}</span>
+                        {' '}
+                        {entry.action === TurnAction.CALL && entry.hand && (
+                          <span>
+                            calls <span className="text-[var(--gold)] font-semibold">{handToString(entry.hand)}</span>
+                          </span>
+                        )}
+                        {entry.action === TurnAction.BULL && (
+                          <span className="text-[var(--danger)] font-bold">BULL!</span>
+                        )}
+                        {entry.action === TurnAction.TRUE && (
+                          <span className="text-[var(--info)] font-bold">TRUE!</span>
+                        )}
+                        {entry.action === TurnAction.LAST_CHANCE_RAISE && entry.hand && (
+                          <span>
+                            raises to <span className="text-[var(--gold)] font-semibold">{handToString(entry.hand)}</span>
+                          </span>
+                        )}
+                        {entry.action === TurnAction.LAST_CHANCE_PASS && (
+                          <span className="opacity-50">passes</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

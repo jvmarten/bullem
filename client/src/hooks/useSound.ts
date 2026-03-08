@@ -118,7 +118,7 @@ export function useGameSounds(
             play('callMade');
             break;
           case TurnAction.BULL:
-            if (entry.playerId !== playerId) play('bullCalled');
+            play('bullCalled');
             break;
           case TurnAction.TRUE:
             play('trueCalled');

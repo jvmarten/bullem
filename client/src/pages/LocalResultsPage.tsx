@@ -13,6 +13,7 @@ export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, lastReplay } = useGameContext();
   const [rankingDone, setRankingDone] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
 
   // Mark that the player has completed their first real game
   useEffect(() => {
@@ -69,10 +70,25 @@ export function LocalResultsPage() {
           />
         )}
 
-        {/* Stats shown after ranking animation completes */}
+        {/* Stats toggle — hidden by default, shown after ranking animation completes */}
         {rankingDone && gameStats && gameState && (
-          <div className="animate-slide-up w-full">
-            <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+          <div className="w-full">
+            <button
+              onClick={() => setStatsVisible(v => !v)}
+              className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+            >
+              <span>{statsVisible ? 'Hide' : 'View'} Match Stats</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className={`transition-transform ${statsVisible ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {statsVisible && (
+              <div className="animate-slide-up">
+                <GameStatsDisplay stats={gameStats} players={gameState.players} winnerId={winnerId} />
+              </div>
+            )}
           </div>
         )}
         </div>{/* end results-left */}

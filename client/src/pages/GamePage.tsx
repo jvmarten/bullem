@@ -127,7 +127,7 @@ export function GamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
-  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   // Derived state — safe to compute with null gameState
   const myPlayer = gameState?.players.find(p => p.id === playerId) ?? null;
@@ -246,7 +246,7 @@ export function GamePage() {
   }, [gameState]);
 
   const handlePlayerClick = useCallback((player: Player) => {
-    if (player.isBot) setSelectedBotName(player.name);
+    setSelectedPlayer(player);
   }, []);
 
   const quickDrawSuggestions = useMemo(() => {
@@ -357,7 +357,7 @@ export function GamePage() {
   const overlayActive = !!roundResult || !!roundTransition;
 
   useGameKeyboardShortcuts({
-    onBull: showBull ? () => { play('bullCalled'); callBull(); } : null,
+    onBull: showBull ? () => { callBull(); } : null,
     onTrue: showTrue ? () => { play('uiClick'); callTrue(); } : null,
     onRaise: canRaise && !handSelectorOpen ? () => { play('uiClick'); setHandSelectorOpen(true); } : null,
     onSubmitHand: canRaise && handSelectorOpen && pendingValid ? handleHandSubmit : null,
@@ -423,7 +423,7 @@ export function GamePage() {
         </span>
       )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
-      <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
+      {(isEliminated || isSpectator) && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -460,7 +460,7 @@ export function GamePage() {
               </span>
             )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
-            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
+            {(isEliminated || isSpectator) && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -684,8 +684,13 @@ export function GamePage() {
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}
       </div>
-      {selectedBotName && (
-        <BotProfileModal botName={selectedBotName} onClose={() => setSelectedBotName(null)} />
+      {selectedPlayer && gameState && (
+        <BotProfileModal
+          player={selectedPlayer}
+          playerIndex={gameState.players.findIndex(p => p.id === selectedPlayer.id)}
+          stats={inGameStats.playerStats[selectedPlayer.id] ?? null}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </Layout>
   );
