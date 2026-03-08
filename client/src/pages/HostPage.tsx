@@ -62,6 +62,13 @@ export function HostPage() {
       <div className="host-content space-y-4 max-w-md mx-auto pt-4">
         <h2 className="font-display text-2xl text-[var(--gold)] text-center host-title">Host Game</h2>
 
+        <div className="host-actions">
+          <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
+          <button onClick={() => { play('uiBack'); navigate('/'); }} className="w-full btn-ghost py-2">Back</button>
+        </div>
+
+        <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold text-center host-settings-label">Optional Settings</p>
+
         <div className="host-left">
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Max Cards</p>
@@ -163,8 +170,6 @@ export function HostPage() {
           </div>
         </div>
 
-        <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
-        <button onClick={() => { play('uiBack'); navigate('/'); }} className="w-full btn-ghost py-2">Back</button>
         </div>{/* end host-right */}
       </div>
     </Layout>
