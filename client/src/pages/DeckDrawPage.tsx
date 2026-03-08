@@ -338,20 +338,18 @@ export function DeckDrawPage() {
       scheduleTimer(() => {
         setAnimPhase('revealing');
 
-        // Reveal cards one by one, last card slower
+        // Reveal cards one by one — escalating drama
+        // Cards 1-3: steady pace, card 4: slower, card 5: slowest
+        const revealDelays = [0, 500, 1000, 1800, 3000];
         for (let i = 0; i < 5; i++) {
-          const delay = i < 4
-            ? i * 350           // first 4 cards: 350ms apart
-            : (4 * 350) + 600;  // last card: extra 600ms pause
-
           scheduleTimer(() => {
             play('cardReveal');
             setRevealedCount(i + 1);
-          }, delay);
+          }, revealDelays[i]!);
         }
 
-        // Phase 4: RESULT (after all revealed)
-        const totalRevealTime = (4 * 350) + 600 + 400;
+        // Phase 4: RESULT (after all revealed + last flip finishes)
+        const totalRevealTime = revealDelays[4]! + 1200;
         scheduleTimer(() => {
           setAnimPhase('result');
           setShowHighlight(true);
@@ -476,8 +474,12 @@ export function DeckDrawPage() {
                     style={{
                       transformStyle: 'preserve-3d',
                       transform: `rotateY(${cardRevealed ? 180 : 0}deg)`,
-                      transition: i === 4 && animPhase === 'revealing'
-                        ? 'transform 0.9s ease-out'   // last card: slow dramatic flip
+                      transition: animPhase === 'revealing'
+                        ? i === 4
+                          ? 'transform 1.1s ease-out'   // 5th card: slowest dramatic flip
+                          : i === 3
+                            ? 'transform 0.8s ease-out'  // 4th card: slower flip
+                            : 'transform 0.6s ease-out'  // cards 1-3: steady flip
                         : 'transform 0.55s ease-out',
                       width: '42px',
                       height: '58px',
