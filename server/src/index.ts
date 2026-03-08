@@ -595,6 +595,97 @@ app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
   }
 });
 
+// ── Deck Draw minigame endpoints ─────────────────────────────────────────
+import { getDeckDrawStats, updateDeckDrawStats, syncGuestStats } from './db/deckDraw.js';
+import {
+  executeDraw, isFreeDrawAvailable,
+  DECK_DRAW_MIN_WAGER, DECK_DRAW_MAX_WAGER,
+  type DeckDrawStats,
+} from '@bull-em/shared';
+
+/** GET /api/deck-draw/stats — fetch deck draw stats for the authenticated user. */
+app.get('/api/deck-draw/stats', requireAuth, async (req, res) => {
+  try {
+    const stats = await getDeckDrawStats(req.user!.userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch deck draw stats');
+    res.status(500).json({ error: 'Failed to fetch deck draw stats' });
+  }
+});
+
+/** POST /api/deck-draw/draw — execute a draw (wager or free). */
+app.post('/api/deck-draw/draw', requireAuth, async (req, res) => {
+  try {
+    const { wager, isFreeDraw } = req.body as { wager?: number; isFreeDraw?: boolean };
+
+    const stats = await getDeckDrawStats(req.user!.userId);
+    if (!stats) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    if (isFreeDraw) {
+      if (!isFreeDrawAvailable(stats.lastFreeDrawAt)) {
+        res.status(400).json({ error: 'Free draw not available yet' });
+        return;
+      }
+      const { result, updatedStats } = executeDraw(stats, 0, true);
+      await updateDeckDrawStats(req.user!.userId, updatedStats);
+      res.json({ result, stats: updatedStats });
+      return;
+    }
+
+    // Wagered draw
+    if (typeof wager !== 'number' || !Number.isInteger(wager) || wager < DECK_DRAW_MIN_WAGER || wager > DECK_DRAW_MAX_WAGER) {
+      res.status(400).json({ error: `Wager must be an integer between ${DECK_DRAW_MIN_WAGER} and ${DECK_DRAW_MAX_WAGER}` });
+      return;
+    }
+    if (stats.balance < wager) {
+      res.status(400).json({ error: 'Insufficient balance' });
+      return;
+    }
+
+    const { result, updatedStats } = executeDraw(stats, wager, false);
+    await updateDeckDrawStats(req.user!.userId, updatedStats);
+    res.json({ result, stats: updatedStats });
+  } catch (err) {
+    logger.error({ err }, 'Failed to execute deck draw');
+    res.status(500).json({ error: 'Failed to execute draw' });
+  }
+});
+
+/** POST /api/deck-draw/sync — sync guest localStorage stats to account. */
+app.post('/api/deck-draw/sync', requireAuth, async (req, res) => {
+  try {
+    const guestStats = req.body as DeckDrawStats;
+
+    // Basic validation
+    if (typeof guestStats !== 'object' || guestStats === null) {
+      res.status(400).json({ error: 'Invalid stats object' });
+      return;
+    }
+    if (typeof guestStats.totalDraws !== 'number' || typeof guestStats.balance !== 'number') {
+      res.status(400).json({ error: 'Invalid stats format' });
+      return;
+    }
+
+    const merged = await syncGuestStats(req.user!.userId, guestStats);
+    if (!merged) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(merged);
+  } catch (err) {
+    logger.error({ err }, 'Failed to sync deck draw stats');
+    res.status(500).json({ error: 'Failed to sync stats' });
+  }
+});
+
 // ── Calibration status endpoint ─────────────────────────────────────────
 app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
   res.json(calibrationManager.getStatus());
