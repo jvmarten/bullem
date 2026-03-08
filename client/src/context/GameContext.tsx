@@ -83,6 +83,10 @@ export interface GameContextValue {
   clearMatchmakingFound: () => void;
   /** Rating changes from the last completed ranked game (keyed by playerId). */
   ratingChanges: Record<PlayerId, RatingChange> | null;
+  /** Room code to auto-navigate to after localStorage recovery (browser reopen). */
+  pendingRejoinRoom: string | null;
+  /** Clear the pending rejoin room (after navigation completes). */
+  clearPendingRejoinRoom: () => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -153,6 +157,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [matchmakingStatus, setMatchmakingStatus] = useState<MatchmakingStatus | null>(null);
   const [matchmakingFound, setMatchmakingFound] = useState<MatchmakingFound | null>(null);
+  const [pendingRejoinRoom, setPendingRejoinRoom] = useState<string | null>(null);
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
@@ -270,6 +275,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
               setPlayerId(response.playerId);
               sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
               persistActiveSession(lsRoom, response.playerId, lsPlayerName, response.reconnectToken);
+              // Signal auto-navigation to the game page
+              setPendingRejoinRoom(lsRoom);
             }
           });
         }
@@ -668,6 +675,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearMatchmakingFound = useCallback(() => setMatchmakingFound(null), []);
+  const clearPendingRejoinRoom = useCallback(() => setPendingRejoinRoom(null), []);
 
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
@@ -737,16 +745,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     leaveMatchmaking,
     clearMatchmakingFound,
     ratingChanges,
+    pendingRejoinRoom,
+    clearPendingRejoinRoom,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines,
     lastReplay, reactions, chatMessages,
-    matchmakingStatus, matchmakingFound, ratingChanges,
+    matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
-    joinMatchmaking, leaveMatchmaking, clearMatchmakingFound,
+    joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, clearPendingRejoinRoom,
   ]);
 
   return (

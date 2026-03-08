@@ -23,8 +23,8 @@ describe('constants', () => {
     expect(MAX_PLAYERS).toBe(12);
   });
 
-  it('DISCONNECT_TIMEOUT_MS is 30000', () => {
-    expect(DISCONNECT_TIMEOUT_MS).toBe(30_000);
+  it('DISCONNECT_TIMEOUT_MS is 180000 (3 minutes)', () => {
+    expect(DISCONNECT_TIMEOUT_MS).toBe(180_000);
   });
 
   it('ROOM_CODE_LENGTH is 4', () => {
