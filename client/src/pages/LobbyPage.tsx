@@ -175,13 +175,13 @@ export function LobbyPage() {
       addToast(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
       return;
     }
-    updateSettings({ maxCards: newMax, turnTimer, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
+    updateSettings({ ...settings, maxCards: newMax });
   };
 
   const handleTimerChange = (seconds: number) => {
     if (settingsLocked) return;
     play('uiSoft');
-    updateSettings({ maxCards, turnTimer: seconds, maxPlayers: maxPlayersSetting, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
+    updateSettings({ ...settings, turnTimer: seconds });
   };
 
   const handleMaxPlayersChange = (cap: number) => {
@@ -191,7 +191,7 @@ export function LobbyPage() {
       addToast(`Can't set max players to ${cap} with ${roomState.players.length} players`);
       return;
     }
-    updateSettings({ maxCards, turnTimer, maxPlayers: cap, allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards, botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode });
+    updateSettings({ ...settings, maxPlayers: cap });
   };
 
   // Filter max player options to only show values <= card-based max
@@ -364,11 +364,7 @@ export function LobbyPage() {
                 {([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
                   <button
                     key={speed}
-                    onClick={() => { play('uiSoft'); updateSettings({
-                      maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                      allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                      botSpeed: speed, lastChanceMode: settings.lastChanceMode,
-                    }); }}
+                    onClick={() => { play('uiSoft'); updateSettings({ ...settings, botSpeed: speed }); }}
                     className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
                       (settings.botSpeed ?? BotSpeed.NORMAL) === speed
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -392,12 +388,7 @@ export function LobbyPage() {
                     key={cat}
                     onClick={() => {
                       play('uiSoft');
-                      updateSettings({
-                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                        allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
-                        botLevelCategory: cat,
-                      });
+                      updateSettings({ ...settings, botLevelCategory: cat });
                       // Replace existing bots with bots from the new category
                       const bots = roomState.players.filter(p => p.isBot);
                       const usedNames = new Set(roomState.players.filter(p => !p.isBot).map(p => p.name));
@@ -442,12 +433,7 @@ export function LobbyPage() {
                   {BEST_OF_OPTIONS.map(bo => (
                     <button
                       key={bo}
-                      onClick={() => { play('uiSoft'); updateSettings({
-                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                        allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
-                        bestOf: bo as BestOf,
-                      }); }}
+                      onClick={() => { play('uiSoft'); updateSettings({ ...settings, bestOf: bo as BestOf }); }}
                       className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
                         (settings.bestOf ?? DEFAULT_BEST_OF) === bo
                           ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -490,11 +476,7 @@ export function LobbyPage() {
                 {([['classic', 'Yes'], ['strict', 'No']] as const).map(([mode, label]) => (
                   <button
                     key={mode}
-                    onClick={() => { play('uiSoft'); updateSettings({
-                      maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                      allowSpectators: settings.allowSpectators, spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                      botSpeed: settings.botSpeed, lastChanceMode: mode,
-                    }); }}
+                    onClick={() => { play('uiSoft'); updateSettings({ ...settings, lastChanceMode: mode }); }}
                     className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
                       (settings.lastChanceMode ?? 'classic') === mode
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
@@ -521,12 +503,7 @@ export function LobbyPage() {
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-sm text-[var(--gold-dim)]">Allow spectators</span>
                   <button
-                    onClick={() => { play('uiSoft'); updateSettings({
-                      maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                      allowSpectators: !settings.allowSpectators,
-                      spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-                      botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
-                    }); }}
+                    onClick={() => { play('uiSoft'); updateSettings({ ...settings, allowSpectators: !settings.allowSpectators }); }}
                     className={`w-11 h-6 rounded-full transition-colors relative border ${
                       settings.allowSpectators
                         ? 'bg-[var(--gold)] border-[var(--gold)]'
@@ -542,12 +519,7 @@ export function LobbyPage() {
                   <label className="flex items-center justify-between cursor-pointer">
                     <span className="text-sm text-[var(--gold-dim)]">Spectators see cards</span>
                     <button
-                      onClick={() => { play('uiSoft'); updateSettings({
-                        maxCards, turnTimer, maxPlayers: maxPlayersSetting,
-                        allowSpectators: settings.allowSpectators,
-                        spectatorsCanSeeCards: !settings.spectatorsCanSeeCards,
-                        botSpeed: settings.botSpeed, lastChanceMode: settings.lastChanceMode,
-                      }); }}
+                      onClick={() => { play('uiSoft'); updateSettings({ ...settings, spectatorsCanSeeCards: !settings.spectatorsCanSeeCards }); }}
                       className={`w-11 h-6 rounded-full transition-colors relative border ${
                         settings.spectatorsCanSeeCards
                           ? 'bg-[var(--gold)] border-[var(--gold)]'
