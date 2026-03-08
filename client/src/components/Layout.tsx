@@ -87,11 +87,21 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
 
   const handleTitleClick = () => {
     jokerClick();
-    const inPotentialSession = /^\/(room|game|local|results)/.test(location.pathname);
-    if (inPotentialSession) {
+    // In an active game or local session, confirm before leaving
+    const inActiveGame = /^\/(game|local|results)/.test(location.pathname);
+    if (inActiveGame) {
       const ok = window.confirm('Leave current game/session and return home?');
       if (!ok) return;
       ctx?.leaveRoom?.();
+      navigate('/');
+      return;
+    }
+    // In a lobby room, just navigate away — player stays in the room and
+    // will be notified via GameStartBanner when the host starts the game
+    const inLobby = /^\/room\//.test(location.pathname);
+    if (inLobby) {
+      navigate('/');
+      return;
     }
     navigate('/');
   };

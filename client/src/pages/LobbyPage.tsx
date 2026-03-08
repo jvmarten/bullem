@@ -744,12 +744,20 @@ export function LobbyPage() {
               </button>
             </>
           ) : (
-            <button
-              onClick={() => { leaveRoom(); navigate('/'); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-            >
-              Leave Room
-            </button>
+            <>
+              <button
+                onClick={() => navigate('/', { state: { mode: 'online' } })}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              >
+                Browse while waiting
+              </button>
+              <button
+                onClick={() => { leaveRoom(); navigate('/'); }}
+                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+              >
+                Leave Room
+              </button>
+            </>
           )}
         </div>
         </div>{/* end lobby-right */}
