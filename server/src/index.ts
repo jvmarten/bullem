@@ -176,6 +176,13 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
     } catch (err) {
       logger.error({ err }, 'Database migration failed — continuing without persistence');
     }
+
+    // Load persisted push subscriptions into the in-memory cache
+    try {
+      await pushManager.loadFromDatabase();
+    } catch (err) {
+      logger.error({ err }, 'Failed to load push subscriptions — push will still work for new subscribers');
+    }
   }
 
   if (redisStore) {
