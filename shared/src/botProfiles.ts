@@ -364,20 +364,22 @@ export const BOT_PERSONALITY_COUNT = PERSONALITY_BASES.length; // 9
 export const BOT_MATRIX_SIZE = BOT_PERSONALITY_COUNT * BOT_LEVELS; // 81
 
 /**
- * Noisy default config — what a completely unskilled bot looks like.
- * High noise, poor thresholds, random-feeling decisions.
+ * Noisy default config — what a low-skill bot looks like.
+ * Elevated noise and loose thresholds, but not completely random.
+ * Tuned so even level-1 bots play passably (they just lack personality
+ * refinement and make noisier decisions than higher-level bots).
  */
 const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
-  bluffFrequency: 0.8,
+  bluffFrequency: 0.85,
   bullThreshold: 0.5,
   riskTolerance: 0.5,
   aggressionBias: 0.5,
-  lastChanceBluffRate: 0.5,
-  openingBluffRate: 0.15,
-  bullPhaseRaiseRate: 0.2,
-  trustMultiplier: 0.5,
-  bluffPlausibilityGate: 0.1,
-  noiseBand: 0.18,
+  lastChanceBluffRate: 0.45,
+  openingBluffRate: 0.12,
+  bullPhaseRaiseRate: 0.18,
+  trustMultiplier: 0.65,
+  bluffPlausibilityGate: 0.15,
+  noiseBand: 0.14,
 };
 
 /**
