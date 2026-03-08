@@ -44,10 +44,10 @@ export const DECK_DRAW_PAYOUTS: Record<HandType, number> = {
 /** Minimum and maximum wager for the deck draw minigame. */
 export const DECK_DRAW_MIN_WAGER = 1;
 export const DECK_DRAW_MAX_WAGER = 10_000;
-export const DECK_DRAW_DEFAULT_WAGER = 100;
+export const DECK_DRAW_DEFAULT_WAGER = 1;
 
 /** Starting balance for new players. */
-export const DECK_DRAW_STARTING_BALANCE = 1_000;
+export const DECK_DRAW_STARTING_BALANCE = 100;
 
 /** Free draw cooldown: 24 hours in milliseconds. */
 export const DECK_DRAW_FREE_DRAW_COOLDOWN_MS = 24 * 60 * 60 * 1000;
