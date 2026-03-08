@@ -299,8 +299,8 @@ export class CalibrationManager {
     room.updateSettings({
       maxCards: RANKED_SETTINGS.maxCards,
       turnTimer: 0,
-      allowSpectators: false,
-      spectatorsCanSeeCards: false,
+      allowSpectators: true,
+      spectatorsCanSeeCards: true,
       botSpeed: BotSpeed.FAST,
       lastChanceMode: RANKED_SETTINGS.lastChanceMode,
       ranked: true,
@@ -347,8 +347,8 @@ export class CalibrationManager {
     room.updateSettings({
       maxCards: RANKED_SETTINGS.maxCards,
       turnTimer: 0,
-      allowSpectators: false,
-      spectatorsCanSeeCards: false,
+      allowSpectators: true,
+      spectatorsCanSeeCards: true,
       botSpeed: BotSpeed.FAST,
       lastChanceMode: RANKED_SETTINGS.lastChanceMode,
       ranked: true,
