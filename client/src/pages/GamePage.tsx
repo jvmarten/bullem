@@ -477,17 +477,11 @@ export function GamePage() {
           <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} />
         )}
 
-        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter.
+        {/* Floating spectator pill — unobtrusive indicator at top of screen.
             Hidden when winnerId is set because the match is over (no active game to spectate). */}
         {(isEliminated || isSpectator) && !winnerId && (
-          <div className="text-center glass p-2 animate-fade-in spectator-banner">
-            <p className="text-xs font-semibold uppercase tracking-widest">
-              {isEliminated ? (
-                <><span className="text-[var(--gold-dim)]">Eliminated — </span><span className="text-[var(--gold)]">Spectating</span></>
-              ) : (
-                <span className="text-[var(--gold)]">Spectating</span>
-              )}
-            </p>
+          <div className="spectator-pill animate-fade-in">
+            {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
           </div>
         )}
 

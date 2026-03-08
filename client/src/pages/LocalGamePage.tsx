@@ -327,13 +327,11 @@ export function LocalGamePage() {
           </div>
         </div>
 
-        {/* Spectator banner — uses spectator-banner class to escape .spectating dimming filter.
+        {/* Floating spectator pill — unobtrusive indicator at top of screen.
             Hidden when winnerId is set because the match is over (no active game to spectate). */}
         {isEliminated && !winnerId && (
-          <div className="text-center glass p-2 animate-fade-in spectator-banner">
-            <p className="text-xs font-semibold uppercase tracking-widest">
-              <span className="text-[var(--gold-dim)]">Eliminated — </span><span className="text-[var(--gold)]">Spectating</span>
-            </p>
+          <div className="spectator-pill animate-fade-in">
+            Eliminated — Spectating
           </div>
         )}
 
