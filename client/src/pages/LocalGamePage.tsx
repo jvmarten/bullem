@@ -12,6 +12,7 @@ import { SpectatorView } from '../components/SpectatorView.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
 import { BotProfileModal } from '../components/BotProfileModal.js';
+import { InGameStats } from '../components/InGameStats.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
@@ -25,6 +26,7 @@ import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { useUISettings } from '../components/VolumeControl.js';
+import { useInGameStats } from '../hooks/useInGameStats.js';
 
 export function LocalGamePage() {
   const navigate = useNavigate();
@@ -38,6 +40,7 @@ export function LocalGamePage() {
   useGameSounds(gameState, roundResult, winnerId, playerId);
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
+  const inGameStats = useInGameStats(gameState, roundResult);
 
   // All useState hooks — must be called unconditionally (before any early return)
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
@@ -285,6 +288,7 @@ export function LocalGamePage() {
   const headerRightExtra = (
     <>
       {pauseButton}
+      <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -311,6 +315,7 @@ export function LocalGamePage() {
           </div>
           <div className="flex items-center gap-3">
             {pauseButton}
+            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
