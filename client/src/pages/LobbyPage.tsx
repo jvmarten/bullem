@@ -613,7 +613,7 @@ export function LobbyPage() {
                 <p className="text-[var(--gold)] font-bold text-base">{(settings.lastChanceMode ?? 'classic') === 'classic' ? 'Yes' : 'No'}</p>
                 <p className="text-[var(--gold-dim)]">True in LCR</p>
               </div>
-              {maxPlayersSetting === 2 && (settings.bestOf ?? DEFAULT_BEST_OF) > 1 && (
+              {maxPlayersSetting === 2 && (
                 <div>
                   <p className="text-[var(--gold)] font-bold text-base">Bo{settings.bestOf ?? DEFAULT_BEST_OF}</p>
                   <p className="text-[var(--gold-dim)]">Format</p>
