@@ -8,6 +8,8 @@ interface WheelPickerProps<T> {
   itemHeight?: number;
   visibleCount?: number;
   highlightHeight?: number;
+  /** Minimum selectable index — scroll/click/wheel are clamped to this floor. */
+  minIndex?: number;
   onTickSound?: () => void;
   onSelectSound?: () => void;
 }
@@ -22,6 +24,7 @@ function WheelPickerInner<T>({
   itemHeight = 48,
   visibleCount = 5,
   highlightHeight,
+  minIndex = 0,
   onTickSound,
   onSelectSound,
 }: WheelPickerProps<T>) {
@@ -112,7 +115,13 @@ function WheelPickerInner<T>({
     const el = scrollRef.current;
     if (!el) return;
     const idx = Math.round(el.scrollTop / itemHeight);
-    const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    const clamped = Math.max(minIndex, Math.min(items.length - 1, idx));
+
+    // Bounce back if user scrolled past the minimum selectable item
+    if (clamped !== idx && !isProgrammaticRef.current) {
+      el.scrollTo({ top: clamped * itemHeight, behavior: 'smooth' });
+    }
+
     // Play tick when a new item crosses the center, throttled to ~60ms.
     // Skip if scroll was triggered programmatically (e.g. selectedIndex prop change).
     if (clamped !== lastTickIndexRef.current && onTickSound && !isProgrammaticRef.current) {
@@ -127,7 +136,7 @@ function WheelPickerInner<T>({
     // Update scrollTop ref and apply transforms directly — no React state update
     scrollTopRef.current = el.scrollTop;
     updateItemTransforms();
-  }, [itemHeight, items.length, onTickSound, updateItemTransforms]);
+  }, [itemHeight, items.length, minIndex, onTickSound, updateItemTransforms]);
 
   // Commit selection when scrolling stops (debounce — shorter for less friction)
   useEffect(() => {
@@ -137,7 +146,7 @@ function WheelPickerInner<T>({
     const commitSelection = () => {
       if (isProgrammaticRef.current) return;
       const idx = Math.round(el.scrollTop / itemHeight);
-      const clamped = Math.max(0, Math.min(items.length - 1, idx));
+      const clamped = Math.max(minIndex, Math.min(items.length - 1, idx));
       if (clamped !== lastReportedRef.current) {
         lastReportedRef.current = clamped;
         onSelect(clamped);
@@ -153,7 +162,7 @@ function WheelPickerInner<T>({
       el.removeEventListener('scroll', onScrollEnd);
       clearTimeout(timer);
     };
-  }, [itemHeight, items.length, onSelect, onSelectSound]);
+  }, [itemHeight, items.length, minIndex, onSelect, onSelectSound]);
 
   // Normalize mouse wheel to scroll exactly one item per tick on desktop.
   // Without this, a single wheel notch scrolls more than itemHeight, skipping items.
@@ -164,14 +173,16 @@ function WheelPickerInner<T>({
       e.preventDefault();
       const direction = e.deltaY > 0 ? 1 : -1;
       const currentIdx = Math.round(el.scrollTop / itemHeight);
-      const targetIdx = Math.max(0, Math.min(items.length - 1, currentIdx + direction));
+      const targetIdx = Math.max(minIndex, Math.min(items.length - 1, currentIdx + direction));
       el.scrollTo({ top: targetIdx * itemHeight, behavior: 'smooth' });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [itemHeight, items.length]);
+  }, [itemHeight, items.length, minIndex]);
 
   const handleItemClick = useCallback((index: number) => {
+    // Ignore taps on items below the minimum selectable index
+    if (index < minIndex) return;
     const el = scrollRef.current;
     if (!el) return;
     if (el.scrollTo) {
@@ -184,7 +195,7 @@ function WheelPickerInner<T>({
     setVisualIndex(index);
     onSelect(index);
     onSelectSound?.();
-  }, [itemHeight, onSelect, onSelectSound]);
+  }, [itemHeight, minIndex, onSelect, onSelectSound]);
 
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>

@@ -253,6 +253,12 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const rank2List = useMemo(() => ALL_RANKS.filter(r => r !== rank), [rank]);
 
   const handTypeIndex = ALL_HAND_TYPES.indexOf(handType);
+  // Prevent scrolling/selecting hand types below the current call
+  const minHandTypeIndex = useMemo(() => {
+    if (!currentHand) return 0;
+    const idx = ALL_HAND_TYPES.indexOf(currentHand.type);
+    return idx >= 0 ? idx : 0;
+  }, [currentHand]);
   const handleTypeWheel = useCallback((idx: number) => handleTypeChange(ALL_HAND_TYPES[idx]!), [handleTypeChange]);
 
   const handlePrimaryWheel = useCallback((idx: number) => {
@@ -278,9 +284,9 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   /* ── Render callbacks ───────────────────────────────── */
 
   const renderHandType = useCallback((ht: HandType, isSelected: boolean) => {
-    const isDimmed = currentHand !== null && ht < currentHand.type && !isSelected;
+    const isDisabled = currentHand !== null && ht < currentHand.type;
     return (
-      <div className={`hs-type-wheel-item ${isSelected ? 'hs-type-wheel-item-selected' : ''} ${isDimmed ? 'hs-type-wheel-item-dimmed' : ''}`}>
+      <div className={`hs-type-wheel-item ${isSelected ? 'hs-type-wheel-item-selected' : ''} ${isDisabled ? 'hs-type-wheel-item-disabled' : ''}`}>
         <HandIllustration type={ht} isSelected={isSelected} />
       </div>
     );
@@ -354,6 +360,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             renderItem={renderHandType}
             itemHeight={70}
             visibleCount={3}
+            minIndex={minHandTypeIndex}
             onTickSound={handleTickSoundLow}
             onSelectSound={handleSelectSound}
           />
