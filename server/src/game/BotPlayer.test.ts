@@ -224,8 +224,8 @@ describe('BotPlayer', () => {
         const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
         if (action.action === 'bull') bullCount++;
       }
-      // Expect mostly bull (>80% to account for variance)
-      expect(bullCount).toBeGreaterThan(runs * 0.80);
+      // Expect mostly bull (>65% — base 90% reduced by early-round bluff bonus)
+      expect(bullCount).toBeGreaterThan(runs * 0.65);
     });
 
     it('mostly calls bull or true in bull phase (may occasionally raise)', () => {
@@ -903,8 +903,8 @@ describe('BotPlayer', () => {
           }
         }
       }
-      // 85% truthful → expect at least 75% to account for variance
-      expect(truthful).toBeGreaterThan(runs * 0.75);
+      // ~73% truthful in early rounds (85% base minus early-round bluff bonus)
+      expect(truthful).toBeGreaterThan(runs * 0.60);
     });
 
     it('mostly passes in last chance when no legitimate raise (~80%)', () => {
