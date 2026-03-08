@@ -632,6 +632,11 @@ router.post('/reset-password', authRateLimit, async (req, res) => {
 
 // ── PATCH /auth/username ─────────────────────────────────────────────────
 
+/** Grace period after account creation during which username changes are unlimited. */
+const USERNAME_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+/** Cooldown between username changes after the grace period expires. */
+const USERNAME_CHANGE_COOLDOWN_MS = 27 * 24 * 60 * 60 * 1000; // 27 days
+
 router.patch('/username', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
@@ -656,9 +661,13 @@ router.patch('/username', requireAuth, async (req, res) => {
       return;
     }
 
-    // Check current username — skip if unchanged
-    const currentResult = await query<{ username: string }>(
-      'SELECT username FROM users WHERE id = $1',
+    // Check current username and cooldown state
+    const currentResult = await query<{
+      username: string;
+      created_at: string;
+      username_changed_at: string | null;
+    }>(
+      'SELECT username, created_at, username_changed_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -667,9 +676,30 @@ router.patch('/username', requireAuth, async (req, res) => {
       return;
     }
 
+    // Enforce username change cooldown after the 3-day grace period
+    if (currentResult && currentResult.rows.length > 0) {
+      const row = currentResult.rows[0]!;
+      const createdAt = new Date(row.created_at).getTime();
+      const now = Date.now();
+      const accountAge = now - createdAt;
+
+      if (accountAge > USERNAME_GRACE_PERIOD_MS && row.username_changed_at) {
+        const lastChanged = new Date(row.username_changed_at).getTime();
+        const elapsed = now - lastChanged;
+        if (elapsed < USERNAME_CHANGE_COOLDOWN_MS) {
+          const remainingMs = USERNAME_CHANGE_COOLDOWN_MS - elapsed;
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          res.status(429).json({
+            error: `You can change your username once every 27 days. Try again in ${remainingDays} day${remainingDays === 1 ? '' : 's'}.`,
+          });
+          return;
+        }
+      }
+    }
+
     try {
       await pool.query(
-        'UPDATE users SET username = $1, display_name = $1 WHERE id = $2',
+        'UPDATE users SET username = $1, display_name = $1, username_changed_at = NOW() WHERE id = $2',
         [trimmed, userId],
       );
     } catch (err: unknown) {

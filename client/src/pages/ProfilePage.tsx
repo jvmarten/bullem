@@ -282,6 +282,11 @@ export function ProfilePage() {
     }
   };
 
+  /** Whether the account is past the 3-day grace period for unlimited username changes. */
+  const isPastGracePeriod = user.createdAt
+    ? Date.now() - new Date(user.createdAt).getTime() > 3 * 24 * 60 * 60 * 1000
+    : false;
+
   const handleEditUsername = () => {
     setUsernameInput(profile.username);
     setUsernameError('');
@@ -376,6 +381,11 @@ export function ProfilePage() {
                   Cancel
                 </button>
               </div>
+              {isPastGracePeriod && (
+                <p className="text-[10px] text-[var(--gold-dim)] mt-1">
+                  Username can be changed once every 27 days
+                </p>
+              )}
             </div>
           ) : (
             <button
