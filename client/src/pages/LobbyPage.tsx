@@ -15,7 +15,7 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
-import { useUISettings, saveMatchSettings, loadMatchSettings } from '../components/VolumeControl.js';
+import { useUISettings, saveMatchSettings } from '../components/VolumeControl.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -169,9 +169,7 @@ export function LobbyPage() {
   // Persist online match settings to localStorage whenever the host changes them
   useEffect(() => {
     if (!isHost || !settings) return;
-    const existing = loadMatchSettings();
     saveMatchSettings({
-      ...existing,
       maxCards: settings.maxCards,
       turnTimer: settings.turnTimer,
       maxPlayers: settings.maxPlayers,
@@ -181,7 +179,7 @@ export function LobbyPage() {
       allowSpectators: settings.allowSpectators,
       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
       bestOf: settings.bestOf,
-    });
+    }, 'online');
   }, [isHost, settings]);
 
   const handleMaxCardsChange = (newMax: number) => {

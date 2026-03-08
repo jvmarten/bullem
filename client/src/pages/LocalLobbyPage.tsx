@@ -75,7 +75,7 @@ export function LocalLobbyPage() {
         // First-game mode: default to easy bots so new players aren't overwhelmed
         setGameSettings({ ...gameSettings, botLevelCategory: 'easy' });
       } else {
-        const saved = loadMatchSettings();
+        const saved = loadMatchSettings('local');
         if (saved) {
           setGameSettings({
             ...gameSettings,
@@ -102,16 +102,14 @@ export function LocalLobbyPage() {
   // Merge with existing saved settings to preserve online-specific fields.
   useEffect(() => {
     if (!gameSettings) return;
-    const existing = loadMatchSettings();
     saveMatchSettings({
-      ...existing,
       maxCards: gameSettings.maxCards,
       turnTimer: gameSettings.turnTimer,
       botLevelCategory: gameSettings.botLevelCategory,
       botSpeed: gameSettings.botSpeed,
       lastChanceMode: gameSettings.lastChanceMode,
       bestOf: gameSettings.bestOf,
-    });
+    }, 'local');
   }, [gameSettings]);
 
   // Quick Play: auto-start the game once bots have been added

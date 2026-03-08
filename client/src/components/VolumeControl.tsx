@@ -58,7 +58,8 @@ export function toggleImpossibleBotEnabled() {
 
 /* ── Match settings persistence ────────────────────────────────── */
 
-const MATCH_SETTINGS_KEY = 'bull-em-match-settings';
+const MATCH_SETTINGS_KEY_ONLINE = 'bull-em-match-settings-online';
+const MATCH_SETTINGS_KEY_LOCAL = 'bull-em-match-settings-local';
 
 /** Partial game settings that are worth remembering across sessions. */
 export interface SavedMatchSettings {
@@ -73,19 +74,25 @@ export interface SavedMatchSettings {
   bestOf?: number;
 }
 
+type SettingsMode = 'online' | 'local';
+
+function settingsKey(mode: SettingsMode): string {
+  return mode === 'online' ? MATCH_SETTINGS_KEY_ONLINE : MATCH_SETTINGS_KEY_LOCAL;
+}
+
 /** Save the current match settings to localStorage. */
-export function saveMatchSettings(settings: SavedMatchSettings): void {
+export function saveMatchSettings(settings: SavedMatchSettings, mode: SettingsMode): void {
   try {
-    localStorage.setItem(MATCH_SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(settingsKey(mode), JSON.stringify(settings));
   } catch {
     // localStorage full or unavailable — silently ignore
   }
 }
 
 /** Load saved match settings from localStorage. Returns null if none saved. */
-export function loadMatchSettings(): SavedMatchSettings | null {
+export function loadMatchSettings(mode: SettingsMode): SavedMatchSettings | null {
   try {
-    const raw = localStorage.getItem(MATCH_SETTINGS_KEY);
+    const raw = localStorage.getItem(settingsKey(mode));
     if (!raw) return null;
     return JSON.parse(raw) as SavedMatchSettings;
   } catch {
