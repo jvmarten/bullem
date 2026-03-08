@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RankBadge } from '../components/RankBadge.js';
-import { avatarDisplay } from './ProfilePage.js';
 import type { RankedMode, LeaderboardPeriod, LeaderboardResponse, LeaderboardEntry, LeaderboardPlayerFilter } from '@bull-em/shared';
 
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
@@ -25,15 +24,11 @@ function SkeletonRow({ index }: { index: number }) {
       <div className="w-8 text-center">
         <div className="h-4 w-6 rounded bg-[var(--gold-dim)] opacity-20 animate-pulse mx-auto" />
       </div>
-      <div className="w-8 h-8 rounded-full bg-[var(--gold-dim)] opacity-20 animate-pulse" />
       <div className="flex-1">
         <div className="h-4 w-24 rounded bg-[var(--gold-dim)] opacity-20 animate-pulse" />
       </div>
       <div className="w-16 text-right">
         <div className="h-4 w-10 rounded bg-[var(--gold-dim)] opacity-20 animate-pulse ml-auto" />
-      </div>
-      <div className="w-12 text-right">
-        <div className="h-3 w-8 rounded bg-[var(--gold-dim)] opacity-20 animate-pulse ml-auto" />
       </div>
     </div>
   );
@@ -258,10 +253,8 @@ export function LeaderboardPage() {
                   style={{ borderBottom: '1px solid rgba(212,168,67,0.15)' }}
                 >
                   <div className="w-8 text-center">#</div>
-                  <div className="w-8" />
                   <div className="flex-1">Player</div>
                   <div className="w-16 text-right">Rating</div>
-                  <div className="w-12 text-right">Games</div>
                 </div>
 
                 {/* Rows */}
@@ -326,17 +319,6 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
         <RankNumber rank={entry.rank} />
       </div>
 
-      {/* Avatar */}
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
-        style={{
-          background: 'rgba(212,168,67,0.12)',
-          border: '1px solid rgba(212,168,67,0.2)',
-        }}
-      >
-        {avatarDisplay(entry.avatar, entry.displayName)}
-      </div>
-
       {/* Name + tier + bot badge */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
@@ -361,11 +343,6 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
       {/* Rating */}
       <div className="w-16 text-right">
         <span className="text-sm font-semibold text-[var(--gold)]">{entry.rating}</span>
-      </div>
-
-      {/* Games played */}
-      <div className="w-12 text-right">
-        <span className="text-xs text-[var(--gold-dim)]">{entry.gamesPlayed}</span>
       </div>
     </button>
   );
