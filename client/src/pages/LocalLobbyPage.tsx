@@ -98,10 +98,13 @@ export function LocalLobbyPage() {
     });
   }, [roomState, createRoom, addBot]);
 
-  // Persist match settings to localStorage whenever they change
+  // Persist match settings to localStorage whenever they change.
+  // Merge with existing saved settings to preserve online-specific fields.
   useEffect(() => {
     if (!gameSettings) return;
+    const existing = loadMatchSettings();
     saveMatchSettings({
+      ...existing,
       maxCards: gameSettings.maxCards,
       turnTimer: gameSettings.turnTimer,
       botLevelCategory: gameSettings.botLevelCategory,

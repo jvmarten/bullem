@@ -61,12 +61,15 @@ export function toggleImpossibleBotEnabled() {
 const MATCH_SETTINGS_KEY = 'bull-em-match-settings';
 
 /** Partial game settings that are worth remembering across sessions. */
-interface SavedMatchSettings {
+export interface SavedMatchSettings {
   maxCards?: number;
   turnTimer?: number;
   botLevelCategory?: string;
   botSpeed?: string;
   lastChanceMode?: string;
+  maxPlayers?: number;
+  allowSpectators?: boolean;
+  spectatorsCanSeeCards?: boolean;
   bestOf?: number;
 }
 

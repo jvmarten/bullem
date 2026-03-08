@@ -15,7 +15,7 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
-import { useUISettings } from '../components/VolumeControl.js';
+import { useUISettings, saveMatchSettings, loadMatchSettings } from '../components/VolumeControl.js';
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -165,6 +165,24 @@ export function LobbyPage() {
   // Settings locked once another human (non-bot) player has joined
   const hasOtherHumans = roomState.players.some(p => !p.isBot && p.id !== roomState.hostId);
   const settingsLocked = hasOtherHumans;
+
+  // Persist online match settings to localStorage whenever the host changes them
+  useEffect(() => {
+    if (!isHost || !settings) return;
+    const existing = loadMatchSettings();
+    saveMatchSettings({
+      ...existing,
+      maxCards: settings.maxCards,
+      turnTimer: settings.turnTimer,
+      maxPlayers: settings.maxPlayers,
+      botSpeed: settings.botSpeed,
+      lastChanceMode: settings.lastChanceMode,
+      botLevelCategory: settings.botLevelCategory,
+      allowSpectators: settings.allowSpectators,
+      spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
+      bestOf: settings.bestOf,
+    });
+  }, [isHost, settings]);
 
   const handleMaxCardsChange = (newMax: number) => {
     if (settingsLocked) return;

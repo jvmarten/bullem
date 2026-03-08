@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
 import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
-import type { LastChanceMode, BotLevelCategory } from '@bull-em/shared';
+import type { LastChanceMode, BotLevelCategory, BestOf } from '@bull-em/shared';
+import { loadMatchSettings, saveMatchSettings } from '../components/VolumeControl.js';
 
 export function HostPage() {
   const navigate = useNavigate();
@@ -14,14 +15,21 @@ export function HostPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
-  const [maxCards, setMaxCards] = useState(5);
-  const [maxPlayers, setMaxPlayers] = useState(6);
-  const [turnTimer, setTurnTimer] = useState(30);
-  const [allowSpectators, setAllowSpectators] = useState(false);
-  const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(false);
-  const [botSpeed, setBotSpeed] = useState<BotSpeed>(BotSpeed.NORMAL);
-  const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>('classic');
-  const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>('normal');
+
+  // Load saved settings from previous session, falling back to sensible defaults
+  const saved = useMemo(() => loadMatchSettings(), []);
+  const [maxCards, setMaxCards] = useState(saved?.maxCards ?? 5);
+  const [maxPlayers, setMaxPlayers] = useState(saved?.maxPlayers ?? 6);
+  const [turnTimer, setTurnTimer] = useState(() => {
+    // Ensure saved timer is valid for online (must be in ONLINE_TURN_TIMER_OPTIONS)
+    const t = saved?.turnTimer;
+    return t != null && (ONLINE_TURN_TIMER_OPTIONS as readonly number[]).includes(t) ? t : 30;
+  });
+  const [allowSpectators, setAllowSpectators] = useState(saved?.allowSpectators ?? false);
+  const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(saved?.spectatorsCanSeeCards ?? false);
+  const [botSpeed, setBotSpeed] = useState<BotSpeed>((saved?.botSpeed as BotSpeed) ?? BotSpeed.NORMAL);
+  const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>((saved?.lastChanceMode as LastChanceMode) ?? 'classic');
+  const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>((saved?.botLevelCategory as BotLevelCategory) ?? 'normal');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -49,6 +57,7 @@ export function HostPage() {
     try {
       const roomCode = await createRoom(playerName, user?.avatar);
       updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
+      saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to create room — check your connection');
