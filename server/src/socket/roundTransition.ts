@@ -133,17 +133,23 @@ export function handleSetOver(
 
   botManager.clearTurnTimer(room.roomCode);
 
+  // Capture room code — re-fetch from RoomManager inside the timeout to
+  // avoid operating on a stale room reference if it was deleted during the
+  // transition delay (e.g., all players disconnect and stale cleanup fires).
+  const roomCode = room.roomCode;
   setTimeout(() => {
-    if (room.gamePhase === GamePhase.GAME_OVER || room.gamePhase === GamePhase.FINISHED) return;
+    const freshRoom = roomManager.getRoom(roomCode);
+    if (!freshRoom || !freshRoom.game) return;
+    if (freshRoom.gamePhase === GamePhase.GAME_OVER || freshRoom.gamePhase === GamePhase.FINISHED) return;
 
     // Reset for next set — resetForRematch handles player reset
-    room.resetForRematch();
-    recordRoundStart(room.roomCode);
-    BotPlayer.resetMemory(room.roomCode);
-    botManager.scheduleBotTurn(room, io);
-    broadcastRoomState(io, room);
-    broadcastGameState(io, room);
-    roomManager.persistRoom(room);
+    freshRoom.resetForRematch();
+    recordRoundStart(freshRoom.roomCode);
+    BotPlayer.resetMemory(freshRoom.roomCode);
+    botManager.scheduleBotTurn(freshRoom, io);
+    broadcastRoomState(io, freshRoom);
+    broadcastGameState(io, freshRoom);
+    roomManager.persistRoom(freshRoom);
   }, SERIES_TRANSITION_DELAY_MS);
 
   roomManager.persistRoom(room);
