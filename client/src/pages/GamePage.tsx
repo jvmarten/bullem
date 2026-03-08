@@ -429,7 +429,6 @@ export function GamePage() {
         </span>
       )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
-      {(isEliminated || isSpectator) && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -466,7 +465,6 @@ export function GamePage() {
               </span>
             )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
-            {(isEliminated || isSpectator) && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -570,7 +568,7 @@ export function GamePage() {
 
             {/* Spectator view — eliminated players and external spectators see all cards */}
             {(isEliminated || isSpectator) && gameState.spectatorCards && (
-              <SpectatorView spectatorCards={gameState.spectatorCards} />
+              <SpectatorView spectatorCards={gameState.spectatorCards} currentPlayerId={gameState.currentPlayerId} />
             )}
 
             {/* Call history — portrait only (in sidebar for landscape) */}
@@ -668,10 +666,15 @@ export function GamePage() {
         {!isConnected && hasConnected && <ReconnectOverlay />}
       </div>
 
-      {/* Emoji and chat rendered OUTSIDE game-layout so they are not affected
+      {/* Emoji, stats, and chat rendered OUTSIDE game-layout so they are not affected
           by the .spectating CSS filter which breaks position:fixed children. */}
       {emojiEnabled && (
         <EmojiReactionBar onReaction={sendReaction} />
+      )}
+      {(isEliminated || isSpectator) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+          <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
+        </div>
       )}
       {chatEnabled && (
         <ChatPanel

@@ -1,11 +1,12 @@
-import type { SpectatorPlayerCards } from '@bull-em/shared';
+import type { SpectatorPlayerCards, PlayerId } from '@bull-em/shared';
 import { HandDisplay } from './HandDisplay.js';
 
 interface SpectatorViewProps {
   spectatorCards: SpectatorPlayerCards[];
+  currentPlayerId?: PlayerId | null;
 }
 
-export function SpectatorView({ spectatorCards }: SpectatorViewProps) {
+export function SpectatorView({ spectatorCards, currentPlayerId }: SpectatorViewProps) {
   if (spectatorCards.length === 0) return null;
 
   return (
@@ -14,14 +15,20 @@ export function SpectatorView({ spectatorCards }: SpectatorViewProps) {
         All Players' Cards
       </p>
       <div className="grid grid-cols-2 gap-1.5">
-        {spectatorCards.map(({ playerId, playerName, cards }) => (
-          <div key={playerId} className="glass px-2 py-1.5">
-            <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5 truncate">
-              {playerName}
-            </p>
-            <HandDisplay cards={cards} />
-          </div>
-        ))}
+        {spectatorCards.map(({ playerId, playerName, cards }) => {
+          const isCurrent = playerId === currentPlayerId;
+          return (
+            <div
+              key={playerId}
+              className={`glass px-2 py-1.5 transition-shadow ${isCurrent ? 'animate-pulse-glow ring-1 ring-[var(--gold)]' : ''}`}
+            >
+              <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5 truncate">
+                {playerName}
+              </p>
+              <HandDisplay cards={cards} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
