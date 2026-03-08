@@ -12,6 +12,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useToast } from '../context/ToastContext.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
+import { friendlyError } from '../utils/friendlyErrors.js';
 import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
@@ -66,7 +67,7 @@ export function LobbyPage() {
       setJoining(true);
       joinRoom(roomCode, storedName, user?.avatar)
         .catch((e) => {
-          addToast(e instanceof Error ? e.message : 'Failed to join room');
+          addToast(friendlyError(e instanceof Error ? e.message : 'Failed to join room'));
           setTimeout(() => navigate('/'), 3000);
         })
         .finally(() => setJoining(false));
@@ -79,7 +80,7 @@ export function LobbyPage() {
     try {
       await joinRoom(roomCode, joinName.trim(), user?.avatar);
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Failed to join room');
+      addToast(friendlyError(e instanceof Error ? e.message : 'Failed to join room'));
     } finally {
       setJoining(false);
     }
