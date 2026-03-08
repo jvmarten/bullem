@@ -17,6 +17,7 @@ import { ChatPanel } from '../components/ChatPanel.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
 import { BotProfileModal } from '../components/BotProfileModal.js';
+import { InGameStats } from '../components/InGameStats.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
@@ -30,6 +31,7 @@ import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
+import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useUISettings } from '../components/VolumeControl.js';
 
 function SeriesBanner({ seriesInfo, players, playerId }: {
@@ -114,6 +116,7 @@ export function GamePage() {
   useGameSounds(gameState, roundResult, winnerId, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
+  const inGameStats = useInGameStats(gameState, roundResult);
 
   const rejoinAttemptedRef = useRef(false);
   const wasEliminatedRef = useRef(false);
@@ -420,6 +423,7 @@ export function GamePage() {
         </span>
       )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
+      <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -456,6 +460,7 @@ export function GamePage() {
               </span>
             )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
+            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"

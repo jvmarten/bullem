@@ -627,6 +627,36 @@ export interface AdvancedStatsResponse {
   opponentRecords: OpponentRecord[];
 }
 
+// ── In-game stats types ─────────────────────────────────────────────────
+
+/** Per-player running stats accumulated during a live game. */
+export interface InGamePlayerStats {
+  bullsCalled: number;
+  truesCalled: number;
+  callsMade: number;
+  correctBulls: number;
+  correctTrues: number;
+  bluffsSuccessful: number;
+}
+
+/** Snapshot of card counts at the end of a round, used for the timeline chart. */
+export interface CardCountSnapshot {
+  roundNumber: number;
+  /** Card count per player at the end of this round. */
+  cardCounts: Record<PlayerId, number>;
+  /** Players eliminated this round. */
+  eliminatedPlayerIds: PlayerId[];
+}
+
+/** Aggregated in-game stats computed from accumulated round results. */
+export interface InGameStats {
+  playerStats: Record<PlayerId, InGamePlayerStats>;
+  /** How many times each hand type was called across the whole game so far. */
+  handTypeCalls: Record<number, number>;
+  /** Round-by-round card count snapshots for timeline chart. */
+  roundSnapshots: CardCountSnapshot[];
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;

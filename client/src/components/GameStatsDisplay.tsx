@@ -1,3 +1,8 @@
+import { useMemo } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 import { HandType } from '@bull-em/shared';
 import type { GameStats, Player, PlayerId } from '@bull-em/shared';
 
@@ -85,13 +90,15 @@ const HAND_TYPE_LABELS: Record<number, string> = {
   [HandType.PAIR]: 'Pair',
   [HandType.TWO_PAIR]: 'Two Pair',
   [HandType.FLUSH]: 'Flush',
-  [HandType.THREE_OF_A_KIND]: 'Three of a Kind',
+  [HandType.THREE_OF_A_KIND]: '3 of a Kind',
   [HandType.STRAIGHT]: 'Straight',
   [HandType.FULL_HOUSE]: 'Full House',
-  [HandType.FOUR_OF_A_KIND]: 'Four of a Kind',
-  [HandType.STRAIGHT_FLUSH]: 'Straight Flush',
+  [HandType.FOUR_OF_A_KIND]: '4 of a Kind',
+  [HandType.STRAIGHT_FLUSH]: 'Str. Flush',
   [HandType.ROYAL_FLUSH]: 'Royal Flush',
 };
+
+const PIE_COLORS = ['#d4a843', '#e06c5f', '#5fa3e0', '#6dd45f', '#c05fd4', '#d4975f', '#5fd4c0', '#d45fa3', '#8b8be0', '#e0c05f'];
 
 /** Aggregate hand breakdown across all players to get match-level existence counts. */
 function aggregateHandExistence(stats: GameStats): { handType: number; called: number; existed: number }[] {
@@ -120,6 +127,32 @@ export function GameStatsDisplay({ stats, players, winnerId }: Props) {
   const awards = computeAwards(stats, players, winnerId);
   const handExistence = aggregateHandExistence(stats);
 
+  // Accuracy bar chart data
+  const accuracyData = useMemo(() => {
+    return players
+      .filter(p => stats.playerStats[p.id])
+      .map(p => {
+        const s = stats.playerStats[p.id]!;
+        const bullAcc = s.bullsCalled > 0 ? Math.round((s.correctBulls / s.bullsCalled) * 100) : 0;
+        const trueAcc = s.truesCalled > 0 ? Math.round((s.correctTrues / s.truesCalled) * 100) : 0;
+        return { name: p.name.length > 8 ? p.name.slice(0, 7) + '\u2026' : p.name, bullAcc, trueAcc, fullName: p.name };
+      });
+  }, [stats, players]);
+
+  // Call distribution donut data
+  const callDistData = useMemo(() => {
+    const totalCalls = handExistence.reduce((sum, h) => sum + h.called, 0);
+    if (totalCalls === 0) return [];
+    return handExistence
+      .filter(h => h.called > 0)
+      .map(h => ({
+        name: HAND_TYPE_LABELS[h.handType] ?? `Type ${h.handType}`,
+        value: h.called,
+        existed: h.existed,
+        pct: Math.round((h.called / totalCalls) * 100),
+      }));
+  }, [handExistence]);
+
   return (
     <div className="w-full space-y-4">
       {/* Awards */}
@@ -138,19 +171,103 @@ export function GameStatsDisplay({ stats, players, winnerId }: Props) {
         </div>
       )}
 
-      {/* Hand existence stats */}
-      {handExistence.length > 0 && (
+      {/* Accuracy bar chart */}
+      {accuracyData.length > 0 && accuracyData.some(d => d.bullAcc > 0 || d.trueAcc > 0) && (
         <div>
-          <h3 className="font-display text-sm font-bold text-[var(--gold)] mb-2 text-center">Hands That Existed</h3>
+          <h3 className="font-display text-sm font-bold text-[var(--gold)] mb-2 text-center">Accuracy</h3>
           <div className="glass p-3">
-            <div className="flex flex-col gap-1.5">
-              {handExistence.map(({ handType, called, existed }) => (
-                <div key={handType} className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--gold-dim)]">
-                    {HAND_TYPE_LABELS[handType] ?? `Type ${handType}`}
-                  </span>
+            <div style={{ width: '100%', height: Math.max(140, accuracyData.length * 32 + 50) }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={accuracyData}
+                  layout="vertical"
+                  margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                >
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tick={{ fill: '#a0977a', fontSize: 10 }}
+                    stroke="rgba(212,168,67,0.2)"
+                    tickFormatter={(v: number) => `${v}%`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fill: '#a0977a', fontSize: 10 }}
+                    stroke="rgba(212,168,67,0.2)"
+                    width={60}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: '#1a1510', border: '1px solid rgba(212,168,67,0.3)', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#e8e0d4' }}
+                    formatter={(value: unknown, name: unknown) => [`${typeof value === 'number' ? value : 0}%`, name === 'bullAcc' ? 'Bull Accuracy' : 'True Accuracy']}
+                    labelFormatter={(_label, payload) => {
+                      if (payload && payload.length > 0) {
+                        const first = payload[0];
+                        if (first) {
+                          const item = first.payload as { fullName: string };
+                          return item.fullName;
+                        }
+                      }
+                      return _label;
+                    }}
+                  />
+                  <Bar dataKey="bullAcc" name="Bull Accuracy" fill="#e06c5f" radius={[0, 4, 4, 0]} animationDuration={800} />
+                  <Bar dataKey="trueAcc" name="True Accuracy" fill="#5fa3e0" radius={[0, 4, 4, 0]} animationDuration={800} animationBegin={200} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center gap-4 mt-1 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#e06c5f' }} /> Bull</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#5fa3e0' }} /> True</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Call distribution donut */}
+      {callDistData.length > 0 && (
+        <div>
+          <h3 className="font-display text-sm font-bold text-[var(--gold)] mb-2 text-center">Call Distribution</h3>
+          <div className="glass p-3">
+            <div style={{ width: '100%', height: 180 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={callDistData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={35}
+                    outerRadius={65}
+                    dataKey="value"
+                    stroke="none"
+                    animationDuration={800}
+                    animationBegin={300}
+                    label={({ name, pct }: { name?: string; pct?: number }) => `${name ?? ''} ${pct ?? 0}%`}
+                    labelLine={false}
+                  >
+                    {callDistData.map((_entry, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? '#d4a843'} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: '#1a1510', border: '1px solid rgba(212,168,67,0.3)', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#e8e0d4' }}
+                    formatter={(value: unknown, name: unknown) => { const v = typeof value === 'number' ? value : 0; return [`${v} call${v !== 1 ? 's' : ''}`, String(name ?? '')]; }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Existence rate legend */}
+            <div className="space-y-1 mt-2">
+              {callDistData.map((d, i) => (
+                <div key={d.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    <span className="text-[var(--gold-dim)]">{d.name}</span>
+                  </div>
                   <span className="text-[#e8e0d4] font-semibold">
-                    {existed}/{called} called
+                    {d.existed}/{d.value} existed
                   </span>
                 </div>
               ))}
