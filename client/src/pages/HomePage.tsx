@@ -5,8 +5,10 @@ import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
+import { loadMatchSettings } from '../components/VolumeControl.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
-import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS } from '@bull-em/shared';
+import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
+import type { GameSettings } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
@@ -283,7 +285,7 @@ export function HomePage() {
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, createRoom, deleteRoom, updateSettings, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
 
   // Dev mode badge state — only checked in dev builds
   const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
@@ -406,6 +408,23 @@ export function HomePage() {
     setCreatingRoom(true);
     try {
       const roomCode = await createRoom(getOnlinePlayerName(), user?.avatar);
+      // Apply saved match settings so the room remembers previous preferences
+      const saved = loadMatchSettings();
+      if (saved) {
+        const restored: GameSettings = {
+          ...DEFAULT_ONLINE_GAME_SETTINGS,
+          ...(saved.maxCards != null && { maxCards: saved.maxCards }),
+          ...(saved.turnTimer != null && { turnTimer: saved.turnTimer }),
+          ...(saved.maxPlayers != null && { maxPlayers: saved.maxPlayers }),
+          ...(saved.botSpeed && { botSpeed: saved.botSpeed }),
+          ...(saved.lastChanceMode && { lastChanceMode: saved.lastChanceMode }),
+          ...(saved.botLevelCategory && { botLevelCategory: saved.botLevelCategory }),
+          ...(saved.allowSpectators != null && { allowSpectators: saved.allowSpectators }),
+          ...(saved.spectatorsCanSeeCards != null && { spectatorsCanSeeCards: saved.spectatorsCanSeeCards }),
+          ...(saved.bestOf != null && { bestOf: saved.bestOf }),
+        } as GameSettings;
+        updateSettings(restored);
+      }
       navigate(`/room/${roomCode}`);
     } catch {
       addToast('Failed to quick start — check your connection');
