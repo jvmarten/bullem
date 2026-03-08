@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { avatarDisplay } from '../pages/ProfilePage.js';
 import { RankBadge } from './RankBadge.js';
 
 interface Props {
@@ -211,7 +212,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
           className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
         >
-          {p.isBot ? (BOT_AVATAR_MAP.get(p.name) ?? '\u2699') : playerInitial(p.name)}
+          {p.isBot ? (BOT_AVATAR_MAP.get(p.name) ?? '\u2699') : avatarDisplay(p.avatar, p.name)}
         </div>
         <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, BotDifficulty, GameSettings, GameStats, GameReplay, EmojiReaction, GameEmoji, ChatMessage, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo, AvatarId } from '@bull-em/shared';
 import { saveReplay } from '@bull-em/shared';
 import { socket } from '../socket.js';
 import { recordRecentPlayers } from '../utils/recentPlayers.js';
@@ -34,8 +34,8 @@ export interface GameContextValue {
   disconnectDeadlines: DisconnectDeadlines;
   onlinePlayerCount: number;
   onlinePlayerNames: string[];
-  createRoom: (playerName: string) => Promise<string>;
-  joinRoom: (roomCode: string, playerName: string) => Promise<void>;
+  createRoom: (playerName: string, avatar?: AvatarId | null) => Promise<string>;
+  joinRoom: (roomCode: string, playerName: string, avatar?: AvatarId | null) => Promise<void>;
   leaveRoom: () => void;
   deleteRoom: () => void;
   listRooms: () => Promise<RoomListing[]>;
@@ -480,7 +480,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const createRoom = useCallback((playerName: string): Promise<string> => {
+  const createRoom = useCallback((playerName: string, avatar?: AvatarId | null): Promise<string> => {
     // Auto-leave previous room if still connected to one
     const existingRoom = sessionStorage.getItem(ROOM_CODE_KEY);
     if (existingRoom) {
@@ -493,7 +493,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearActiveSession();
     }
     return withTimeout(new Promise((resolve, reject) => {
-      socket.emit('room:create', { playerName }, (response) => {
+      socket.emit('room:create', { playerName, avatar }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
@@ -504,7 +504,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const joinRoom = useCallback((roomCode: string, playerName: string): Promise<void> => {
+  const joinRoom = useCallback((roomCode: string, playerName: string, avatar?: AvatarId | null): Promise<void> => {
     // Auto-leave previous room if joining a different one
     const existingRoom = sessionStorage.getItem(ROOM_CODE_KEY);
     if (existingRoom && existingRoom !== roomCode) {
@@ -520,7 +520,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Check sessionStorage first, then fall back to localStorage (browser close scenario)
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY) ?? localStorage.getItem(LS_ACTIVE_PLAYER_ID) ?? undefined;
       const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? localStorage.getItem(LS_ACTIVE_RECONNECT_TOKEN) ?? undefined;
-      socket.emit('room:join', { roomCode, playerName, playerId: storedId, reconnectToken: storedToken }, (response) => {
+      socket.emit('room:join', { roomCode, playerName, playerId: storedId, reconnectToken: storedToken, avatar }, (response) => {
         if ('error' in response) return reject(new Error(response.error));
         setPlayerId(response.playerId);
         sessionStorage.setItem(PLAYER_ID_KEY, response.playerId);

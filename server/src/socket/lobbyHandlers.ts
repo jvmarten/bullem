@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -21,6 +21,14 @@ function sanitizeName(raw: unknown): string | null {
 }
 
 const ROOM_CODE_PATTERN = /^[A-Z]{4}$/;
+
+/** Validate an avatar ID. Returns the validated ID or undefined if invalid/absent. */
+function sanitizeAvatar(raw: unknown): AvatarId | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== 'string') return undefined;
+  if (!(AVATAR_OPTIONS as readonly string[]).includes(raw)) return undefined;
+  return raw as AvatarId;
+}
 
 /** Validate a room code. Returns the uppercased code or null if invalid. */
 function sanitizeRoomCode(raw: unknown): string | null {
@@ -51,7 +59,11 @@ export function registerLobbyHandlers(
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
-    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    const avatar = sanitizeAvatar(data.avatar);
+    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
+      userId: socket.data.userId,
+      avatar,
+    });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     if (socket.data.role === 'admin') player.isAdmin = true;
@@ -109,7 +121,11 @@ export function registerLobbyHandlers(
     if (nameExists) return callback({ error: 'Name already taken in this room' });
 
     const playerId = randomUUID();
-    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name);
+    const avatar = sanitizeAvatar(data.avatar);
+    const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
+      userId: socket.data.userId,
+      avatar,
+    });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
     if (socket.data.role === 'admin') player.isAdmin = true;

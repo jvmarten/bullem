@@ -1,4 +1,4 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo, AvatarId } from './types.js';
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
@@ -33,8 +33,8 @@ export interface ChatMessage {
  * compile-time type safety on both sides.
  */
 export interface ClientToServerEvents {
-  'room:create': (data: { playerName: string }, callback: (response: { roomCode: string; reconnectToken: string } | { error: string }) => void) => void;
-  'room:join': (data: { roomCode: string; playerName: string; playerId?: string; reconnectToken?: string }, callback: (response: { playerId: string; reconnectToken: string } | { error: string }) => void) => void;
+  'room:create': (data: { playerName: string; avatar?: AvatarId | null }, callback: (response: { roomCode: string; reconnectToken: string } | { error: string }) => void) => void;
+  'room:join': (data: { roomCode: string; playerName: string; playerId?: string; reconnectToken?: string; avatar?: AvatarId | null }, callback: (response: { playerId: string; reconnectToken: string } | { error: string }) => void) => void;
   'room:leave': () => void;
   'room:list': (callback: (response: { rooms: RoomListing[] }) => void) => void;
   'room:listLive': (callback: (response: { games: LiveGameListing[] }) => void) => void;

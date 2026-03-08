@@ -287,7 +287,7 @@ export class InMemoryMatchmakingQueue {
 
     for (const entry of humanPlayers) {
       const playerId = randomUUID();
-      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -376,7 +376,7 @@ export class InMemoryMatchmakingQueue {
 
     for (const entry of players) {
       const playerId = randomUUID();
-      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName);
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);

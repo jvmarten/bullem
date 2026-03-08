@@ -4,6 +4,7 @@ import { PlayerList } from '../components/PlayerList.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, BotDifficulty } from '@bull-em/shared';
 import type { BestOf, BotLevelCategory } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
@@ -20,6 +21,7 @@ export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
   const { state: pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications();
@@ -62,7 +64,7 @@ export function LobbyPage() {
     if (storedName) {
       joinAttemptedRef.current = true;
       setJoining(true);
-      joinRoom(roomCode, storedName)
+      joinRoom(roomCode, storedName, user?.avatar)
         .catch((e) => {
           addToast(e instanceof Error ? e.message : 'Failed to join room');
           setTimeout(() => navigate('/'), 3000);
@@ -75,7 +77,7 @@ export function LobbyPage() {
     if (!joinName.trim() || !roomCode) return;
     setJoining(true);
     try {
-      await joinRoom(roomCode, joinName.trim());
+      await joinRoom(roomCode, joinName.trim(), user?.avatar);
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Failed to join room');
     } finally {

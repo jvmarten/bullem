@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
 import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
@@ -10,6 +11,7 @@ import type { LastChanceMode, BotLevelCategory } from '@bull-em/shared';
 export function HostPage() {
   const navigate = useNavigate();
   const { isConnected, createRoom, updateSettings } = useGameContext();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
   const [maxCards, setMaxCards] = useState(5);
@@ -45,7 +47,7 @@ export function HostPage() {
     if (!playerName) return navigate('/');
     setLoading(true);
     try {
-      const roomCode = await createRoom(playerName);
+      const roomCode = await createRoom(playerName, user?.avatar);
       updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
