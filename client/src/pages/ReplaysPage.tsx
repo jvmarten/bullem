@@ -133,10 +133,15 @@ export function ReplaysPage() {
         {/* Replay list */}
         {!loading && replays.length === 0 ? (
           <div className="glass px-4 py-8 text-center animate-fade-in">
-            <p className="text-[var(--gold-dim)] text-sm mb-1">No replays found</p>
-            <p className="text-[var(--gold-dim)] text-xs opacity-70">
-              Complete a game to save a replay
+            <p className="text-[var(--gold-dim)] text-sm mb-2">
+              No replays yet — play a game to see it here!
             </p>
+            <button
+              onClick={() => navigate('/')}
+              className="btn-gold py-2 px-6 text-sm"
+            >
+              Play Now
+            </button>
           </div>
         ) : (
           <div className="space-y-2 animate-fade-in">
