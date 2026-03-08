@@ -200,10 +200,11 @@ export function useGameSounds(
     }
   }, [roundResult, playerId, play]);
 
-  // React to game over — play victory sound for the winner, game-over for everyone else
+  // Track winnerId changes (no sound here — victory/gameOver audio is played
+  // on the ResultsPage so it coincides with the "You Win!" screen, not the
+  // round-ending overlay that precedes it).
   useEffect(() => {
     if (!winnerId || winnerId === prevWinnerRef.current) return;
     prevWinnerRef.current = winnerId;
-    play(winnerId === playerId ? 'victory' : 'gameOver');
-  }, [winnerId, playerId, play]);
+  }, [winnerId]);
 }

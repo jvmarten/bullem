@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
 import { PlayerRankingReveal } from '../components/PlayerRankingReveal.js';
-import { ShareCard } from '../components/ShareCard.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
+import { useSound } from '../hooks/useSound.js';
 import { RankBadge } from '../components/RankBadge.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
@@ -49,6 +49,7 @@ export function ResultsPage() {
   const [watchingAnother, setWatchingAnother] = useState(false);
   const [rankingDone, setRankingDone] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
+  const [replayShared, setReplayShared] = useState(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up retry timer on unmount
@@ -96,6 +97,15 @@ export function ResultsPage() {
   const isHost = roomState?.hostId === playerId;
 
   useWinConfetti(isWinner);
+
+  // Play victory/gameOver sound on mount — this is the "You Win!" screen
+  const { play } = useSound();
+  const victoryPlayedRef = useRef(false);
+  useEffect(() => {
+    if (!winnerId || victoryPlayedRef.current) return;
+    victoryPlayedRef.current = true;
+    play(isWinner ? 'victory' : 'gameOver');
+  }, [winnerId, isWinner, play]);
 
   const handleRankingComplete = useCallback(() => {
     setRankingDone(true);
@@ -195,20 +205,35 @@ export function ResultsPage() {
             )
           )}
 
-          {/* Share card */}
-          {rankingDone && gameStats && gameState && (
-            <div className="animate-slide-up">
-              <ShareCard players={gameState.players} winnerId={winnerId} stats={gameStats} />
-            </div>
-          )}
-
           {lastReplay && (
-            <button
-              onClick={() => navigate('/replay')}
-              className="text-[var(--gold)] hover:text-[var(--gold-light)] text-sm font-medium transition-colors"
-            >
-              Watch Replay
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/replay')}
+                className="text-[var(--gold)] hover:text-[var(--gold-light)] text-sm font-medium transition-colors"
+              >
+                Watch Replay
+              </button>
+              <span className="text-[var(--gold-dim)] text-xs">|</span>
+              <button
+                onClick={async () => {
+                  const replayUrl = `${window.location.origin}/replay?id=${encodeURIComponent(lastReplay.id)}`;
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({ title: "Bull 'Em — Watch my match!", url: replayUrl });
+                      return;
+                    } catch { /* user cancelled or share failed — fall through to clipboard */ }
+                  }
+                  try {
+                    await navigator.clipboard.writeText(replayUrl);
+                    setReplayShared(true);
+                    window.setTimeout(() => setReplayShared(false), 2000);
+                  } catch { /* clipboard unavailable */ }
+                }}
+                className="text-[var(--gold)] hover:text-[var(--gold-light)] text-sm font-medium transition-colors"
+              >
+                {replayShared ? 'Link Copied!' : 'Share Replay'}
+              </button>
+            </div>
           )}
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}
