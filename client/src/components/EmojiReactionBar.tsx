@@ -21,7 +21,7 @@ export const EmojiReactionBar = memo(function EmojiReactionBar({ onReaction }: P
             {ALLOWED_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
-                onClick={() => { onReaction(emoji); setOpen(false); }}
+                onClick={() => { onReaction(emoji); }}
                 className="emoji-reaction-btn"
                 type="button"
               >

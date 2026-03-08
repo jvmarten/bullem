@@ -89,22 +89,59 @@ function formatCountdown(ms: number): string {
   return `${secs}s`;
 }
 
-const WAGER_PRESETS = [10, 50, 100, 500, 1000];
+const WAGER_PRESETS = [1, 5, 10, 50, 100];
+
+/** Animation phases for the deck draw sequence */
+type AnimPhase = 'idle' | 'shuffling' | 'dealing' | 'revealing' | 'result';
+
+/** Picks sound based on hand quality — better hands get more exciting sounds */
+function getResultSound(handType: HandType): 'fanfare' | 'roundWin' | 'trueCalled' | 'callMade' | 'bullCalled' {
+  switch (handType) {
+    case HandType.ROYAL_FLUSH:     return 'fanfare';
+    case HandType.STRAIGHT_FLUSH:  return 'fanfare';
+    case HandType.FOUR_OF_A_KIND:  return 'roundWin';
+    case HandType.FULL_HOUSE:      return 'roundWin';
+    case HandType.FLUSH:           return 'roundWin';
+    case HandType.STRAIGHT:        return 'trueCalled';
+    case HandType.THREE_OF_A_KIND: return 'trueCalled';
+    case HandType.TWO_PAIR:        return 'callMade';
+    case HandType.PAIR:            return 'callMade';
+    case HandType.HIGH_CARD:       return 'bullCalled';
+  }
+}
 
 export function DeckDrawPage() {
-  const { play } = useSound();
+  const { play, startLoop, stopLoop } = useSound();
   const { user } = useAuth();
   const { addToast } = useToast();
 
   const [stats, setStats] = useState<DeckDrawStats>(() => loadGuestStats());
   const [wager, setWager] = useState(DECK_DRAW_DEFAULT_WAGER);
   const [lastResult, setLastResult] = useState<DeckDrawResult | null>(null);
-  const [isDealing, setIsDealing] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
   const [showPayouts, setShowPayouts] = useState(false);
+  const [showCustomWager, setShowCustomWager] = useState(false);
+  const [customWagerInput, setCustomWagerInput] = useState('');
   const [freeDrawCountdown, setFreeDrawCountdown] = useState(0);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Animation state
+  const [animPhase, setAnimPhase] = useState<AnimPhase>('idle');
+  const [dealtCount, setDealtCount] = useState(0);    // cards dealt face-down (0-5)
+  const [revealedCount, setRevealedCount] = useState(0); // cards revealed (0-5)
+  const [showResultText, setShowResultText] = useState(false);
+  const [shuffleAngle, setShuffleAngle] = useState(0);
+
+  const animTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearAnimTimers = useCallback(() => {
+    for (const t of animTimersRef.current) clearTimeout(t);
+    animTimersRef.current = [];
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => () => { clearAnimTimers(); stopLoop('deckShuffleLoop'); }, [clearAnimTimers, stopLoop]);
+
+  const isAnimating = animPhase !== 'idle' && animPhase !== 'result';
 
   // Load server stats if logged in
   useEffect(() => {
@@ -156,33 +193,71 @@ export function DeckDrawPage() {
     return () => clearInterval(interval);
   }, [stats.lastFreeDrawAt]);
 
+  // Shuffle wiggle animation
+  useEffect(() => {
+    if (animPhase !== 'shuffling') return;
+    let frame = 0;
+    const interval = setInterval(() => {
+      frame++;
+      setShuffleAngle(Math.sin(frame * 0.8) * 12 * Math.max(0, 1 - frame / 20));
+    }, 50);
+    return () => clearInterval(interval);
+  }, [animPhase]);
+
   const canFreeDraw = isFreeDrawAvailable(stats.lastFreeDrawAt);
   const canWager = stats.balance >= wager && wager >= DECK_DRAW_MIN_WAGER;
 
+  const scheduleTimer = useCallback((fn: () => void, delay: number) => {
+    const t = setTimeout(fn, delay);
+    animTimersRef.current.push(t);
+    return t;
+  }, []);
+
   const performDraw = useCallback(async (isFreeDraw: boolean) => {
-    if (isDealing) return;
+    if (isAnimating || animPhase === 'result') {
+      // If showing result, reset for new draw
+      if (animPhase === 'result') {
+        setAnimPhase('idle');
+        setLastResult(null);
+        setShowHighlight(false);
+        setShowResultText(false);
+        setDealtCount(0);
+        setRevealedCount(0);
+        return;
+      }
+      return;
+    }
 
     if (!isFreeDraw && !canWager) {
       addToast('Insufficient balance');
       return;
     }
 
-    setIsDealing(true);
+    // Reset animation state
+    clearAnimTimers();
+    setLastResult(null);
     setShowHighlight(false);
-    play('cardReveal');
+    setShowResultText(false);
+    setDealtCount(0);
+    setRevealedCount(0);
+
+    // Phase 1: SHUFFLE
+    setAnimPhase('shuffling');
+    play('deckShuffle');
+    startLoop('deckShuffleLoop');
+
+    // Resolve the draw while shuffle animation plays
+    let drawResult: DeckDrawResult | null = null;
+    let updatedStats: DeckDrawStats | null = null;
 
     const doLocalDraw = () => {
-      const { result, updatedStats } = executeDraw(stats, wager, isFreeDraw);
-      setLastResult(result);
-      setStats(updatedStats);
-      saveGuestStats(updatedStats);
-      if (result.hand.type === HandType.ROYAL_FLUSH) {
-        setTimeout(() => play('fanfare'), 600);
-      }
+      const { result, updatedStats: us } = executeDraw(stats, wager, isFreeDraw);
+      drawResult = result;
+      updatedStats = us;
+      saveGuestStats(us);
     };
 
     if (user) {
-      // Server-authoritative draw for logged-in users
       try {
         const res = await fetch('/api/deck-draw/draw', {
           method: 'POST',
@@ -192,39 +267,80 @@ export function DeckDrawPage() {
         });
         if (!res.ok) {
           if (res.status === 503) {
-            // Database unavailable — fall back to client-side draw
             doLocalDraw();
           } else {
             const err = await res.json().catch(() => ({ error: 'Draw failed' }));
             addToast((err as { error: string }).error || 'Draw failed');
-            setIsDealing(false);
+            setAnimPhase('idle');
+            stopLoop('deckShuffleLoop');
             return;
           }
         } else {
           const data = await res.json() as { result: DeckDrawResult; stats: DeckDrawStats };
-          setLastResult(data.result);
-          setStats(data.stats);
-
-          if (data.result.hand.type === HandType.ROYAL_FLUSH) {
-            setTimeout(() => play('fanfare'), 600);
-          }
+          drawResult = data.result;
+          updatedStats = data.stats;
         }
       } catch {
-        // Network error — fall back to client-side draw
         doLocalDraw();
       }
     } else {
       doLocalDraw();
     }
 
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = setTimeout(() => setShowHighlight(true), 900);
+    if (!drawResult || !updatedStats) {
+      setAnimPhase('idle');
+      stopLoop('deckShuffleLoop');
+      return;
+    }
 
-    if (dealTimerRef.current) clearTimeout(dealTimerRef.current);
-    dealTimerRef.current = setTimeout(() => setIsDealing(false), 800);
-  }, [isDealing, canWager, wager, user, stats, play, addToast]);
+    // Capture result for use in scheduled callbacks
+    const result = drawResult;
+    const finalStats = updatedStats;
 
-  const isDealt = lastResult !== null;
+    // Phase 2: DEALING (after shuffle, ~800ms)
+    scheduleTimer(() => {
+      stopLoop('deckShuffleLoop');
+      setAnimPhase('dealing');
+      setLastResult(result);
+      setStats(finalStats);
+
+      // Deal cards one by one face-down
+      for (let i = 0; i < 5; i++) {
+        scheduleTimer(() => {
+          play('cardDeal');
+          setDealtCount(i + 1);
+        }, i * 150);
+      }
+
+      // Phase 3: REVEAL (after all dealt, ~900ms after dealing starts)
+      scheduleTimer(() => {
+        setAnimPhase('revealing');
+
+        // Reveal cards one by one, last card slower
+        for (let i = 0; i < 5; i++) {
+          const delay = i < 4
+            ? i * 350           // first 4 cards: 350ms apart
+            : (4 * 350) + 600;  // last card: extra 600ms pause
+
+          scheduleTimer(() => {
+            play('cardReveal');
+            setRevealedCount(i + 1);
+          }, delay);
+        }
+
+        // Phase 4: RESULT (after all revealed)
+        const totalRevealTime = (4 * 350) + 600 + 400;
+        scheduleTimer(() => {
+          setAnimPhase('result');
+          setShowHighlight(true);
+          setShowResultText(true);
+          play(getResultSound(result.hand.type));
+        }, totalRevealTime);
+      }, 5 * 150 + 200);
+    }, 800);
+  }, [isAnimating, animPhase, canWager, clearAnimTimers, play, startLoop, stopLoop, stats, wager, user, addToast, scheduleTimer]);
+
+  const isDealt = dealtCount > 0;
   const isRoyal = lastResult?.hand.type === HandType.ROYAL_FLUSH;
   const relevantIndices = lastResult
     ? getRelevantIndices(lastResult.cards, lastResult.hand)
@@ -276,15 +392,43 @@ export function DeckDrawPage() {
             className="relative flex justify-center items-center"
             style={{ height: '100px', width: '280px' }}
           >
-            {Array.from({ length: 5 }, (_, i) => {
+            {/* Shuffle animation: stacked deck wiggling */}
+            {animPhase === 'shuffling' && (
+              <div
+                className="absolute"
+                style={{
+                  transform: `rotate(${shuffleAngle}deg)`,
+                  transition: 'transform 0.05s linear',
+                }}
+              >
+                {/* Stack of cards */}
+                {Array.from({ length: 5 }, (_, i) => (
+                  <div
+                    key={i}
+                    className="deck-card-back absolute"
+                    style={{
+                      top: -i * 1.5,
+                      left: i * 0.5,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Card display: dealing + revealing phases */}
+            {animPhase !== 'shuffling' && Array.from({ length: 5 }, (_, i) => {
               const card = lastResult?.cards[i];
               const centered = i - 2;
               const dealX = centered * 46;
+              const cardDealt = i < dealtCount;
+              const cardRevealed = i < revealedCount;
               const isHighlighted = showHighlight && relevantIndices.has(i);
               const popY = isHighlighted ? -16 : 0;
-              const x = isDealt ? dealX : i * 0.5;
-              const y = (isDealt ? 0 : -i * 1.2) + popY;
-              const angle = isDealt ? 0 : (i - 2) * 1.5;
+
+              // Before dealt: stacked in center. After dealt: spread out.
+              const x = cardDealt ? dealX : i * 0.5;
+              const y = (cardDealt ? 0 : -i * 1.2) + popY;
+              const angle = cardDealt ? 0 : (i - 2) * 1.5;
 
               return (
                 <div
@@ -295,14 +439,16 @@ export function DeckDrawPage() {
                     transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
                     zIndex: isHighlighted ? 10 + i : i,
                     perspective: '600px',
+                    opacity: !isDealt && animPhase === 'idle' && !lastResult ? 1 : (cardDealt ? 1 : 0),
                   }}
                 >
                   <div
                     style={{
                       transformStyle: 'preserve-3d',
-                      transform: `rotateY(${isDealt ? 180 : 0}deg)`,
-                      transition: 'transform 0.55s ease-out',
-                      transitionDelay: isDealt ? `${i * 0.1}s` : '0s',
+                      transform: `rotateY(${cardRevealed ? 180 : 0}deg)`,
+                      transition: i === 4 && animPhase === 'revealing'
+                        ? 'transform 0.9s ease-out'   // last card: slow dramatic flip
+                        : 'transform 0.55s ease-out',
                       width: '42px',
                       height: '58px',
                       position: 'relative',
@@ -318,7 +464,7 @@ export function DeckDrawPage() {
                       }}
                     />
                     <div
-                      className={isDealt && isRoyal ? 'deck-royal-glow' : ''}
+                      className={cardRevealed && isRoyal ? 'deck-royal-glow' : ''}
                       style={{
                         position: 'absolute',
                         top: 0,
@@ -368,22 +514,34 @@ export function DeckDrawPage() {
                 </div>
               );
             })}
+
+            {/* Idle state: show stacked deck when no result */}
+            {animPhase === 'idle' && !lastResult && Array.from({ length: 5 }, (_, i) => (
+              <div
+                key={`idle-${i}`}
+                className="deck-card-back absolute"
+                style={{
+                  transform: `translate(${i * 0.5}px, ${-i * 1.2}px) rotate(${(i - 2) * 1.5}deg)`,
+                  zIndex: i,
+                }}
+              />
+            ))}
           </div>
 
           {/* Hand name + payout */}
           <div style={{ minHeight: '48px' }} className="text-center mt-1">
-            {lastResult && (
+            {showResultText && lastResult && (
               <>
                 <span
                   className={`text-sm font-semibold animate-fade-in block ${isRoyal ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}
-                  style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
+                  style={{ animationDelay: '0.1s', animationFillMode: 'both' }}
                 >
                   {lastResult.handLabel}
                 </span>
                 {lastResult.payout > 0 && (
                   <span
                     className="text-lg font-bold text-green-400 animate-fade-in block"
-                    style={{ animationDelay: '0.7s', animationFillMode: 'both' }}
+                    style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
                   >
                     +{formatNumber(lastResult.payout)}
                   </span>
@@ -391,12 +549,15 @@ export function DeckDrawPage() {
                 {lastResult.payout === 0 && !lastResult.isFreeDraw && (
                   <span
                     className="text-sm text-red-400 animate-fade-in block"
-                    style={{ animationDelay: '0.7s', animationFillMode: 'both' }}
+                    style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
                   >
                     -{formatNumber(lastResult.wager)}
                   </span>
                 )}
               </>
+            )}
+            {animPhase === 'shuffling' && (
+              <span className="text-xs text-[var(--gold-dim)] animate-pulse">Shuffling...</span>
             )}
           </div>
         </div>
@@ -409,9 +570,9 @@ export function DeckDrawPage() {
               {WAGER_PRESETS.map(preset => (
                 <button
                   key={preset}
-                  onClick={() => { play('uiSoft'); setWager(preset); }}
+                  onClick={() => { play('uiSoft'); setWager(preset); setShowCustomWager(false); }}
                   className={`px-2 py-1 rounded text-xs transition-colors min-h-[32px] ${
-                    wager === preset
+                    wager === preset && !showCustomWager
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'bg-[var(--felt-light)] text-[var(--gold-dim)] hover:text-[var(--gold)]'
                   }`}
@@ -420,21 +581,66 @@ export function DeckDrawPage() {
                   {formatNumber(preset)}
                 </button>
               ))}
+              <button
+                onClick={() => { play('uiSoft'); setShowCustomWager(prev => !prev); }}
+                className={`px-2 py-1 rounded text-xs transition-colors min-h-[32px] ${
+                  showCustomWager
+                    ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                    : 'bg-[var(--felt-light)] text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                }`}
+              >
+                Custom
+              </button>
             </div>
           </div>
+          {showCustomWager && (
+            <div className="flex items-center gap-2 animate-fade-in">
+              <input
+                type="number"
+                min={DECK_DRAW_MIN_WAGER}
+                max={Math.min(DECK_DRAW_MAX_WAGER, stats.balance)}
+                value={customWagerInput}
+                onChange={(e) => setCustomWagerInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = parseInt(customWagerInput, 10);
+                    if (!isNaN(val) && val >= DECK_DRAW_MIN_WAGER && val <= DECK_DRAW_MAX_WAGER) {
+                      setWager(val);
+                      play('uiSoft');
+                    }
+                  }
+                }}
+                placeholder={`${DECK_DRAW_MIN_WAGER}–${formatNumber(DECK_DRAW_MAX_WAGER)}`}
+                className="flex-1 bg-[var(--surface)] text-[var(--gold)] text-xs rounded px-3 py-2 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none min-h-[36px]"
+                autoComplete="off"
+              />
+              <button
+                onClick={() => {
+                  const val = parseInt(customWagerInput, 10);
+                  if (!isNaN(val) && val >= DECK_DRAW_MIN_WAGER && val <= DECK_DRAW_MAX_WAGER) {
+                    setWager(val);
+                    play('uiSoft');
+                  }
+                }}
+                className="btn-ghost text-xs px-3 py-2 min-h-[36px]"
+              >
+                Set
+              </button>
+            </div>
+          )}
 
           {/* Draw buttons */}
           <div className="flex gap-2">
             <button
               onClick={() => { play('uiSoft'); performDraw(false); }}
-              disabled={isDealing || !canWager}
+              disabled={isAnimating || !canWager}
               className="flex-1 btn-gold py-3 text-base disabled:opacity-50"
             >
-              Draw ({formatNumber(wager)})
+              {animPhase === 'result' ? 'Draw Again' : `Draw (${formatNumber(wager)})`}
             </button>
             <button
               onClick={() => { play('uiSoft'); performDraw(true); }}
-              disabled={isDealing || !canFreeDraw}
+              disabled={isAnimating || !canFreeDraw}
               className="btn-ghost py-3 px-4 text-sm whitespace-nowrap"
               title={canFreeDraw ? 'Free daily draw available!' : `Next free draw in ${formatCountdown(freeDrawCountdown)}`}
             >

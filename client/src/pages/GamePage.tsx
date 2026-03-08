@@ -659,23 +659,6 @@ export function GamePage() {
           />
         )}
 
-        {/* Emoji reaction button — fixed bottom-left (hidden via settings toggle).
-            Spectators and eliminated players can also react — their reactions are
-            only visible to other spectators/eliminated players. */}
-        {emojiEnabled && (
-          <EmojiReactionBar onReaction={sendReaction} />
-        )}
-
-        {/* Chat panel — spectators can always chat; players can chat between rounds/during transitions/after game */}
-        {chatEnabled && (
-          <ChatPanel
-            messages={chatMessages}
-            onSend={sendChatMessage}
-            disabled={!isEliminated && !isSpectator && !roundResult && !roundTransition && !winnerId}
-            label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
-          />
-        )}
-
         {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}
         {isAtMaxCards && (
           <div className="max-cards-warning-glow" aria-hidden="true" />
@@ -684,6 +667,21 @@ export function GamePage() {
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && <ReconnectOverlay />}
       </div>
+
+      {/* Emoji and chat rendered OUTSIDE game-layout so they are not affected
+          by the .spectating CSS filter which breaks position:fixed children. */}
+      {emojiEnabled && (
+        <EmojiReactionBar onReaction={sendReaction} />
+      )}
+      {chatEnabled && (
+        <ChatPanel
+          messages={chatMessages}
+          onSend={sendChatMessage}
+          disabled={!isEliminated && !isSpectator && !roundResult && !roundTransition && !winnerId}
+          label={isEliminated || isSpectator ? 'Spectator Chat' : 'Chat'}
+        />
+      )}
+
       {selectedPlayer && gameState && (
         <BotProfileModal
           player={selectedPlayer}

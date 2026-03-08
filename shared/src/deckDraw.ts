@@ -42,7 +42,7 @@ export const DECK_DRAW_PAYOUTS: Record<HandType, number> = {
 };
 
 /** Minimum and maximum wager for the deck draw minigame. */
-export const DECK_DRAW_MIN_WAGER = 10;
+export const DECK_DRAW_MIN_WAGER = 1;
 export const DECK_DRAW_MAX_WAGER = 10_000;
 export const DECK_DRAW_DEFAULT_WAGER = 100;
 

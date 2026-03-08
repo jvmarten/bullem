@@ -150,6 +150,7 @@ export function ProfilePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
   const [ratings, setRatings] = useState<UserRatings | null>(null);
+  const [deckDrawBalance, setDeckDrawBalance] = useState<number | null>(null);
 
   const fetchRatings = useCallback(async (userId: string) => {
     try {
@@ -178,6 +179,17 @@ export function ProfilePage() {
       setStatsLoading(false);
     }
   }, [addToast]);
+
+  // Fetch deck draw balance
+  useEffect(() => {
+    if (!profile) return;
+    fetch(`${API_BASE}/api/deck-draw/stats`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then((data: { balance?: number } | null) => {
+        if (data && typeof data.balance === 'number') setDeckDrawBalance(data.balance);
+      })
+      .catch(() => {});
+  }, [profile]);
 
   // Fetch stats and ratings when profile loads
   useEffect(() => {
@@ -510,6 +522,22 @@ export function ProfilePage() {
             {/* Fill empty slot if only one rating exists */}
             {!ratings.headsUp && <div />}
             {!ratings.multiplayer && <div />}
+          </div>
+        )}
+
+        {/* Deck Draw Balance */}
+        {deckDrawBalance !== null && (
+          <div className="w-full glass px-4 py-3 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">Deck Draw Balance</p>
+              <p className="text-xl font-bold text-[var(--gold)]">{deckDrawBalance.toLocaleString()}</p>
+            </div>
+            <Link
+              to="/deck-draw"
+              className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            >
+              Play &rarr;
+            </Link>
           </div>
         )}
 
