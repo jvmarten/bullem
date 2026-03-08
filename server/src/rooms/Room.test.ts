@@ -167,6 +167,52 @@ describe('Room', () => {
     });
   });
 
+  describe('handleSessionTransfer', () => {
+    it('transfers socket mappings to new socket for matching userId', () => {
+      room.addPlayer('old-socket', 'player1', 'Alice', { userId: 'user-123' });
+      room.setPlayerUserId('player1', 'user-123');
+
+      const result = room.handleSessionTransfer('new-socket', 'user-123');
+      expect(result).not.toBeNull();
+      expect(result!.oldSocketId).toBe('old-socket');
+      expect(result!.playerId).toBe('player1');
+      expect(result!.reconnectToken).toBeTruthy();
+
+      // New socket should be mapped
+      expect(room.getPlayerId('new-socket')).toBe('player1');
+      expect(room.getSocketId('player1')).toBe('new-socket');
+      // Old socket should be unmapped
+      expect(room.getPlayerId('old-socket')).toBeUndefined();
+    });
+
+    it('returns null for unknown userId', () => {
+      room.addPlayer('socket1', 'player1', 'Alice', { userId: 'user-123' });
+      room.setPlayerUserId('player1', 'user-123');
+
+      const result = room.handleSessionTransfer('new-socket', 'unknown-user');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when player is disconnected (reconnect handles that case)', () => {
+      room.addPlayer('socket1', 'player1', 'Alice', { userId: 'user-123' });
+      room.setPlayerUserId('player1', 'user-123');
+      // Simulate disconnect during game
+      room.gamePhase = GamePhase.PLAYING;
+      room.handleDisconnect('socket1');
+
+      const result = room.handleSessionTransfer('new-socket', 'user-123');
+      expect(result).toBeNull();
+    });
+
+    it('rotates the reconnect token', () => {
+      const { reconnectToken: originalToken } = room.addPlayer('socket1', 'player1', 'Alice', { userId: 'user-123' });
+      room.setPlayerUserId('player1', 'user-123');
+
+      const result = room.handleSessionTransfer('new-socket', 'user-123');
+      expect(result!.reconnectToken).not.toBe(originalToken);
+    });
+  });
+
   describe('isEmpty', () => {
     it('is empty when no players', () => {
       expect(room.isEmpty).toBe(true);

@@ -11,6 +11,7 @@ import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
+import { SessionTransferredOverlay } from '../components/SessionTransferredOverlay.js';
 import { DisconnectBanner } from '../components/DisconnectBanner.js';
 import { EmojiReactionBar } from '../components/EmojiReactionBar.js';
 import { ChatPanel } from '../components/ChatPanel.js';
@@ -111,6 +112,7 @@ export function GamePage() {
     reactions, sendReaction,
     chatMessages, sendChatMessage,
     spectatorInitialStats,
+    sessionTransferred,
   } = useGameContext();
   const { user } = useAuth();
   const spectatorCount = roomState?.spectatorCount ?? 0;
@@ -661,8 +663,11 @@ export function GamePage() {
           <div className="max-cards-warning-glow" aria-hidden="true" />
         )}
 
+        {/* Session transferred overlay — shown on old device/tab (non-dismissable) */}
+        {sessionTransferred && <SessionTransferredOverlay />}
+
         {/* Reconnecting overlay — shown when own connection drops */}
-        {!isConnected && hasConnected && <ReconnectOverlay />}
+        {!isConnected && hasConnected && !sessionTransferred && <ReconnectOverlay />}
       </div>
 
       {/* Emoji, stats, and chat rendered OUTSIDE game-layout so they are not affected
