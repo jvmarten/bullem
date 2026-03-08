@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
@@ -23,7 +23,44 @@ interface Props {
   playerRatings?: ReadonlyMap<PlayerId, { rating: number; tier: RankTier }>;
   /** Called when a player tile is tapped/clicked. */
   onPlayerClick?: (player: Player) => void;
+  /** Turn deadline timestamp — used to show subtle timer on current player's tile */
+  turnDeadline?: number | null;
 }
+
+/* Subtle timer meter that wraps around the player tile border — shows
+   remaining turn time as a shrinking border highlight. Updated at 10fps
+   via direct DOM manipulation to avoid React re-renders. */
+const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
+  const meterRef = useRef<HTMLDivElement>(null);
+  const totalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const now = Date.now();
+    totalRef.current = turnDeadline - now;
+
+    const update = () => {
+      const remaining = Math.max(0, turnDeadline - Date.now());
+      const total = totalRef.current;
+      if (!total || total <= 0 || !meterRef.current) return;
+      const pct = (remaining / total) * 100;
+      meterRef.current.style.setProperty('--meter-pct', `${pct}%`);
+      // Color shift: gold-dim → danger in last 30%
+      meterRef.current.style.color = pct <= 30 ? 'var(--danger)' : 'var(--gold-dim)';
+    };
+
+    update();
+    const interval = setInterval(update, 100);
+    return () => clearInterval(interval);
+  }, [turnDeadline]);
+
+  return (
+    <div
+      ref={meterRef}
+      className="tile-timer-meter"
+      aria-hidden="true"
+    />
+  );
+});
 
 /* Mini card-back fan: shows card backs matching the player's card count */
 function CardBackFan({ count, roundNumber, playerIndex }: { count: number; roundNumber?: number; playerIndex: number }) {
@@ -81,7 +118,7 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo, onPlayerClick }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo, onPlayerClick, turnDeadline }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
@@ -89,7 +126,11 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   reactions?: EmojiReaction[];
   rankInfo?: { rating: number; tier: RankTier };
   onPlayerClick?: (player: Player) => void;
+  turnDeadline?: number | null;
 }) {
+  // Show timer meter on the current player's tile when it's not me
+  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now();
+
   return (
     <div
       className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
@@ -188,6 +229,8 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           ))}
         </div>
       )}
+      {/* Subtle opponent turn timer meter */}
+      {showMeter && <TileMeter turnDeadline={turnDeadline!} />}
     </div>
   );
 });
@@ -196,7 +239,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 // every game state broadcast (timer ticks, other players' actions), but the
 // PlayerList props are often the same. Without memo, buildLastActionMap and
 // the collapsed-view player lookup run on every parent render.
-export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings, onPlayerClick }: Props) {
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings, onPlayerClick, turnDeadline }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -250,6 +293,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               reactions={reactionsMap.get(currentPlayer.id)}
               rankInfo={playerRatings?.get(currentPlayer.id)}
               onPlayerClick={onPlayerClick}
+              turnDeadline={turnDeadline}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -264,6 +308,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               reactions={reactionsMap.get(nextPlayer.id)}
               rankInfo={playerRatings?.get(nextPlayer.id)}
               onPlayerClick={onPlayerClick}
+              turnDeadline={turnDeadline}
             />
           )}
         </div>
@@ -304,6 +349,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
             reactions={reactionsMap.get(p.id)}
             rankInfo={playerRatings?.get(p.id)}
             onPlayerClick={onPlayerClick}
+            turnDeadline={p.id === currentPlayerId ? turnDeadline : undefined}
           />
         ))}
       </div>

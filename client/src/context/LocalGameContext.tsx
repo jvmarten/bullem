@@ -136,6 +136,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     initialRestore?.save.gameSettings ?? { ...DEFAULT_GAME_SETTINGS },
   );
   const isPausedRef = useRef(false);
+  // Remaining milliseconds on the human turn timer when paused — used to
+  // resume with the same time left instead of resetting to full duration.
+  const pausedTimerRemainingRef = useRef<number | null>(null);
   const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
   // Schedule bot/human turns after restore if we're mid-round (no round result overlay)
   const restoredRef = useRef(initialRestore !== null && !initialRestore.save.roundResult);
@@ -285,7 +288,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const scheduleHumanTimer = useCallback(() => {
+  const scheduleHumanTimer = useCallback((remainingMs?: number | null) => {
     const engine = engineRef.current;
     if (!engine || isPausedRef.current) return;
     if (engine.currentPlayerId !== HUMAN_ID) return;
@@ -296,13 +299,18 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const deadline = Date.now() + timerSeconds * 1000;
+    // Use remaining time from pause if provided, otherwise full duration
+    const ms = remainingMs != null && remainingMs > 0
+      ? remainingMs
+      : timerSeconds * 1000;
+
+    const deadline = Date.now() + ms;
     engine.setTurnDeadline(deadline);
 
     turnTimerRef.current = setTimeout(() => {
       turnTimerRef.current = null;
       executeAutoAction();
-    }, timerSeconds * 1000);
+    }, ms);
   }, [executeAutoAction]);
 
   const buildAndSaveReplay = useCallback((winId: PlayerId) => {
@@ -419,18 +427,30 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       const next = !prev;
       isPausedRef.current = next;
       if (next) {
-        // Pausing: clear all pending timers
+        // Pausing: save remaining timer time before clearing
+        const engine = engineRef.current;
+        if (engine) {
+          const deadline = engine.getClientState(HUMAN_ID).turnDeadline;
+          if (deadline != null) {
+            pausedTimerRemainingRef.current = Math.max(0, deadline - Date.now());
+          } else {
+            pausedTimerRemainingRef.current = null;
+          }
+        }
+        // Clear all pending timers
         if (botTimerRef.current) { clearTimeout(botTimerRef.current); botTimerRef.current = null; }
         if (turnTimerRef.current) { clearTimeout(turnTimerRef.current); turnTimerRef.current = null; }
         // Clear turn deadline so timer UI stops
-        if (engineRef.current) {
-          engineRef.current.setTurnDeadline(null);
-          setGameState(engineRef.current.getClientState(HUMAN_ID));
+        if (engine) {
+          engine.setTurnDeadline(null);
+          setGameState(engine.getClientState(HUMAN_ID));
         }
       } else {
-        // Resuming: re-schedule bot/human timers and broadcast so timer UI updates
+        // Resuming: restore timer with remaining time from before pause
+        const remaining = pausedTimerRemainingRef.current;
+        pausedTimerRemainingRef.current = null;
         scheduleBotTurn();
-        scheduleHumanTimer();
+        scheduleHumanTimer(remaining);
         broadcastState();
       }
       return next;

@@ -500,6 +500,7 @@ export function GamePage() {
                 collapsible
                 reactions={reactions}
                 onPlayerClick={handlePlayerClick}
+                turnDeadline={gameState.turnDeadline}
               />
             </div>
             {/* Call history in sidebar — landscape only */}
