@@ -130,10 +130,21 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     }
 
     socket.on('error', (err) => {
-      socketErrorsTotal.inc();
+      // Rate limit rejections are expected operational behavior — log at
+      // warn level and skip Sentry to avoid noisy alerts.
+      const isRateLimitError = err.message === 'Rate limit exceeded'
+        || err.message === 'Too fast — please wait';
+
       const room = roomManager.getRoomForSocket(socket.id);
       const playerId = room?.getPlayerId(socket.id);
       const childLog = createChildLogger({ roomCode: room?.roomCode, playerId });
+
+      if (isRateLimitError) {
+        childLog.warn({ err, socketId: socket.id }, 'Rate limit rejected event');
+        return;
+      }
+
+      socketErrorsTotal.inc();
       childLog.error({ err }, 'Socket error');
       Sentry.captureException(err, {
         extra: { roomCode: room?.roomCode, playerId, socketId: socket.id },
