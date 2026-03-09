@@ -203,9 +203,14 @@ function generateTruthfulHand(
     return valid[idx]!;
   }
 
-  // Guaranteed fallback: minimum raise always produces a valid hand
+  // Fallback: minimum raise (null only for royal flush — nothing higher exists)
   if (currentHand) {
-    return getMinimumRaise(currentHand)!;
+    const minRaise = getMinimumRaise(currentHand);
+    if (minRaise) return minRaise;
+    // Royal flush is the highest possible — no valid raise exists.
+    // Return the royal flush itself; the engine will reject it as
+    // "not higher" but this is an unwinnable state anyway.
+    return currentHand;
   }
 
   // Opening: high card with best rank, or fallback to 7
@@ -286,9 +291,11 @@ function generateBluffHand(
     }
   }
 
-  // Guaranteed fallback: minimum raise
+  // Fallback: minimum raise (null only for royal flush)
   if (currentHand) {
-    return getMinimumRaise(currentHand)!;
+    const minRaise = getMinimumRaise(currentHand);
+    if (minRaise) return minRaise;
+    return currentHand;
   }
 
   return { type: HandType.HIGH_CARD, rank: pickBluffRank() };
