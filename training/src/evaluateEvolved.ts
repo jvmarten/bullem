@@ -106,8 +106,8 @@ function parseArgs(argv: string[]): {
         console.log(`
 Bull 'Em Evolved Bot Evaluation
 
-Evaluates an evolved bot parameter set against ALL bot profiles heads-up
-and reports per-profile and aggregate win rates.
+Evaluates an evolved bot parameter set against all level-9 bot profiles
+heads-up and reports per-profile and aggregate win rates.
 
 Usage:
   npm run evaluate-evolved -w training
@@ -169,13 +169,17 @@ if (evolved.hofSize !== undefined) {
 
 const evolvedConfig = evolved.config;
 
-// ── Heads-up evaluation against ALL bot profiles ──────────────────────
+// ── Heads-up evaluation against level 9 bot profiles ─────────────────
+// Level 9 bots are the strongest expression of each personality archetype.
+// Lower levels are weaker variants that inflate win rates without adding signal.
+
+const lvl9Profiles = BOT_PROFILES.filter(p => p.key.endsWith('_lvl9'));
 
 console.log(`\n${'═'.repeat(60)}`);
-console.log("  Bull 'Em Evolved Bot Evaluation — Heads-Up vs All Profiles");
+console.log("  Bull 'Em Evolved Bot Evaluation — Heads-Up vs Lvl9 Profiles");
 console.log(`${'═'.repeat(60)}\n`);
 console.log(`  Games per matchup:  ${config.games}`);
-console.log(`  Total profiles:     ${BOT_PROFILES.length}`);
+console.log(`  Profiles tested:    ${lvl9Profiles.length} (level 9 only)`);
 console.log(`  Max cards:          ${config.maxCards}`);
 console.log('');
 
@@ -190,87 +194,57 @@ const profileResults: ProfileResult[] = [];
 let totalEvolvedWins = 0;
 let totalGames = 0;
 
-// Group profiles by personality for organized output
-const personalities = [...new Set(BOT_PROFILES.map(p => p.key.replace(/_lvl\d+$/, '')))];
+console.log('── Heads-Up Results ──\n');
 
-for (const personality of personalities) {
-  const profiles = BOT_PROFILES.filter(p => p.key.startsWith(`${personality}_lvl`));
-  console.log(`\n── ${personality.charAt(0).toUpperCase() + personality.slice(1)} ──`);
-
-  for (const profile of profiles) {
-    const bots: BotConfig[] = [
-      {
-        id: 'evolved-0',
-        name: 'Evolved',
-        difficulty: BotDifficulty.HARD,
-        profileConfig: evolvedConfig,
-      },
-      {
-        id: `opp-${profile.key}`,
-        name: profile.name,
-        difficulty: BotDifficulty.HARD,
-        profileConfig: profile.config,
-      },
-    ];
-
-    const stats = simulate({
-      games: config.games,
-      players: 2,
-      maxCards: config.maxCards,
+for (const profile of lvl9Profiles) {
+  const bots: BotConfig[] = [
+    {
+      id: 'evolved-0',
+      name: 'Evolved',
       difficulty: BotDifficulty.HARD,
-      botConfigs: bots,
-      progressInterval: 0, // Suppress per-matchup progress for cleaner output
-    });
+      profileConfig: evolvedConfig,
+    },
+    {
+      id: `opp-${profile.key}`,
+      name: profile.name,
+      difficulty: BotDifficulty.HARD,
+      profileConfig: profile.config,
+    },
+  ];
 
-    const wins = stats.wins['evolved-0'] ?? 0;
-    const winRate = stats.totalGames > 0 ? wins / stats.totalGames : 0;
-    profileResults.push({ profile, wins, games: stats.totalGames, winRate });
+  const stats = simulate({
+    games: config.games,
+    players: 2,
+    maxCards: config.maxCards,
+    difficulty: BotDifficulty.HARD,
+    botConfigs: bots,
+    progressInterval: 0, // Suppress per-matchup progress for cleaner output
+  });
 
-    totalEvolvedWins += wins;
-    totalGames += stats.totalGames;
+  const wins = stats.wins['evolved-0'] ?? 0;
+  const winRate = stats.totalGames > 0 ? wins / stats.totalGames : 0;
+  profileResults.push({ profile, wins, games: stats.totalGames, winRate });
 
-    // Compact per-profile output
-    const bar = winRate >= 0.5 ? '+' : '-';
-    console.log(
-      `  ${bar} ${profile.name.padEnd(18)} ${(winRate * 100).toFixed(1)}%  (${wins}/${stats.totalGames})`,
-    );
-  }
+  totalEvolvedWins += wins;
+  totalGames += stats.totalGames;
+
+  // Compact per-profile output
+  const bar = winRate >= 0.5 ? '+' : '-';
+  console.log(
+    `  ${bar} ${profile.name.padEnd(18)} ${(winRate * 100).toFixed(1)}%  (${wins}/${stats.totalGames})`,
+  );
 }
 
-// ── Per-level aggregate ──────────────────────────────────────────────
-
-console.log(`\n\n── Win Rate by Level ──`);
-for (let lvl = 1; lvl <= 9; lvl++) {
-  const lvlResults = profileResults.filter(r => r.profile.key.endsWith(`_lvl${lvl}`));
-  if (lvlResults.length === 0) continue;
-  const lvlWins = lvlResults.reduce((s, r) => s + r.wins, 0);
-  const lvlGames = lvlResults.reduce((s, r) => s + r.games, 0);
-  const lvlWinRate = lvlGames > 0 ? lvlWins / lvlGames : 0;
-  console.log(`  Level ${lvl}:  ${(lvlWinRate * 100).toFixed(1)}%  (${lvlWins}/${lvlGames})`);
-}
-
-// ── Per-personality aggregate (across all levels) ────────────────────
-
-console.log(`\n── Win Rate by Personality ──`);
-for (const personality of personalities) {
-  const pResults = profileResults.filter(r => r.profile.key.startsWith(`${personality}_`));
-  if (pResults.length === 0) continue;
-  const pWins = pResults.reduce((s, r) => s + r.wins, 0);
-  const pGames = pResults.reduce((s, r) => s + r.games, 0);
-  const pWinRate = pGames > 0 ? pWins / pGames : 0;
-  console.log(`  ${personality.padEnd(12)} ${(pWinRate * 100).toFixed(1)}%  (${pWins}/${pGames})`);
-}
-
-// ── Worst matchups ──────────────────────────────────────────────────
+// ── Worst/best matchups ─────────────────────────────────────────────
 
 const sorted = [...profileResults].sort((a, b) => a.winRate - b.winRate);
-console.log(`\n── 5 Hardest Matchups ──`);
-for (const r of sorted.slice(0, 5)) {
+console.log(`\n── Hardest Matchups ──`);
+for (const r of sorted.slice(0, 3)) {
   console.log(`  ${r.profile.name.padEnd(18)} ${(r.winRate * 100).toFixed(1)}%`);
 }
 
-console.log(`\n── 5 Easiest Matchups ──`);
-for (const r of sorted.slice(-5).reverse()) {
+console.log(`\n── Easiest Matchups ──`);
+for (const r of sorted.slice(-3).reverse()) {
   console.log(`  ${r.profile.name.padEnd(18)} ${(r.winRate * 100).toFixed(1)}%`);
 }
 
@@ -333,7 +307,9 @@ const profileOnlyGames = profileResults.reduce((s, r) => s + r.games, 0);
 const profileOnlyRate = profileOnlyGames > 0 ? profileOnlyWins / profileOnlyGames : 0;
 
 console.log(`\n${'═'.repeat(60)}`);
-console.log(`  Heads-Up vs All Profiles: ${(profileOnlyRate * 100).toFixed(1)}%  (${profileOnlyWins}/${profileOnlyGames})`);
-console.log(`  Overall (incl. HoF):      ${(overallWinRate * 100).toFixed(1)}%  (${totalEvolvedWins}/${totalGames})`);
+console.log(`  Heads-Up vs Lvl9:         ${(profileOnlyRate * 100).toFixed(1)}%  (${profileOnlyWins}/${profileOnlyGames})`);
+if (totalGames !== profileOnlyGames) {
+  console.log(`  Overall (incl. HoF):      ${(overallWinRate * 100).toFixed(1)}%  (${totalEvolvedWins}/${totalGames})`);
+}
 console.log(`  Profiles beaten (>50%):   ${profileResults.filter(r => r.winRate > 0.5).length}/${profileResults.length}`);
 console.log(`${'═'.repeat(60)}\n`);
