@@ -31,7 +31,7 @@ function parseArgs(argv: string[]): {
   let players = 2;
   let maxCards = 5;
   let progressInterval = 1000;
-  let checkpointInterval = 10_000;
+  let checkpointInterval = 50_000;
   let resume = false;
   let checkpointFile: string | null = null;
   let strategyName: string | null = null;
@@ -116,7 +116,7 @@ Options:
   --players, -p <n>          Players per game (default: 2, range: 2-12)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
   --progress <n>             Log progress every N iterations (default: 1000)
-  --checkpoint-interval <n>  Save checkpoint every N iterations (default: 10000)
+  --checkpoint-interval <n>  Save checkpoint every N iterations (default: 50000)
   --resume                   Resume from latest checkpoint
   --from-checkpoint <path>   Resume from a specific checkpoint file
   --strategy-name <name>     Custom name for the exported strategy file
