@@ -4,7 +4,8 @@
   "workspaces": [
     "shared",
     "server",
-    "client"
+    "client",
+    "training"
   ],
   "scripts": {
     "dev": "npm run build -w shared && concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
