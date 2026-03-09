@@ -252,12 +252,102 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const rankList = needsStraightRank ? STRAIGHT_RANKS : ALL_RANKS;
   const rank2List = useMemo(() => ALL_RANKS.filter(r => r !== rank), [rank]);
 
+  // Filter rank options to exclude values that can't beat the current call
+  // when the selected hand type matches the current call's type. Higher hand
+  // types always show all ranks (e.g., three 2s is valid over pair of 10s).
+  const filteredRankList = useMemo(() => {
+    if (!currentHand || handType !== currentHand.type) return rankList;
+
+    switch (handType) {
+      case HandType.HIGH_CARD:
+      case HandType.PAIR:
+      case HandType.THREE_OF_A_KIND:
+      case HandType.FOUR_OF_A_KIND: {
+        const minVal = RANK_VALUES[(currentHand as { rank: Rank }).rank];
+        return rankList.filter(r => RANK_VALUES[r] > minVal);
+      }
+      case HandType.STRAIGHT: {
+        const minVal = RANK_VALUES[(currentHand as { highRank: Rank }).highRank];
+        return rankList.filter(r => RANK_VALUES[r] > minVal);
+      }
+      case HandType.STRAIGHT_FLUSH: {
+        // Same highRank with a higher suit is valid, so keep the current rank
+        const minVal = RANK_VALUES[(currentHand as { highRank: Rank }).highRank];
+        return rankList.filter(r => RANK_VALUES[r] >= minVal);
+      }
+      case HandType.FULL_HOUSE: {
+        // threeRank must be >= current threeRank
+        const minVal = RANK_VALUES[(currentHand as { threeRank: Rank }).threeRank];
+        return rankList.filter(r => RANK_VALUES[r] >= minVal);
+      }
+      default:
+        return rankList;
+    }
+  }, [currentHand, handType, rankList]);
+
+  // Filter rank2 (twoRank) for Full House when threeRank matches current call
+  const filteredRank2List = useMemo(() => {
+    if (!currentHand || handType !== currentHand.type || handType !== HandType.FULL_HOUSE) return rank2List;
+    const curr = currentHand as { threeRank: Rank; twoRank: Rank };
+    if (rank !== curr.threeRank) return rank2List;
+    // Same threeRank — twoRank must beat current twoRank
+    return rank2List.filter(r => RANK_VALUES[r] > RANK_VALUES[curr.twoRank]);
+  }, [currentHand, handType, rank, rank2List]);
+
+  // Auto-adjust rank when it falls outside the filtered list
+  useEffect(() => {
+    if (filteredRankList.length > 0 && !filteredRankList.includes(rank)) {
+      setRank(filteredRankList[0]!);
+    }
+  }, [filteredRankList, rank]);
+
+  // Auto-adjust rank2 when it falls outside the filtered list
+  useEffect(() => {
+    if (filteredRank2List.length > 0 && !filteredRank2List.includes(rank2)) {
+      setRank2(filteredRank2List[0]!);
+    }
+  }, [filteredRank2List, rank2]);
+
   const handTypeIndex = ALL_HAND_TYPES.indexOf(handType);
-  // Prevent scrolling/selecting hand types below the current call
+  // Prevent scrolling/selecting hand types below the current call.
+  // Also skip the current hand type entirely when no valid raise exists
+  // within it (e.g., pair of Aces → skip PAIR, FLUSH → all flushes equal).
   const minHandTypeIndex = useMemo(() => {
     if (!currentHand) return 0;
     const idx = ALL_HAND_TYPES.indexOf(currentHand.type);
-    return idx >= 0 ? idx : 0;
+    if (idx < 0) return 0;
+
+    switch (currentHand.type) {
+      case HandType.HIGH_CARD:
+      case HandType.PAIR:
+      case HandType.THREE_OF_A_KIND:
+      case HandType.FOUR_OF_A_KIND:
+        // Ace is the highest rank — can't beat it within the same type
+        if ((currentHand as { rank: Rank }).rank === 'A') return idx + 1;
+        return idx;
+      case HandType.TWO_PAIR:
+        // Highest two pair is Aces and Kings
+        if (currentHand.highRank === 'A' && currentHand.lowRank === 'K') return idx + 1;
+        return idx;
+      case HandType.FLUSH:
+        // All flushes are equal — must raise to a higher hand type
+        return idx + 1;
+      case HandType.STRAIGHT:
+        if ((currentHand as { highRank: Rank }).highRank === 'A') return idx + 1;
+        return idx;
+      case HandType.FULL_HOUSE:
+        // Highest full house is Aces over Kings
+        if (currentHand.threeRank === 'A' && currentHand.twoRank === 'K') return idx + 1;
+        return idx;
+      case HandType.STRAIGHT_FLUSH: {
+        // King-high in spades is the highest straight flush
+        const sf = currentHand as { highRank: Rank; suit: Suit };
+        if (sf.highRank === 'K' && sf.suit === 'spades') return idx + 1;
+        return idx;
+      }
+      default:
+        return idx;
+    }
   }, [currentHand]);
   const handleTypeWheel = useCallback((idx: number) => handleTypeChange(ALL_HAND_TYPES[idx]!), [handleTypeChange]);
 
@@ -265,14 +355,14 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
     if (needsSuit && !needsRank && !needsStraightRank && !needsRank2) {
       setSuit(ALL_SUITS[idx]!);
     } else if (needsRank2) {
-      handleRank1Change(rankList[idx]!);
+      handleRank1Change(filteredRankList[idx]!);
     } else {
-      setRank(rankList[idx]!);
+      setRank(filteredRankList[idx]!);
     }
-  }, [needsSuit, needsRank, needsStraightRank, needsRank2, rankList, handleRank1Change]);
+  }, [needsSuit, needsRank, needsStraightRank, needsRank2, filteredRankList, handleRank1Change]);
 
-  const rank2Index = rank2List.indexOf(rank2);
-  const handleRank2Wheel = useCallback((idx: number) => setRank2(rank2List[idx]!), [rank2List]);
+  const rank2Index = filteredRank2List.indexOf(rank2);
+  const handleRank2Wheel = useCallback((idx: number) => setRank2(filteredRank2List[idx]!), [filteredRank2List]);
 
   const suitIndex = ALL_SUITS.indexOf(suit);
   const handleSuitWheel = useCallback((idx: number) => setSuit(ALL_SUITS[idx]!), []);
@@ -373,8 +463,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             <div className="flex gap-1">
               <div className="flex-1">
                 <WheelPicker
-                  items={rankList}
-                  selectedIndex={rankList.indexOf(rank)}
+                  items={filteredRankList}
+                  selectedIndex={Math.max(0, filteredRankList.indexOf(rank))}
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
                   itemHeight={42}
@@ -394,7 +484,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 }}
               >
                 <WheelPicker
-                  items={rank2List}
+                  items={filteredRank2List}
                   selectedIndex={rank2Index >= 0 ? rank2Index : 0}
                   onSelect={handleRank2Wheel}
                   renderItem={renderRank}
@@ -411,8 +501,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             <div className="flex gap-1">
               <div className="flex-1">
                 <WheelPicker
-                  items={rankList}
-                  selectedIndex={rankList.indexOf(rank)}
+                  items={filteredRankList}
+                  selectedIndex={Math.max(0, filteredRankList.indexOf(rank))}
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
                   itemHeight={42}
@@ -452,8 +542,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
               />
             ) : (
               <WheelPicker
-                items={rankList}
-                selectedIndex={rankList.indexOf(rank)}
+                items={filteredRankList}
+                selectedIndex={Math.max(0, filteredRankList.indexOf(rank))}
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
                 itemHeight={42}
