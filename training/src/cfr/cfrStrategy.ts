@@ -84,21 +84,27 @@ export function createCFREvaluationStrategy(
     let chosenAction: AbstractAction;
 
     if (strategyEntry) {
-      // Use the trained strategy
-      const r = Math.random();
-      let cumulative = 0;
-
-      chosenAction = legalActions[0]!; // fallback
+      // Build a proper probability distribution over legal actions
+      // Strategy entry may not cover all legal actions (pruned near-zero probs)
+      let totalProb = 0;
       for (const action of legalActions) {
-        cumulative += strategyEntry[action] ?? 0;
-        if (r <= cumulative) {
-          chosenAction = action;
-          break;
-        }
+        totalProb += strategyEntry[action] ?? 0;
       }
 
-      // If strategy didn't cover any legal action (edge case), use uniform
-      if (cumulative === 0) {
+      if (totalProb > 0) {
+        // Renormalize over legal actions to handle rounding/pruning
+        const r = Math.random() * totalProb;
+        let cumulative = 0;
+        chosenAction = legalActions[legalActions.length - 1]!; // fallback to last (not first)
+        for (const action of legalActions) {
+          cumulative += strategyEntry[action] ?? 0;
+          if (r <= cumulative) {
+            chosenAction = action;
+            break;
+          }
+        }
+      } else {
+        // Strategy entry exists but has no coverage of current legal actions
         chosenAction = legalActions[Math.floor(Math.random() * legalActions.length)]!;
       }
     } else {
