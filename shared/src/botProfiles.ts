@@ -125,23 +125,23 @@ export interface BotProfileDefinition {
 // ── Default config (matches current hard-mode behavior exactly) ─────────
 
 export const DEFAULT_BOT_PROFILE_CONFIG: Readonly<BotProfileConfig> = {
-  bluffFrequency: 1.3,
-  bullThreshold: 0.5,
-  riskTolerance: 0.5,
-  aggressionBias: 0.5,
+  bluffFrequency: 0.3,           // Evolved: 0.0 — GTO bluff path is suboptimal
+  bullThreshold: 0.55,           // Evolved: 0.56 — slightly more trusting
+  riskTolerance: 0.65,           // Evolved: 0.99 — bolder play wins
+  aggressionBias: 0.35,          // Evolved: 0.30 — prefer bull calls over raises
   lastChanceBluffRate: 0.4,
-  openingBluffRate: 0.30,
-  bullPhaseRaiseRate: 0.15,
-  trustMultiplier: 1.0,
-  cardCountSensitivity: 1.0,
-  headsUpAggression: 0.5,
-  survivalPressure: 0.5,
-  bluffTargetSelection: 0.5,
-  positionAwareness: 0.5,
-  trueCallConfidence: 0.5,
-  counterBluffRate: 0.2,
-  bullPhaseBluffRate: 0.0,
-  openingHandTypePreference: 0.5,
+  openingBluffRate: 0.40,        // Evolved: 0.57 — opening bluffs hide info
+  bullPhaseRaiseRate: 0.18,
+  trustMultiplier: 1.1,          // Evolved: 1.21 — slightly trusting
+  cardCountSensitivity: 0.3,     // Evolved: 0.05 — reactivity is exploitable
+  headsUpAggression: 0.6,        // Evolved: 0.68 — more aggressive heads-up
+  survivalPressure: 0.45,        // Evolved: 0.40
+  bluffTargetSelection: 0.45,    // Evolved: 0.46
+  positionAwareness: 0.45,       // Evolved: 0.42
+  trueCallConfidence: 0.8,       // Evolved: 1.0 — decisive true calls
+  counterBluffRate: 0.4,         // Evolved: 0.62 — counter-bluffing is key
+  bullPhaseBluffRate: 0.3,       // Evolved: 0.75 — massively underutilized before
+  openingHandTypePreference: 0.35, // Evolved: 0.26 — hide info at opening
 };
 
 // ── Personality base definitions (level 9 = full personality expression) ─
@@ -170,23 +170,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Ultra-conservative. Almost never bluffs. Only calls bull when very confident.',
     avatar: '\u{1FAA8}',
     config: {
-      bluffFrequency: 0.3,
-      bullThreshold: 0.7,
-      riskTolerance: 0.15,
+      bluffFrequency: 0.15,        // Evolved: ~0 — Rock barely uses GTO bluff path
+      bullThreshold: 0.65,         // Slightly more trusting than before (evolved: 0.56)
+      riskTolerance: 0.25,         // Still conservative but bolder (evolved: 0.99)
       aggressionBias: 0.2,
-      lastChanceBluffRate: 0.15,
-      openingBluffRate: 0.12,
-      bullPhaseRaiseRate: 0.05,
-      trustMultiplier: 1.3,
-      cardCountSensitivity: 0.7,   // Low reactivity to card counts — trusts the math
-      headsUpAggression: 0.3,      // Stays conservative even heads-up
-      survivalPressure: 0.8,       // Tightens up significantly near elimination
+      lastChanceBluffRate: 0.2,
+      openingBluffRate: 0.15,
+      bullPhaseRaiseRate: 0.08,
+      trustMultiplier: 1.25,
+      cardCountSensitivity: 0.3,   // Evolved: ~0 — reactivity is exploitable in 1v1
+      headsUpAggression: 0.4,      // Slightly more aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.7,       // Still tight near elimination but less extreme
       bluffTargetSelection: 0.2,   // Safe, barely-above bluffs when forced to bluff
-      positionAwareness: 0.7,      // Pays attention to position — tighter early
-      trueCallConfidence: 0.7,     // Confidently calls true when math supports it
-      counterBluffRate: 0.05,      // Almost never counter-bluffs — prefers bull call
-      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
-      openingHandTypePreference: 0.7, // Prefers pairs+ when available — plays honest
+      positionAwareness: 0.6,      // Moderate position awareness
+      trueCallConfidence: 0.85,    // Evolved: 1.0 — decisive true calls are strong
+      counterBluffRate: 0.15,      // Rock should counter-bluff occasionally (evolved: 0.62)
+      bullPhaseBluffRate: 0.1,     // Evolved: 0.75 — even Rock benefits from some
+      openingHandTypePreference: 0.55, // Less info-leaky than pure pair preference
     },
     flavorText: {
       callBull: ['I\'ve done the math.', 'Not buying it.', 'The numbers don\'t lie.'],
@@ -202,23 +202,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Aggressive bluffer. High bull call rate. Plays fast and loose.',
     avatar: '\u{1F920}',
     config: {
-      bluffFrequency: 1.8,
-      bullThreshold: 0.3,
-      riskTolerance: 0.85,
-      aggressionBias: 0.85,
-      lastChanceBluffRate: 0.75,
-      openingBluffRate: 0.40,
+      bluffFrequency: 0.6,         // Evolved: 0 — drastically reduced GTO bluffing
+      bullThreshold: 0.35,         // Still aggressive bull-caller
+      riskTolerance: 0.9,          // Very bold (evolved: 0.99)
+      aggressionBias: 0.5,         // Reduced — evolved: 0.30, less raise-happy
+      lastChanceBluffRate: 0.65,
+      openingBluffRate: 0.50,      // Still high opening bluffs (evolved: 0.57)
       bullPhaseRaiseRate: 0.35,
-      trustMultiplier: 0.6,
-      cardCountSensitivity: 1.4,   // Very reactive — bluffs more + bulls more at high counts
-      headsUpAggression: 0.85,     // Very aggressive heads-up
-      survivalPressure: 0.2,       // Barely changes play near elimination — "no regrets"
-      bluffTargetSelection: 0.8,   // Ambitious bluffs — big hand-type jumps
-      positionAwareness: 0.3,      // Doesn't care about position much
-      trueCallConfidence: 0.3,     // Rarely calls true — prefers raising or calling bull
-      counterBluffRate: 0.45,      // Loves counter-bluffing — raises over suspected bluffs
-      bullPhaseBluffRate: 0.25,    // Sometimes bluff-raises even in bull phase
-      openingHandTypePreference: 0.3, // Prefers high card bluffs — hides info
+      trustMultiplier: 0.7,
+      cardCountSensitivity: 0.3,   // Evolved: ~0 — drop reactivity significantly
+      headsUpAggression: 0.8,      // Still very aggressive heads-up
+      survivalPressure: 0.25,      // Still loose near elimination
+      bluffTargetSelection: 0.6,   // Toned down from 0.8 — safer bluffs win more
+      positionAwareness: 0.35,
+      trueCallConfidence: 0.7,     // Evolved: 1.0 — must be willing to call true
+      counterBluffRate: 0.6,       // Evolved: 0.62 — counter-bluffing is Bluffer's strength
+      bullPhaseBluffRate: 0.55,    // Evolved: 0.75 — key heads-up weapon
+      openingHandTypePreference: 0.25, // Hides info well (evolved: 0.26)
     },
     flavorText: {
       callBull: ['BULL! No way!', 'You\'re bluffing and we both know it.', 'Nice try, pal.'],
@@ -234,23 +234,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Minimal risk. Prefers small incremental raises. Wins by patience.',
     avatar: '\u{26CF}\u{FE0F}',
     config: {
-      bluffFrequency: 0.7,
+      bluffFrequency: 0.3,         // Evolved: 0 — Grinder uses targeted bluffs instead
       bullThreshold: 0.55,
-      riskTolerance: 0.1,
-      aggressionBias: 0.55,
-      lastChanceBluffRate: 0.3,
-      openingBluffRate: 0.18,
-      bullPhaseRaiseRate: 0.1,
-      trustMultiplier: 1.1,
-      cardCountSensitivity: 0.9,   // Slightly less reactive to card counts
-      headsUpAggression: 0.4,      // Stays patient even heads-up
-      survivalPressure: 0.7,       // Tightens up near elimination
-      bluffTargetSelection: 0.15,  // Minimal escalation — safe incremental bluffs
-      positionAwareness: 0.6,      // Moderate position awareness
-      trueCallConfidence: 0.6,     // Willing to call true — patient style
-      counterBluffRate: 0.1,       // Rarely counter-bluffs — grinds safely
-      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
-      openingHandTypePreference: 0.6, // Slightly prefers pairs — safe play
+      riskTolerance: 0.3,          // Still cautious but bolder (evolved: 0.99)
+      aggressionBias: 0.35,        // Reduced — prefers bull calls like evolved bot
+      lastChanceBluffRate: 0.35,
+      openingBluffRate: 0.25,
+      bullPhaseRaiseRate: 0.12,
+      trustMultiplier: 1.15,
+      cardCountSensitivity: 0.3,   // Evolved: ~0 — stop reacting to card counts
+      headsUpAggression: 0.5,      // More aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.6,       // Still tight near elimination
+      bluffTargetSelection: 0.2,   // Safe incremental bluffs — still Grinder style
+      positionAwareness: 0.55,
+      trueCallConfidence: 0.8,     // Evolved: 1.0 — decisive true calls
+      counterBluffRate: 0.25,      // Counter-bluffing is efficient (evolved: 0.62)
+      bullPhaseBluffRate: 0.2,     // Evolved: 0.75 — even patient play needs this
+      openingHandTypePreference: 0.4, // Hide more info at opening (evolved: 0.26)
     },
     flavorText: {
       callBull: ['Doesn\'t add up.', 'I\'ll take that bet.', 'Calling it.'],
@@ -266,23 +266,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Unpredictable. Random-feeling mix of strategies. Keeps opponents guessing.',
     avatar: '\u{1F3B2}',
     config: {
-      bluffFrequency: 1.2,
-      bullThreshold: 0.45,
-      riskTolerance: 0.7,
-      aggressionBias: 0.6,
-      lastChanceBluffRate: 0.55,
-      openingBluffRate: 0.30,
+      bluffFrequency: 0.4,         // Evolved: 0 — less GTO, more targeted chaos
+      bullThreshold: 0.48,
+      riskTolerance: 0.8,          // Bolder (evolved: 0.99)
+      aggressionBias: 0.4,         // Reduced — evolved: 0.30
+      lastChanceBluffRate: 0.5,
+      openingBluffRate: 0.40,
       bullPhaseRaiseRate: 0.25,
-      trustMultiplier: 0.8,
-      cardCountSensitivity: 1.0,   // Neutral — erratic play comes from other params
-      headsUpAggression: 0.6,      // Somewhat more aggressive heads-up
-      survivalPressure: 0.3,       // Barely adjusts for survival — chaos reigns
-      bluffTargetSelection: 0.7,   // Tends toward big jumps — unpredictable
-      positionAwareness: 0.2,      // Ignores position — random style
-      trueCallConfidence: 0.5,     // Neutral — sometimes true, sometimes bull
-      counterBluffRate: 0.35,      // Sometimes counter-bluffs — unpredictable
-      bullPhaseBluffRate: 0.15,    // Occasionally bluff-raises in bull phase
-      openingHandTypePreference: 0.4, // Mixed openings — keeps opponents guessing
+      trustMultiplier: 0.9,
+      cardCountSensitivity: 0.3,   // Evolved: ~0 — erratic play, not reactive play
+      headsUpAggression: 0.65,     // Slightly more aggressive heads-up
+      survivalPressure: 0.3,       // Still chaotic near elimination
+      bluffTargetSelection: 0.6,   // Toned down from 0.7 — less reckless
+      positionAwareness: 0.3,      // Still ignores position — that's Wildcard's style
+      trueCallConfidence: 0.75,    // Evolved: 1.0 — even chaos should call true decisively
+      counterBluffRate: 0.5,       // High counter-bluff — chaotic aggression (evolved: 0.62)
+      bullPhaseBluffRate: 0.45,    // Evolved: 0.75 — big upgrade, key weapon
+      openingHandTypePreference: 0.3, // Hide info better (evolved: 0.26)
     },
     flavorText: {
       callBull: ['BULL!', 'Nah.', 'Hmm... nope!', 'My gut says no.'],
@@ -298,23 +298,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Probability-optimal. Closest to theoretically correct play.',
     avatar: '\u{1F393}',
     config: {
-      bluffFrequency: 1.3,
-      bullThreshold: 0.5,
-      riskTolerance: 0.45,
-      aggressionBias: 0.5,
-      lastChanceBluffRate: 0.4,
-      openingBluffRate: 0.25,
-      bullPhaseRaiseRate: 0.15,
-      trustMultiplier: 1.0,
-      cardCountSensitivity: 1.1,   // Slightly reactive — close to optimal
-      headsUpAggression: 0.55,     // Slightly more aggressive heads-up — optimal play
-      survivalPressure: 0.55,      // Moderate tightening — balanced survival
-      bluffTargetSelection: 0.45,  // Slightly safe bluffs — close to GTO
-      positionAwareness: 0.8,      // Strong position awareness — knows info value
-      trueCallConfidence: 0.55,    // Slightly eager to lock in believed hands
-      counterBluffRate: 0.2,       // GTO counter-bluff frequency
-      bullPhaseBluffRate: 0.05,    // Rare bull-phase bluffs — only when optimal
-      openingHandTypePreference: 0.5, // Balanced openings — GTO mix
+      bluffFrequency: 0.15,        // Evolved: 0 — Professor learns GTO bluff path is suboptimal
+      bullThreshold: 0.55,         // Slightly more trusting (evolved: 0.56)
+      riskTolerance: 0.7,          // Bolder play is optimal (evolved: 0.99)
+      aggressionBias: 0.3,         // Prefers bull calls (evolved: 0.30) — key insight
+      lastChanceBluffRate: 0.45,
+      openingBluffRate: 0.45,      // Higher opening bluffs (evolved: 0.57) — hides info
+      bullPhaseRaiseRate: 0.2,
+      trustMultiplier: 1.15,       // Slightly trusting (evolved: 1.21)
+      cardCountSensitivity: 0.15,  // Evolved: ~0 — Professor discovers reactivity hurts
+      headsUpAggression: 0.65,     // More aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.45,      // Moderate — balanced
+      bluffTargetSelection: 0.45,  // Safe bluffs — evolved: 0.46
+      positionAwareness: 0.5,      // Reduced — less position-dependent (evolved: 0.42)
+      trueCallConfidence: 0.9,     // Evolved: 1.0 — decisive true calls are optimal
+      counterBluffRate: 0.5,       // Evolved: 0.62 — key heads-up skill
+      bullPhaseBluffRate: 0.4,     // Evolved: 0.75 — Professor adopts evolved wisdom
+      openingHandTypePreference: 0.3, // Hide info at opening (evolved: 0.26)
     },
     flavorText: {
       callBull: ['Statistically improbable.', 'The odds are against you.', 'P < 0.05.'],
@@ -330,23 +330,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Reads opponents heavily. Adjusts strategy based on opponent memory.',
     avatar: '\u{1F988}',
     config: {
-      bluffFrequency: 1.2,
-      bullThreshold: 0.45,
-      riskTolerance: 0.55,
-      aggressionBias: 0.6,
+      bluffFrequency: 0.3,         // Evolved: 0 — Shark reads, doesn't GTO-bluff
+      bullThreshold: 0.5,          // Slightly more trusting (evolved: 0.56)
+      riskTolerance: 0.7,          // Bolder (evolved: 0.99)
+      aggressionBias: 0.35,        // Less raise-happy (evolved: 0.30)
       lastChanceBluffRate: 0.45,
-      openingBluffRate: 0.28,
-      bullPhaseRaiseRate: 0.2,
-      trustMultiplier: 1.5,
-      cardCountSensitivity: 1.3,   // Exploits opponents' card count tells
-      headsUpAggression: 0.7,      // Ramps aggression heads-up — exploitative
-      survivalPressure: 0.5,       // Balanced — adjusts based on reads not fear
-      bluffTargetSelection: 0.5,   // Balanced — reads opponents to pick bluff size
-      positionAwareness: 0.85,     // Highest position awareness — info is power
-      trueCallConfidence: 0.4,     // Prefers to raise over call true — keeps control
-      counterBluffRate: 0.35,      // Counter-bluffs when reads suggest it
-      bullPhaseBluffRate: 0.1,     // Occasional bull-phase bluffs to keep control
-      openingHandTypePreference: 0.5, // Balanced — adapts based on reads
+      openingBluffRate: 0.4,       // Higher opening bluffs (evolved: 0.57)
+      bullPhaseRaiseRate: 0.22,
+      trustMultiplier: 1.35,       // Still reads-heavy but slightly less extreme
+      cardCountSensitivity: 0.4,   // Evolved: ~0 — Shark still uses reads, less card-count
+      headsUpAggression: 0.7,      // Stays aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.4,       // Slightly looser (evolved: 0.40)
+      bluffTargetSelection: 0.45,  // Balanced (evolved: 0.46)
+      positionAwareness: 0.6,      // Reduced from 0.85 — less position-dependent
+      trueCallConfidence: 0.8,     // Evolved: 1.0 — Shark should commit to reads
+      counterBluffRate: 0.55,      // Evolved: 0.62 — Shark's exploitative counter-bluffs
+      bullPhaseBluffRate: 0.35,    // Evolved: 0.75 — important for control
+      openingHandTypePreference: 0.35, // Hide info better (evolved: 0.26)
     },
     flavorText: {
       callBull: ['I\'ve seen your pattern.', 'You always do this.', 'Predictable.'],
@@ -362,23 +362,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Loves big hand-type jumps. Goes for straights and full houses early.',
     avatar: '\u{1F4A3}',
     config: {
-      bluffFrequency: 1.5,
-      bullThreshold: 0.4,
-      riskTolerance: 0.95,
-      aggressionBias: 0.8,
-      lastChanceBluffRate: 0.65,
-      openingBluffRate: 0.35,
+      bluffFrequency: 0.4,         // Evolved: 0 — Cannon still bluffs but targeted
+      bullThreshold: 0.45,         // Slightly more trusting
+      riskTolerance: 0.95,         // Already near evolved optimal (0.99)
+      aggressionBias: 0.5,         // Reduced from 0.8 — less raise-happy (evolved: 0.30)
+      lastChanceBluffRate: 0.6,
+      openingBluffRate: 0.45,      // Higher opening bluffs (evolved: 0.57)
       bullPhaseRaiseRate: 0.3,
-      trustMultiplier: 0.7,
-      cardCountSensitivity: 1.3,   // Ramps up at high counts — go out with a bang
-      headsUpAggression: 0.8,      // Very aggressive heads-up
-      survivalPressure: 0.15,      // Barely adjusts near elimination — "full send"
-      bluffTargetSelection: 0.9,   // Big ambitious jumps — straight to full house
-      positionAwareness: 0.3,      // Doesn't care about position — fires regardless
-      trueCallConfidence: 0.35,    // Prefers raising over calling true
-      counterBluffRate: 0.4,       // Loves counter-bluffing — fires big over anything
-      bullPhaseBluffRate: 0.2,     // Sometimes bluff-raises in bull phase
-      openingHandTypePreference: 0.3, // Prefers high card openings — then escalates big
+      trustMultiplier: 0.85,
+      cardCountSensitivity: 0.25,  // Evolved: ~0 — stop reacting to card counts
+      headsUpAggression: 0.8,      // Already near evolved (0.68) — Cannon stays aggressive
+      survivalPressure: 0.2,       // Still "full send"
+      bluffTargetSelection: 0.65,  // Reduced from 0.9 — less reckless jumps
+      positionAwareness: 0.35,
+      trueCallConfidence: 0.7,     // Evolved: 1.0 — must call true when hand is real
+      counterBluffRate: 0.55,      // Evolved: 0.62 — Cannon loves counter-bluffing
+      bullPhaseBluffRate: 0.5,     // Evolved: 0.75 — major upgrade for Cannon
+      openingHandTypePreference: 0.25, // Hides info well (evolved: 0.26)
     },
     flavorText: {
       callBull: ['No chance!', 'BULL! Fight me!', 'Yeah right.'],
@@ -394,23 +394,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Very tight player. Rarely acts unless the math is strongly in her favor.',
     avatar: '\u{2744}\u{FE0F}',
     config: {
-      bluffFrequency: 0.4,
-      bullThreshold: 0.65,
-      riskTolerance: 0.2,
-      aggressionBias: 0.25,
-      lastChanceBluffRate: 0.2,
-      openingBluffRate: 0.14,
-      bullPhaseRaiseRate: 0.08,
+      bluffFrequency: 0.15,        // Evolved: 0 — Frost barely uses GTO bluff path
+      bullThreshold: 0.6,          // Slightly more trusting (evolved: 0.56)
+      riskTolerance: 0.35,         // Still tight but bolder (evolved: 0.99)
+      aggressionBias: 0.25,        // Stays low-aggression — Frost's style
+      lastChanceBluffRate: 0.25,
+      openingBluffRate: 0.2,
+      bullPhaseRaiseRate: 0.1,
       trustMultiplier: 1.2,
-      cardCountSensitivity: 0.7,   // Low reactivity — ice cold discipline
-      headsUpAggression: 0.35,     // Stays tight even heads-up
-      survivalPressure: 0.85,      // Very tight near elimination — survival first
-      bluffTargetSelection: 0.2,   // Minimal bluff escalation — precise
-      positionAwareness: 0.75,     // Good position awareness
-      trueCallConfidence: 0.75,    // Confidently calls true — locks in believed hands
-      counterBluffRate: 0.05,      // Almost never counter-bluffs — discipline
-      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
-      openingHandTypePreference: 0.8, // Strongly prefers pairs+ — plays value
+      cardCountSensitivity: 0.2,   // Evolved: ~0 — discipline means ignoring noise
+      headsUpAggression: 0.45,     // Slightly more aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.7,       // Still tight near elimination
+      bluffTargetSelection: 0.25,  // Minimal escalation — precise
+      positionAwareness: 0.6,      // Reduced — less position-dependent
+      trueCallConfidence: 0.9,     // Evolved: 1.0 — Frost commits to reads
+      counterBluffRate: 0.2,       // Evolved: 0.62 — even Frost needs some
+      bullPhaseBluffRate: 0.15,    // Evolved: 0.75 — ice-cold bull-phase bluffs
+      openingHandTypePreference: 0.5, // Less info-leaky (was 0.8, evolved: 0.26)
     },
     flavorText: {
       callBull: ['I don\'t think so.', 'Cold read: you\'re lying.', 'Not a chance.'],
@@ -426,23 +426,23 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     personality: 'Balanced aggression. Mixes solid play with well-timed bluffs to exploit opponents.',
     avatar: '\u{1F3B1}',
     config: {
-      bluffFrequency: 1.5,
-      bullThreshold: 0.42,
-      riskTolerance: 0.65,
-      aggressionBias: 0.7,
-      lastChanceBluffRate: 0.55,
-      openingBluffRate: 0.32,
-      bullPhaseRaiseRate: 0.22,
-      trustMultiplier: 0.9,
-      cardCountSensitivity: 1.25,  // Exploits card count dynamics
-      headsUpAggression: 0.75,     // Aggressive heads-up — turns up the heat
-      survivalPressure: 0.4,       // Loose-ish near elimination — hustler's nerve
-      bluffTargetSelection: 0.6,   // Moderate jump preference — well-timed
-      positionAwareness: 0.65,     // Good position awareness — picks spots
-      trueCallConfidence: 0.45,    // Prefers action over calling true
-      counterBluffRate: 0.3,       // Counter-bluffs opportunistically
-      bullPhaseBluffRate: 0.1,     // Occasional bull-phase bluffs — keep 'em guessing
-      openingHandTypePreference: 0.4, // Slightly prefers high cards — hides info
+      bluffFrequency: 0.3,         // Evolved: 0 — Hustler uses smarter bluff paths
+      bullThreshold: 0.5,          // More trusting (evolved: 0.56)
+      riskTolerance: 0.8,          // Bolder (evolved: 0.99)
+      aggressionBias: 0.4,         // Reduced — prefers bull calls (evolved: 0.30)
+      lastChanceBluffRate: 0.5,
+      openingBluffRate: 0.5,       // High opening bluffs (evolved: 0.57)
+      bullPhaseRaiseRate: 0.25,
+      trustMultiplier: 1.05,       // Slightly more trusting (evolved: 1.21)
+      cardCountSensitivity: 0.2,   // Evolved: ~0 — stop exploiting card count noise
+      headsUpAggression: 0.75,     // Stays aggressive heads-up (evolved: 0.68)
+      survivalPressure: 0.35,      // Still loose near elimination
+      bluffTargetSelection: 0.5,   // Moderate — well-timed (evolved: 0.46)
+      positionAwareness: 0.5,      // Reduced — picks spots but less dependent
+      trueCallConfidence: 0.85,    // Evolved: 1.0 — Hustler knows when to lock in
+      counterBluffRate: 0.55,      // Evolved: 0.62 — key hustling move
+      bullPhaseBluffRate: 0.5,     // Evolved: 0.75 — major upgrade for Hustler
+      openingHandTypePreference: 0.3, // Hides info at opening (evolved: 0.26)
     },
     flavorText: {
       callBull: ['I know a hustle when I see one.', 'Not today.', 'That ain\'t it.'],
@@ -472,7 +472,7 @@ export const BOT_MATRIX_SIZE = BOT_PERSONALITY_COUNT * BOT_LEVELS; // 81
  * refinement and make noisier decisions than higher-level bots).
  */
 const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
-  bluffFrequency: 1.1,
+  bluffFrequency: 0.9,           // Lower-skill bots still use some GTO bluffing
   bullThreshold: 0.5,
   riskTolerance: 0.5,
   aggressionBias: 0.5,
@@ -480,15 +480,15 @@ const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
   openingBluffRate: 0.30,
   bullPhaseRaiseRate: 0.18,
   trustMultiplier: 0.65,
-  cardCountSensitivity: 1.0,
+  cardCountSensitivity: 0.8,     // Less reactive than before (was 1.0)
   headsUpAggression: 0.5,
   survivalPressure: 0.5,
   bluffTargetSelection: 0.5,
   positionAwareness: 0.5,
-  trueCallConfidence: 0.5,
+  trueCallConfidence: 0.55,      // Slightly more decisive (was 0.5)
   counterBluffRate: 0.15,
-  bullPhaseBluffRate: 0.05,
-  openingHandTypePreference: 0.5,
+  bullPhaseBluffRate: 0.1,       // Low-skill bots do some bull-phase bluffing (was 0.05)
+  openingHandTypePreference: 0.45, // Slightly more info-hiding (was 0.5)
 };
 
 /**
