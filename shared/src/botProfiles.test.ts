@@ -138,7 +138,7 @@ describe('botProfiles', () => {
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
     it('uses exact evolved champion values as baseline', () => {
       // DEFAULT is the evolved champion — all personalities derive from this.
-      // After each evolution run, update DEFAULT and the Evolved personality config.
+      // After each evolution run, update DEFAULT to the new champion's values.
       expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.0);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.56);
       expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.99);
