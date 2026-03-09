@@ -168,15 +168,46 @@ function getAudioContext(): AudioContext | null {
 
 // Recover the AudioContext when the tab becomes visible again. Mobile browsers
 // (especially iOS Safari and Chrome on Android) suspend the AudioContext when
-// the tab is backgrounded. Without explicit resume, sounds silently fail.
+// the tab is backgrounded. Some browsers enter a "zombie" state where the
+// context reports 'running' but produces no audio. To handle all edge cases,
+// we proactively close and recreate the AudioContext after an app switch.
+let hiddenTimestamp = 0;
+
+function preloadAllSounds(): void {
+  for (const entry of Object.values(AUDIO_FILE_SOUNDS)) {
+    if (entry) loadAudioBuffer(entry.url);
+  }
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && audioCtx) {
+    if (document.visibilityState === 'hidden') {
+      hiddenTimestamp = Date.now();
+      return;
+    }
+
+    // Page became visible again
+    const wasHiddenMs = hiddenTimestamp ? Date.now() - hiddenTimestamp : 0;
+    hiddenTimestamp = 0;
+
+    if (!audioCtx) return;
+
+    if (wasHiddenMs > 500) {
+      // App was backgrounded for a meaningful duration — proactively recreate
+      // the AudioContext to avoid zombie states where the context reports
+      // 'running' but produces no audio (common on iOS Safari after phone
+      // calls / Siri, and on some Android OEM browsers after app switch).
+      try { audioCtx.close(); } catch { /* already closed */ }
+      audioCtx = null;
+      audioBufferCache.clear();
+      audioBufferLoading.clear();
+      preloadAllSounds();
+    } else {
+      // Brief visibility change (notification shade, etc.) — just resume
       const state = audioCtx.state as string;
       if (state === 'suspended' || state === 'interrupted') {
         audioCtx.resume().catch(() => {});
       } else if (state === 'closed') {
-        // Context was permanently closed — force re-creation on next play
         audioCtx = null;
         audioBufferCache.clear();
         audioBufferLoading.clear();
@@ -184,17 +215,27 @@ if (typeof document !== 'undefined') {
     }
   });
   // Also try resuming on user interaction — covers the case where the
-  // browser refuses resume without a gesture (autoplay policy).
+  // browser refuses resume without a gesture (autoplay policy). If the
+  // context was closed/nulled (e.g. after an app switch), create a new
+  // one in the gesture handler so it's allowed by autoplay policy.
   const resumeOnInteraction = () => {
-    if (audioCtx) {
-      const state = audioCtx.state as string;
-      if (state === 'suspended' || state === 'interrupted') {
-        audioCtx.resume().catch(() => {});
-      } else if (state === 'closed') {
-        audioCtx = null;
-        audioBufferCache.clear();
-        audioBufferLoading.clear();
+    if (!audioCtx) {
+      // Context was closed/nulled — recreate within user gesture context
+      try {
+        audioCtx = new AudioContext();
+      } catch {
+        return;
       }
+      preloadAllSounds();
+      return;
+    }
+    const state = audioCtx.state as string;
+    if (state === 'suspended' || state === 'interrupted') {
+      audioCtx.resume().catch(() => {});
+    } else if (state === 'closed') {
+      audioCtx = null;
+      audioBufferCache.clear();
+      audioBufferLoading.clear();
     }
   };
   document.addEventListener('touchstart', resumeOnInteraction, { once: false, passive: true });
