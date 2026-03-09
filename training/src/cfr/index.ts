@@ -7,7 +7,7 @@ export type { HandFeatures } from './infoSet.js';
 export { mapAbstractToConcreteAction } from './actionMapper.js';
 
 export { createCFRTrainingStrategy, createCFREvaluationStrategy } from './cfrStrategy.js';
-export type { DecisionRecord } from './cfrStrategy.js';
+export type { DecisionRecord, EvaluationStats } from './cfrStrategy.js';
 
 export { trainCFR, resumeTraining } from './trainingLoop.js';
 export type { TrainingConfig, TrainingResult, ProgressMetrics } from './trainingLoop.js';

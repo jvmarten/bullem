@@ -19,6 +19,7 @@ import {
   findLatestStrategy, loadStrategy,
   createCFREvaluationStrategy,
 } from './cfr/index.js';
+import type { EvaluationStats } from './cfr/index.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
 /** Pick `count` random profiles from the 81-profile pool (no duplicates). */
@@ -125,7 +126,8 @@ console.log(`  Trained for ${exportedStrategy.iterations} iterations`);
 console.log(`  ${exportedStrategy.infoSetCount} info sets`);
 console.log(`  Avg regret: ${exportedStrategy.avgRegret.toFixed(6)}`);
 
-const cfrStrategy = createCFREvaluationStrategy(exportedStrategy);
+const evalStats: EvaluationStats = { totalDecisions: 0, hits: 0, misses: 0 };
+const cfrStrategy = createCFREvaluationStrategy(exportedStrategy, evalStats);
 
 // ── Matchup configurations ──────────────────────────────────────────────
 
@@ -203,6 +205,11 @@ for (const matchup of matchups) {
 // ── Overall summary ─────────────────────────────────────────────────────
 
 const overallWinRate = totalGames > 0 ? totalCfrWins / totalGames : 0;
+const hitRate = evalStats.totalDecisions > 0
+  ? (evalStats.hits / evalStats.totalDecisions * 100).toFixed(1)
+  : '0.0';
 console.log(`\n${'═'.repeat(50)}`);
 console.log(`  Overall: CFR won ${totalCfrWins}/${totalGames} (${(overallWinRate * 100).toFixed(1)}%)`);
+console.log(`  Strategy coverage: ${evalStats.hits}/${evalStats.totalDecisions} decisions (${hitRate}% hit rate)`);
+console.log(`  Missed info sets: ${evalStats.misses} (fell back to uniform random)`);
 console.log(`${'═'.repeat(50)}\n`);
