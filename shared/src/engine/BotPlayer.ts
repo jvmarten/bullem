@@ -547,9 +547,9 @@ export class BotPlayer {
       return { action: 'call', hand: raise };
     }
 
-    // No higher hand exists — call bull anyway (risky but only option)
-    // This happens when the current hand is near the top of what's possible
-    return { action: 'bull' };
+    // No higher hand exists — the bot knows the hand is real, so call true.
+    // Calling bull here would be a guaranteed loss.
+    return { action: 'true' };
   }
 
   /**
@@ -2353,7 +2353,8 @@ export class BotPlayer {
       case HandType.FULL_HOUSE:
         return RANK_VALUES[hand.threeRank] * 100 + RANK_VALUES[hand.twoRank];
       case HandType.STRAIGHT_FLUSH:
-        return SUIT_ORDER[hand.suit] * 100 + RANK_VALUES[hand.highRank];
+        // Rank is primary, suit is tiebreaker (matching isHigherHand comparison order)
+        return RANK_VALUES[hand.highRank] * 100 + SUIT_ORDER[hand.suit];
       case HandType.ROYAL_FLUSH:
         return SUIT_ORDER[hand.suit];
       default:
