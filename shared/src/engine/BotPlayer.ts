@@ -322,16 +322,30 @@ export class BotPlayer {
 
     // Opening call — no current hand
     // Bluff more in early rounds (few cards = harder to disprove).
-    // Base 25% bluff, up to 40% in round 1 (1 card each).
+    // Base 25% bluff + significant early round bonus.
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const bestHand = this.findBestHandInCards(botCards);
       if (!bestHand) {
         return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
       }
-      const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03); // +0.03 per card below 6
+      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.06); // +0.06 per card below 8
       if (Math.random() < 0.25 + earlyBluffBonus) {
-        // 50% chance to bluff a high card we don't hold, 50% normal bluff (one type above)
-        if (Math.random() < 0.5) {
+        // In early rounds, prefer semi-bluff pairs (claim pair of rank we hold one of)
+        if (totalCards < 8 && Math.random() < 0.5) {
+          const rankCounts = this.getRankCounts(botCards);
+          const semiBluffs: Rank[] = [];
+          for (const [rank, count] of rankCounts) {
+            if (count === 1) semiBluffs.push(rank);
+          }
+          if (semiBluffs.length > 0) {
+            // Pick a higher-ranked semi-bluff pair
+            semiBluffs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
+            const rank = semiBluffs[Math.floor(Math.random() * Math.min(3, semiBluffs.length))]!;
+            return { action: 'call', hand: { type: HandType.PAIR, rank } };
+          }
+        }
+        // 40% chance to bluff a high card we don't hold, 60% normal bluff (one type above)
+        if (Math.random() < 0.4) {
           const heldRanks = new Set(botCards.map(c => c.rank));
           const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10);
           if (bluffRanks.length > 0) {
@@ -360,8 +374,8 @@ export class BotPlayer {
           : { action: 'bull' };
       }
       // No legitimate raise — bluff more in early rounds
-      const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03);
-      if (Math.random() < 0.20 + earlyBluffBonus) {
+      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.05);
+      if (Math.random() < 0.25 + earlyBluffBonus) {
         const bluff = this.makeNormalBluff(botCards, currentHand);
         if (isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
@@ -808,6 +822,14 @@ export class BotPlayer {
       if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
     }
 
+    // Semi-bluff candidates: pairs of ranks we hold one of. In early rounds
+    // with few total cards, claiming "pair of Kings" when you hold one King is
+    // a common and hard-to-disprove play — opponents can't see your card.
+    const semiBluffPairs: HandCall[] = [];
+    for (const [rank, count] of rankCounts) {
+      if (count === 1) semiBluffPairs.push({ type: HandType.PAIR, rank });
+    }
+
     // Sort by hand strength (lowest first)
     candidates.sort((a, b) => {
       if (a.type !== b.type) return a.type - b.type;
@@ -819,13 +841,24 @@ export class BotPlayer {
     }
 
     // Strategic bluff opening — table image adjusts bluff frequency.
-    // Boost bluff rate in early rounds (few total cards = harder to disprove).
+    // Boost bluff rate significantly in early rounds (few total cards = harder to disprove).
     const tableImageAdj = botId ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.03); // +0.03 per card below 8
-    const effectiveBluffRate = Math.max(0, Math.min(0.6, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
+    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.06); // +0.06 per card below 8
+    const effectiveBluffRate = Math.max(0, Math.min(0.75, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
     if (Math.random() < effectiveBluffRate) {
-      // Try a high card bluff first (call a rank we don't hold) — common in real play
-      if (totalCards < 8 && Math.random() < 0.6) {
+      // In early rounds, prefer semi-bluff pairs (claim pair of a rank we hold one of)
+      // — this is the most natural and common bluff in card games
+      if (totalCards < 8 && semiBluffPairs.length > 0 && Math.random() < 0.55) {
+        // Prefer higher-ranked semi-bluff pairs (more intimidating opener)
+        semiBluffPairs.sort((a, b) => this.getHandPrimaryRank(b) - this.getHandPrimaryRank(a));
+        // Pick from top half of semi-bluff pairs
+        const pickIdx = Math.floor(Math.random() * Math.min(3, semiBluffPairs.length));
+        const semiBluff = semiBluffPairs[pickIdx]!;
+        if (botId) this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: semiBluff };
+      }
+      // Try a high card bluff (call a rank we don't hold) — common in real play
+      if (totalCards < 8 && Math.random() < 0.4) {
         // Bluff a high card rank we don't hold
         const heldRanks = new Set(botCards.map(c => c.rank));
         const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10); // 10, J, Q, K, A
@@ -862,7 +895,13 @@ export class BotPlayer {
     }
 
     if (totalCards < 6) {
-      // Few cards: open conservatively with the lowest truthful hand
+      // Few cards: semi-bluff a pair 30% of the time instead of always playing truthfully
+      if (semiBluffPairs.length > 0 && Math.random() < 0.30) {
+        const pick = semiBluffPairs[Math.floor(Math.random() * semiBluffPairs.length)]!;
+        if (botId) this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: pick };
+      }
+      // Otherwise open conservatively with the lowest truthful hand
       return { action: 'call', hand: candidates[0]! };
     }
 
@@ -959,7 +998,7 @@ export class BotPlayer {
     // No legitimate hand — decide whether to bluff raise or call bull.
     // Table image and early-round bonus adjust bluff frequency.
     const tableImageAdj = scope ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.025); // Bluff more with fewer total cards
+    const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.05); // Bluff more with fewer total cards
     const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency + tableImageAdj + earlyBluffBonus);
 
     if (adjustedP > 0.45) {
@@ -2142,16 +2181,24 @@ export class BotPlayer {
 
   private static makeBluffHandHard(currentHand: HandCall | null, totalCards: number): HandCall {
     if (!currentHand) {
-      // Strategic opening: mix of high card bluffs and pair bluffs
+      // Strategic opening: mix of high card bluffs and pair bluffs.
+      // In early rounds with few cards, pairs are the strongest bluff because
+      // opponents can't disprove them easily — always prefer pairs over high cards.
       if (totalCards >= 8) {
-        // With many total cards, 40% high card bluff, 60% pair bluff
-        if (Math.random() < 0.4) {
+        // With many total cards, 30% high card bluff, 70% pair bluff
+        if (Math.random() < 0.3) {
           const highRanks: Rank[] = ['10', 'J', 'Q', 'K', 'A'];
           const rank = highRanks[Math.floor(Math.random() * highRanks.length)]!;
           return { type: HandType.HIGH_CARD, rank };
         }
         const midRanks: Rank[] = ['7', '8', '9', '10', 'J'];
         const rank = midRanks[Math.floor(Math.random() * midRanks.length)]!;
+        return { type: HandType.PAIR, rank };
+      }
+      // Few total cards: bluff pairs 65% of the time, high cards 35%
+      if (Math.random() < 0.65) {
+        const pairRanks: Rank[] = ['7', '8', '9', '10', 'J', 'Q', 'K'];
+        const rank = pairRanks[Math.floor(Math.random() * pairRanks.length)]!;
         return { type: HandType.PAIR, rank };
       }
       const rank = ALL_RANKS[Math.floor(Math.random() * 6) + 7]!; // 9 through A
