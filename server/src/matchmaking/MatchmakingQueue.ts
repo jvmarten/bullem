@@ -27,6 +27,7 @@ import type {
   RankedMode,
   PlayerId,
   BestOf,
+  AvatarId,
   ClientToServerEvents,
   ServerToClientEvents,
   MatchmakingStatus,
@@ -36,6 +37,7 @@ import type {
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { getRating } from '../db/ratings.js';
+import { getUserAvatar } from '../db/users.js';
 import { getRankedBotPool, pickClosestRatedBot } from '../db/botPool.js';
 import type { RankedBotEntry } from '../db/botPool.js';
 import { broadcastRoomState, broadcastGameState } from '../socket/broadcast.js';
@@ -60,6 +62,7 @@ export interface QueueEntry {
   rating: number;
   joinedAt: number;
   displayName: string;
+  avatar?: AvatarId | null;
 }
 
 function serializeEntry(entry: QueueEntry): string {
@@ -173,8 +176,11 @@ export class MatchmakingQueue {
       return 'Already in a game — leave your current room first';
     }
 
-    // Fetch the player's rating for the selected mode
-    const rating = await this.getPlayerRating(userId, mode);
+    // Fetch the player's rating and avatar in parallel
+    const [rating, avatar] = await Promise.all([
+      this.getPlayerRating(userId, mode),
+      getUserAvatar(userId),
+    ]);
 
     const entry: QueueEntry = {
       userId,
@@ -182,6 +188,7 @@ export class MatchmakingQueue {
       rating,
       joinedAt: Date.now(),
       displayName: username,
+      avatar,
     };
 
     try {
@@ -450,7 +457,7 @@ export class MatchmakingQueue {
     for (const entry of players) {
       const playerId = randomUUID();
       playerIds.push(playerId);
-      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId });
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -525,7 +532,7 @@ export class MatchmakingQueue {
 
     // Add the human player
     const playerId = randomUUID();
-    const { player: addedPlayer, reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName, { userId: player.userId });
+    const { player: addedPlayer, reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName, { userId: player.userId, avatar: player.avatar });
     room.setPlayerUserId(playerId, player.userId);
     this.roomManager.assignSocketToRoom(player.socketId, room.roomCode);
     this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -613,7 +620,7 @@ export class MatchmakingQueue {
 
     for (const entry of humanPlayers) {
       const playerId = randomUUID();
-      const { player: addedPlayer, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId });
+      const { player: addedPlayer, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
