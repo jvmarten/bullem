@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "simulate": "tsx src/simulate.ts"
+    "simulate": "tsx src/simulate.ts",
+    "train": "tsx src/train.ts",
+    "evaluate": "tsx src/evaluate.ts"
   },
   "dependencies": {
     "@bull-em/shared": "*"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.7.0"
   }

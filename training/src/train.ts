@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+
+/**
+ * CLI entry point for CFR self-play training.
+ *
+ * Usage:
+ *   npm run train -w training -- --iterations 100000
+ *   npx tsx training/src/train.ts --iterations 50000 --players 4 --resume
+ */
+
+import {
+  trainCFR, resumeTraining,
+  saveCheckpoint, exportStrategy,
+  findLatestCheckpoint, loadCheckpoint,
+  CFREngine,
+  type ProgressMetrics,
+} from './cfr/index.js';
+
+function parseArgs(argv: string[]): {
+  iterations: number;
+  players: number;
+  maxCards: number;
+  progressInterval: number;
+  checkpointInterval: number;
+  resume: boolean;
+  checkpointFile: string | null;
+  strategyName: string | null;
+} {
+  const args = argv.slice(2);
+  let iterations = 100_000;
+  let players = 4;
+  let maxCards = 5;
+  let progressInterval = 1000;
+  let checkpointInterval = 10_000;
+  let resume = false;
+  let checkpointFile: string | null = null;
+  let strategyName: string | null = null;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const next = args[i + 1];
+    switch (arg) {
+      case '--iterations':
+      case '-i':
+        iterations = parseInt(next ?? '', 10);
+        if (isNaN(iterations) || iterations < 1) {
+          console.error('Error: --iterations must be a positive integer');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--players':
+      case '-p':
+        players = parseInt(next ?? '', 10);
+        if (isNaN(players) || players < 2 || players > 12) {
+          console.error('Error: --players must be between 2 and 12');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--max-cards':
+      case '-m':
+        maxCards = parseInt(next ?? '', 10);
+        if (isNaN(maxCards) || maxCards < 1 || maxCards > 5) {
+          console.error('Error: --max-cards must be between 1 and 5');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--progress':
+        progressInterval = parseInt(next ?? '', 10);
+        if (isNaN(progressInterval) || progressInterval < 0) {
+          console.error('Error: --progress must be a non-negative integer');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--checkpoint-interval':
+        checkpointInterval = parseInt(next ?? '', 10);
+        if (isNaN(checkpointInterval) || checkpointInterval < 0) {
+          console.error('Error: --checkpoint-interval must be a non-negative integer');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--resume':
+        resume = true;
+        break;
+      case '--from-checkpoint':
+        checkpointFile = next ?? null;
+        if (!checkpointFile) {
+          console.error('Error: --from-checkpoint requires a file path');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--strategy-name':
+        strategyName = next ?? null;
+        if (!strategyName) {
+          console.error('Error: --strategy-name requires a name');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--help':
+      case '-h':
+        console.log(`
+Bull 'Em CFR Training
+
+Usage:
+  npm run train -w training -- [options]
+  npx tsx training/src/train.ts [options]
+
+Options:
+  --iterations, -i <n>       Number of self-play iterations (default: 100000)
+  --players, -p <n>          Players per game (default: 4, range: 2-12)
+  --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
+  --progress <n>             Log progress every N iterations (default: 1000)
+  --checkpoint-interval <n>  Save checkpoint every N iterations (default: 10000)
+  --resume                   Resume from latest checkpoint
+  --from-checkpoint <path>   Resume from a specific checkpoint file
+  --strategy-name <name>     Custom name for the exported strategy file
+  --help, -h                 Show this help message
+
+Examples:
+  npm run train -w training -- --iterations 100000
+  npm run train -w training -- -i 50000 -p 2 --resume
+  npx tsx training/src/train.ts -i 1000000 --checkpoint-interval 50000
+`);
+        process.exit(0);
+        break;
+      default:
+        console.error(`Unknown option: ${arg}. Use --help for usage.`);
+        process.exit(1);
+    }
+  }
+
+  // Validate player/card combo
+  const maxPlayersForCards = Math.floor(52 / maxCards);
+  if (players > maxPlayersForCards) {
+    console.error(
+      `Error: ${players} players with max ${maxCards} cards exceeds deck size. ` +
+      `Max players for ${maxCards} cards: ${maxPlayersForCards}`,
+    );
+    process.exit(1);
+  }
+
+  return { iterations, players, maxCards, progressInterval, checkpointInterval, resume, checkpointFile, strategyName };
+}
+
+const config = parseArgs(process.argv);
+
+// ── Resolve starting point ──────────────────────────────────────────────
+
+let existingEngine: CFREngine | null = null;
+
+if (config.checkpointFile) {
+  console.log(`Loading checkpoint: ${config.checkpointFile}`);
+  existingEngine = loadCheckpoint(config.checkpointFile);
+  console.log(`  Resuming from iteration ${existingEngine.iterations} (${existingEngine.nodeCount} info sets)`);
+} else if (config.resume) {
+  const latest = findLatestCheckpoint();
+  if (latest) {
+    console.log(`Resuming from latest checkpoint: ${latest}`);
+    existingEngine = loadCheckpoint(latest);
+    console.log(`  Starting at iteration ${existingEngine.iterations} (${existingEngine.nodeCount} info sets)`);
+  } else {
+    console.log('No checkpoint found — starting fresh training.');
+  }
+}
+
+// ── Progress handler ────────────────────────────────────────────────────
+
+function onProgress(metrics: ProgressMetrics): void {
+  const pct = ((metrics.iteration / metrics.totalIterations) * 100).toFixed(1);
+  const avgRegret = metrics.avgRegretPerIteration.toFixed(4);
+  const rate = metrics.gamesPerSecond.toFixed(0);
+  const elapsed = (metrics.elapsedMs / 1000).toFixed(1);
+
+  process.stderr.write(
+    `\r  [${pct}%] iter ${metrics.iteration}/${metrics.totalIterations}` +
+    `  |  ${metrics.infoSets} info sets` +
+    `  |  avg regret: ${avgRegret}` +
+    `  |  ${rate} games/sec` +
+    `  |  ${elapsed}s`,
+  );
+}
+
+// ── Checkpoint handler ──────────────────────────────────────────────────
+
+function onCheckpoint(engine: CFREngine, iteration: number): void {
+  const filepath = saveCheckpoint(engine);
+  process.stderr.write(`\n  Checkpoint saved: ${filepath}\n`);
+}
+
+// ── Run training ────────────────────────────────────────────────────────
+
+console.log(
+  `\nCFR Training: ${config.iterations} iterations, ${config.players} players, ` +
+  `max ${config.maxCards} cards\n`,
+);
+
+const result = existingEngine
+  ? resumeTraining(existingEngine, {
+      ...config,
+      onProgress,
+      onCheckpoint,
+    })
+  : trainCFR({
+      ...config,
+      onProgress,
+      onCheckpoint,
+    });
+
+// Clear progress line
+process.stderr.write('\r' + ' '.repeat(100) + '\r');
+
+// ── Results ─────────────────────────────────────────────────────────────
+
+console.log('\n═══════════════════════════════════════════════');
+console.log("  Bull 'Em CFR Training Complete");
+console.log('═══════════════════════════════════════════════\n');
+console.log(`  Total iterations:    ${result.totalIterations}`);
+console.log(`  Games played:        ${result.totalGames}`);
+console.log(`  Unique info sets:    ${result.infoSetCount}`);
+console.log(`  Avg regret/iter:     ${result.finalAvgRegret.toFixed(6)}`);
+console.log(`  Duration:            ${(result.durationMs / 1000).toFixed(2)}s`);
+console.log(`  Throughput:          ${(result.totalGames / (result.durationMs / 1000)).toFixed(1)} games/sec`);
+
+// Save final checkpoint
+const checkpointPath = saveCheckpoint(result.engine);
+console.log(`\n  Final checkpoint:    ${checkpointPath}`);
+
+// Export strategy
+const strategyPath = exportStrategy(result.engine, config.strategyName ?? undefined);
+console.log(`  Strategy exported:   ${strategyPath}`);
+
+// Strategy summary
+const exported = result.engine.exportStrategy();
+console.log(`\n  Strategy size:       ${Object.keys(exported.strategy).length} info sets`);
+const strategyJson = JSON.stringify(exported);
+console.log(`  File size:           ${(Buffer.byteLength(strategyJson) / 1024).toFixed(1)} KB`);
+
+console.log('\n═══════════════════════════════════════════════\n');
