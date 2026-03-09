@@ -262,17 +262,48 @@ export class CFREngine {
   }
 
   /**
-   * Export a compact strategy file.
+   * Export a compact strategy file using the average strategy.
    * Prunes near-zero probabilities and rounds to 4 decimal places.
    */
   exportStrategy(pruneThreshold: number = 0.005, precision: number = 4): ExportedStrategy {
+    return this._exportWithStrategy(
+      (node) => this.getAverageStrategy(node),
+      pruneThreshold,
+      precision,
+    );
+  }
+
+  /**
+   * Export using the current regret-matched strategy (not the average).
+   * The current strategy responds directly to accumulated regrets and converges
+   * faster in practice, especially with limited iterations. The average strategy
+   * is theoretically optimal but requires many more iterations to differentiate
+   * from uniform.
+   */
+  exportCurrentStrategy(pruneThreshold: number = 0.005, precision: number = 4): ExportedStrategy {
+    return this._exportWithStrategy(
+      (node) => {
+        const legalActions = Object.keys(node.regretSum) as AbstractAction[];
+        return this.getStrategy(node, legalActions);
+      },
+      pruneThreshold,
+      precision,
+    );
+  }
+
+  /** Shared export logic for both average and current strategies. */
+  private _exportWithStrategy(
+    getStrategyFn: (node: CFRNode) => Record<string, number>,
+    pruneThreshold: number,
+    precision: number,
+  ): ExportedStrategy {
     const strategy: Record<string, StrategyEntry> = {};
 
     for (const [key, node] of this.nodes) {
-      const avgStrategy = this.getAverageStrategy(node);
+      const strat = getStrategyFn(node);
       const entry: StrategyEntry = {};
 
-      for (const [action, prob] of Object.entries(avgStrategy)) {
+      for (const [action, prob] of Object.entries(strat)) {
         if (prob >= pruneThreshold) {
           entry[action] = Number(prob.toFixed(precision));
         }
