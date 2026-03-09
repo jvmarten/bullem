@@ -9,7 +9,7 @@ import { useSound } from '../hooks/useSound.js';
 import { RankBadge } from '../components/RankBadge.js';
 import { playerInitial, playerColor } from '../utils/cardUtils.js';
 import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
-import type { RatingChange } from '@bull-em/shared';
+import type { RatingChange, RankedMode } from '@bull-em/shared';
 
 function RatingChangeDisplay({ change }: { change: RatingChange }) {
   const isGain = change.delta >= 0;
@@ -45,11 +45,12 @@ function RatingChangeDisplay({ change }: { change: RatingChange }) {
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame, joinMatchmaking, leaveMatchmaking, matchmakingStatus, matchmakingFound, clearMatchmakingFound } = useGameContext();
   const [watchingAnother, setWatchingAnother] = useState(false);
   const [rankingDone, setRankingDone] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [replayShared, setReplayShared] = useState(false);
+  const [rankedQueuing, setRankedQueuing] = useState<RankedMode | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up retry timer on unmount
@@ -111,6 +112,41 @@ export function ResultsPage() {
     sessionStorage.setItem(storageKey, '1');
     play(isWinner ? 'victory' : 'gameOver');
   }, [winnerId, roomCode, isWinner, play]);
+
+  const isRanked = roomState?.settings.ranked === true;
+  const rankedMode = roomState?.settings.rankedMode;
+
+  // Sync queuing state with matchmaking status from context
+  useEffect(() => {
+    if (matchmakingStatus) {
+      setRankedQueuing(matchmakingStatus.mode);
+    } else if (!matchmakingFound) {
+      setRankedQueuing(null);
+    }
+  }, [matchmakingStatus, matchmakingFound]);
+
+  // When a ranked rematch is found, leave the old room and navigate to the new game
+  useEffect(() => {
+    if (!matchmakingFound) return;
+    const timer = setTimeout(() => {
+      leaveRoom();
+      clearMatchmakingFound();
+      navigate(`/game/${matchmakingFound.roomCode}`);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [matchmakingFound, leaveRoom, clearMatchmakingFound, navigate]);
+
+  const handleRankedPlayAgain = useCallback(() => {
+    if (rankedQueuing) return;
+    const mode = rankedMode ?? 'heads_up';
+    setRankedQueuing(mode);
+    joinMatchmaking(mode).catch(() => { setRankedQueuing(null); });
+  }, [rankedQueuing, rankedMode, joinMatchmaking]);
+
+  const handleCancelQueue = useCallback(() => {
+    setRankedQueuing(null);
+    leaveMatchmaking().catch(() => {});
+  }, [leaveMatchmaking]);
 
   const handleRankingComplete = useCallback(() => {
     setRankingDone(true);
@@ -180,8 +216,28 @@ export function ResultsPage() {
 
         <div className="results-right">
         <div className="flex flex-col gap-3 w-full max-w-xs items-center">
-          {/* Prominent rematch button */}
-          {isHost && !isSpectator && (
+          {/* Ranked: queue for a new match instead of rematching same players */}
+          {isRanked && !isSpectator && (
+            <>
+              <button
+                onClick={handleRankedPlayAgain}
+                disabled={rankedQueuing !== null}
+                className={`px-10 py-3 text-lg w-full ${rankedQueuing ? 'btn-safe animate-pulse' : 'btn-gold'}`}
+              >
+                {rankedQueuing ? 'In Queue...' : 'Play Again'}
+              </button>
+              {rankedQueuing && (
+                <button
+                  onClick={handleCancelQueue}
+                  className="btn-ghost text-sm py-2"
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          )}
+          {/* Non-ranked: host starts rematch with same players */}
+          {!isRanked && isHost && !isSpectator && (
             <button
               onClick={requestRematch}
               className="btn-gold px-10 py-3 text-lg w-full"
@@ -189,7 +245,7 @@ export function ResultsPage() {
               Play Again
             </button>
           )}
-          {!isHost && !isSpectator && (
+          {!isRanked && !isHost && !isSpectator && (
             <p className="text-[var(--gold-dim)] text-sm">
               Waiting for host to start rematch...
             </p>
@@ -249,6 +305,24 @@ export function ResultsPage() {
         </div>
         </div>{/* end results-right */}
       </div>
+
+      {/* Match Found overlay for ranked rematch queue */}
+      {matchmakingFound && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+          <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+            <p className="text-2xl font-bold text-[var(--gold)] font-display">Match Found!</p>
+            <div className="space-y-2">
+              {matchmakingFound.opponents.map((opp, i) => (
+                <div key={i} className="flex items-center justify-center gap-2">
+                  <span className="text-sm text-[var(--gold)]">{opp.name}</span>
+                  <RankBadge rating={opp.rating} size="md" />
+                </div>
+              ))}
+            </div>
+            <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
