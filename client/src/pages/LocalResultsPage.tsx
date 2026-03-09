@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { GameStatsDisplay } from '../components/GameStatsDisplay.js';
@@ -32,12 +32,14 @@ export function LocalResultsPage() {
 
   useWinConfetti(isWinner);
 
-  // Play victory/gameOver sound on mount — this is the "You Win!" screen
+  // Play victory/gameOver sound once per game — persisted in sessionStorage so
+  // navigating to replay and back doesn't re-trigger the audio.
   const { play } = useSound();
-  const victoryPlayedRef = useRef(false);
   useEffect(() => {
-    if (!winnerId || victoryPlayedRef.current) return;
-    victoryPlayedRef.current = true;
+    if (!winnerId) return;
+    const storageKey = `victory-played:local:${winnerId}`;
+    if (sessionStorage.getItem(storageKey)) return;
+    sessionStorage.setItem(storageKey, '1');
     play(isWinner ? 'victory' : 'gameOver');
   }, [winnerId, isWinner, play]);
 
