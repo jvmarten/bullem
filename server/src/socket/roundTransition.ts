@@ -45,8 +45,9 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   // Guard against double execution — the timeout and the last player's
   // "continue" can both fire startNextRound if they race.
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
+  if (!room.game) return;
   room.cancelRoundContinueWindow();
-  const nextResult = room.game!.startNextRound();
+  const nextResult = room.game.startNextRound();
   if (nextResult.type === 'game_over') {
     handleSetOver(io, room, roomManager, botManager, nextResult.winnerId);
     return;
@@ -164,7 +165,8 @@ function finalizeGameOver(
 ): void {
   room.gamePhase = GamePhase.GAME_OVER;
   broadcastGameReplay(io, room, winnerId);
-  const stats = room.game!.getGameStats();
+  if (!room.game) return;
+  const stats = room.game.getGameStats();
   // Compute rating changes for ranked games before emitting
   computeRatingChanges(room, winnerId).then(ratingChanges => {
     io.to(room.roomCode).emit('game:over', winnerId, stats, ratingChanges);
