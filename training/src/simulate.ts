@@ -4,7 +4,7 @@
  * CLI entry point for headless Bull 'Em game simulation.
  *
  * Usage:
- *   npx tsx training/src/simulate.ts --games 1000 --players 4
+ *   npm run simulate -w training -- --games 1000 --players 4
  *   npx tsx training/src/simulate.ts --games 500 --players 2 --max-cards 3 --difficulty hard
  */
 
@@ -83,6 +83,7 @@ function parseArgs(argv: string[]): {
 Bull 'Em Headless Game Simulator
 
 Usage:
+  npm run simulate -w training -- [options]
   npx tsx training/src/simulate.ts [options]
 
 Options:
@@ -94,7 +95,7 @@ Options:
   --help, -h              Show this help message
 
 Examples:
-  npx tsx training/src/simulate.ts --games 1000 --players 2
+  npm run simulate -w training -- --games 1000 --players 2
   npx tsx training/src/simulate.ts -g 5000 -p 6 -d normal
   npx tsx training/src/simulate.ts --games 100 --players 4 --max-cards 3
 `);

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "simulate": "node --import tsx src/simulate.ts"
+    "simulate": "tsx src/simulate.ts"
   },
   "dependencies": {
     "@bull-em/shared": "*"
