@@ -286,6 +286,37 @@ fly tokens create deploy -x 999999h  # add output as FLY_API_TOKEN secret
 fly deploy
 ```
 
+## Bot Evolution Strategy
+
+The bot system uses **evolved parameters as the universal baseline**. Every bot in the matrix derives from the evolved champion's parameters — there is no separate "Evolved" personality concept; instead, the evolved values ARE the default that all bots build on.
+
+### How It Works
+
+1. **`DEFAULT_BOT_PROFILE_CONFIG`** = exact evolved champion values (currently gen50, 61% win rate vs all lvl9 profiles)
+2. **Professor lvl9** gets the exact default values — it's the "textbook optimal" bot
+3. **Other personalities** deviate from the default only on 2-4 **signature parameters** that define their identity (e.g., Rock's low riskTolerance, Bluffer's low bullThreshold)
+4. **Non-signature parameters** use the evolved baseline directly
+5. **`UNSKILLED_CONFIG`** (level 1 baseline) is raised ~40% toward evolved — even easy bots play competently
+6. **Level scaling** lerps between `UNSKILLED_CONFIG` (lvl1) and personality's lvl9 config
+
+### After Each Evolution Run
+
+When a new evolution training finishes with better parameters:
+
+1. Update `DEFAULT_BOT_PROFILE_CONFIG` in `shared/src/botProfiles.ts` to the new champion's values
+2. Update the Evolved personality's config to match
+3. Review each personality's non-signature parameters and update them to the new baseline
+4. Signature parameters stay divergent — they define personality identity, not strength
+5. Optionally raise `UNSKILLED_CONFIG` if the new baseline shifts significantly
+
+### Why Not a Separate Evolved Personality?
+
+The evolved champion's parameters are the **best known strategy**. Making it a separate personality would mean 9 weaker bots + 1 strong bot. Instead, the evolved DNA flows into EVERY bot, making the entire matrix stronger. Personalities provide playstyle variety, not strength variation — strength comes from level (1-9), not personality choice.
+
+### Avoiding Homogeneity
+
+Personalities won't converge because each one keeps its **signature parameters** intentionally divergent from evolved. The non-signature parameters (which evolution showed don't differentiate playstyles much) get the optimal values. The result: all bots are strong, but they feel different to play against.
+
 ## Development Priorities
 
 1. ~~Core game engine (deck, deal, hand evaluation with custom rankings)~~ ✓
