@@ -78,7 +78,9 @@ function playerTypeFilter(filter: LeaderboardPlayerFilter): string {
       return `AND u.is_bot = true AND u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN}`;
     case 'all':
     default:
-      return '';
+      // Exclude orphaned/invalid bot rows (e.g., old heuristic bots at lvl9)
+      // while still showing all valid bots and all human players.
+      return `AND (u.is_bot = false OR u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})`;
   }
 }
 
@@ -222,6 +224,9 @@ async function getUserRank(
   const rating = ratingExpr(mode);
   const periodWhere = periodFilter(period);
 
+  // Exclude orphaned/invalid bot rows from rank calculation
+  const botFilter = `AND (u.is_bot = false OR u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})`;
+
   // First check if the user qualifies
   const userResult = await query<LeaderboardRow>(
     `SELECT
@@ -233,9 +238,11 @@ async function getUserRank(
        r.games_played,
        (SELECT COUNT(*) + 1
         FROM ratings r2
+        JOIN users u2 ON u2.id = r2.user_id
         WHERE r2.mode = $1
           AND r2.games_played >= ${MIN_GAMES}
           ${periodWhere}
+          AND (u2.is_bot = false OR u2.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})
           AND (${rating.replace(/r\./g, 'r2.')} > ${rating}
                OR (${rating.replace(/r\./g, 'r2.')} = ${rating} AND r2.games_played > r.games_played))
        ) AS rank
@@ -244,6 +251,7 @@ async function getUserRank(
      WHERE r.user_id = $2
        AND r.mode = $1
        AND r.games_played >= ${MIN_GAMES}
+       ${botFilter}
        ${periodWhere}`,
     [mode, userId],
   );
@@ -288,6 +296,9 @@ export async function getLeaderboardNearby(
   const offset = Math.max(0, userRank - 6); // 5 above + user = offset at rank-6
   const limit = 11; // 5 above + user + 5 below
 
+  // Exclude orphaned/invalid bot rows (same filter as 'all' mode in main leaderboard)
+  const botFilter = `AND (u.is_bot = false OR u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})`;
+
   const result = await query<LeaderboardRow>(
     `SELECT
        u.id AS user_id,
@@ -301,6 +312,7 @@ export async function getLeaderboardNearby(
      JOIN users u ON u.id = r.user_id
      WHERE r.mode = $1
        AND r.games_played >= ${MIN_GAMES}
+       ${botFilter}
      ORDER BY ${rating} DESC, r.games_played DESC
      LIMIT $2 OFFSET $3`,
     [mode, limit, offset],
