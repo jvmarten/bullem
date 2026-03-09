@@ -27,14 +27,16 @@ function parseArgs(argv: string[]): {
   strategyName: string | null;
 } {
   const args = argv.slice(2);
-  let iterations = 100_000;
+  let iterations = 500_000;
   // Weight multiplayer games more heavily — the info set space is larger
   // and multiplayer dynamics (bull/true voting chains) need more samples
   // to converge. 2P is well-served by fewer samples since it's simpler.
-  let players: number | number[] = [2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6]; // 3:1 multiplayer:heads-up ratio
+  // With coarsened abstraction (~5-10K info sets), 500K iterations gives
+  // ~50-100 visits per info set — enough for reasonable convergence.
+  let players: number | number[] = [2, 2, 3, 3, 4, 4, 5, 5, 6, 6]; // balanced distribution
   let maxCards = 5;
   let progressInterval = 1000;
-  let checkpointInterval = 50_000;
+  let checkpointInterval = 100_000;
   let resume = false;
   let checkpointFile: string | null = null;
   let strategyName: string | null = null;
@@ -128,12 +130,12 @@ Usage:
   npx tsx training/src/train.ts [options]
 
 Options:
-  --iterations, -i <n>       Number of self-play iterations (default: 100000)
+  --iterations, -i <n>       Number of self-play iterations (default: 500000)
   --players, -p <n|list>     Players per game: single number or comma-separated
                              (default: 2,3,4,5,6 — mixed training)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
   --progress <n>             Log progress every N iterations (default: 1000)
-  --checkpoint-interval <n>  Save checkpoint every N iterations (default: 50000)
+  --checkpoint-interval <n>  Save checkpoint every N iterations (default: 100000)
   --resume                   Resume from latest checkpoint
   --from-checkpoint <path>   Resume from a specific checkpoint file
   --strategy-name <name>     Custom name for the exported strategy file
