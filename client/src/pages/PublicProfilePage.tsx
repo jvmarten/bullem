@@ -6,6 +6,7 @@ import type { PlayerStatsResponse, UserRatings, PublicProfile, GameHistoryEntry 
 import { RankBadge } from '../components/RankBadge.js';
 import { avatarDisplay } from './ProfilePage.js';
 import { useAuth } from '../context/AuthContext.js';
+import { useGameContext } from '../context/GameContext.js';
 import { AdvancedStats } from '../components/AdvancedStats.js';
 
 const API_BASE = '';
@@ -164,7 +165,10 @@ interface ProfileData extends PublicProfile {
 
 export function PublicProfilePage() {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { createRoom, addBot, updateSettings, startGame } = useGameContext();
+  const [challenging, setChallenging] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
   const [ratings, setRatings] = useState<UserRatings | null>(null);
@@ -199,6 +203,31 @@ export function PublicProfilePage() {
   }, [userId]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  const handleChallenge = useCallback(async () => {
+    if (!profile || challenging) return;
+    setChallenging(true);
+    try {
+      const playerName = currentUser?.username ?? currentUser?.displayName ?? 'Player';
+      const avatar = currentUser?.avatar ?? null;
+      const roomCode = await createRoom(playerName, avatar);
+      // Configure for 1v1 Bo3 non-ranked
+      updateSettings({
+        maxCards: 5,
+        turnTimer: 60,
+        maxPlayers: 2,
+        bestOf: 3,
+      });
+      // Add the specific bot by name
+      await addBot(profile.displayName);
+      // Start the game — server will begin once it processes the event
+      startGame();
+      // Navigate to lobby which auto-transitions to game page on game:state
+      navigate(`/room/${roomCode}`);
+    } catch {
+      setChallenging(false);
+    }
+  }, [profile, challenging, currentUser, createRoom, addBot, updateSettings, startGame, navigate]);
 
   if (loading) {
     return (
@@ -300,6 +329,21 @@ export function PublicProfilePage() {
             <p className="text-[10px] mt-2 max-w-[280px] mx-auto" style={{ color: 'rgba(220,53,69,0.4)', lineHeight: '2' }}>
               {zalgoify('Perfect play. Cannot be beaten by strategy alone.', 2)}
             </p>
+            <button
+              onClick={handleChallenge}
+              disabled={challenging}
+              className="mt-3 px-6 py-2 rounded-lg font-semibold text-sm transition-all min-h-[44px] min-w-[44px]"
+              style={{
+                background: challenging ? 'rgba(0,0,0,0.4)' : 'rgba(220,53,69,0.8)',
+                color: challenging ? 'rgba(220,53,69,0.4)' : '#1a1a2e',
+                border: '1px solid rgba(220,53,69,0.6)',
+                cursor: challenging ? 'not-allowed' : 'pointer',
+                opacity: challenging ? 0.6 : 1,
+                fontFamily: 'monospace',
+              }}
+            >
+              {challenging ? zalgoify('Preparing...', 2) : zalgoify('Challenge (Bo3)', 2)}
+            </button>
           </div>
 
           {/* Corrupted ratings */}
@@ -451,6 +495,19 @@ export function PublicProfilePage() {
               <p className="text-[10px] text-[var(--gold-dim)] mt-0.5 max-w-[280px] mx-auto">
                 {botInfo.personality}
               </p>
+              <button
+                onClick={handleChallenge}
+                disabled={challenging}
+                className="mt-3 px-6 py-2 rounded-lg font-semibold text-sm transition-all min-h-[44px] min-w-[44px]"
+                style={{
+                  background: challenging ? 'rgba(255,255,255,0.05)' : 'var(--gold)',
+                  color: challenging ? 'var(--gold-dim)' : '#1a1a2e',
+                  opacity: challenging ? 0.6 : 1,
+                  cursor: challenging ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {challenging ? 'Setting up...' : 'Challenge (Bo3)'}
+              </button>
             </>
           )}
           {!profile.isBot && (
