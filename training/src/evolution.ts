@@ -91,25 +91,29 @@ export interface EvolutionResult {
 
 // ── Parameter bounds ───────────────────────────────────────────────────
 
-/** Min/max bounds for each parameter to keep values sensible during mutation. */
-const PARAM_BOUNDS: Record<keyof BotProfileConfig, { min: number; max: number }> = {
-  bluffFrequency:       { min: 0.0, max: 2.0 },
-  bullThreshold:        { min: 0.0, max: 1.0 },
-  riskTolerance:        { min: 0.0, max: 1.0 },
-  aggressionBias:       { min: 0.0, max: 1.0 },
-  lastChanceBluffRate:  { min: 0.0, max: 1.0 },
-  openingBluffRate:     { min: 0.0, max: 1.0 },
-  bullPhaseRaiseRate:   { min: 0.0, max: 1.0 },
-  trustMultiplier:      { min: 0.0, max: 2.0 },
-  bluffPlausibilityGate:{ min: 0.0, max: 1.0 },
-  noiseBand:            { min: 0.0, max: 0.2 },
-  cardCountBluffAdjust: { min: 0.0, max: 2.0 },
-  cardCountBullAdjust:  { min: 0.0, max: 2.0 },
-  headsUpAggression:    { min: 0.0, max: 1.0 },
-  survivalPressure:     { min: 0.0, max: 1.0 },
-  bluffTargetSelection: { min: 0.0, max: 1.0 },
-  positionAwareness:    { min: 0.0, max: 1.0 },
-  trueCallConfidence:   { min: 0.0, max: 1.0 },
+/** Min/max bounds and mutation impact weight for each parameter.
+ *  Impact weight (0.0–1.0) controls how much mutation budget this parameter gets.
+ *  High-impact params (bluffFrequency, bullThreshold) get larger mutations;
+ *  low-impact params get smaller mutations. This prevents the search space from
+ *  being dominated by low-impact dimensions. */
+const PARAM_BOUNDS: Record<keyof BotProfileConfig, { min: number; max: number; impact: number }> = {
+  bluffFrequency:           { min: 0.0, max: 2.0, impact: 1.0 },
+  bullThreshold:            { min: 0.0, max: 1.0, impact: 1.0 },
+  riskTolerance:            { min: 0.0, max: 1.0, impact: 0.8 },
+  aggressionBias:           { min: 0.0, max: 1.0, impact: 0.9 },
+  lastChanceBluffRate:      { min: 0.0, max: 1.0, impact: 0.5 },
+  openingBluffRate:         { min: 0.0, max: 1.0, impact: 0.7 },
+  bullPhaseRaiseRate:       { min: 0.0, max: 1.0, impact: 0.6 },
+  trustMultiplier:          { min: 0.0, max: 2.0, impact: 0.7 },
+  cardCountSensitivity:     { min: 0.0, max: 2.0, impact: 0.4 },
+  headsUpAggression:        { min: 0.0, max: 1.0, impact: 0.8 },
+  survivalPressure:         { min: 0.0, max: 1.0, impact: 0.7 },
+  bluffTargetSelection:     { min: 0.0, max: 1.0, impact: 0.5 },
+  positionAwareness:        { min: 0.0, max: 1.0, impact: 0.6 },
+  trueCallConfidence:       { min: 0.0, max: 1.0, impact: 0.6 },
+  counterBluffRate:         { min: 0.0, max: 1.0, impact: 0.8 },
+  bullPhaseBluffRate:       { min: 0.0, max: 1.0, impact: 0.6 },
+  openingHandTypePreference:{ min: 0.0, max: 1.0, impact: 0.5 },
 };
 
 const PARAM_KEYS = Object.keys(PARAM_BOUNDS) as (keyof BotProfileConfig)[];
@@ -137,7 +141,9 @@ function randomConfig(): BotProfileConfig {
   return config as BotProfileConfig;
 }
 
-/** Mutate a config by nudging each parameter with some probability. */
+/** Mutate a config by nudging each parameter with impact-weighted probability.
+ *  High-impact parameters get larger mutations (proportional to their impact weight).
+ *  This prevents the search from wasting budget on low-impact dimensions. */
 function mutateConfig(
   config: BotProfileConfig,
   mutationStrength: number,
@@ -146,21 +152,62 @@ function mutateConfig(
   const mutated = { ...config };
   for (const key of PARAM_KEYS) {
     if (Math.random() < mutationRate) {
-      const { min, max } = PARAM_BOUNDS[key];
+      const { min, max, impact } = PARAM_BOUNDS[key];
       const range = max - min;
-      const delta = (Math.random() * 2 - 1) * mutationStrength * range;
+      // Scale mutation magnitude by impact weight: high-impact params get full mutation,
+      // low-impact params get reduced mutation (but never zero)
+      const effectiveStrength = mutationStrength * (0.3 + 0.7 * impact);
+      const delta = (Math.random() * 2 - 1) * effectiveStrength * range;
       mutated[key] = clampParam(key, mutated[key] + delta);
     }
   }
   return mutated;
 }
 
-/** Crossover two parent configs — uniform crossover picking each param from either parent. */
+/**
+ * Coupled parameter groups — parameters that interact strongly should be
+ * inherited together from the same parent to preserve learned interactions.
+ * Within each group, all params come from the same parent (70% of the time).
+ */
+const COUPLED_PARAM_GROUPS: (keyof BotProfileConfig)[][] = [
+  ['bluffFrequency', 'aggressionBias', 'counterBluffRate'],  // Bluff aggression cluster
+  ['bullThreshold', 'trueCallConfidence', 'cardCountSensitivity'], // Defensiveness cluster
+  ['riskTolerance', 'bluffTargetSelection', 'bullPhaseBluffRate'], // Risk-taking cluster
+  ['survivalPressure', 'headsUpAggression', 'lastChanceBluffRate'], // Game-state awareness cluster
+];
+
+/** Crossover two parent configs — coupled-aware crossover.
+ *  Parameters in the same coupling group inherit from the same parent 70% of the time
+ *  to preserve learned parameter interactions. Uncoupled params use uniform crossover. */
 function crossover(a: BotProfileConfig, b: BotProfileConfig): BotProfileConfig {
   const child = {} as Record<keyof BotProfileConfig, number>;
-  for (const key of PARAM_KEYS) {
-    child[key] = Math.random() < 0.5 ? a[key] : b[key];
+  const assigned = new Set<keyof BotProfileConfig>();
+
+  // Coupled groups: same parent for the whole group (70%) or independent (30%)
+  for (const group of COUPLED_PARAM_GROUPS) {
+    if (Math.random() < 0.7) {
+      // Pick one parent for the entire group
+      const parent = Math.random() < 0.5 ? a : b;
+      for (const key of group) {
+        child[key] = parent[key];
+        assigned.add(key);
+      }
+    } else {
+      // Independent crossover within this group
+      for (const key of group) {
+        child[key] = Math.random() < 0.5 ? a[key] : b[key];
+        assigned.add(key);
+      }
+    }
   }
+
+  // Remaining uncoupled parameters: uniform crossover
+  for (const key of PARAM_KEYS) {
+    if (!assigned.has(key)) {
+      child[key] = Math.random() < 0.5 ? a[key] : b[key];
+    }
+  }
+
   return child as BotProfileConfig;
 }
 

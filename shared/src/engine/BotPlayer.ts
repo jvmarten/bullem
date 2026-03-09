@@ -276,12 +276,19 @@ export class BotPlayer {
     return this.getScopedMemory(scope);
   }
 
+  /** Fixed noise band for bull/true threshold decisions. Small enough to prevent
+   *  perfect exploitability without being a meaningful strategic dimension. */
+  private static readonly FIXED_NOISE_BAND = 0.03;
+
+  /** Fixed plausibility gate for bluff hands. Safety check — not strategic. */
+  private static readonly FIXED_BLUFF_PLAUSIBILITY_GATE = 0.15;
+
   /**
    * Get truthfulness adjustment for a specific player based on memory.
-   * Returns a multiplier (0..1) for the truthfulness boost.
-   * 1.0 = full trust, 0.5 = reduced trust, 0.0 = no trust.
+   * Returns a continuous multiplier (0..1) for the truthfulness boost.
    *
-   * Enhanced: also factors in desperation bluff rate and escalation tendencies.
+   * Uses fine-grained trust calculation instead of coarse 0/0.5/1.0 buckets,
+   * making the trustMultiplier personality parameter more impactful.
    */
   private static getPlayerTrustFactor(
     playerId: string | null,
@@ -294,11 +301,17 @@ export class BotPlayer {
 
     const bluffRate = profile.bluffsCaught / profile.totalCalls;
 
-    // Base trust from overall bluff rate
-    let trust: number;
-    if (bluffRate > 0.5) trust = 0.0;
-    else if (bluffRate > 0.3) trust = 0.5;
-    else trust = 1.0;
+    // Continuous trust from bluff rate: linear interpolation from 1.0 (0% bluffs) to 0.0 (60%+ bluffs).
+    // This gives trustMultiplier more granular material to work with than coarse buckets.
+    let trust = Math.max(0, 1.0 - bluffRate * 1.67);
+
+    // Factor in bull-call accuracy: opponents who correctly call bull often
+    // are more trustworthy (they understand the game well, less likely to bluff)
+    if (profile.bullCallsMade >= 3) {
+      const bullAccuracy = profile.correctBulls / profile.bullCallsMade;
+      // Good bull accuracy = skilled player = slightly more trustworthy when calling
+      trust += (bullAccuracy - 0.5) * 0.15;
+    }
 
     // Adjust trust based on desperation behavior patterns:
     // If this player bluffs more when desperate and they ARE currently desperate, reduce trust further.
@@ -739,16 +752,19 @@ export class BotPlayer {
       return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
     });
 
-    // If we have actual pairs+, sometimes open with those (strong hands worth playing)
+    // If we have actual pairs+, decide whether to open with them based on openingHandTypePreference.
+    // High preference = open with pairs+ more often. Low = prefer hiding info with high card bluffs.
     if (truthfulCandidates.length > 0) {
-      // With strong hands (pair+), open truthfully most of the time
+      // With strong hands (pair+) and many cards, open truthfully most of the time
       if (totalCards >= 10) {
         const upperStart = Math.floor(truthfulCandidates.length / 2);
         const idx = upperStart + Math.floor(Math.random() * (truthfulCandidates.length - upperStart));
         return { action: 'call', hand: truthfulCandidates[Math.min(idx, truthfulCandidates.length - 1)]! };
       }
-      // Even with a pair, sometimes bluff a high card instead to hide info
-      if (Math.random() < 0.3 && highCardPool.length > 0) {
+      // openingHandTypePreference controls pair vs high card split:
+      // Low (0.0) = 60% high card bluff, high (1.0) = always pair+
+      const highCardBluffChance = Math.max(0, 0.6 - cfg.openingHandTypePreference * 0.6);
+      if (Math.random() < highCardBluffChance && highCardPool.length > 0) {
         const pick = highCardPool[Math.floor(Math.random() * highCardPool.length)]!;
         if (botId) this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: pick } };
@@ -767,7 +783,7 @@ export class BotPlayer {
       // Bluff a pair or higher hand type we don't fully hold
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
-      if (bluffP > cfg.bluffPlausibilityGate) {
+      if (bluffP > this.FIXED_BLUFF_PLAUSIBILITY_GATE) {
         if (botId) this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
       }
@@ -931,13 +947,13 @@ export class BotPlayer {
       ? cfg.aggressionBias + (1.0 - cfg.aggressionBias) * cfg.headsUpAggression
       : cfg.aggressionBias;
 
-    // Card count bluff adjustment: scale bluff frequency by card count
-    // Higher card count (more cards held) amplifies the adjustment
-    const cardCountBluffMult = 1.0 + (cfg.cardCountBluffAdjust - 1.0) * Math.min(1.0, (cardCount - 1) / 3);
+    // Card count sensitivity: unified scaling for both bluff and bull adjustments.
+    // Higher sensitivity = more reactive to card counts in both directions.
+    const cardCountScale = Math.min(1.0, (cardCount - 1) / 3);
+    const cardCountBluffMult = 1.0 + (cfg.cardCountSensitivity - 1.0) * cardCountScale;
+    const cardCountBullOffset = (cfg.cardCountSensitivity - 1.0) * 0.08 * cardCountScale;
 
     // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
-    // cardCountBullAdjust shifts the threshold based on card count
-    const cardCountBullOffset = (cfg.cardCountBullAdjust - 1.0) * 0.08 * Math.min(1.0, (cardCount - 1) / 3);
     const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2 - cardCountBullOffset;
 
     // ── Late position branch: 4+ calls before us = rich information ──
@@ -957,6 +973,21 @@ export class BotPlayer {
       if (adjustedP < confidentBullThreshold && !desperate) {
         this.recordSelfAction(scope, botId, false);
         return { action: 'bull' };
+      }
+    }
+
+    // ── Counter-bluff: raise over a suspected bluff instead of calling bull ──
+    // This exploits opponents who reflexively call bull. If we think the hand is
+    // fake (adjustedP < threshold) but have counterBluffRate will, raise over it.
+    // riskTolerance scales the willingness to take this calculated risk.
+    if (adjustedP < confidentBullThreshold + 0.1 && !higher) {
+      const counterBluffChance = cfg.counterBluffRate * cfg.riskTolerance * effectiveAggression;
+      if (Math.random() < counterBluffChance) {
+        const counterRaise = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
+        if (counterRaise) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: counterRaise };
+        }
       }
     }
 
@@ -985,10 +1016,11 @@ export class BotPlayer {
 
     // No legitimate hand — decide whether to bluff raise or call bull.
     // Table image and early-round bonus adjust bluff frequency.
-    // cardCountBluffMult scales bluffing based on card count.
+    // riskTolerance now scales the overall bluff willingness (was underused before).
     const tableImageAdj = scope ? this.getTableImageBluffAdjustment(scope, botId) : 0;
     const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.05); // Bluff more with fewer total cards
-    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency * cardCountBluffMult + tableImageAdj + earlyBluffBonus);
+    const riskScale = 0.5 + cfg.riskTolerance * 0.5; // 0.5 at riskTolerance=0, 1.0 at riskTolerance=1
+    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency * cardCountBluffMult * riskScale + tableImageAdj + earlyBluffBonus);
 
     if (adjustedP > 0.45) {
       // Hand is probably real — bluff raise to avoid a bull penalty
@@ -1251,7 +1283,7 @@ export class BotPlayer {
       return this.bullPhaseDesperationBranch(adjustedP, currentHand, botCards, totalCards, cardCount, botId, cfg, scope, ctx);
     }
 
-    // Consider raising in bull phase — only with a legitimate higher hand
+    // Consider raising in bull phase — with a legitimate higher hand
     // headsUpAggression boosts raise rate in 1v1 situations
     const higherHand = this.findHandHigherThanFull(botCards, currentHand, totalCards);
     if (higherHand) {
@@ -1267,12 +1299,26 @@ export class BotPlayer {
       }
     }
 
+    // ── Bull phase bluff-raise: raise without a legit hand to signal confidence ──
+    // This is a new strategic dimension — humans do this to disrupt bull phase dynamics.
+    // riskTolerance gates the willingness to attempt this risky play.
+    if (!higherHand && cfg.bullPhaseBluffRate > 0 && adjustedP > 0.2) {
+      const bluffRaiseChance = cfg.bullPhaseBluffRate * cfg.riskTolerance;
+      if (Math.random() < bluffRaiseChance) {
+        const bluffRaise = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
+        if (bluffRaise) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluffRaise };
+        }
+      }
+    }
+
     // Asymmetric cost-aware threshold based on card count, shifted by profile bullThreshold
-    // cardCountBullAdjust: >1.0 = more suspicious (lower threshold) at high card counts
-    const bullCardCountOffset = (cfg.cardCountBullAdjust - 1.0) * 0.08 * Math.min(1.0, (cardCount - 1) / 3);
+    // cardCountSensitivity: >1.0 = more suspicious (lower threshold) at high card counts
+    const bullCardCountOffset = (cfg.cardCountSensitivity - 1.0) * 0.08 * Math.min(1.0, (cardCount - 1) / 3);
     const baseThreshold = this.getDynamicBullThreshold(cardCount);
     const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15 - bullCardCountOffset;
-    const noise = cfg.noiseBand;
+    const noise = this.FIXED_NOISE_BAND;
 
     if (adjustedP > threshold + noise) {
       // trueCallConfidence: higher = more eager to lock in true calls
@@ -1353,7 +1399,7 @@ export class BotPlayer {
     ctx: SituationalContext,
   ): BotAction {
     // When 1 card from elimination, reduce noise band — be more decisive
-    const desperateNoise = ctx.botOneBehind ? cfg.noiseBand * 0.3 : cfg.noiseBand * 0.6;
+    const desperateNoise = ctx.botOneBehind ? this.FIXED_NOISE_BAND * 0.3 : this.FIXED_NOISE_BAND * 0.6;
 
     // Consider raising to redirect pressure — desperate bots should raise
     // more often to avoid being the one who gets penalized for bull/true.
