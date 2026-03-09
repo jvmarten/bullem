@@ -166,7 +166,7 @@ interface MatchupDef {
 
 const matchups: MatchupDef[] = [
   { name: 'Heads-up (2P)', description: '1 Evolved vs 1 random profile', playerCount: 2 },
-  { name: '4-Player', description: '1 Evolved vs 3 random profiles', playerCount: 4 },
+  { name: '6-Player', description: '1 Evolved vs 5 random profiles', playerCount: 6 },
 ];
 
 // ── Run evaluations ─────────────────────────────────────────────────────

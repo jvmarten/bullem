@@ -150,7 +150,7 @@ function createMixedStrategy(cfrBotIds: Set<string>): BotStrategy {
 
 const matchups: MatchupDef[] = [
   { name: 'Heads-up (2P)', description: '1 CFR vs 1 random profile', playerCount: 2 },
-  { name: '4-Player', description: '1 CFR vs 3 random profiles', playerCount: 4 },
+  { name: '6-Player', description: '1 CFR vs 5 random profiles', playerCount: 6 },
 ];
 
 // ── Run evaluations ─────────────────────────────────────────────────────
