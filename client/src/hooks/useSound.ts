@@ -73,6 +73,7 @@ export function useGameSounds(
   roundResult: RoundResult | null,
   winnerId: PlayerId | null,
   playerId: string | null,
+  isSpectator = false,
 ) {
   const { play } = useSound();
   // Use -1 as sentinel: "not yet initialized from game state". On the first
@@ -132,9 +133,11 @@ export function useGameSounds(
   }, [historyLen, play, playerId]);
 
   // React to new round starting (card deal).
-  // Track roundNumber changes but defer the sound until the round result overlay
-  // has been dismissed, so the deal sound plays when the new round is visually
-  // starting — not when the previous round's result is still on screen.
+  // For active players: defer the sound until the round result overlay is
+  // dismissed, so the deal sound plays when the new round is visually starting.
+  // For spectators: play immediately when roundNumber changes — this is when the
+  // server actually started the round, serving as an audio cue even if the
+  // spectator is still viewing the round result screen.
   const roundNumber = gameState?.roundNumber ?? 0;
   const pendingDealSoundRef = useRef(false);
 
@@ -145,18 +148,23 @@ export function useGameSounds(
       return;
     }
     if (roundNumber > prevRoundNumberRef.current) {
-      if (roundResult) {
-        // Result overlay is showing — defer the sound until it's dismissed
-        // so the deal sound plays when the new round is visually starting
+      if (isSpectator) {
+        // Spectators hear the sound immediately when the round actually starts,
+        // giving them an audio cue even if the result overlay is still showing
+        play('cardDeal');
+      } else if (roundResult) {
+        // Active player: result overlay is showing — defer the sound until
+        // it's dismissed so the deal sound plays when the new round is visually starting
         pendingDealSoundRef.current = true;
       } else {
         play('cardDeal');
       }
     }
     prevRoundNumberRef.current = roundNumber;
-  }, [roundNumber, play, roundResult]);
+  }, [roundNumber, play, roundResult, isSpectator]);
 
   // Play deferred card deal sound when round result overlay is dismissed
+  // (active players only — spectators already played immediately)
   useEffect(() => {
     if (!roundResult && pendingDealSoundRef.current) {
       pendingDealSoundRef.current = false;
