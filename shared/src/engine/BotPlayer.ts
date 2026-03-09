@@ -320,52 +320,50 @@ export class BotPlayer {
       return { action: 'lastChancePass' };
     }
 
-    // Opening call — no current hand
-    // Bluff more in early rounds (few cards = harder to disprove).
-    // Base 25% bluff + significant early round bonus.
+    // Opening call — no current hand.
+    // Human players almost never call the high card rank they hold — it reveals
+    // info. Bots should open with ranks they DON'T have, or bluff stronger hands.
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const bestHand = this.findBestHandInCards(botCards);
-      if (!bestHand) {
-        return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
+      // If we have a pair+, open with it (strong enough to not care about info leak)
+      if (bestHand && bestHand.type >= HandType.PAIR) {
+        return { action: 'call', hand: bestHand };
       }
-      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.06); // +0.06 per card below 8
+
+      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.06);
       if (Math.random() < 0.25 + earlyBluffBonus) {
-        // In early rounds, prefer semi-bluff pairs (claim pair of rank we hold one of)
-        if (totalCards < 8 && Math.random() < 0.5) {
-          const rankCounts = this.getRankCounts(botCards);
-          const semiBluffs: Rank[] = [];
-          for (const [rank, count] of rankCounts) {
-            if (count === 1) semiBluffs.push(rank);
-          }
-          if (semiBluffs.length > 0) {
-            // Pick a higher-ranked semi-bluff pair
-            semiBluffs.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
-            const rank = semiBluffs[Math.floor(Math.random() * Math.min(3, semiBluffs.length))]!;
-            return { action: 'call', hand: { type: HandType.PAIR, rank } };
-          }
-        }
-        // 40% chance to bluff a high card we don't hold, 60% normal bluff (one type above)
-        if (Math.random() < 0.4) {
-          const heldRanks = new Set(botCards.map(c => c.rank));
-          const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10);
-          if (bluffRanks.length > 0) {
-            const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
-            return { action: 'call', hand: { type: HandType.HIGH_CARD, rank } };
-          }
-        }
-        const bluff = this.makeNormalBluff(botCards, bestHand);
+        // Bluff a pair or other hand type we don't hold
+        const bluff = this.makeNormalBluff(botCards, bestHand ?? { type: HandType.HIGH_CARD, rank: '2' });
         return { action: 'call', hand: bluff };
       }
-      return { action: 'call', hand: bestHand };
+
+      // Default: open with a high card we DON'T hold (hide our actual cards)
+      const heldRanks = new Set(botCards.map(c => c.rank));
+      const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 8);
+      if (bluffRanks.length > 0) {
+        const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
+        return { action: 'call', hand: { type: HandType.HIGH_CARD, rank } };
+      }
+      // Fallback if we somehow hold all high ranks
+      return { action: 'call', hand: bestHand ?? { type: HandType.HIGH_CARD, rank: 'A' } };
     }
 
     // Raising in calling phase
-    // Has a legitimate higher hand → raise 80%, call bull 20%.
-    // No legitimate raise → bluff raise (higher rate in early rounds), else call bull.
     if (roundPhase === RoundPhase.CALLING && currentHand) {
       // Check if hand is mathematically impossible — always bull
       const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
       if (p < 0.01) return { action: 'bull' };
+
+      // If current call is a high card, try bluffing a higher high card rank we
+      // don't hold before revealing our actual cards via a pair call.
+      if (currentHand.type === HandType.HIGH_CARD) {
+        const bluffHigher = this.findBluffHighCardAbove(botCards, currentHand.rank!);
+        if (bluffHigher) {
+          return Math.random() < 0.80
+            ? { action: 'call', hand: bluffHigher }
+            : { action: 'bull' };
+        }
+      }
 
       const higher = this.findHandHigherThanSimple(botCards, currentHand);
       if (higher) {
@@ -422,22 +420,23 @@ export class BotPlayer {
    * using a rank it actually holds. E.g., holds King high → bluff "pair of Kings."
    */
   private static makeNormalBluff(botCards: Card[], bestHand: HandCall): HandCall {
-    let highestRank: Rank = botCards[0]?.rank ?? '2';
-    for (const c of botCards) {
-      if (RANK_VALUES[c.rank] > RANK_VALUES[highestRank]) {
-        highestRank = c.rank;
-      }
-    }
+    // Pick a bluff rank we DON'T hold — avoids revealing our actual cards.
+    // Use a mid-to-high rank (7-K) so the bluff is believable but not suspicious.
+    const heldRanks = new Set(botCards.map(c => c.rank));
+    const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 7 && RANK_VALUES[r] <= 13);
+    const bluffRank = bluffRanks.length > 0
+      ? bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!
+      : (botCards[0]?.rank ?? '2');
 
     switch (bestHand.type) {
       case HandType.HIGH_CARD:
-        return { type: HandType.PAIR, rank: highestRank };
+        return { type: HandType.PAIR, rank: bluffRank };
       case HandType.PAIR:
-        return { type: HandType.THREE_OF_A_KIND, rank: highestRank };
+        return { type: HandType.THREE_OF_A_KIND, rank: bluffRank };
       case HandType.THREE_OF_A_KIND:
-        return { type: HandType.FOUR_OF_A_KIND, rank: highestRank };
+        return { type: HandType.FOUR_OF_A_KIND, rank: bluffRank };
       default:
-        return { type: HandType.PAIR, rank: highestRank };
+        return { type: HandType.PAIR, rank: bluffRank };
     }
   }
 
@@ -790,19 +789,17 @@ export class BotPlayer {
    * - Table image: adjust bluff frequency based on bot's own recent history.
    */
   private static handleHardOpening(botCards: Card[], totalCards: number, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG, botDesperate: boolean = false, scope?: string, botId?: string): BotAction {
-    const candidates: HandCall[] = [];
     const rankCounts = this.getRankCounts(botCards);
+    const heldRanks = new Set(botCards.map(c => c.rank));
 
-    // All high cards we have
-    for (const c of botCards) {
-      candidates.push({ type: HandType.HIGH_CARD, rank: c.rank });
-    }
+    // Build truthful candidates (hands we literally hold) — used for pairs+
+    // where revealing the rank is unavoidable and the hand type itself is strong.
+    const truthfulCandidates: HandCall[] = [];
 
     // Pairs we have
     for (const [rank, count] of rankCounts) {
-      if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
+      if (count >= 2) truthfulCandidates.push({ type: HandType.PAIR, rank });
     }
-
     // Two pairs we have
     const pairRanks: Rank[] = [];
     for (const [rank, count] of rankCounts) {
@@ -812,105 +809,104 @@ export class BotPlayer {
       pairRanks.sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
       for (let i = 0; i < pairRanks.length; i++) {
         for (let j = i + 1; j < pairRanks.length; j++) {
-          candidates.push({ type: HandType.TWO_PAIR, highRank: pairRanks[i]!, lowRank: pairRanks[j]! });
+          truthfulCandidates.push({ type: HandType.TWO_PAIR, highRank: pairRanks[i]!, lowRank: pairRanks[j]! });
         }
       }
     }
-
     // Three of a kind
     for (const [rank, count] of rankCounts) {
-      if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
+      if (count >= 3) truthfulCandidates.push({ type: HandType.THREE_OF_A_KIND, rank });
     }
 
-    // Semi-bluff candidates: pairs of ranks we hold one of. In early rounds
-    // with few total cards, claiming "pair of Kings" when you hold one King is
-    // a common and hard-to-disprove play — opponents can't see your card.
-    const semiBluffPairs: HandCall[] = [];
-    for (const [rank, count] of rankCounts) {
-      if (count === 1) semiBluffPairs.push({ type: HandType.PAIR, rank });
-    }
+    // For high card openings, human players almost never call the rank they
+    // actually hold — doing so gives away free information. Instead, they call
+    // a rank they don't have (typically a high one). Bots should do the same:
+    // pick from ranks we DON'T hold, biased toward higher values.
+    const highCardPool = this.buildHighCardOpeningPool(botCards);
 
-    // Sort by hand strength (lowest first)
-    candidates.sort((a, b) => {
+    // Sort truthful candidates by hand strength (lowest first)
+    truthfulCandidates.sort((a, b) => {
       if (a.type !== b.type) return a.type - b.type;
       return this.getHandPrimaryRank(a) - this.getHandPrimaryRank(b);
     });
 
-    if (candidates.length === 0) {
-      return { action: 'call', hand: this.makeBluffHandHard(null, totalCards) };
+    // If we have actual pairs+, sometimes open with those (strong hands worth playing)
+    if (truthfulCandidates.length > 0) {
+      // With strong hands (pair+), open truthfully most of the time
+      if (totalCards >= 10) {
+        const upperStart = Math.floor(truthfulCandidates.length / 2);
+        const idx = upperStart + Math.floor(Math.random() * (truthfulCandidates.length - upperStart));
+        return { action: 'call', hand: truthfulCandidates[Math.min(idx, truthfulCandidates.length - 1)]! };
+      }
+      // Even with a pair, sometimes bluff a high card instead to hide info
+      if (Math.random() < 0.3 && highCardPool.length > 0) {
+        const pick = highCardPool[Math.floor(Math.random() * highCardPool.length)]!;
+        if (botId) this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: pick } };
+      }
+      const idx = Math.floor(Math.random() * truthfulCandidates.length);
+      return { action: 'call', hand: truthfulCandidates[idx]! };
     }
 
+    // No pairs+ in hand — we're opening with a high card call.
     // Strategic bluff opening — table image adjusts bluff frequency.
-    // Boost bluff rate significantly in early rounds (few total cards = harder to disprove).
     const tableImageAdj = botId ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.06); // +0.06 per card below 8
+    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.06);
     const effectiveBluffRate = Math.max(0, Math.min(0.75, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
+
     if (Math.random() < effectiveBluffRate) {
-      // In early rounds, prefer semi-bluff pairs (claim pair of a rank we hold one of)
-      // — this is the most natural and common bluff in card games
-      if (totalCards < 8 && semiBluffPairs.length > 0 && Math.random() < 0.55) {
-        // Prefer higher-ranked semi-bluff pairs (more intimidating opener)
-        semiBluffPairs.sort((a, b) => this.getHandPrimaryRank(b) - this.getHandPrimaryRank(a));
-        // Pick from top half of semi-bluff pairs
-        const pickIdx = Math.floor(Math.random() * Math.min(3, semiBluffPairs.length));
-        const semiBluff = semiBluffPairs[pickIdx]!;
-        if (botId) this.recordSelfAction(scope, botId, true);
-        return { action: 'call', hand: semiBluff };
-      }
-      // Try a high card bluff (call a rank we don't hold) — common in real play
-      if (totalCards < 8 && Math.random() < 0.4) {
-        // Bluff a high card rank we don't hold
-        const heldRanks = new Set(botCards.map(c => c.rank));
-        const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10); // 10, J, Q, K, A
-        if (bluffRanks.length > 0) {
-          const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
-          const bluff: HandCall = { type: HandType.HIGH_CARD, rank };
-          if (botId) this.recordSelfAction(scope, botId, true);
-          return { action: 'call', hand: bluff };
-        }
-      }
+      // Bluff a pair or higher hand type we don't fully hold
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
       if (bluffP > cfg.bluffPlausibilityGate) {
         if (botId) this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
       }
-      // Bluff not plausible enough — fall through to truthful opening
     }
 
-    // When desperate, open with higher hands to make them harder to challenge
-    if (botDesperate && candidates.length > 1) {
-      // Pick from upper range of truthful candidates
-      const upperStart = Math.max(0, candidates.length - Math.ceil(candidates.length * 0.4));
-      const idx = upperStart + Math.floor(Math.random() * (candidates.length - upperStart));
+    // Default: open with a high card we DON'T hold (like humans do).
+    // This hides what card we actually have while still making a reasonable call.
+    if (highCardPool.length > 0) {
+      const pick = highCardPool[Math.floor(Math.random() * highCardPool.length)]!;
       if (botId) this.recordSelfAction(scope, botId, false);
-      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)]! };
+      return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: pick } };
     }
 
-    if (totalCards >= 10) {
-      // Many cards: open with upper half of truthful candidates (mid-range)
-      const upperStart = Math.floor(candidates.length / 2);
-      const idx = upperStart + Math.floor(Math.random() * (candidates.length - upperStart));
-      return { action: 'call', hand: candidates[Math.min(idx, candidates.length - 1)]! };
-    }
+    // Fallback: we hold all high ranks somehow — call one we have (rare edge case)
+    const bestRank = botCards.reduce((best, c) =>
+      RANK_VALUES[c.rank] > RANK_VALUES[best] ? c.rank : best, botCards[0]!.rank);
+    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: bestRank } };
+  }
 
-    if (totalCards < 6) {
-      // Few cards: semi-bluff a pair 30% of the time instead of always playing truthfully
-      if (semiBluffPairs.length > 0 && Math.random() < 0.30) {
-        const pick = semiBluffPairs[Math.floor(Math.random() * semiBluffPairs.length)]!;
-        if (botId) this.recordSelfAction(scope, botId, true);
-        return { action: 'call', hand: pick };
-      }
-      // Otherwise open conservatively with the lowest truthful hand
-      return { action: 'call', hand: candidates[0]! };
-    }
+  /**
+   * Build a pool of high card ranks the bot does NOT hold, suitable for opening.
+   * Humans rarely call the rank they actually have — it gives away information.
+   * Returns ranks sorted by value (highest first), biased toward 8+ values.
+   */
+  private static buildHighCardOpeningPool(botCards: Card[]): Rank[] {
+    const heldRanks = new Set(botCards.map(c => c.rank));
+    // Prefer ranks 8+ that we don't hold — these are believable openers
+    const pool = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 8);
+    if (pool.length > 0) return pool;
+    // Fallback: any rank we don't hold
+    return ALL_RANKS.filter(r => !heldRanks.has(r));
+  }
 
-    // Medium card count: weighted random biased toward lower half
-    const idx = Math.min(
-      Math.floor(Math.random() * Math.random() * candidates.length),
-      candidates.length - 1,
-    );
-    return { action: 'call', hand: candidates[idx]! };
+  /**
+   * Find a bluff high card rank above the given rank that the bot does NOT hold.
+   * Human players raise high cards by calling ranks they don't have (e.g., if
+   * someone calls "10 high" and you have a 4, you'd bluff "J high" not "pair of 4s").
+   * Returns null if no suitable bluff rank exists.
+   */
+  private static findBluffHighCardAbove(botCards: Card[], currentRank: Rank): HandCall | null {
+    const heldRanks = new Set(botCards.map(c => c.rank));
+    const currentValue = RANK_VALUES[currentRank];
+    // Find ranks above current that we don't hold
+    const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] > currentValue);
+    if (bluffRanks.length === 0) return null;
+    // Pick randomly, biased toward lower valid ranks (more believable, leaves room)
+    const pick = bluffRanks[Math.floor(Math.random() * Math.random() * bluffRanks.length)]!;
+    return { type: HandType.HIGH_CARD, rank: pick };
   }
 
   /**
@@ -981,6 +977,17 @@ export class BotPlayer {
     if (adjustedP < confidentBullThreshold && !desperate) {
       this.recordSelfAction(scope, botId, false);
       return { action: 'bull' };
+    }
+
+    // If current call is a high card, prefer bluffing a higher rank we don't hold
+    // rather than jumping to pair (which reveals our cards). This is what humans do —
+    // e.g., if someone calls "10 high" and you have a 4, you'd call "J high" not "pair of 4s".
+    if (currentHand.type === HandType.HIGH_CARD && currentHand.rank) {
+      const bluffHighCard = this.findBluffHighCardAbove(botCards, currentHand.rank);
+      if (bluffHighCard) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: bluffHighCard };
+      }
     }
 
     // We have a legitimate higher hand — value raise
