@@ -109,7 +109,7 @@ function RatingHistoryChart({ entries }: { entries: RatingHistoryEntry[] }) {
                     color: '#d4af37',
                   }}>
                     <p>Game {data.index}</p>
-                    <p>Rating: {data.rating} ({sign}{data.delta})</p>
+                    <p>Rating: {Math.round(data.rating)} ({sign}{Math.round(data.delta)})</p>
                   </div>
                 );
               }}

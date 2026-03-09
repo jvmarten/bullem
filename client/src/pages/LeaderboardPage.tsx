@@ -342,7 +342,7 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
 
       {/* Rating */}
       <div className="w-16 text-right">
-        <span className="text-sm font-semibold text-[var(--gold)]">{entry.rating}</span>
+        <span className="text-sm font-semibold text-[var(--gold)]">{Math.round(entry.rating)}</span>
       </div>
     </button>
   );

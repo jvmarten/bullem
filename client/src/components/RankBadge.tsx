@@ -34,7 +34,7 @@ export function RankBadge({ rating, tier, showRating = false, size = 'sm' }: Ran
   return (
     <span
       className="inline-flex items-center gap-0.5 shrink-0"
-      title={`${config.label} — ${rating}`}
+      title={`${config.label} — ${Math.round(rating)}`}
     >
       <span
         style={{
@@ -55,7 +55,7 @@ export function RankBadge({ rating, tier, showRating = false, size = 'sm' }: Ran
             lineHeight: 1,
           }}
         >
-          {rating}
+          {Math.round(rating)}
         </span>
       )}
     </span>
@@ -79,7 +79,7 @@ export function RankBadgeLarge({ rating, tier }: { rating: number; tier?: RankTi
         {config.label}
       </span>
       <span style={{ color: config.color, fontSize: '11px', fontWeight: 400, opacity: 0.8, lineHeight: 1 }}>
-        {rating}
+        {Math.round(rating)}
       </span>
     </span>
   );
