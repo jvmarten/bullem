@@ -6,7 +6,7 @@ export type { HandFeatures } from './infoSet.js';
 
 export { mapAbstractToConcreteAction } from './actionMapper.js';
 
-export { createCFRTrainingStrategy, createCFREvaluationStrategy } from './cfrStrategy.js';
+export { createCFRTrainingStrategy, createCFREvaluationStrategy, createCompositeEvaluationStrategy } from './cfrStrategy.js';
 export type { DecisionRecord, EvaluationStats } from './cfrStrategy.js';
 
 export { trainCFR, resumeTraining } from './trainingLoop.js';
@@ -14,5 +14,6 @@ export type { TrainingConfig, TrainingResult, ProgressMetrics } from './training
 
 export {
   saveCheckpoint, loadCheckpoint, findLatestCheckpoint, listCheckpoints,
-  exportStrategy, loadStrategy, findLatestStrategy, listStrategies,
+  exportStrategy, exportStrategiesByPlayerCount,
+  loadStrategy, findLatestStrategy, findLatestPlayerCountStrategies, listStrategies,
 } from './checkpoint.js';

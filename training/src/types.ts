@@ -27,6 +27,8 @@ export interface BotStrategyContext {
   botCards: import('@bull-em/shared').Card[];
   /** Total cards across all active players. */
   totalCards: number;
+  /** Number of active (non-eliminated) players in the game. */
+  activePlayers: number;
 }
 
 /** Action returned by a pluggable strategy. Mirrors BotAction from shared. */

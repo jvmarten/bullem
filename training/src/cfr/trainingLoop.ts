@@ -32,8 +32,12 @@ const MAX_ROUNDS = 200;
 export interface TrainingConfig {
   /** Number of training iterations (games of self-play). */
   iterations: number;
-  /** Number of players per game (should be 2 for 1v1). */
-  players: number;
+  /**
+   * Player count per game. When set to a single number, all games use that
+   * count. When set to an array (e.g. [2, 3, 4, 6]), each iteration randomly
+   * picks from the array — training the strategy across multiple table sizes.
+   */
+  players: number | number[];
   /** Max cards before elimination. */
   maxCards: number;
   /** How often to log progress (iterations). 0 = no progress. */
@@ -110,13 +114,37 @@ interface TrainingGameResult {
   roundOutcomes: RoundOutcome[];
 }
 
+/** Resolve player count for a single iteration — supports fixed or mixed. */
+function resolvePlayerCount(players: number | number[]): number {
+  if (typeof players === 'number') return players;
+  return players[Math.floor(Math.random() * players.length)]!;
+}
+
+/** Validate a player count array or single value against maxCards. */
+function validatePlayerCounts(players: number | number[], maxCards: number): void {
+  const counts = typeof players === 'number' ? [players] : players;
+  const maxPlayersForCards = Math.floor(52 / maxCards);
+  for (const count of counts) {
+    if (count < 2 || count > 12) {
+      throw new Error(`Player count ${count} out of range (2-12)`);
+    }
+    if (count > maxPlayersForCards) {
+      throw new Error(
+        `${count} players with max ${maxCards} cards exceeds deck size. ` +
+        `Max players for ${maxCards} cards: ${maxPlayersForCards}`,
+      );
+    }
+  }
+}
+
 /**
  * Run the CFR self-play training loop with outcome sampling.
+ * Supports mixed player counts to learn strategies across table sizes.
  */
 export function trainCFR(config: TrainingConfig): TrainingResult {
   const {
     iterations,
-    players: playerCount,
+    players: playerSpec,
     maxCards,
     progressInterval,
     checkpointInterval,
@@ -124,15 +152,21 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
     onProgress,
   } = config;
 
+  validatePlayerCounts(playerSpec, maxCards);
+
   const cfrEngine = new CFREngine();
 
-  const botConfigs: BotConfig[] = Array.from(
-    { length: playerCount },
-    (_, i) => ({
+  // Pre-create player pools for each possible player count to avoid re-allocation.
+  // For mixed training, we reuse the pool matching each iteration's player count.
+  const maxPlayerCount = typeof playerSpec === 'number'
+    ? playerSpec
+    : Math.max(...playerSpec);
+  const playerPool = createBotPlayers(
+    Array.from({ length: maxPlayerCount }, (_, i) => ({
       id: `cfr-${i}`,
       name: `CFR ${i + 1}`,
       difficulty: BotDifficulty.HARD,
-    }),
+    })),
   );
 
   const settings: GameSettings = {
@@ -140,11 +174,14 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
     turnTimer: 0,
   };
 
-  const players = createBotPlayers(botConfigs);
   const startTime = performance.now();
   let totalGames = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
+    const playerCount = resolvePlayerCount(playerSpec);
+    // Use a slice of the pool matching this iteration's player count
+    const players = playerPool.slice(0, playerCount);
+
     // Alternate the traversing player each iteration — only update one
     // player's regrets per game to avoid contradictory signals from the
     // same trajectory (a win for player A is a loss for player B).
@@ -197,7 +234,7 @@ export function resumeTraining(
 ): TrainingResult {
   const {
     iterations: additionalIterations,
-    players: playerCount,
+    players: playerSpec,
     maxCards,
     progressInterval,
     checkpointInterval,
@@ -205,13 +242,17 @@ export function resumeTraining(
     onProgress,
   } = config;
 
-  const botConfigs: BotConfig[] = Array.from(
-    { length: playerCount },
-    (_, i) => ({
+  validatePlayerCounts(playerSpec, maxCards);
+
+  const maxPlayerCount = typeof playerSpec === 'number'
+    ? playerSpec
+    : Math.max(...playerSpec);
+  const playerPool = createBotPlayers(
+    Array.from({ length: maxPlayerCount }, (_, i) => ({
       id: `cfr-${i}`,
       name: `CFR ${i + 1}`,
       difficulty: BotDifficulty.HARD,
-    }),
+    })),
   );
 
   const settings: GameSettings = {
@@ -219,12 +260,13 @@ export function resumeTraining(
     turnTimer: 0,
   };
 
-  const players = createBotPlayers(botConfigs);
   const startTime = performance.now();
   const startIter = existingEngine.iterations;
   let totalGames = 0;
 
   for (let i = 0; i < additionalIterations; i++) {
+    const playerCount = resolvePlayerCount(playerSpec);
+    const players = playerPool.slice(0, playerCount);
     const traverserId = `cfr-${(startIter + i) % playerCount}`;
 
     const { result, decisions, roundOutcomes } = runTrainingGame(players, settings, existingEngine, startIter + i);
@@ -320,16 +362,16 @@ function runTrainingGame(
       if (!player) break;
 
       const state = engine.getClientState(currentId);
-      const totalCards = players
-        .filter(p => !p.isEliminated)
-        .reduce((sum, p) => sum + p.cardCount, 0);
+      const activePlayers = players.filter(p => !p.isEliminated);
+      const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
+      const activePlayerCount = activePlayers.length;
 
       // Get CFR action
       const legalActions = getLegalAbstractActions(state);
       let action: BotAction;
 
       if (legalActions.length > 0) {
-        const infoSetKey = getInfoSetKey(state, player.cards, totalCards);
+        const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount);
         const node = cfrEngine.getNode(infoSetKey, legalActions);
         const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 

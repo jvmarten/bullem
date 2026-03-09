@@ -1,11 +1,12 @@
 /**
- * Information set abstraction for CFR training — 1v1 focused.
+ * Information set abstraction for CFR training — supports 2-12 players.
  *
- * Simplified for heads-up play with 9 abstract actions that distinguish
- * between truthful claims (based on player's actual cards) and bluffs.
+ * Uses 9 abstract actions that distinguish between truthful claims
+ * (based on player's actual cards) and bluffs.
  *
  * Info set key encodes:
  * - Round phase
+ * - Player count bucket (critical: optimal play differs by table size)
  * - Hand strength relative to the current claim
  * - Claim height bucket (low/mid/high/very_high)
  * - Turn depth within the round
@@ -309,22 +310,40 @@ function totalCardsBucket(totalCards: number): string {
   return 't9+';                        // very large pool
 }
 
+// ── Player count bucketing ───────────────────────────────────────────
+
+/**
+ * Bucket the number of active players.
+ * Critical for strategy: bull/true thresholds change dramatically with
+ * player count. In heads-up, claims are often bluffs. In 6-player, more
+ * cards in play means claims are far more likely to be true.
+ */
+function playerCountBucket(activePlayers: number): string {
+  if (activePlayers <= 2) return 'p2';    // Heads-up: aggressive bull is correct
+  if (activePlayers <= 3) return 'p3';    // 3-player: transitional dynamics
+  if (activePlayers <= 4) return 'p4';    // 4-player: multiplayer dynamics kick in
+  return 'p5+';                            // 5+ players: claims very likely true
+}
+
 // ── Information set key ──────────────────────────────────────────────
 
 /**
- * Generate a compact info set key for 1v1 CFR.
+ * Generate a compact info set key for CFR.
  *
- * Designed to produce a few thousand unique keys at most.
- * Format: phase|cardCount|myStrength|handVsClaim|claimHeight|turnDepth
+ * Designed to produce ~10-20K unique keys across all player counts.
+ * Format: phase|playerCount|cardCount|totalCardsBucket|myStrength|handVsClaim|claimHeight|turnDepth
  */
 export function getInfoSetKey(
   state: ClientGameState,
   myCards: Card[],
   totalCards: number,
+  activePlayers: number = 2,
 ): string {
   const parts: string[] = [
     // Phase: c=calling, b=bull_phase, l=last_chance
     state.roundPhase.charAt(0),
+    // Player count bucket — determines bull/true calibration
+    playerCountBucket(activePlayers),
     // How many cards I hold (1-5)
     `n${myCards.length}`,
     // Total cards in play — critical for claim plausibility
