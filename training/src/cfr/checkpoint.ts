@@ -77,14 +77,21 @@ export function listCheckpoints(): { filepath: string; iterations: number }[] {
 
 // ── Strategy export ──────────────────────────────────────────────────────
 
-/** Export the trained strategy to a compact JSON file. */
+/**
+ * Export the trained strategy to a compact JSON file.
+ * Defaults to the current (regret-matched) strategy which converges faster
+ * in practice. Use mode='average' for the theoretical Nash-convergent average.
+ */
 export function exportStrategy(
   engine: CFREngine,
   name?: string,
+  mode: 'current' | 'average' = 'current',
 ): string {
   ensureDir(STRATEGIES_DIR);
 
-  const strategy = engine.exportStrategy();
+  const strategy = mode === 'current'
+    ? engine.exportCurrentStrategy()
+    : engine.exportStrategy();
   const filename = name
     ? `${name}.json`
     : `cfr-strategy-${engine.iterations}.json`;

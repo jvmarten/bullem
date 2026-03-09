@@ -1,17 +1,13 @@
 /**
- * CFR self-play training loop — outcome sampling variant.
- *
- * Instead of probe rollouts for counterfactual utilities, uses the actual
- * game outcome to update regrets along the sampled path only. This is
- * dramatically faster per iteration and converges well for 1v1.
+ * CFR self-play training loop — outcome sampling variant with per-round
+ * credit assignment.
  *
  * Each iteration:
- * 1. Play a full game to completion, recording decision points
- * 2. Compute utility for each player from the game outcome (+1 win, -1 loss)
- * 3. Update regrets for every decision point on the sampled path:
- *    - For the chosen action: utility = actual outcome
- *    - For unchosen actions: utility = 0 (baseline / no information)
- *    - Regret = action_utility - strategy_weighted_utility
+ * 1. Play a full game to completion, recording decision points per round
+ * 2. After each round resolves, compute per-round utility:
+ *    penalized players get -1, others get +1
+ * 3. Update regrets for decisions in each round using that round's outcome,
+ *    providing direct credit assignment instead of diluting across the game
  */
 
 import { BotDifficulty, GameEngine, BotPlayer } from '@bull-em/shared';
@@ -76,6 +72,16 @@ interface DecisionRecord {
   /** The actual sampling strategy used (including exploration). */
   strategy: Record<string, number>;
   chosenAction: AbstractAction;
+  /** Which round this decision belongs to (for per-round credit assignment). */
+  roundIndex: number;
+}
+
+/** Per-round outcome for credit assignment. */
+interface RoundOutcome {
+  /** Player IDs that were penalized (gained a card) this round. */
+  penalizedPlayerIds: string[];
+  /** All active player IDs at the start of this round. */
+  activePlayerIds: string[];
 }
 
 /**
@@ -100,6 +106,8 @@ function mixExploration(
 interface TrainingGameResult {
   result: GameResult;
   decisions: DecisionRecord[];
+  /** Per-round outcomes for round-level credit assignment. */
+  roundOutcomes: RoundOutcome[];
 }
 
 /**
@@ -142,14 +150,12 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
     // same trajectory (a win for player A is a loss for player B).
     const traverserId = `cfr-${iter % playerCount}`;
 
-    const { result, decisions } = runTrainingGame(players, settings, cfrEngine, iter);
+    const { result, decisions, roundOutcomes } = runTrainingGame(players, settings, cfrEngine, iter);
     totalGames++;
 
-    // Compute utility: +1 for winner, -1 for loser (1v1)
-    const utilities = computePlayerUtilities(result, playerCount);
-
-    // Update regrets only for the traversing player
-    updateRegrets(cfrEngine, decisions, utilities, traverserId);
+    // Update regrets per round — each round's decisions use that round's outcome.
+    // This provides direct credit assignment instead of diluting across the whole game.
+    updateRegretsPerRound(cfrEngine, decisions, roundOutcomes, traverserId);
 
     cfrEngine.incrementIterations();
 
@@ -221,11 +227,10 @@ export function resumeTraining(
   for (let i = 0; i < additionalIterations; i++) {
     const traverserId = `cfr-${(startIter + i) % playerCount}`;
 
-    const { result, decisions } = runTrainingGame(players, settings, existingEngine, startIter + i);
+    const { result, decisions, roundOutcomes } = runTrainingGame(players, settings, existingEngine, startIter + i);
     totalGames++;
 
-    const utilities = computePlayerUtilities(result, playerCount);
-    updateRegrets(existingEngine, decisions, utilities, traverserId);
+    updateRegretsPerRound(existingEngine, decisions, roundOutcomes, traverserId);
     existingEngine.incrementIterations();
 
     const currentIter = startIter + i + 1;
@@ -260,27 +265,15 @@ export function resumeTraining(
 }
 
 /**
- * Compute utility for each player based on the game result.
- * 1v1: winner gets +1, loser gets -1.
- * Multi-player: linear scale from -1 (first out) to +1 (winner).
+ * Compute per-round utility for each player.
+ * Players who were penalized (gained a card) get -1, others get +1.
  */
-function computePlayerUtilities(result: GameResult, playerCount: number): Map<string, number> {
+function computeRoundUtilities(outcome: RoundOutcome): Map<string, number> {
   const utilities = new Map<string, number>();
+  const penalizedSet = new Set(outcome.penalizedPlayerIds);
 
-  if (playerCount === 2) {
-    // Clean 1v1: +1 / -1
-    utilities.set(result.winnerId, 1.0);
-    for (const elimId of result.eliminationOrder) {
-      utilities.set(elimId, -1.0);
-    }
-  } else {
-    // Multi-player: scale from -1 to +1
-    utilities.set(result.winnerId, 1.0);
-    for (let i = 0; i < result.eliminationOrder.length; i++) {
-      const playerId = result.eliminationOrder[i]!;
-      const position = i / Math.max(1, playerCount - 1);
-      utilities.set(playerId, -1.0 + position * 2.0);
-    }
+  for (const playerId of outcome.activePlayerIds) {
+    utilities.set(playerId, penalizedSet.has(playerId) ? -1.0 : 1.0);
   }
 
   return utilities;
@@ -311,10 +304,13 @@ function runTrainingGame(
 
   const eliminationOrder: string[] = [];
   const decisions: DecisionRecord[] = [];
+  const roundOutcomes: RoundOutcome[] = [];
   let totalTurns = 0;
   let roundCount = 0;
 
   while (!engine.gameOver && roundCount < MAX_ROUNDS) {
+    const currentRoundIndex = roundCount;
+    const activePlayerIds = players.filter(p => !p.isEliminated).map(p => p.id);
     roundCount++;
     let roundTurns = 0;
 
@@ -342,8 +338,10 @@ function runTrainingGame(
         const samplingStrategy = mixExploration(baseStrategy, legalActions, epsilon);
 
         // Accumulate the BASE strategy (not the exploration-mixed one)
-        // for the average strategy computation
-        cfrEngine.accumulateStrategy(infoSetKey, legalActions, baseStrategy);
+        // for the average strategy computation. Use linear weighting so later
+        // (more informed) iterations dominate the average.
+        const weight = Math.max(1, iteration);
+        cfrEngine.accumulateStrategy(infoSetKey, legalActions, baseStrategy, weight);
 
         // Sample from the exploration-mixed strategy
         let abstractAction: AbstractAction = legalActions[0]!;
@@ -376,6 +374,7 @@ function runTrainingGame(
           legalActions,
           strategy: samplingStrategy,
           chosenAction: abstractAction,
+          roundIndex: currentRoundIndex,
         });
       } else {
         action = BotPlayer.decideAction(
@@ -394,6 +393,12 @@ function runTrainingGame(
       }
 
       if (result.type === 'resolve') {
+        // Record per-round outcome for credit assignment
+        roundOutcomes[currentRoundIndex] = {
+          penalizedPlayerIds: [...result.result.penalizedPlayerIds],
+          activePlayerIds,
+        };
+
         for (const elimId of result.result.eliminatedPlayerIds) {
           if (!eliminationOrder.includes(elimId)) {
             eliminationOrder.push(elimId);
@@ -410,6 +415,12 @@ function runTrainingGame(
 
       if (result.type === 'game_over') {
         if (result.finalRoundResult) {
+          // Record final round outcome
+          roundOutcomes[currentRoundIndex] = {
+            penalizedPlayerIds: [...result.finalRoundResult.penalizedPlayerIds],
+            activePlayerIds,
+          };
+
           for (const elimId of result.finalRoundResult.eliminatedPlayerIds) {
             if (!eliminationOrder.includes(elimId)) {
               eliminationOrder.push(elimId);
@@ -431,6 +442,7 @@ function runTrainingGame(
       eliminationOrder,
     },
     decisions,
+    roundOutcomes,
   };
 }
 
@@ -457,30 +469,33 @@ function dispatchBotAction(
 // ── Outcome sampling regret updates ──────────────────────────────────
 
 /**
- * Update regrets for the traversing player only (outcome sampling MCCFR).
+ * Update regrets per round for the traversing player only (outcome sampling MCCFR).
+ *
+ * CRITICAL FIX: Uses per-round utility instead of per-game utility.
+ * Each decision's regret uses the outcome of the round it belongs to, not the
+ * entire game. This provides direct credit assignment — a good bull call in
+ * round 1 is credited for round 1's outcome, not diluted by rounds 2-5.
  *
  * Key design decisions:
  * 1. Only update ONE player per iteration (the traverser). Updating all
- *    players simultaneously creates contradictory signals — a win for
- *    player A is a loss for player B from the same trajectory.
+ *    players simultaneously creates contradictory signals.
  * 2. Update ALL actions at each decision point — both chosen and unchosen.
  *    In outcome sampling, the estimated counterfactual value is:
- *    - Chosen action a*: v̂(a*) = u / σ(a*) (importance-weighted)
+ *    - Chosen action a*: v̂(a*) = u * W (importance-weighted)
  *    - Unchosen action a: v̂(a) = 0 (no sample for that branch)
- *    The baseline (info set value) is: σ(a*) × v̂(a*) = u
+ *    The baseline is: σ(a*) × v̂(a*) = p × u × W
  *    So instantaneous regret is:
- *    - Chosen:   u/σ(a*) - u = u × (1/σ(a*) - 1)
- *    - Unchosen: 0 - u = -u
- *    This ensures that after a loss, unchosen actions gain positive regret
- *    (exploring alternatives), and after a win, unchosen actions lose regret
- *    (reinforcing the winning action).
+ *    - Chosen:   u*W - p*u*W = u*W*(1 - p)
+ *    - Unchosen: 0 - p*u*W = -p*u*W
+ *    When W is uncapped (W = 1/p): baseline = u, matching standard formula.
+ *    When W is capped: baseline < u, correctly reducing unchosen regret magnitude.
  * 3. Importance weighting on the chosen action is capped to prevent
  *    variance explosion from low-probability samples.
  */
-function updateRegrets(
+function updateRegretsPerRound(
   engine: CFREngine,
   decisions: DecisionRecord[],
-  utilities: Map<string, number>,
+  roundOutcomes: RoundOutcome[],
   traverserId: string,
 ): void {
   // Maximum importance weight to prevent variance explosion
@@ -492,26 +507,33 @@ function updateRegrets(
     // Only update the traversing player's regrets
     if (decision.botId !== traverserId) continue;
 
-    const playerUtility = utilities.get(decision.botId) ?? 0;
+    // Use per-round utility instead of per-game utility
+    const outcome = roundOutcomes[decision.roundIndex];
+    if (!outcome) continue; // Round didn't resolve (error/timeout)
+
+    const penalizedSet = new Set(outcome.penalizedPlayerIds);
+    const playerUtility = penalizedSet.has(decision.botId) ? -1.0 : 1.0;
 
     const p = Math.max(decision.strategy[decision.chosenAction] ?? 0, MIN_PROB);
     const importanceWeight = Math.min(1 / p, MAX_IMPORTANCE_WEIGHT);
 
     // Estimated counterfactual value of the chosen action
     const chosenValue = playerUtility * importanceWeight;
-    // Baseline: info set value estimate = σ(a*) × v̂(a*) = p × u/p = u
-    const baseline = playerUtility;
+    // Baseline: σ(a*) × v̂(a*) = p × u × W
+    // When uncapped (W = 1/p): baseline = p * u * (1/p) = u
+    // When capped: baseline = p * u * W_max (correctly reduced)
+    const baseline = p * chosenValue;
 
     const node = engine.getNode(decision.infoSetKey, decision.legalActions);
     node.visits++;
 
     for (const action of decision.legalActions) {
       if (action === decision.chosenAction) {
-        // Chosen: v̂(a*) - baseline = u/p - u
+        // Chosen: v̂(a*) - baseline = u*W - p*u*W = u*W*(1 - p)
         const regret = chosenValue - baseline;
         node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
       } else {
-        // Unchosen: 0 - baseline = -u
+        // Unchosen: 0 - baseline = -p*u*W
         const regret = -baseline;
         node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
       }
