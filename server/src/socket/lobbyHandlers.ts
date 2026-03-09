@@ -312,6 +312,7 @@ export function registerLobbyHandlers(
 
     const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'No live games available' });
+    if (!room.settings.allowSpectators) return callback({ error: 'No live games available' });
 
     room.spectatorSockets.add(socket.id);
     // Store spectator display name for chat (from auth or fallback)
@@ -529,6 +530,11 @@ export function registerLobbyHandlers(
     const playerId = room.getPlayerId(socket.id);
     if (playerId !== room.hostId) {
       socket.emit('room:error', 'Only the host can remove bots');
+      return;
+    }
+
+    if (room.gamePhase !== GamePhase.LOBBY) {
+      socket.emit('room:error', 'Can only remove bots in the lobby');
       return;
     }
 

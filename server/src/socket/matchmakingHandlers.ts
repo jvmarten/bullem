@@ -15,12 +15,19 @@ export function registerMatchmakingHandlers(
   matchmakingQueue: MatchmakingQueue | InMemoryMatchmakingQueue,
 ): void {
   socket.on('matchmaking:join', async (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
 
     // Validate mode
     if (!data || typeof data.mode !== 'string' || !VALID_MODES.has(data.mode)) {
       return callback({ error: 'Invalid matchmaking mode' });
     }
+
+    // Require authentication for ranked matchmaking
+    if (!socket.data.userId) {
+      return callback({ error: 'You must be logged in for ranked matchmaking' });
+    }
+
     const mode = data.mode as RankedMode;
 
     const error = await matchmakingQueue.joinQueue(socket, mode);
@@ -34,6 +41,7 @@ export function registerMatchmakingHandlers(
   });
 
   socket.on('matchmaking:leave', async (callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const left = await matchmakingQueue.leaveQueue(socket.id);
     if (left) {
