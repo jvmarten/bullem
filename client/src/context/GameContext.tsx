@@ -243,49 +243,102 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearActiveSession();
     };
 
+    // Flag to prevent double-rejoin: Socket.io fires both 'reconnect' (on
+    // the Manager) and 'connect' (on the Socket) when reconnecting. The
+    // reconnect handler sets this flag so the connect handler skips its own
+    // rejoin attempt.
+    let reconnectHandled = false;
+
     socket.on('connect', () => {
       setIsConnected(true);
       setHasConnected(true);
 
-      // Attempt to rejoin from localStorage when sessionStorage is empty.
-      // This handles the "close browser and reopen" scenario — sessionStorage
-      // is cleared on browser close, but localStorage persists.
-      const hasSessionData = sessionStorage.getItem(ROOM_CODE_KEY);
-      if (!hasSessionData) {
-        const lsRoom = localStorage.getItem(LS_ACTIVE_ROOM);
-        const lsPlayerId = localStorage.getItem(LS_ACTIVE_PLAYER_ID);
-        const lsPlayerName = localStorage.getItem(LS_ACTIVE_PLAYER_NAME);
-        const lsToken = localStorage.getItem(LS_ACTIVE_RECONNECT_TOKEN);
-        if (lsRoom && lsPlayerId && lsPlayerName && lsToken) {
-          // Restore sessionStorage so the rest of the app works normally
-          sessionStorage.setItem(ROOM_CODE_KEY, lsRoom);
-          sessionStorage.setItem(PLAYER_ID_KEY, lsPlayerId);
-          sessionStorage.setItem(PLAYER_NAME_KEY, lsPlayerName);
-          sessionStorage.setItem(RECONNECT_TOKEN_KEY, lsToken);
+      // If the Socket.io reconnect handler already ran, skip — it already
+      // emitted room:join.
+      if (reconnectHandled) {
+        reconnectHandled = false;
+        return;
+      }
 
-          socket.emit('room:join', {
-            roomCode: lsRoom,
-            playerName: lsPlayerName,
-            playerId: lsPlayerId,
-            reconnectToken: lsToken,
-          }, (response) => {
-            if ('error' in response) {
-              // Room gone or token expired — clean up
-              clearActiveSession();
-              sessionStorage.removeItem(PLAYER_ID_KEY);
-              sessionStorage.removeItem(PLAYER_NAME_KEY);
-              sessionStorage.removeItem(ROOM_CODE_KEY);
-              sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
-            } else {
-              // Reconnection succeeded — update token and player ID
-              setPlayerId(response.playerId);
-              sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
-              persistActiveSession(lsRoom, response.playerId, lsPlayerName, response.reconnectToken);
-              // Signal auto-navigation to the game page
-              setPendingRejoinRoom(lsRoom);
-            }
-          });
+      // On a fresh page load the socket has a brand-new ID and isn't joined
+      // to any room on the server. This covers two scenarios:
+      //   1. Browser fully closed and reopened — sessionStorage cleared,
+      //      recover from localStorage.
+      //   2. Browser "restored" the previous session (common on mobile and
+      //      desktop restore-tabs) — sessionStorage still has data but the
+      //      socket is new.
+      // In both cases we need to re-emit room:join so the server maps this
+      // socket back to the player.
+
+      // Check if we were spectating
+      const spectatorRoom = sessionStorage.getItem(SPECTATOR_ROOM_KEY);
+      if (spectatorRoom) {
+        socket.emit('room:spectate', { roomCode: spectatorRoom }, (response) => {
+          if ('error' in response) {
+            sessionStorage.removeItem(SPECTATOR_ROOM_KEY);
+            setGameState(null);
+          }
+        });
+        return;
+      }
+
+      // Try sessionStorage first (browser may have restored it), then
+      // fall back to localStorage (browser fully closed).
+      let roomCode = sessionStorage.getItem(ROOM_CODE_KEY);
+      let storedPlayerId = sessionStorage.getItem(PLAYER_ID_KEY);
+      let playerName = sessionStorage.getItem(PLAYER_NAME_KEY);
+      let token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
+      let fromLocalStorage = false;
+
+      if (!roomCode || !storedPlayerId || !playerName || !token) {
+        roomCode = localStorage.getItem(LS_ACTIVE_ROOM);
+        storedPlayerId = localStorage.getItem(LS_ACTIVE_PLAYER_ID);
+        playerName = localStorage.getItem(LS_ACTIVE_PLAYER_NAME);
+        token = localStorage.getItem(LS_ACTIVE_RECONNECT_TOKEN);
+        fromLocalStorage = true;
+      }
+
+      if (roomCode && storedPlayerId && playerName && token) {
+        if (fromLocalStorage) {
+          // Restore sessionStorage so the rest of the app works normally
+          sessionStorage.setItem(ROOM_CODE_KEY, roomCode);
+          sessionStorage.setItem(PLAYER_ID_KEY, storedPlayerId);
+          sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
+          sessionStorage.setItem(RECONNECT_TOKEN_KEY, token);
         }
+
+        // Clear stale overlay state — server will send fresh state on rejoin
+        setRoundResult(null);
+        roundResultRef.current = null;
+        pendingGameStateRef.current = null;
+        setRoundTransition(false);
+        if (roundResultTimerRef.current) {
+          clearTimeout(roundResultTimerRef.current);
+          roundResultTimerRef.current = null;
+        }
+
+        socket.emit('room:join', {
+          roomCode,
+          playerName,
+          playerId: storedPlayerId,
+          reconnectToken: token,
+        }, (response) => {
+          if ('error' in response) {
+            // Room gone or token expired — clean up
+            clearActiveSession();
+            sessionStorage.removeItem(PLAYER_ID_KEY);
+            sessionStorage.removeItem(PLAYER_NAME_KEY);
+            sessionStorage.removeItem(ROOM_CODE_KEY);
+            sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+          } else {
+            // Reconnection succeeded — update token and player ID
+            setPlayerId(response.playerId);
+            sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+            persistActiveSession(roomCode!, response.playerId, playerName!, response.reconnectToken);
+            // Signal auto-navigation to the game page
+            setPendingRejoinRoom(roomCode!);
+          }
+        });
       }
     });
     socket.on('disconnect', () => setIsConnected(false));
@@ -294,7 +347,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // (app switch, network blip, page hidden on mobile) gives the socket a
     // new ID, so the server no longer knows which room it belongs to. Without
     // this, the client keeps stale state and receives no further game events.
+    //
+    // The 'reconnect' event fires on the Manager BEFORE the Socket's 'connect'
+    // event. We set reconnectHandled so connect doesn't double-join.
     const handleReconnect = () => {
+      reconnectHandled = true;
+
       // Check if we were spectating — re-spectate instead of re-joining as a player
       const spectatorRoom = sessionStorage.getItem(SPECTATOR_ROOM_KEY);
       if (spectatorRoom) {
