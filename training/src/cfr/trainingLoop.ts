@@ -137,14 +137,19 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
   let totalGames = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
+    // Alternate the traversing player each iteration — only update one
+    // player's regrets per game to avoid contradictory signals from the
+    // same trajectory (a win for player A is a loss for player B).
+    const traverserId = `cfr-${iter % playerCount}`;
+
     const { result, decisions } = runTrainingGame(players, settings, cfrEngine, iter);
     totalGames++;
 
     // Compute utility: +1 for winner, -1 for loser (1v1)
     const utilities = computePlayerUtilities(result, playerCount);
 
-    // Update regrets using outcome sampling (no probes)
-    updateRegrets(cfrEngine, decisions, utilities);
+    // Update regrets only for the traversing player
+    updateRegrets(cfrEngine, decisions, utilities, traverserId);
 
     cfrEngine.incrementIterations();
 
@@ -214,11 +219,13 @@ export function resumeTraining(
   let totalGames = 0;
 
   for (let i = 0; i < additionalIterations; i++) {
+    const traverserId = `cfr-${(startIter + i) % playerCount}`;
+
     const { result, decisions } = runTrainingGame(players, settings, existingEngine, startIter + i);
     totalGames++;
 
     const utilities = computePlayerUtilities(result, playerCount);
-    updateRegrets(existingEngine, decisions, utilities);
+    updateRegrets(existingEngine, decisions, utilities, traverserId);
     existingEngine.incrementIterations();
 
     const currentIter = startIter + i + 1;
@@ -450,26 +457,30 @@ function dispatchBotAction(
 // ── Outcome sampling regret updates ──────────────────────────────────
 
 /**
- * Update regrets using importance-weighted outcome sampling.
+ * Update regrets for the traversing player only.
  *
- * For each decision point on the sampled path:
- * - The chosen action's utility is importance-weighted: u / max(p, ε)
- *   where p is the sampling probability and ε prevents division explosion.
- * - Unchosen actions get utility 0 (no information).
- * - Strategy utility = u (the unbiased expected value under sampling).
+ * Key design decisions:
+ * 1. Only update ONE player per iteration (the traverser). Updating all
+ *    players simultaneously creates contradictory signals — a win for
+ *    player A is a loss for player B from the same trajectory.
+ * 2. Only update the CHOSEN action's regret. We have no counterfactual
+ *    information about unchosen actions. Setting them to 0 would create
+ *    a "grass is greener" bias: winning punishes unchosen actions (-u),
+ *    losing rewards them (+u), causing strategy cycling instead of
+ *    convergence.
+ * 3. Use importance weighting for the chosen action to correct for the
+ *    sampling distribution: actions chosen rarely but winning big get
+ *    amplified regret, which is the correct unbiased estimate.
  *
- * This gives correct regret magnitudes:
- * - Chosen: u/p - u = u*(1/p - 1) — amplified for rarely-sampled actions
- * - Unchosen: 0 - u = -u — constant penalty/reward based on outcome
- *
- * Over many iterations, good actions accumulate large positive regret when
- * sampled (winning at low p gives huge importance weight) that outweighs
- * the -u penalty from iterations where other actions were chosen.
+ * Regret update for chosen action a with probability p:
+ *   regret[a] += u/p - u = u * (1/p - 1)
+ * where u is the traverser's utility. Unchosen actions are left unchanged.
  */
 function updateRegrets(
   engine: CFREngine,
   decisions: DecisionRecord[],
   utilities: Map<string, number>,
+  traverserId: string,
 ): void {
   // Maximum importance weight to prevent variance explosion
   const MAX_IMPORTANCE_WEIGHT = 20;
@@ -477,31 +488,25 @@ function updateRegrets(
   const MIN_PROB = 0.001;
 
   for (const decision of decisions) {
+    // Only update the traversing player's regrets
+    if (decision.botId !== traverserId) continue;
+
     const playerUtility = utilities.get(decision.botId) ?? 0;
 
     const p = Math.max(decision.strategy[decision.chosenAction] ?? 0, MIN_PROB);
     const importanceWeight = Math.min(1 / p, MAX_IMPORTANCE_WEIGHT);
 
-    const actionUtilities: Record<string, number> = {};
-
-    for (const action of decision.legalActions) {
-      if (action === decision.chosenAction) {
-        // Importance-weighted utility for the sampled action
-        actionUtilities[action] = playerUtility * importanceWeight;
-      } else {
-        // No information about unchosen actions
-        actionUtilities[action] = 0;
-      }
-    }
-
-    // Strategy utility = E[v̂(a)] under sampling = p * (u/p) + (1-p)*0 = u
+    // Chosen action: importance-weighted utility estimate
+    const chosenUtility = playerUtility * importanceWeight;
+    // Strategy baseline: the unbiased expected value = u
     const strategyUtility = playerUtility;
 
-    engine.updateRegrets(
-      decision.infoSetKey,
-      decision.legalActions,
-      actionUtilities,
-      strategyUtility,
-    );
+    // Only update regret for the chosen action — we have no information
+    // about unchosen actions from this single sample
+    const node = engine.getNode(decision.infoSetKey, decision.legalActions);
+    node.visits++;
+    const chosenRegret = chosenUtility - strategyUtility;
+    node.regretSum[decision.chosenAction] =
+      (node.regretSum[decision.chosenAction] ?? 0) + chosenRegret;
   }
 }
