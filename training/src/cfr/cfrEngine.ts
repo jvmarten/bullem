@@ -291,6 +291,71 @@ export class CFREngine {
     );
   }
 
+  /**
+   * Export strategies split by player count bucket.
+   * Returns a map from player count bucket (e.g. 'p2', 'p3', 'p4', 'p5+')
+   * to a separate ExportedStrategy containing only info sets for that bucket.
+   */
+  exportStrategiesByPlayerCount(
+    mode: 'current' | 'average' = 'current',
+    pruneThreshold: number = 0.005,
+    precision: number = 4,
+  ): Map<string, ExportedStrategy> {
+    const getStrategyFn = mode === 'current'
+      ? (node: CFRNode) => {
+          const legalActions = Object.keys(node.regretSum) as AbstractAction[];
+          return this.getStrategy(node, legalActions);
+        }
+      : (node: CFRNode) => this.getAverageStrategy(node);
+
+    // Group nodes by player count bucket (second segment of info set key)
+    const bucketStrategies = new Map<string, Record<string, StrategyEntry>>();
+
+    for (const [key, node] of this.nodes) {
+      // Key format: phase|playerCountBucket|cardCount|...
+      const segments = key.split('|');
+      const playerBucket = segments[1] ?? 'p2';
+
+      if (!bucketStrategies.has(playerBucket)) {
+        bucketStrategies.set(playerBucket, {});
+      }
+
+      const strat = getStrategyFn(node);
+      const entry: StrategyEntry = {};
+
+      for (const [action, prob] of Object.entries(strat)) {
+        if (prob >= pruneThreshold) {
+          entry[action] = Number(prob.toFixed(precision));
+        }
+      }
+
+      // Renormalize after pruning
+      const sum = Object.values(entry).reduce((s, v) => s + v, 0);
+      if (sum > 0 && Math.abs(sum - 1) > 0.001) {
+        for (const action of Object.keys(entry)) {
+          entry[action] = Number((entry[action]! / sum).toFixed(precision));
+        }
+      }
+
+      if (Object.keys(entry).length > 0) {
+        bucketStrategies.get(playerBucket)![key] = entry;
+      }
+    }
+
+    const result = new Map<string, ExportedStrategy>();
+    for (const [bucket, strategy] of bucketStrategies) {
+      result.set(bucket, {
+        strategy,
+        iterations: this._iterations,
+        infoSetCount: Object.keys(strategy).length,
+        exportedAt: new Date().toISOString(),
+        avgRegret: this.getAverageRegretPerIteration(),
+      });
+    }
+
+    return result;
+  }
+
   /** Shared export logic for both average and current strategies. */
   private _exportWithStrategy(
     getStrategyFn: (node: CFRNode) => Record<string, number>,

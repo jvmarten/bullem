@@ -102,6 +102,69 @@ export function exportStrategy(
   return filepath;
 }
 
+/**
+ * Export separate strategy files per player count bucket.
+ * Produces files like `cfr-strategy-100000-p2.json`, `cfr-strategy-100000-p3.json`, etc.
+ * Returns a map from player count bucket to file path.
+ */
+export function exportStrategiesByPlayerCount(
+  engine: CFREngine,
+  mode: 'current' | 'average' = 'current',
+): Map<string, string> {
+  ensureDir(STRATEGIES_DIR);
+
+  const strategyMap = engine.exportStrategiesByPlayerCount(mode);
+  const result = new Map<string, string>();
+
+  for (const [bucket, strategy] of strategyMap) {
+    const filename = `cfr-strategy-${engine.iterations}-${bucket}.json`;
+    const filepath = path.join(STRATEGIES_DIR, filename);
+    fs.writeFileSync(filepath, JSON.stringify(strategy), 'utf-8');
+    result.set(bucket, filepath);
+  }
+
+  return result;
+}
+
+/**
+ * Find the latest set of per-player-count strategy files.
+ * Returns a map from player bucket (e.g. 'p2') to file path,
+ * or null if no per-player-count strategies exist.
+ */
+export function findLatestPlayerCountStrategies(): Map<string, string> | null {
+  if (!fs.existsSync(STRATEGIES_DIR)) return null;
+
+  const files = fs.readdirSync(STRATEGIES_DIR)
+    .filter(f => /^cfr-strategy-\d+-p\d/.test(f) && f.endsWith('.json'));
+
+  if (files.length === 0) return null;
+
+  // Group by iteration count, pick the highest
+  const byIter = new Map<number, string[]>();
+  for (const f of files) {
+    const match = f.match(/cfr-strategy-(\d+)-p/);
+    if (match) {
+      const iter = parseInt(match[1]!, 10);
+      if (!byIter.has(iter)) byIter.set(iter, []);
+      byIter.get(iter)!.push(f);
+    }
+  }
+
+  const maxIter = Math.max(...byIter.keys());
+  const latestFiles = byIter.get(maxIter);
+  if (!latestFiles || latestFiles.length === 0) return null;
+
+  const result = new Map<string, string>();
+  for (const f of latestFiles) {
+    const bucketMatch = f.match(/-(p\d\+?)\.json$/);
+    if (bucketMatch) {
+      result.set(bucketMatch[1]!, path.join(STRATEGIES_DIR, f));
+    }
+  }
+
+  return result.size > 0 ? result : null;
+}
+
 /** Load a strategy file. */
 export function loadStrategy(filepath: string): ExportedStrategy {
   const raw = fs.readFileSync(filepath, 'utf-8');

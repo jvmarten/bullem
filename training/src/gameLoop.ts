@@ -53,14 +53,14 @@ function getBotAction(
   profileConfig?: BotProfileConfig,
 ): BotAction {
   if (strategy) {
-    const totalCards = allPlayers
-      .filter(p => !p.isEliminated)
-      .reduce((sum, p) => sum + p.cardCount, 0);
+    const active = allPlayers.filter(p => !p.isEliminated);
+    const totalCards = active.reduce((sum, p) => sum + p.cardCount, 0);
     const result = strategy({
       state,
       botId: player.id,
       botCards: player.cards,
       totalCards,
+      activePlayers: active.length,
     });
     if (result) return result;
   }

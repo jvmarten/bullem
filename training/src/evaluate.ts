@@ -16,10 +16,10 @@ import { BOT_PROFILES, BOT_PROFILE_MAP, BotDifficulty } from '@bull-em/shared';
 import type { BotProfileDefinition } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import {
-  findLatestStrategy, loadStrategy,
-  createCFREvaluationStrategy,
+  findLatestStrategy, findLatestPlayerCountStrategies, loadStrategy,
+  createCFREvaluationStrategy, createCompositeEvaluationStrategy,
 } from './cfr/index.js';
-import type { EvaluationStats } from './cfr/index.js';
+import type { EvaluationStats, ExportedStrategy } from './cfr/index.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
 /** The 9 level-9 personality keys — strongest version of each archetype. */
@@ -127,20 +127,46 @@ const config = parseArgs(process.argv);
 
 // ── Load strategy ───────────────────────────────────────────────────────
 
-const strategyPath = config.strategyFile ?? findLatestStrategy();
-if (!strategyPath) {
-  console.error('Error: No strategy file found. Run training first or specify --strategy.');
-  process.exit(1);
-}
-
-console.log(`Loading strategy: ${strategyPath}`);
-const exportedStrategy = loadStrategy(strategyPath);
-console.log(`  Trained for ${exportedStrategy.iterations} iterations`);
-console.log(`  ${exportedStrategy.infoSetCount} info sets`);
-console.log(`  Avg regret: ${exportedStrategy.avgRegret.toFixed(6)}`);
-
 const evalStats: EvaluationStats = { totalDecisions: 0, hits: 0, misses: 0 };
-const cfrStrategy = createCFREvaluationStrategy(exportedStrategy, evalStats);
+let cfrStrategy: BotStrategy;
+
+if (config.strategyFile) {
+  // Explicit single strategy file
+  console.log(`Loading strategy: ${config.strategyFile}`);
+  const exportedStrategy = loadStrategy(config.strategyFile);
+  console.log(`  Trained for ${exportedStrategy.iterations} iterations`);
+  console.log(`  ${exportedStrategy.infoSetCount} info sets`);
+  console.log(`  Avg regret: ${exportedStrategy.avgRegret.toFixed(6)}`);
+  cfrStrategy = createCFREvaluationStrategy(exportedStrategy, evalStats);
+} else {
+  // Try per-player-count strategies first, then fall back to global
+  const perPlayerPaths = findLatestPlayerCountStrategies();
+  if (perPlayerPaths && perPlayerPaths.size > 0) {
+    console.log('Loading per-player-count strategies:');
+    const perPlayerStrategies = new Map<string, ExportedStrategy>();
+    let totalInfoSets = 0;
+    for (const [bucket, filepath] of [...perPlayerPaths].sort(([a], [b]) => a.localeCompare(b))) {
+      const strategy = loadStrategy(filepath);
+      perPlayerStrategies.set(bucket, strategy);
+      totalInfoSets += strategy.infoSetCount;
+      console.log(`  ${bucket}: ${filepath} (${strategy.infoSetCount} info sets)`);
+    }
+    console.log(`  Total: ${totalInfoSets} info sets across ${perPlayerStrategies.size} table sizes`);
+    cfrStrategy = createCompositeEvaluationStrategy(perPlayerStrategies, evalStats);
+  } else {
+    const strategyPath = findLatestStrategy();
+    if (!strategyPath) {
+      console.error('Error: No strategy file found. Run training first or specify --strategy.');
+      process.exit(1);
+    }
+    console.log(`Loading strategy: ${strategyPath}`);
+    const exportedStrategy = loadStrategy(strategyPath);
+    console.log(`  Trained for ${exportedStrategy.iterations} iterations`);
+    console.log(`  ${exportedStrategy.infoSetCount} info sets`);
+    console.log(`  Avg regret: ${exportedStrategy.avgRegret.toFixed(6)}`);
+    cfrStrategy = createCFREvaluationStrategy(exportedStrategy, evalStats);
+  }
+}
 
 // ── Strategy wrapper ────────────────────────────────────────────────────
 
@@ -256,38 +282,79 @@ const avgHeadsUp = headsUpResults.reduce((s, r) => s + r.cfrWinRate, 0) / headsU
 console.log(`\n  Average CFR win rate (1v1): ${(avgHeadsUp * 100).toFixed(1)}%`);
 console.log(`${'═'.repeat(50)}`);
 
-// ── 6-Player reference matchup ──────────────────────────────────────────
+// ── Multiplayer matchups: 3P, 4P, 6P ────────────────────────────────────
 
-console.log(`\n── 6-Player (reference) ──`);
-console.log('  1 CFR vs 5 random profiles\n');
+interface MultiplayerResult {
+  playerCount: number;
+  cfrWins: number;
+  totalGames: number;
+  cfrWinRate: number;
+  expectedRandom: number;
+}
 
-const opponents6p = sampleProfiles(5);
-const opponentNames = opponents6p.map(p => p.name).join(', ');
-console.log(`  Opponents: ${opponentNames}\n`);
+const mpResults: MultiplayerResult[] = [];
 
-const cfrIds6p = new Set<string>(['cfr-0']);
-const bots6p: BotConfig[] = [
-  { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
-  ...opponents6p.map((p, i) => ({
-    id: `opp-${i}`,
-    name: p.name,
+for (const tableSize of [3, 4, 6]) {
+  const oppCount = tableSize - 1;
+  console.log(`\n── ${tableSize}-Player: 1 CFR vs ${oppCount} random profiles ──\n`);
+
+  const opponents = sampleProfiles(oppCount);
+  const opponentNames = opponents.map(p => p.name).join(', ');
+  console.log(`  Opponents: ${opponentNames}\n`);
+
+  const cfrIdsMp = new Set<string>(['cfr-0']);
+  const botsMp: BotConfig[] = [
+    { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
+    ...opponents.map((p, i) => ({
+      id: `opp-${i}`,
+      name: p.name,
+      difficulty: BotDifficulty.HARD,
+      profileConfig: p.config,
+    })),
+  ];
+
+  const statsMp = simulate({
+    games: config.games,
+    players: botsMp.length,
+    maxCards: config.maxCards,
     difficulty: BotDifficulty.HARD,
-    profileConfig: p.config,
-  })),
-];
+    botConfigs: botsMp,
+    strategy: createMixedStrategy(cfrIdsMp),
+    progressInterval: Math.max(1, Math.floor(config.games / 10)),
+  });
 
-const stats6p = simulate({
-  games: config.games,
-  players: bots6p.length,
-  maxCards: config.maxCards,
-  difficulty: BotDifficulty.HARD,
-  botConfigs: bots6p,
-  strategy: createMixedStrategy(cfrIds6p),
-  progressInterval: Math.max(1, Math.floor(config.games / 10)),
-});
+  const cfrWins = statsMp.wins['cfr-0'] ?? 0;
+  const expectedRandom = 1 / tableSize;
+  mpResults.push({
+    playerCount: tableSize,
+    cfrWins,
+    totalGames: statsMp.totalGames,
+    cfrWinRate: cfrWins / statsMp.totalGames,
+    expectedRandom,
+  });
 
-totalCfrWins += stats6p.wins['cfr-0'] ?? 0;
-totalGames += stats6p.totalGames;
+  totalCfrWins += cfrWins;
+  totalGames += statsMp.totalGames;
+}
+
+// Print multiplayer summary
+console.log(`\n${'═'.repeat(50)}`);
+console.log('  Multiplayer Results: CFR vs Random Profiles');
+console.log(`${'═'.repeat(50)}\n`);
+console.log('  Table   CFR Win%   Random%   Edge     W /     L');
+console.log(`  ${'─'.repeat(44)}`);
+
+for (const r of mpResults) {
+  const pct = (r.cfrWinRate * 100).toFixed(1);
+  const rnd = (r.expectedRandom * 100).toFixed(1);
+  const edge = ((r.cfrWinRate - r.expectedRandom) * 100).toFixed(1);
+  const edgeSign = r.cfrWinRate >= r.expectedRandom ? '+' : '';
+  const losses = r.totalGames - r.cfrWins;
+  console.log(
+    `  ${String(r.playerCount) + 'P'}${' '.repeat(4)}` +
+    `${(pct + '%').padStart(8)}  ${(rnd + '%').padStart(7)}  ${(edgeSign + edge).padStart(5)}  ${String(r.cfrWins).padStart(5)} / ${String(losses).padStart(5)}`,
+  );
+}
 
 // ── Overall summary ─────────────────────────────────────────────────────
 

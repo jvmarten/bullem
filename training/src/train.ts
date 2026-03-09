@@ -10,7 +10,7 @@
 
 import {
   trainCFR, resumeTraining,
-  saveCheckpoint, exportStrategy,
+  saveCheckpoint, exportStrategy, exportStrategiesByPlayerCount,
   findLatestCheckpoint, loadCheckpoint,
   CFREngine,
   type ProgressMetrics,
@@ -18,7 +18,7 @@ import {
 
 function parseArgs(argv: string[]): {
   iterations: number;
-  players: number;
+  players: number | number[];
   maxCards: number;
   progressInterval: number;
   checkpointInterval: number;
@@ -28,7 +28,7 @@ function parseArgs(argv: string[]): {
 } {
   const args = argv.slice(2);
   let iterations = 100_000;
-  let players = 2;
+  let players: number | number[] = [2, 2, 3, 4, 6]; // Weighted toward heads-up, with multiplayer exposure
   let maxCards = 5;
   let progressInterval = 1000;
   let checkpointInterval = 50_000;
@@ -50,14 +50,27 @@ function parseArgs(argv: string[]): {
         i++;
         break;
       case '--players':
-      case '-p':
-        players = parseInt(next ?? '', 10);
-        if (isNaN(players) || players < 2 || players > 12) {
-          console.error('Error: --players must be between 2 and 12');
-          process.exit(1);
+      case '-p': {
+        const val = next ?? '';
+        if (val.includes(',')) {
+          // Comma-separated list: --players 2,3,4,6
+          const parsed = val.split(',').map(s => parseInt(s.trim(), 10));
+          if (parsed.some(n => isNaN(n) || n < 2 || n > 12)) {
+            console.error('Error: --players values must be between 2 and 12 (e.g. --players 2,3,4,6)');
+            process.exit(1);
+          }
+          players = parsed;
+        } else {
+          const n = parseInt(val, 10);
+          if (isNaN(n) || n < 2 || n > 12) {
+            console.error('Error: --players must be between 2 and 12');
+            process.exit(1);
+          }
+          players = n;
         }
         i++;
         break;
+      }
       case '--max-cards':
       case '-m':
         maxCards = parseInt(next ?? '', 10);
@@ -113,7 +126,8 @@ Usage:
 
 Options:
   --iterations, -i <n>       Number of self-play iterations (default: 100000)
-  --players, -p <n>          Players per game (default: 2, range: 2-12)
+  --players, -p <n|list>     Players per game: single number or comma-separated
+                             (default: 2,2,3,4,6 — mixed training)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
   --progress <n>             Log progress every N iterations (default: 1000)
   --checkpoint-interval <n>  Save checkpoint every N iterations (default: 50000)
@@ -137,12 +151,15 @@ Examples:
 
   // Validate player/card combo
   const maxPlayersForCards = Math.floor(52 / maxCards);
-  if (players > maxPlayersForCards) {
-    console.error(
-      `Error: ${players} players with max ${maxCards} cards exceeds deck size. ` +
-      `Max players for ${maxCards} cards: ${maxPlayersForCards}`,
-    );
-    process.exit(1);
+  const playerCounts = typeof players === 'number' ? [players] : players;
+  for (const p of playerCounts) {
+    if (p > maxPlayersForCards) {
+      console.error(
+        `Error: ${p} players with max ${maxCards} cards exceeds deck size. ` +
+        `Max players for ${maxCards} cards: ${maxPlayersForCards}`,
+      );
+      process.exit(1);
+    }
   }
 
   return { iterations, players, maxCards, progressInterval, checkpointInterval, resume, checkpointFile, strategyName };
@@ -195,8 +212,11 @@ function onCheckpoint(engine: CFREngine, iteration: number): void {
 
 // ── Run training ────────────────────────────────────────────────────────
 
+const playerDesc = typeof config.players === 'number'
+  ? `${config.players} players`
+  : `mixed [${config.players.join(',')}] players`;
 console.log(
-  `\nCFR Training: ${config.iterations} iterations, ${config.players} players, ` +
+  `\nCFR Training: ${config.iterations} iterations, ${playerDesc}, ` +
   `max ${config.maxCards} cards\n`,
 );
 
@@ -231,13 +251,22 @@ console.log(`  Throughput:          ${(result.totalGames / (result.durationMs / 
 const checkpointPath = saveCheckpoint(result.engine);
 console.log(`\n  Final checkpoint:    ${checkpointPath}`);
 
-// Export strategy
+// Export combined strategy
 const strategyPath = exportStrategy(result.engine, config.strategyName ?? undefined);
 console.log(`  Strategy exported:   ${strategyPath}`);
 
+// Export per-player-count strategies
+const perPlayerPaths = exportStrategiesByPlayerCount(result.engine);
+console.log(`\n  Per-player-count strategies:`);
+for (const [bucket, filepath] of [...perPlayerPaths].sort(([a], [b]) => a.localeCompare(b))) {
+  const strategy = result.engine.exportStrategiesByPlayerCount().get(bucket);
+  const count = strategy ? strategy.infoSetCount : 0;
+  console.log(`    ${bucket}: ${filepath} (${count} info sets)`);
+}
+
 // Strategy summary
 const exported = result.engine.exportStrategy();
-console.log(`\n  Strategy size:       ${Object.keys(exported.strategy).length} info sets`);
+console.log(`\n  Total strategy size: ${Object.keys(exported.strategy).length} info sets`);
 const strategyJson = JSON.stringify(exported);
 console.log(`  File size:           ${(Buffer.byteLength(strategyJson) / 1024).toFixed(1)} KB`);
 

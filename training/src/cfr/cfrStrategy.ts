@@ -41,12 +41,12 @@ export function createCFRTrainingStrategy(
   decisionLog: DecisionRecord[],
 ): BotStrategy {
   return (context: BotStrategyContext): BotStrategyAction | undefined => {
-    const { state, botId, botCards, totalCards } = context;
+    const { state, botId, botCards, totalCards, activePlayers } = context;
 
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards);
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers);
     const { action: abstractAction, strategy } = cfrEngine.sampleAction(infoSetKey, legalActions);
 
     // Accumulate strategy for averaging
@@ -76,8 +76,8 @@ export interface EvaluationStats {
 }
 
 /**
- * Create a CFR evaluation strategy from a pre-trained strategy file.
- * Uses the average strategy to make decisions — no exploration.
+ * Create a CFR evaluation strategy from a single pre-trained strategy file.
+ * Uses the trained strategy to make decisions — no exploration.
  *
  * Optionally accepts an EvaluationStats object to track info set coverage.
  */
@@ -85,13 +85,61 @@ export function createCFREvaluationStrategy(
   exportedStrategy: ExportedStrategy,
   evalStats?: EvaluationStats,
 ): BotStrategy {
+  return makeEvalStrategy(exportedStrategy, evalStats);
+}
+
+/**
+ * Create a composite CFR evaluation strategy from per-player-count strategy files.
+ * Dispatches to the correct strategy based on the number of active players.
+ *
+ * @param strategies Map from player count bucket ('p2', 'p3', 'p4', 'p5+') to strategy
+ * @param evalStats Optional stats tracker
+ */
+export function createCompositeEvaluationStrategy(
+  strategies: Map<string, ExportedStrategy>,
+  evalStats?: EvaluationStats,
+): BotStrategy {
+  // Pre-build individual eval strategies for each bucket
+  const bucketStrategies = new Map<string, BotStrategy>();
+  for (const [bucket, strategy] of strategies) {
+    bucketStrategies.set(bucket, makeEvalStrategy(strategy, evalStats));
+  }
+
   return (context: BotStrategyContext): BotStrategyAction | undefined => {
-    const { state, botCards, totalCards } = context;
+    const bucket = resolvePlayerBucket(context.activePlayers);
+    const strategy = bucketStrategies.get(bucket);
+    if (strategy) {
+      return strategy(context);
+    }
+    // No strategy for this player count — fall back to undefined (heuristic)
+    if (evalStats) {
+      evalStats.totalDecisions++;
+      evalStats.misses++;
+    }
+    return undefined;
+  };
+}
+
+/** Map active player count to the bucket key used in info set keys. */
+function resolvePlayerBucket(activePlayers: number): string {
+  if (activePlayers <= 2) return 'p2';
+  if (activePlayers <= 3) return 'p3';
+  if (activePlayers <= 4) return 'p4';
+  return 'p5+';
+}
+
+/** Shared implementation for single-strategy evaluation. */
+function makeEvalStrategy(
+  exportedStrategy: ExportedStrategy,
+  evalStats?: EvaluationStats,
+): BotStrategy {
+  return (context: BotStrategyContext): BotStrategyAction | undefined => {
+    const { state, botCards, totalCards, activePlayers } = context;
 
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards);
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers);
     const strategyEntry = exportedStrategy.strategy[infoSetKey];
 
     let chosenAction: AbstractAction;
