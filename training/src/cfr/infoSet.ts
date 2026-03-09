@@ -295,19 +295,64 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
   return '6+';
 }
 
+// ── Bull/true sentiment bucketing (multiplayer-critical) ────────────
+
+/**
+ * Encode the bull/true voting distribution in the current round.
+ * This is the CRITICAL missing context for multiplayer: in heads-up,
+ * bull resolves immediately. In 4-6 player games, the voting chain
+ * creates fundamentally different dynamics:
+ * - If 3 others already called bull → calling bull is "safe" (shared risk)
+ * - If 2 others called true → calling bull goes against table consensus
+ *
+ * Also encodes how many responses have occurred (position in the chain).
+ */
+function bullSentimentBucket(
+  turnHistory: { action: string }[],
+  roundPhase: string,
+): string {
+  // Only relevant in bull_phase and last_chance
+  if (roundPhase !== 'bull_phase' && roundPhase !== 'last_chance') return 'x';
+
+  // Count bull/true votes in the history (after the initial call that started the round)
+  let bullCount = 0;
+  let trueCount = 0;
+  for (const entry of turnHistory) {
+    if (entry.action === 'bull') bullCount++;
+    if (entry.action === 'true') trueCount++;
+  }
+
+  // Encode: sentiment + response depth
+  // Sentiment: who's been calling what?
+  const total = bullCount + trueCount;
+  if (total === 0) return 'v0';              // First responder — no votes yet
+
+  // Response depth: am I early or late in the chain?
+  const depthTag = total <= 1 ? 'e' : total <= 3 ? 'm' : 'l'; // early/mid/late
+
+  if (trueCount === 0) return `${depthTag}B`;   // All bull so far
+  if (bullCount === 0) return `${depthTag}T`;   // All true so far
+  return `${depthTag}X`;                         // Mixed responses
+}
+
 // ── Total cards bucketing ────────────────────────────────────────────
 
 /**
  * Bucket total cards in play across all players.
  * Critical for evaluating claim plausibility — a pair is rare with 2 total
  * cards but common with 10. Directly affects bull/true decision quality.
+ *
+ * Finer granularity at the high end because multiplayer games (4-6P with
+ * 3-5 cards each) produce 12-30 total cards, and claim plausibility
+ * changes significantly across that range.
  */
 function totalCardsBucket(totalCards: number): string {
-  if (totalCards <= 2) return 't2';    // 1v1 early rounds — pairs very unlikely
-  if (totalCards <= 4) return 't3-4';  // small pool — most hands unlikely
-  if (totalCards <= 6) return 't5-6';  // medium pool
-  if (totalCards <= 8) return 't7-8';  // large pool — pairs/trips common
-  return 't9+';                        // very large pool
+  if (totalCards <= 2) return 't2';     // 1v1 early rounds — pairs very unlikely
+  if (totalCards <= 4) return 't3-4';   // small pool — most hands unlikely
+  if (totalCards <= 6) return 't5-6';   // medium pool
+  if (totalCards <= 8) return 't7-8';   // large pool — pairs/trips common
+  if (totalCards <= 12) return 't9-12'; // multiplayer pool — most low hands exist
+  return 't13+';                        // very large pool — even straights/flushes likely
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
@@ -331,8 +376,13 @@ function playerCountBucket(activePlayers: number): string {
 /**
  * Generate a compact info set key for CFR.
  *
- * Designed to produce ~10-20K unique keys across all player counts.
- * Format: phase|playerCount|cardCount|totalCardsBucket|myStrength|handVsClaim|claimHeight|turnDepth
+ * Designed to produce ~20-40K unique keys across all player counts.
+ * Format: phase|playerCount|cardCount|totalCardsBucket|myStrength|handVsClaim|claimHeight|turnDepth|bullSentiment
+ *
+ * The bullSentiment segment is critical for multiplayer: it encodes the
+ * distribution of bull/true votes so far and position in the response chain.
+ * Without this, the strategy can't distinguish between "I'm first to respond"
+ * and "4 others already called bull" — fundamentally different decisions.
  */
 export function getInfoSetKey(
   state: ClientGameState,
@@ -357,6 +407,8 @@ export function getInfoSetKey(
     claimHeightBucket(state.currentHand),
     // How deep are we in this round
     turnDepthBucket(state.turnHistory),
+    // Bull/true voting sentiment — multiplayer-critical context
+    bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
   return parts.join('|');
