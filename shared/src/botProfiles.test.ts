@@ -8,6 +8,7 @@ import {
   BOT_PERSONALITIES,
   BOT_MATRIX_SIZE,
   LEGACY_PROFILE_KEY_MAP,
+  CFR_BOTS,
 } from './botProfiles.js';
 import type { BotProfileConfig } from './botProfiles.js';
 
@@ -90,9 +91,9 @@ describe('botProfiles', () => {
   });
 
   describe('BOT_PROFILE_MAP', () => {
-    it('contains all profiles plus impossible bot', () => {
-      // 81 personality bots + 1 impossible bot = 82
-      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length + 1);
+    it('contains all profiles plus impossible bot and CFR bots', () => {
+      // 81 personality bots + 1 impossible bot + 9 CFR bots = 91
+      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length + 1 + 9);
     });
 
     it('allows O(1) lookup by key', () => {
@@ -108,7 +109,11 @@ describe('botProfiles', () => {
 
   describe('BOT_PROFILE_KEYS', () => {
     it('has the right keys', () => {
-      expect(BOT_PROFILE_KEYS).toEqual([...BOT_PROFILES.map(p => p.key), 'oracle_lvl10']);
+      expect(BOT_PROFILE_KEYS).toEqual([
+        ...BOT_PROFILES.map(p => p.key),
+        'oracle_lvl10',
+        ...CFR_BOTS.map(p => p.key),
+      ]);
     });
   });
 

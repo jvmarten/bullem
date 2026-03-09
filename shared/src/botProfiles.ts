@@ -93,6 +93,8 @@ export interface BotProfileDefinition {
   config: BotProfileConfig;
   /** In-character quips for various game events. */
   flavorText: BotFlavorText;
+  /** If true, this bot uses CFR strategy instead of heuristic decision logic. */
+  isCFR?: boolean;
 }
 
 // ── Default config — evolved-optimized baseline ─────────────────────────
@@ -495,9 +497,52 @@ export const IMPOSSIBLE_BOT: BotProfileDefinition = {
   },
 };
 
+// ── CFR bot profiles (trained via Counterfactual Regret Minimization) ────
+
+/**
+ * 9 CFR bots — all use the same trained strategy (500K iterations of self-play).
+ * Different names and avatars for variety, but identical decision logic.
+ * CFR bots bypass the heuristic BotProfileConfig system entirely; the config
+ * field is set to the evolved baseline as a no-op fallback.
+ */
+const CFR_BOT_NAMES: readonly { key: string; name: string; avatar: string }[] = [
+  { key: 'cfr_viper',    name: 'Viper',    avatar: '\u{1F40D}' },
+  { key: 'cfr_ghost',    name: 'Ghost',    avatar: '\u{1F47B}' },
+  { key: 'cfr_reaper',   name: 'Reaper',   avatar: '\u{2620}\u{FE0F}' },
+  { key: 'cfr_specter',  name: 'Specter',  avatar: '\u{1F300}' },
+  { key: 'cfr_raptor',   name: 'Raptor',   avatar: '\u{1F985}' },
+  { key: 'cfr_havoc',    name: 'Havoc',    avatar: '\u{1F525}' },
+  { key: 'cfr_phantom',  name: 'Phantom',  avatar: '\u{1F3AD}' },
+  { key: 'cfr_sentinel', name: 'Sentinel', avatar: '\u{1F6E1}\u{FE0F}' },
+  { key: 'cfr_vanguard', name: 'Vanguard', avatar: '\u{2694}\u{FE0F}' },
+];
+
+const CFR_FLAVOR_TEXT: BotFlavorText = {
+  callBull: ['Statistically unlikely.', 'The numbers don\'t lie.', 'My training says no.'],
+  caughtBluffing: ['A calculated risk.', 'Variance happens.', 'Noted for future iterations.'],
+  winRound: ['As the model predicted.', 'Optimal play.', 'Converged.'],
+  bigRaise: ['The strategy demands it.', 'Trust the process.'],
+  eliminated: ['Regret minimized.', 'The strategy will adapt.'],
+};
+
+export const CFR_BOTS: readonly BotProfileDefinition[] = CFR_BOT_NAMES.map(({ key, name, avatar }) => ({
+  key,
+  name,
+  personality: 'Trained via 500K iterations of CFR self-play. No heuristics — pure game theory.',
+  avatar,
+  config: DEFAULT_BOT_PROFILE_CONFIG, // Not used — CFR bypasses heuristic logic
+  flavorText: CFR_FLAVOR_TEXT,
+  isCFR: true,
+}));
+
+/** Map from CFR bot key to profile for O(1) lookup. */
+export const CFR_BOT_MAP: ReadonlyMap<string, BotProfileDefinition> = new Map(
+  CFR_BOTS.map(p => [p.key, p]),
+);
+
 // ── Profile definitions ─────────────────────────────────────────────────
 
-/** All 81 bot profiles (9 personalities × 9 levels). */
+/** All 81 heuristic bot profiles (9 personalities × 9 levels). */
 export const BOT_PROFILES: readonly BotProfileDefinition[] = generateBotMatrix();
 
 /** The 9 base personality definitions (level-independent). */
@@ -505,11 +550,19 @@ export const BOT_PERSONALITIES: readonly PersonalityBase[] = PERSONALITY_BASES;
 
 /** Map from profile key to profile definition for O(1) lookup. */
 export const BOT_PROFILE_MAP: ReadonlyMap<string, BotProfileDefinition> = new Map(
-  [...BOT_PROFILES.map(p => [p.key, p] as const), [IMPOSSIBLE_BOT.key, IMPOSSIBLE_BOT]],
+  [
+    ...BOT_PROFILES.map(p => [p.key, p] as const),
+    [IMPOSSIBLE_BOT.key, IMPOSSIBLE_BOT],
+    ...CFR_BOTS.map(p => [p.key, p] as const),
+  ],
 );
 
 /** All valid profile keys. */
-export const BOT_PROFILE_KEYS: readonly string[] = [...BOT_PROFILES.map(p => p.key), IMPOSSIBLE_BOT.key];
+export const BOT_PROFILE_KEYS: readonly string[] = [
+  ...BOT_PROFILES.map(p => p.key),
+  IMPOSSIBLE_BOT.key,
+  ...CFR_BOTS.map(p => p.key),
+];
 
 // ── Legacy compatibility ────────────────────────────────────────────────
 
@@ -537,6 +590,8 @@ export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
   ...BOT_PROFILES.map(p => [p.name, p.avatar] as const),
   // Impossible bot
   [IMPOSSIBLE_BOT.name, IMPOSSIBLE_BOT.avatar],
+  // CFR bots
+  ...CFR_BOTS.map(p => [p.name, p.avatar] as const),
   // Legacy names (old 8 bots)
   ['The Rock', '\u{1FAA8}'],
   ['Maverick', '\u{1F920}'],
