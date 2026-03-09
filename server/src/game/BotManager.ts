@@ -3,7 +3,7 @@ import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
   maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
-  pickRandomBot, IMPOSSIBLE_BOT,
+  pickRandomBot, IMPOSSIBLE_BOT, CFR_BOT_MAP,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId, BotProfileConfig } from '@bull-em/shared';
@@ -40,6 +40,8 @@ export class BotManager {
   private botProfileConfigs = new Map<string, BotProfileConfig>();
   /** Database user IDs for ranked bots, keyed by in-game player ID. */
   private botUserIds = new Map<string, string>();
+  /** Set of bot IDs that use CFR strategy instead of heuristic logic. */
+  private cfrBotIds = new Set<string>();
 
   /** Attach a RoomManager reference for Redis persistence after bot actions.
    *  Must be called before any bot actions are processed. */
@@ -100,6 +102,15 @@ export class BotManager {
 
     const botId = `bot-${++botCounter}`;
     room.addBot(botId, name);
+
+    // Track CFR bots by checking if the name matches a CFR profile
+    for (const [, profile] of CFR_BOT_MAP) {
+      if (profile.name === name) {
+        this.cfrBotIds.add(botId);
+        break;
+      }
+    }
+
     return botId;
   }
 
@@ -136,6 +147,7 @@ export class BotManager {
     room.removeBot(botId);
     this.botProfileConfigs.delete(botId);
     this.botUserIds.delete(botId);
+    this.cfrBotIds.delete(botId);
   }
 
   /** Clean up all bot profile configs and user IDs for bots in a room.
@@ -286,6 +298,7 @@ export class BotManager {
     this.roomTimerGeneration.clear();
     this.botProfileConfigs.clear();
     this.botUserIds.clear();
+    this.cfrBotIds.clear();
   }
 
   private executeBotTurn(room: Room, io: TypedServer, botId: PlayerId): void {
@@ -310,7 +323,8 @@ export class BotManager {
       : undefined;
     // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)
     const profileConfig = this.botProfileConfigs.get(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, room.roomCode, profileConfig);
+    const isCFR = this.cfrBotIds.has(botId);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, room.roomCode, profileConfig, isCFR);
 
     let result: TurnResult;
     switch (decision.action) {

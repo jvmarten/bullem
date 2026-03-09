@@ -5,7 +5,7 @@ import {
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
-  saveReplay, pickRandomBot, DEFAULT_BEST_OF,
+  saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
@@ -513,7 +513,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
           .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
           .flatMap(p => p.cards)
       : undefined;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards, 'local');
+    // Check if this bot is a CFR bot by matching name against CFR profiles
+    const isCFR = [...CFR_BOT_MAP.values()].some(p => p.name === botPlayer.name);
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, botDifficultyRef.current, visibleCards, 'local', undefined, isCFR);
 
     let result: TurnResult;
     switch (decision.action) {

@@ -5,6 +5,7 @@ import { HandChecker } from './HandChecker.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId } from '../types.js';
 import type { BotProfileConfig } from '../botProfiles.js';
 import { DEFAULT_BOT_PROFILE_CONFIG } from '../botProfiles.js';
+import { decideCFR } from '../cfr/index.js';
 
 /** The action a bot decides to take on its turn. */
 export type BotAction =
@@ -350,10 +351,23 @@ export class BotPlayer {
     allCards?: Card[],
     scope?: string,
     profileConfig?: BotProfileConfig,
+    isCFR?: boolean,
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
     }
+
+    // CFR bots use trained strategy instead of heuristic logic
+    if (isCFR) {
+      const activePlayers = state.players.filter(p => !p.isEliminated).length;
+      const totalCards = state.players
+        .filter(p => !p.isEliminated)
+        .reduce((sum, p) => sum + p.cardCount, 0);
+      const cfrAction = decideCFR(state, botCards, totalCards, activePlayers);
+      if (cfrAction) return cfrAction;
+      // Fall through to heuristic if CFR returns null (shouldn't happen)
+    }
+
     // All non-impossible bots (NORMAL and HARD) use the same decision logic,
     // differentiated only by their BotProfileConfig parameters.
     const cfg: BotProfileConfig = profileConfig
