@@ -593,12 +593,17 @@ router.post('/reset-password', authRateLimit, async (req, res) => {
       return;
     }
 
-    // Find a matching, non-expired, unused token
+    // Atomically claim the token — UPDATE...RETURNING ensures only one
+    // concurrent request can use a given token (prevents race condition
+    // where two requests both SELECT the unused token before either marks
+    // it used).
     const tokenResult = await pool.query<{ id: string; user_id: string }>(
-      `SELECT id, user_id FROM password_reset_tokens
+      `UPDATE password_reset_tokens
+       SET used_at = NOW()
        WHERE token_hash = $1
          AND expires_at > NOW()
-         AND used_at IS NULL`,
+         AND used_at IS NULL
+       RETURNING id, user_id`,
       [tokenHash],
     );
 
@@ -615,12 +620,6 @@ router.post('/reset-password', authRateLimit, async (req, res) => {
     await pool.query(
       'UPDATE users SET password_hash = $1 WHERE id = $2',
       [passwordHash, resetRow.user_id],
-    );
-
-    // Mark the token as used
-    await pool.query(
-      'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1',
-      [resetRow.id],
     );
 
     res.json({ message: 'Password has been reset successfully.' });
