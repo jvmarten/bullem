@@ -41,7 +41,7 @@ import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { broadcastRoomState, broadcastGameState } from '../socket/broadcast.js';
 import { recordRoundStart } from '../socket/roundTransition.js';
-import { getUserAvatar } from '../db/users.js';
+import { getUserAvatarAndPhoto } from '../db/users.js';
 import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -54,6 +54,7 @@ interface QueueEntry {
   joinedAt: number;
   displayName: string;
   avatar?: AvatarId | null;
+  photoUrl?: string | null;
 }
 
 /**
@@ -130,7 +131,7 @@ export class InMemoryMatchmakingQueue {
       ? ELO_DEFAULT
       : Math.round(openSkillOrdinal(OPENSKILL_DEFAULT_MU, OPENSKILL_DEFAULT_SIGMA));
 
-    const avatar = await getUserAvatar(userId);
+    const avatarAndPhoto = await getUserAvatarAndPhoto(userId);
 
     const entry: QueueEntry = {
       userId,
@@ -138,7 +139,8 @@ export class InMemoryMatchmakingQueue {
       rating,
       joinedAt: Date.now(),
       displayName: username,
-      avatar,
+      avatar: avatarAndPhoto.avatar,
+      photoUrl: avatarAndPhoto.photoUrl,
     };
 
     const queue = mode === 'heads_up' ? this.headsUpQueue : this.multiplayerQueue;
@@ -293,7 +295,7 @@ export class InMemoryMatchmakingQueue {
 
     for (const entry of humanPlayers) {
       const playerId = randomUUID();
-      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar });
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar, photoUrl: entry.photoUrl });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -382,7 +384,7 @@ export class InMemoryMatchmakingQueue {
 
     for (const entry of players) {
       const playerId = randomUUID();
-      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar });
+      const { player, reconnectToken } = room.addPlayer(entry.socketId, playerId, entry.displayName, { userId: entry.userId, avatar: entry.avatar, photoUrl: entry.photoUrl });
       room.setPlayerUserId(playerId, entry.userId);
       this.roomManager.assignSocketToRoom(entry.socketId, room.roomCode);
       this.roomManager.assignPlayerToRoom(playerId, room.roomCode);
@@ -424,7 +426,7 @@ export class InMemoryMatchmakingQueue {
     };
 
     const playerId = randomUUID();
-    const { player: addedPlayer, reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName, { userId: player.userId, avatar: player.avatar });
+    const { player: addedPlayer, reconnectToken } = room.addPlayer(player.socketId, playerId, player.displayName, { userId: player.userId, avatar: player.avatar, photoUrl: player.photoUrl });
     room.setPlayerUserId(playerId, player.userId);
     this.roomManager.assignSocketToRoom(player.socketId, room.roomCode);
     this.roomManager.assignPlayerToRoom(playerId, room.roomCode);

@@ -64,6 +64,8 @@ export interface Player {
   userId?: string;
   /** User-chosen avatar template. Null/undefined for guests or players without an avatar. */
   avatar?: AvatarId | null;
+  /** Custom profile photo URL (base64 data URL). Takes priority over emoji avatar when present. */
+  photoUrl?: string | null;
 }
 
 /** Server-side player with actual cards. Never sent to other players' clients. */
@@ -540,6 +542,8 @@ export interface LeaderboardEntry {
   username: string;
   displayName: string;
   avatar: AvatarId | null;
+  /** Custom profile photo URL. Takes priority over emoji avatar when present. */
+  photoUrl?: string | null;
   rating: number;
   gamesPlayed: number;
   tier: RankTier;
@@ -621,6 +625,8 @@ export interface OpponentRecord {
   opponentId: string;
   opponentName: string;
   opponentAvatar: AvatarId | null;
+  /** Opponent's profile photo URL — takes priority over emoji avatar. */
+  opponentPhotoUrl?: string | null;
   gamesPlayed: number;
   wins: number;
   losses: number;

@@ -47,6 +47,7 @@ interface OpponentRow {
   opponent_id: string;
   opponent_name: string;
   opponent_avatar: string | null;
+  opponent_photo_url: string | null;
   games_played: string;
   wins: string;
 }
@@ -240,6 +241,7 @@ async function getOpponentRecords(userId: string): Promise<OpponentRecord[] | nu
        opp.user_id AS opponent_id,
        MAX(opp.player_name) AS opponent_name,
        MAX(u.avatar) AS opponent_avatar,
+       MAX(u.photo_url) AS opponent_photo_url,
        COUNT(*)::text AS games_played,
        COUNT(*) FILTER (WHERE me.finish_position = 1)::text AS wins
      FROM game_players me
@@ -262,6 +264,7 @@ async function getOpponentRecords(userId: string): Promise<OpponentRecord[] | nu
       opponentId: row.opponent_id,
       opponentName: row.opponent_name,
       opponentAvatar: row.opponent_avatar as AvatarId | null,
+      opponentPhotoUrl: row.opponent_photo_url,
       gamesPlayed,
       wins,
       losses: gamesPlayed - wins,

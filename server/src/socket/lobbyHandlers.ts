@@ -62,6 +62,7 @@ export function registerLobbyHandlers(
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
       avatar,
+      photoUrl: socket.data.photoUrl as string | undefined,
     });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
@@ -149,6 +150,7 @@ export function registerLobbyHandlers(
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
       avatar,
+      photoUrl: socket.data.photoUrl as string | undefined,
     });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);

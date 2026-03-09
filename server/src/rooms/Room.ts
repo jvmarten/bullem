@@ -59,7 +59,7 @@ export class Room {
     return this.players.get(this.hostId)?.name ?? '???';
   }
 
-  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; avatar?: AvatarId | null }): { player: ServerPlayer; reconnectToken: string } {
+  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; avatar?: AvatarId | null; photoUrl?: string | null }): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,
       name,
@@ -70,6 +70,7 @@ export class Room {
       cards: [],
       userId: opts?.userId,
       avatar: opts?.avatar,
+      photoUrl: opts?.photoUrl,
     };
     if (player.isHost) this.hostId = playerId;
     this.players.set(playerId, player);
@@ -563,5 +564,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isAdmin: p.isAdmin,
     userId: p.userId,
     avatar: p.avatar,
+    photoUrl: p.photoUrl,
   };
 }

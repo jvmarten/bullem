@@ -12,7 +12,7 @@ import type {
   TodaySession,
   OpponentRecord,
 } from '@bull-em/shared';
-import { avatarDisplay } from '../pages/ProfilePage.js';
+import { PlayerAvatarContent } from './PlayerAvatar.js';
 
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
@@ -262,8 +262,8 @@ function OpponentRecordsSection({ records }: { records: OpponentRecord[] }) {
             onClick={() => navigate(`/profile/${r.opponentId}`)}
             className="glass px-4 py-2.5 flex items-center gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
           >
-            <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-sm shrink-0">
-              {avatarDisplay(r.opponentAvatar, r.opponentName)}
+            <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-sm shrink-0 overflow-hidden">
+              <PlayerAvatarContent name={r.opponentName} avatar={r.opponentAvatar} photoUrl={r.opponentPhotoUrl} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--gold)] truncate">{r.opponentName}</p>

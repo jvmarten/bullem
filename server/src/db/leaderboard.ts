@@ -50,6 +50,7 @@ interface LeaderboardRow {
   username: string;
   display_name: string;
   avatar: string | null;
+  photo_url: string | null;
   rating: string;
   games_played: string;
   rank: string;
@@ -143,6 +144,7 @@ export async function getLeaderboard(
        u.username,
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
+       u.photo_url,
        u.is_bot,
        ${rating} AS rating,
        r.games_played,
@@ -184,6 +186,7 @@ export async function getLeaderboard(
       username: row.username,
       displayName: row.display_name,
       avatar: row.avatar as LeaderboardEntry['avatar'],
+      photoUrl: row.photo_url,
       rating: ratingNum,
       gamesPlayed: parseInt(row.games_played, 10),
       tier: getRankTier(ratingNum),
@@ -234,6 +237,7 @@ async function getUserRank(
        u.username,
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
+       u.photo_url,
        ${rating} AS rating,
        r.games_played,
        (SELECT COUNT(*) + 1
@@ -267,6 +271,7 @@ async function getUserRank(
     username: row.username,
     displayName: row.display_name,
     avatar: row.avatar as LeaderboardEntry['avatar'],
+    photoUrl: row.photo_url,
     rating: ratingNum,
     gamesPlayed: parseInt(row.games_played, 10),
     tier: getRankTier(ratingNum),
@@ -305,6 +310,7 @@ export async function getLeaderboardNearby(
        u.username,
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
+       u.photo_url,
        ${rating} AS rating,
        r.games_played,
        ROW_NUMBER() OVER (ORDER BY ${rating} DESC, r.games_played DESC) AS rank
@@ -328,6 +334,7 @@ export async function getLeaderboardNearby(
       username: row.username,
       displayName: row.display_name,
       avatar: row.avatar as LeaderboardEntry['avatar'],
+      photoUrl: row.photo_url,
       rating: ratingNum,
       gamesPlayed: parseInt(row.games_played, 10),
       tier: getRankTier(ratingNum),

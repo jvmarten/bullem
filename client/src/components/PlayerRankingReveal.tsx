@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { playerInitial, playerColor } from '../utils/cardUtils.js';
+import { playerColor } from '../utils/cardUtils.js';
+import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { useSound } from '../hooks/useSound.js';
 import type { Player, PlayerId, GameStats } from '@bull-em/shared';
 
@@ -146,10 +147,10 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
                 type="button"
               >
                 <div
-                  className={`avatar ${playerColor(entry.originalIndex)} flex items-center justify-center flex-shrink-0`}
+                  className={`avatar ${playerColor(entry.originalIndex)} flex items-center justify-center flex-shrink-0 overflow-hidden`}
                   style={{ width: isWinner ? '2.5rem' : '2rem', height: isWinner ? '2.5rem' : '2rem', fontSize: isWinner ? '1.1rem' : '0.9rem' }}
                 >
-                  {entry.player.isBot ? '\u2699' : playerInitial(entry.player.name)}
+                  <PlayerAvatarContent name={entry.player.name} avatar={entry.player.avatar} photoUrl={entry.player.photoUrl} isBot={entry.player.isBot} />
                 </div>
                 <span className={`truncate ${isWinner ? 'font-bold text-[var(--gold)]' : 'text-sm'}`}>
                   {entry.player.name}

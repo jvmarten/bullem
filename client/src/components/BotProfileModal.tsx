@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { Player, InGamePlayerStats, PlayerStatsResponse } from '@bull-em/shared';
 import { playerColor } from '../utils/cardUtils.js';
-import { avatarDisplay } from '../pages/ProfilePage.js';
+import { PlayerAvatarContent } from './PlayerAvatar.js';
 
 interface Props {
   player: Player;
@@ -12,9 +11,6 @@ interface Props {
 }
 
 export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) {
-  const avatar = player.isBot
-    ? (BOT_AVATAR_MAP.get(player.name) ?? '\u2699')
-    : avatarDisplay(player.avatar, player.name);
 
   // Fetch all-time stats for any player with a userId (humans and ranked bots)
   const [allTimeStats, setAllTimeStats] = useState<PlayerStatsResponse | null>(null);
@@ -52,8 +48,8 @@ export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) 
       >
         {/* Header */}
         <div className="text-center">
-          <div className={`w-16 h-16 rounded-full ${playerColor(playerIndex)} flex items-center justify-center mx-auto mb-3 text-3xl`}>
-            {avatar}
+          <div className={`w-16 h-16 rounded-full ${playerColor(playerIndex)} flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden`}>
+            <PlayerAvatarContent name={player.name} avatar={player.avatar} photoUrl={player.photoUrl} isBot={player.isBot} />
           </div>
           <h3 className="text-xl font-bold text-[var(--gold)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
             {player.name}

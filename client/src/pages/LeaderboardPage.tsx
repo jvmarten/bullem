@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 import { RankBadge } from '../components/RankBadge.js';
 import type { RankedMode, LeaderboardPeriod, LeaderboardResponse, LeaderboardEntry, LeaderboardPlayerFilter } from '@bull-em/shared';
+import { PlayerAvatarContent } from '../components/PlayerAvatar.js';
 
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
@@ -319,18 +320,14 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
         <RankNumber rank={entry.rank} />
       </div>
 
+      {/* Avatar */}
+      <div className="w-7 h-7 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-xs shrink-0 overflow-hidden">
+        <PlayerAvatarContent name={entry.displayName} avatar={entry.avatar} photoUrl={entry.photoUrl} isBot={entry.isBot} />
+      </div>
+
       {/* Name + tier + bot badge */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {entry.isBot && (
-            <span
-              className="text-[10px] shrink-0"
-              title="Bot"
-              style={{ opacity: 0.6 }}
-            >
-              &#9881;
-            </span>
-          )}
           <span
             className={`text-sm truncate ${isCurrentUser ? 'font-bold text-[var(--gold)]' : 'text-[#e8e0d4]'}`}
           >
