@@ -452,6 +452,38 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       eliminated: ['I\'ll be back.', 'The hustle never stops.'],
     },
   },
+  {
+    key: 'evolved',
+    name: 'Evolved',
+    personality: 'Machine-optimized over 50 generations. No wasted moves. 61% win rate vs all lvl9 profiles.',
+    avatar: '\u{1F9EC}',
+    config: {
+      bluffFrequency: 0.0,            // GTO bluff path is suboptimal — evolved to zero
+      bullThreshold: 0.5592,          // Slightly more trusting than default
+      riskTolerance: 0.9924,          // Near-maximum boldness
+      aggressionBias: 0.2958,         // Prefers bull calls over raises
+      lastChanceBluffRate: 0.4862,    // Moderate last-chance raises
+      openingBluffRate: 0.5703,       // High opening bluffs hide info
+      bullPhaseRaiseRate: 0.213,      // Selective bull-phase raises
+      trustMultiplier: 1.2086,        // Trusts opponent reads
+      cardCountSensitivity: 0.047,    // Near-zero — reactivity is exploitable
+      headsUpAggression: 0.6835,      // Aggressive in 1v1
+      survivalPressure: 0.3959,       // Moderate survival tightening
+      bluffTargetSelection: 0.4572,   // Balanced bluff targeting
+      positionAwareness: 0.421,       // Low position dependency
+      trueCallConfidence: 1.0,        // Maximum true-call decisiveness
+      counterBluffRate: 0.617,        // Counter-bluffing is a key weapon
+      bullPhaseBluffRate: 0.745,      // Bull-phase bluffs massively underutilized by others
+      openingHandTypePreference: 0.2569, // Hides info at opening
+    },
+    flavorText: {
+      callBull: ['Probability insufficient.', 'My training says no.', 'Evolved past that bluff.'],
+      caughtBluffing: ['Recalibrating...', 'Within expected variance.'],
+      winRound: ['Optimized outcome.', 'As the model predicted.', 'Natural selection.'],
+      bigRaise: ['Fitness function maximized.', 'Survival of the fittest.'],
+      eliminated: ['Mutation needed.', 'Next generation will adapt.'],
+    },
+  },
 ];
 
 // ── Level scaling ───────────────────────────────────────────────────────
