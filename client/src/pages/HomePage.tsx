@@ -1146,7 +1146,6 @@ export function HomePage() {
               <li>Shortened tutorial to 5-step Quick Start + Advanced Rules</li>
               <li>Hand selector filters out invalid rank options</li>
               <li>Smarter bot bluffing and decision-making</li>
-              <li>Oracle bot limited to one per match with own settings toggle</li>
             </ul>
           </div>
         </div>
