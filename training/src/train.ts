@@ -28,7 +28,10 @@ function parseArgs(argv: string[]): {
 } {
   const args = argv.slice(2);
   let iterations = 100_000;
-  let players: number | number[] = [2, 3, 4, 5, 6]; // Mixed training across all table sizes
+  // Weight multiplayer games more heavily — the info set space is larger
+  // and multiplayer dynamics (bull/true voting chains) need more samples
+  // to converge. 2P is well-served by fewer samples since it's simpler.
+  let players: number | number[] = [2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6]; // 3:1 multiplayer:heads-up ratio
   let maxCards = 5;
   let progressInterval = 1000;
   let checkpointInterval = 50_000;
