@@ -69,6 +69,10 @@ export interface EvolutionConfig {
 export interface GenerationSummary {
   generation: number;
   bestWinRate: number;
+  /** Best win rate from population tournament only (before HoF blending). */
+  bestPopWinRate: number;
+  /** Best win rate against HoF benchmark opponents (undefined if HoF disabled). */
+  bestBenchWinRate?: number;
   avgWinRate: number;
   bestIndividual: Individual;
   paramSpread: Record<keyof BotProfileConfig, { min: number; max: number; avg: number }>;
@@ -99,6 +103,13 @@ const PARAM_BOUNDS: Record<keyof BotProfileConfig, { min: number; max: number }>
   trustMultiplier:      { min: 0.0, max: 2.0 },
   bluffPlausibilityGate:{ min: 0.0, max: 1.0 },
   noiseBand:            { min: 0.0, max: 0.2 },
+  cardCountBluffAdjust: { min: 0.0, max: 2.0 },
+  cardCountBullAdjust:  { min: 0.0, max: 2.0 },
+  headsUpAggression:    { min: 0.0, max: 1.0 },
+  survivalPressure:     { min: 0.0, max: 1.0 },
+  bluffTargetSelection: { min: 0.0, max: 1.0 },
+  positionAwareness:    { min: 0.0, max: 1.0 },
+  trueCallConfidence:   { min: 0.0, max: 1.0 },
 };
 
 const PARAM_KEYS = Object.keys(PARAM_BOUNDS) as (keyof BotProfileConfig)[];
@@ -422,6 +433,53 @@ function evaluateAgainstHof(
 
 // ── Main evolution loop ────────────────────────────────────────────────
 
+/**
+ * Build the JSON payload for saving current evolution state.
+ * Used both for normal completion and graceful shutdown.
+ */
+function buildExportData(
+  overallBest: IndividualResult,
+  overallBestPopWinRate: number,
+  overallBestHofWinRate: number | undefined,
+  completedGenerations: number,
+  config: EvolutionConfig,
+  totalGames: number,
+  durationMs: number,
+  hallOfFame: Individual[],
+  summaries: GenerationSummary[],
+  interrupted: boolean,
+): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    exportedAt: new Date().toISOString(),
+    interrupted,
+    completedGenerations,
+    targetGenerations: config.generations,
+    populationSize: config.populationSize,
+    gamesPerMatchup: config.gamesPerMatchup,
+    playersPerGame: config.playersPerGame,
+    maxCards: config.maxCards,
+    bestPopWinRate: overallBestPopWinRate,
+    bestBlendedWinRate: overallBest.winRate,
+    totalGames,
+    durationMs,
+    config: overallBest.individual.config,
+    origin: overallBest.individual.origin,
+  };
+  if (overallBestHofWinRate !== undefined) {
+    data['bestBenchWinRate'] = overallBestHofWinRate;
+    data['hofSize'] = hallOfFame.length;
+  }
+  if (interrupted) {
+    data['generationHistory'] = summaries.map(s => ({
+      generation: s.generation,
+      bestPopWinRate: s.bestPopWinRate,
+      bestBenchWinRate: s.bestBenchWinRate,
+      avgWinRate: s.avgWinRate,
+    }));
+  }
+  return data;
+}
+
 export function evolve(config: EvolutionConfig): EvolutionResult {
   const {
     generations,
@@ -459,9 +517,24 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
   let population = seedPopulation(populationSize);
   const summaries: GenerationSummary[] = [];
   let overallBest: IndividualResult | null = null;
+  let overallBestPopWinRate = 0;
   let overallBestHofWinRate: number | undefined;
   const hallOfFame: Individual[] = [];
   const useHof = hofSize > 0 && hofWeight > 0;
+  let completedGenerations = 0;
+  let shutdownRequested = false;
+
+  // ── Graceful shutdown handler ──
+  const onSigint = (): void => {
+    if (shutdownRequested) {
+      // Second Ctrl+C — force exit
+      console.log('\n  Force exit.');
+      process.exit(1);
+    }
+    shutdownRequested = true;
+    console.log('\n\n  ⏹  SIGINT received — finishing current generation and saving...');
+  };
+  process.on('SIGINT', onSigint);
 
   for (let gen = 1; gen <= generations; gen++) {
     const genStart = performance.now();
@@ -473,23 +546,35 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
     const genGames = popResults.reduce((sum, r) => sum + r.games, 0) / playersPerGame;
     totalGames += genGames;
 
+    // Track the best population-only win rate for this generation
+    const bestPopWinRate = popResults[0]!.winRate;
+
     // Evaluate against HoF and compute blended fitness
     let results: IndividualResult[];
+    let bestBenchWinRate: number | undefined;
     if (useHof && hallOfFame.length > 0) {
       // Use fewer games per HoF matchup to keep runtime reasonable
       const hofGamesPerMatchup = Math.max(1, Math.floor(gamesPerMatchup / 2));
 
+      const hofWinRates: number[] = [];
       results = popResults.map(r => {
         const hofWinRate = evaluateAgainstHof(
           r.individual, hallOfFame, hofGamesPerMatchup, maxCards,
         );
         totalGames += hofGamesPerMatchup * hallOfFame.length;
+        hofWinRates.push(hofWinRate);
 
         const blendedWinRate = (1 - hofWeight) * r.winRate + hofWeight * hofWinRate;
         return { ...r, winRate: blendedWinRate };
       });
 
       results.sort((a, b) => b.winRate - a.winRate);
+
+      // Best bench win rate: the HoF win rate of the blended-best individual
+      // Find which popResult corresponds to the blended-best
+      const bestId = results[0]!.individual.id;
+      const bestPopIndex = popResults.findIndex(r => r.individual.id === bestId);
+      bestBenchWinRate = bestPopIndex >= 0 ? hofWinRates[bestPopIndex] : Math.max(...hofWinRates);
     } else {
       results = popResults;
     }
@@ -503,6 +588,8 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
         ...best,
         individual: { ...best.individual, config: { ...best.individual.config } },
       };
+      overallBestPopWinRate = bestPopWinRate;
+      overallBestHofWinRate = bestBenchWinRate;
     }
 
     // Add generation champion to HoF if sufficiently different from existing members
@@ -528,31 +615,38 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
     const paramSpread = computeParamSpread(population);
     const genDuration = performance.now() - genStart;
 
+    completedGenerations = gen;
+
     summaries.push({
       generation: gen,
       bestWinRate: best.winRate,
+      bestPopWinRate,
+      bestBenchWinRate,
       avgWinRate,
       bestIndividual: best.individual,
       paramSpread,
     });
 
     // Progress output
-    const spreadRange = PARAM_KEYS.map(k => {
-      const s = paramSpread[k];
-      return (s.max - s.min).toFixed(3);
-    });
-    const avgSpread = spreadRange.reduce((s, v) => s + parseFloat(v), 0) / spreadRange.length;
-
-    const hofSuffix = useHof ? `  |  hof: ${hallOfFame.length}/${hofSize}` : '';
+    const benchPart = bestBenchWinRate !== undefined
+      ? `  |  best_bench: ${(bestBenchWinRate * 100).toFixed(1)}%`
+      : '';
+    const hofPart = useHof ? `  |  hof: ${hallOfFame.length}` : '';
 
     console.log(
       `  Gen ${String(gen).padStart(3)}/${generations}  |  ` +
-      `best: ${(best.winRate * 100).toFixed(1)}%  |  ` +
-      `avg: ${(avgWinRate * 100).toFixed(1)}%  |  ` +
-      `spread: ${avgSpread.toFixed(3)}  |  ` +
-      `${(genDuration / 1000).toFixed(1)}s` +
-      hofSuffix,
+      `best_pop: ${(bestPopWinRate * 100).toFixed(1)}%` +
+      benchPart +
+      hofPart +
+      `  |  avg: ${(avgWinRate * 100).toFixed(1)}%  |  ` +
+      `${(genDuration / 1000).toFixed(1)}s`,
     );
+
+    // Check for graceful shutdown
+    if (shutdownRequested) {
+      console.log(`\n  Stopped after generation ${gen}.`);
+      break;
+    }
 
     // Create next generation (unless this is the last one)
     if (gen < generations) {
@@ -563,8 +657,11 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
     }
   }
 
+  // Clean up SIGINT handler
+  process.removeListener('SIGINT', onSigint);
+
   // Evaluate the overall best against the final HoF for reporting
-  if (useHof && hallOfFame.length > 0 && overallBest) {
+  if (!shutdownRequested && useHof && hallOfFame.length > 0 && overallBest) {
     overallBestHofWinRate = evaluateAgainstHof(
       overallBest.individual, hallOfFame, gamesPerMatchup, maxCards,
     );
@@ -576,36 +673,26 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
   // Export best parameters
   if (overallBest) {
     mkdirSync(outputDir, { recursive: true });
-    const outputFile = join(outputDir, `evolved-best-gen${generations}.json`);
-    const exportData: Record<string, unknown> = {
-      exportedAt: new Date().toISOString(),
-      generations,
-      populationSize,
-      gamesPerMatchup,
-      playersPerGame,
-      maxCards,
-      bestWinRate: overallBest.winRate,
-      totalGames,
-      durationMs,
-      config: overallBest.individual.config,
-      origin: overallBest.individual.origin,
-    };
-    if (overallBestHofWinRate !== undefined) {
-      exportData['hofWinRate'] = overallBestHofWinRate;
-      exportData['hofSize'] = hallOfFame.length;
-    }
+    const suffix = shutdownRequested ? 'interrupted' : `gen${completedGenerations}`;
+    const outputFile = join(outputDir, `evolved-best-${suffix}.json`);
+    const exportData = buildExportData(
+      overallBest, overallBestPopWinRate, overallBestHofWinRate,
+      completedGenerations, config, totalGames, durationMs,
+      hallOfFame, summaries, shutdownRequested,
+    );
     writeFileSync(outputFile, JSON.stringify(exportData, null, 2) + '\n');
     console.log(`\n  Best parameters exported: ${outputFile}`);
   }
 
   // Final summary
+  const header = shutdownRequested ? 'Evolution Interrupted (SIGINT)' : 'Evolution Complete';
   console.log(`\n${'═'.repeat(55)}`);
-  console.log('  Evolution Complete');
+  console.log(`  ${header}`);
   console.log(`${'═'.repeat(55)}`);
-  console.log(`  Total generations:  ${generations}`);
+  console.log(`  Completed gens:     ${completedGenerations}/${generations}`);
   console.log(`  Total games:        ${Math.round(totalGames)}`);
   console.log(`  Duration:           ${(durationMs / 1000).toFixed(1)}s`);
-  console.log(`  Best win rate:      ${((overallBest?.winRate ?? 0) * 100).toFixed(1)}%`);
+  console.log(`  Best pop win rate:  ${(overallBestPopWinRate * 100).toFixed(1)}%`);
   if (overallBestHofWinRate !== undefined) {
     console.log(`  Best vs HoF:        ${(overallBestHofWinRate * 100).toFixed(1)}%  (${hallOfFame.length} members)`);
   }
