@@ -1126,7 +1126,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.3.7
+          v1.3.8
         </button>
       </div>
 
@@ -1140,12 +1140,13 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.3.7</h3>
-            <p className="text-sm text-[var(--gold-dim)]">Released March 8, 2026</p>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.3.8</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 9, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Player avatar now opens quick-view overlay</li>
-              <li>Bot avatars show lifetime stats</li>
-              <li>Removed deck draw card sound effect</li>
+              <li>Shortened tutorial to 5-step Quick Start + Advanced Rules</li>
+              <li>Hand selector filters out invalid rank options</li>
+              <li>Smarter bot bluffing and decision-making</li>
+              <li>Oracle bot limited to one per match with own settings toggle</li>
             </ul>
           </div>
         </div>
