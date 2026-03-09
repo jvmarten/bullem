@@ -113,11 +113,12 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('has standard values that match original hard-mode behavior', () => {
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(1.0);
+    it('has expected default values', () => {
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(1.3);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.5);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.08);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.18);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.15);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.2);
       expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.05);
     });
   });

@@ -309,8 +309,8 @@ export class BotPlayer {
         if (higher) {
           return { action: 'lastChanceRaise', hand: higher };
         }
-        // No legitimate hand — 20% bluff raise (passing is almost guaranteed loss)
-        if (Math.random() < 0.20) {
+        // No legitimate hand — 30% bluff raise (passing is almost guaranteed loss)
+        if (Math.random() < 0.30) {
           const bluff = this.makeNormalBluff(botCards, currentHand);
           if (isHigherHand(bluff, currentHand)) {
             return { action: 'lastChanceRaise', hand: bluff };
@@ -322,14 +322,23 @@ export class BotPlayer {
 
     // Opening call — no current hand
     // Bluff more in early rounds (few cards = harder to disprove).
-    // Base 15% bluff, up to 30% in round 1 (1 card each).
+    // Base 25% bluff, up to 40% in round 1 (1 card each).
     if (roundPhase === RoundPhase.CALLING && !currentHand) {
       const bestHand = this.findBestHandInCards(botCards);
       if (!bestHand) {
         return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
       }
       const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03); // +0.03 per card below 6
-      if (Math.random() < 0.15 + earlyBluffBonus) {
+      if (Math.random() < 0.25 + earlyBluffBonus) {
+        // 50% chance to bluff a high card we don't hold, 50% normal bluff (one type above)
+        if (Math.random() < 0.5) {
+          const heldRanks = new Set(botCards.map(c => c.rank));
+          const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10);
+          if (bluffRanks.length > 0) {
+            const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
+            return { action: 'call', hand: { type: HandType.HIGH_CARD, rank } };
+          }
+        }
         const bluff = this.makeNormalBluff(botCards, bestHand);
         return { action: 'call', hand: bluff };
       }
@@ -352,7 +361,7 @@ export class BotPlayer {
       }
       // No legitimate raise — bluff more in early rounds
       const earlyBluffBonus = Math.max(0, (6 - totalCards) * 0.03);
-      if (Math.random() < 0.10 + earlyBluffBonus) {
+      if (Math.random() < 0.20 + earlyBluffBonus) {
         const bluff = this.makeNormalBluff(botCards, currentHand);
         if (isHigherHand(bluff, currentHand)) {
           return { action: 'call', hand: bluff };
@@ -812,9 +821,21 @@ export class BotPlayer {
     // Strategic bluff opening — table image adjusts bluff frequency.
     // Boost bluff rate in early rounds (few total cards = harder to disprove).
     const tableImageAdj = botId ? this.getTableImageBluffAdjustment(scope, botId) : 0;
-    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.02); // +0.02 per card below 8
-    const effectiveBluffRate = Math.max(0, Math.min(0.5, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
+    const earlyRoundBluffBonus = Math.max(0, (8 - totalCards) * 0.03); // +0.03 per card below 8
+    const effectiveBluffRate = Math.max(0, Math.min(0.6, cfg.openingBluffRate + tableImageAdj + earlyRoundBluffBonus));
     if (Math.random() < effectiveBluffRate) {
+      // Try a high card bluff first (call a rank we don't hold) — common in real play
+      if (totalCards < 8 && Math.random() < 0.6) {
+        // Bluff a high card rank we don't hold
+        const heldRanks = new Set(botCards.map(c => c.rank));
+        const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 10); // 10, J, Q, K, A
+        if (bluffRanks.length > 0) {
+          const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
+          const bluff: HandCall = { type: HandType.HIGH_CARD, rank };
+          if (botId) this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluff };
+        }
+      }
       const bluff = this.makeBluffHandHard(null, totalCards);
       const bluffP = this.estimatePlausibilityHard(bluff, botCards, totalCards);
       if (bluffP > cfg.bluffPlausibilityGate) {
@@ -972,7 +993,7 @@ export class BotPlayer {
           return { action: 'call', hand: bluff };
         }
       }
-    } else if (Math.random() < bluffFreq * 0.7) {
+    } else if (Math.random() < bluffFreq * 1.0) {
       const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
       if (bluff) {
         this.recordSelfAction(scope, botId, true);
@@ -1496,6 +1517,22 @@ export class BotPlayer {
     const rankCounts = this.getRankCounts(ownCards);
 
     // Generate candidates across hand types that are higher than current
+
+    // High card bluffs — call a rank we don't hold (semi-bluff if we hold an adjacent rank)
+    if (currentHand.type <= HandType.HIGH_CARD) {
+      for (const rank of ALL_RANKS) {
+        const hand: HandCall = { type: HandType.HIGH_CARD, rank };
+        if (isHigherHand(hand, currentHand)) {
+          const hasRank = rankCounts.has(rank);
+          if (!hasRank) {
+            // True bluff — we don't hold this rank. Semi-bluff if we hold an adjacent rank.
+            const rankVal = RANK_VALUES[rank];
+            const hasAdjacent = ALL_RANKS.some(r => rankCounts.has(r) && Math.abs(RANK_VALUES[r] - rankVal) === 1);
+            candidates.push({ hand, semiBluff: hasAdjacent });
+          }
+        }
+      }
+    }
 
     // Pair bluffs — prefer semi-bluffs (ranks we have exactly 1 of)
     if (currentHand.type <= HandType.PAIR) {
@@ -2105,9 +2142,14 @@ export class BotPlayer {
 
   private static makeBluffHandHard(currentHand: HandCall | null, totalCards: number): HandCall {
     if (!currentHand) {
-      // Strategic opening: medium-value call that's harder to challenge
+      // Strategic opening: mix of high card bluffs and pair bluffs
       if (totalCards >= 8) {
-        // With many total cards, open with a pair (likely to exist)
+        // With many total cards, 40% high card bluff, 60% pair bluff
+        if (Math.random() < 0.4) {
+          const highRanks: Rank[] = ['10', 'J', 'Q', 'K', 'A'];
+          const rank = highRanks[Math.floor(Math.random() * highRanks.length)]!;
+          return { type: HandType.HIGH_CARD, rank };
+        }
         const midRanks: Rank[] = ['7', '8', '9', '10', 'J'];
         const rank = midRanks[Math.floor(Math.random() * midRanks.length)]!;
         return { type: HandType.PAIR, rank };
