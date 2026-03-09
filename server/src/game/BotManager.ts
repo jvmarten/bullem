@@ -89,6 +89,15 @@ export class BotManager {
     }
 
     const name = botName || this.pickBotName(room);
+
+    // Only one Oracle allowed per match
+    if (name === IMPOSSIBLE_BOT.name) {
+      const hasOracle = [...room.players.values()].some(p => p.name === IMPOSSIBLE_BOT.name);
+      if (hasOracle) {
+        throw new Error('Only one Oracle allowed per match');
+      }
+    }
+
     const botId = `bot-${++botCounter}`;
     room.addBot(botId, name);
     return botId;
@@ -293,10 +302,10 @@ export class BotManager {
     const effectiveDifficulty = botPlayer.name === IMPOSSIBLE_BOT.name
       ? BotDifficulty.IMPOSSIBLE
       : this.difficulty;
-    // For IMPOSSIBLE difficulty, bots see their own cards + human players' cards (not other bots')
+    // The Oracle sees ALL cards — every player's hand including other bots'
     const visibleCards = effectiveDifficulty === BotDifficulty.IMPOSSIBLE
       ? [...room.players.values()]
-          .filter(p => !p.isEliminated && (!p.isBot || p.id === botId))
+          .filter(p => !p.isEliminated)
           .flatMap(p => p.cards)
       : undefined;
     // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)

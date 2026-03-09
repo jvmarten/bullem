@@ -49,7 +49,7 @@ const MAX_PROFILES_PER_SCOPE = 50;
  * - **NORMAL** — estimates hand probability using only its own cards.
  * - **HARD** — factors in opponent behavior patterns (bluff rate, call history)
  *   via cross-round {@link OpponentProfile} memory scoped per room.
- * - **IMPOSSIBLE** — sees all human players' cards (but not other bots').
+ * - **IMPOSSIBLE** — sees ALL players' cards (including other bots').
  */
 /** Bot's own action history — used to vary play and avoid predictability. */
 interface BotSelfImage {
