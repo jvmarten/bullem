@@ -156,7 +156,7 @@ export function findLatestPlayerCountStrategies(): Map<string, string> | null {
 
   const result = new Map<string, string>();
   for (const f of latestFiles) {
-    const bucketMatch = f.match(/-(p\d\+?)\.json$/);
+    const bucketMatch = f.match(/-(p\d+\+?)\.json$/);
     if (bucketMatch) {
       result.set(bucketMatch[1]!, path.join(STRATEGIES_DIR, f));
     }

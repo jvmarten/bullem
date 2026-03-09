@@ -215,8 +215,9 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.FLUSH) return 'lo';
-  return 'hi';
+  if (hand.type <= HandType.PAIR) return 'lo';            // high card, pair — very common
+  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid'; // two pair, flush, trips — moderate
+  return 'hi';                                             // straight, full house, 4oak, SF, RF — rare
 }
 
 // ── My best hand type ────────────────────────────────────────────────
@@ -298,7 +299,7 @@ export function getInfoSetKey(
   const parts: string[] = [
     state.roundPhase.charAt(0),
     playerCountBucket(activePlayers),
-    myCards.length <= 2 ? 'nLo' : 'nHi',
+    myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
     totalCardsBucket(totalCards),
     myHandStrengthBucket(myCards),
     handVsClaimBucket(myCards, state.currentHand),

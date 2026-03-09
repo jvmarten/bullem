@@ -233,15 +233,16 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 // ── Claim height bucketing ───────────────────────────────────────────
 
 /**
- * Bucket the current claim into low/high.
- * Coarsened from 4 buckets to 3 — reduces info set space while keeping
- * the critical distinction between low claims (likely true) and high
- * claims (more likely bluffs).
+ * Bucket the current claim into low/mid/high.
+ * 3 real buckets capture the critical distinction: low claims are almost
+ * always achievable, mid claims are plausible with enough cards, and high
+ * claims are often bluffs (especially at low card counts).
  */
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.FLUSH) return 'lo';          // high card, pair, two pair, flush
-  return 'hi';                                            // trips, straight, full house, 4oak, SF, RF
+  if (hand.type <= HandType.PAIR) return 'lo';            // high card, pair — very common
+  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid'; // two pair, flush, trips — moderate
+  return 'hi';                                             // straight, full house, 4oak, SF, RF — rare
 }
 
 // ── My best hand type ────────────────────────────────────────────────
@@ -361,8 +362,8 @@ export function getInfoSetKey(
     state.roundPhase.charAt(0),
     // Player count bucket — determines bull/true calibration
     playerCountBucket(activePlayers),
-    // How many cards I hold — coarsened to 2 buckets
-    myCards.length <= 2 ? 'nLo' : 'nHi',
+    // How many cards I hold — 3 buckets for better calibration
+    myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
     // Total cards in play — critical for claim plausibility
     totalCardsBucket(totalCards),
     // My hand quality
