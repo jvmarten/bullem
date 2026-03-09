@@ -7,7 +7,9 @@
     "build": "tsc",
     "simulate": "tsx src/simulate.ts",
     "train": "tsx src/train.ts",
-    "evaluate": "tsx src/evaluate.ts"
+    "evaluate": "tsx src/evaluate.ts",
+    "evolve": "tsx src/evolve.ts",
+    "evaluate-evolved": "tsx src/evaluateEvolved.ts"
   },
   "dependencies": {
     "@bull-em/shared": "*"
