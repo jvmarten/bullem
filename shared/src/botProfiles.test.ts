@@ -33,6 +33,8 @@ describe('botProfiles', () => {
         'bluffFrequency', 'bullThreshold', 'riskTolerance', 'aggressionBias',
         'lastChanceBluffRate', 'openingBluffRate', 'bullPhaseRaiseRate',
         'trustMultiplier', 'bluffPlausibilityGate', 'noiseBand',
+        'cardCountBluffAdjust', 'cardCountBullAdjust', 'headsUpAggression',
+        'survivalPressure', 'bluffTargetSelection', 'positionAwareness', 'trueCallConfidence',
       ];
 
       for (const profile of BOT_PROFILES) {
@@ -85,6 +87,27 @@ describe('botProfiles', () => {
 
         expect(cfg.noiseBand).toBeGreaterThanOrEqual(0);
         expect(cfg.noiseBand).toBeLessThanOrEqual(0.2);
+
+        expect(cfg.cardCountBluffAdjust).toBeGreaterThanOrEqual(0);
+        expect(cfg.cardCountBluffAdjust).toBeLessThanOrEqual(2.0);
+
+        expect(cfg.cardCountBullAdjust).toBeGreaterThanOrEqual(0);
+        expect(cfg.cardCountBullAdjust).toBeLessThanOrEqual(2.0);
+
+        expect(cfg.headsUpAggression).toBeGreaterThanOrEqual(0);
+        expect(cfg.headsUpAggression).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.survivalPressure).toBeGreaterThanOrEqual(0);
+        expect(cfg.survivalPressure).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.bluffTargetSelection).toBeGreaterThanOrEqual(0);
+        expect(cfg.bluffTargetSelection).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.positionAwareness).toBeGreaterThanOrEqual(0);
+        expect(cfg.positionAwareness).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.trueCallConfidence).toBeGreaterThanOrEqual(0);
+        expect(cfg.trueCallConfidence).toBeLessThanOrEqual(1.0);
       }
     });
   });
@@ -120,6 +143,13 @@ describe('botProfiles', () => {
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.15);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.2);
       expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.05);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountBluffAdjust).toBe(1.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountBullAdjust).toBe(1.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.headsUpAggression).toBe(0.5);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.survivalPressure).toBe(0.5);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffTargetSelection).toBe(0.5);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.positionAwareness).toBe(0.5);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trueCallConfidence).toBe(0.5);
     });
   });
 
@@ -178,6 +208,37 @@ describe('botProfiles', () => {
     it('Wildcard has wide noise band for unpredictability', () => {
       const wildcard = BOT_PROFILE_MAP.get('wildcard_lvl9')!;
       expect(wildcard.config.noiseBand).toBeGreaterThan(DEFAULT_BOT_PROFILE_CONFIG.noiseBand);
+    });
+
+    it('Bluffer has high headsUpAggression and low survivalPressure', () => {
+      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
+      expect(bluffer.config.headsUpAggression).toBeGreaterThan(0.7);
+      expect(bluffer.config.survivalPressure).toBeLessThan(0.3);
+    });
+
+    it('Rock has low cardCountBluffAdjust and high survivalPressure', () => {
+      const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
+      expect(rock.config.cardCountBluffAdjust).toBeLessThan(1.0);
+      expect(rock.config.survivalPressure).toBeGreaterThan(0.7);
+    });
+
+    it('Cannon has high bluffTargetSelection (ambitious bluffs)', () => {
+      const cannon = BOT_PROFILE_MAP.get('cannon_lvl9')!;
+      expect(cannon.config.bluffTargetSelection).toBeGreaterThan(0.8);
+    });
+
+    it('Shark has highest positionAwareness', () => {
+      const shark = BOT_PROFILE_MAP.get('shark_lvl9')!;
+      const others = ['rock', 'bluffer', 'grinder', 'wildcard', 'cannon', 'frost', 'hustler'];
+      for (const key of others) {
+        const other = BOT_PROFILE_MAP.get(`${key}_lvl9`)!;
+        expect(shark.config.positionAwareness).toBeGreaterThanOrEqual(other.config.positionAwareness);
+      }
+    });
+
+    it('Frost has high trueCallConfidence', () => {
+      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      expect(frost.config.trueCallConfidence).toBeGreaterThan(0.7);
     });
   });
 });

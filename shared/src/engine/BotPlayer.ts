@@ -102,6 +102,12 @@ interface SituationalContext {
   /** True when any active opponent is 1 card from elimination. */
   anyOpponentOneBehind: boolean;
 
+  // ── Player count ─────────────────────────────────────────────────
+  /** Number of non-eliminated players (including the bot). */
+  activePlayers: number;
+  /** True when only 2 players remain (heads-up). */
+  isHeadsUp: boolean;
+
   // ── Bull phase signals ─────────────────────────────────────────
   /** Number of BULL calls before the bot in bull phase. */
   bullCallsBefore: number;
@@ -864,9 +870,10 @@ export class BotPlayer {
     // Factor in position: more raises → more likely someone is bluffing.
     // Late position amplifies this — with 4+ raises, the bot has rich info
     // and should weight escalation patterns more heavily.
+    // positionAwareness scales this: high = tighter early, more aggressive late
     const basePositionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
     const positionInfoBonus = ctx ? Math.min(1.0, ctx.callsBefore / 4) : 0;
-    const positionAdj = basePositionAdj * (1 + positionInfoBonus * 0.5);
+    const positionAdj = basePositionAdj * (1 + positionInfoBonus * 0.5) * (0.5 + cfg.positionAwareness);
 
     // Escalation pattern: many raises means someone along the chain probably
     // has something real — but the LAST raiser is increasingly suspect.
@@ -919,8 +926,19 @@ export class BotPlayer {
       );
     }
 
+    // Heads-up aggression: blend aggressionBias toward maximum when 1v1
+    const effectiveAggression = ctx?.isHeadsUp
+      ? cfg.aggressionBias + (1.0 - cfg.aggressionBias) * cfg.headsUpAggression
+      : cfg.aggressionBias;
+
+    // Card count bluff adjustment: scale bluff frequency by card count
+    // Higher card count (more cards held) amplifies the adjustment
+    const cardCountBluffMult = 1.0 + (cfg.cardCountBluffAdjust - 1.0) * Math.min(1.0, (cardCount - 1) / 3);
+
     // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
-    const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2;
+    // cardCountBullAdjust shifts the threshold based on card count
+    const cardCountBullOffset = (cfg.cardCountBullAdjust - 1.0) * 0.08 * Math.min(1.0, (cardCount - 1) / 3);
+    const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2 - cardCountBullOffset;
 
     // ── Late position branch: 4+ calls before us = rich information ──
     // Late position bots have seen many raises and can make more informed
@@ -956,7 +974,7 @@ export class BotPlayer {
     // We have a legitimate higher hand — value raise
     if (higher) {
       // Even with a legitimate hand, sometimes call bull on very implausible hands
-      const bullOnImplausibleChance = 0.4 * (1.0 - cfg.aggressionBias);
+      const bullOnImplausibleChance = 0.4 * (1.0 - effectiveAggression);
       if (adjustedP < 0.12 && Math.random() < bullOnImplausibleChance) {
         this.recordSelfAction(scope, botId, false);
         return { action: 'bull' };
@@ -967,14 +985,15 @@ export class BotPlayer {
 
     // No legitimate hand — decide whether to bluff raise or call bull.
     // Table image and early-round bonus adjust bluff frequency.
+    // cardCountBluffMult scales bluffing based on card count.
     const tableImageAdj = scope ? this.getTableImageBluffAdjustment(scope, botId) : 0;
     const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.05); // Bluff more with fewer total cards
-    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency + tableImageAdj + earlyBluffBonus);
+    const bluffFreq = Math.max(0, this.getOptimalBluffFrequency(numOpponents, desperate) * cfg.bluffFrequency * cardCountBluffMult + tableImageAdj + earlyBluffBonus);
 
     if (adjustedP > 0.45) {
       // Hand is probably real — bluff raise to avoid a bull penalty
       if (Math.random() < bluffFreq * 1.3) {
-        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
         if (bluff) {
           this.recordSelfAction(scope, botId, true);
           return { action: 'call', hand: bluff };
@@ -982,7 +1001,7 @@ export class BotPlayer {
       }
       // Very likely real — try harder to find any viable raise
       if (adjustedP > 0.55) {
-        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
         if (bluff) {
           this.recordSelfAction(scope, botId, true);
           return { action: 'call', hand: bluff };
@@ -996,14 +1015,14 @@ export class BotPlayer {
     if (desperate) {
       // When desperate, bluff more aggressively to avoid elimination — best survival strategy
       if (Math.random() < bluffFreq * 2.0) {
-        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+        const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
         if (bluff) {
           this.recordSelfAction(scope, botId, true);
           return { action: 'call', hand: bluff };
         }
       }
     } else if (Math.random() < bluffFreq * 1.0) {
-      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
       if (bluff) {
         this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
@@ -1038,8 +1057,11 @@ export class BotPlayer {
     ctx: SituationalContext,
   ): BotAction {
     // 1 card from elimination: every wrong call = death. But playing passively
-    // means someone else controls our fate. Shift toward aggressive plays.
-    const survivalBias = ctx.botOneBehind ? 0.3 : 0.15;
+    // means someone else controls our fate.
+    // survivalPressure: high = tighter (less bluffing), low = loose (more bluffing)
+    // Invert for bias: high survivalPressure → low survivalBias (tighter play)
+    const survivalScale = 1.0 - cfg.survivalPressure; // 0=tight, 1=loose
+    const survivalBias = ctx.botOneBehind ? 0.15 + survivalScale * 0.3 : 0.08 + survivalScale * 0.15;
 
     // If we're sure the hand is fake, bull is high EV even when desperate
     if (adjustedP < 0.10) {
@@ -1059,7 +1081,7 @@ export class BotPlayer {
     // of calling bull on a real hand (which = elimination).
     const desperateBluffRate = (0.3 + survivalBias) * cfg.bluffFrequency * cfg.aggressionBias;
     if (adjustedP > 0.35 && Math.random() < desperateBluffRate) {
-      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
       if (bluff) {
         this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
@@ -1075,7 +1097,7 @@ export class BotPlayer {
 
     // In the uncertain zone when desperate: hail mary bluff if personality supports it
     if (Math.random() < survivalBias * cfg.riskTolerance) {
-      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards, cfg.bluffTargetSelection);
       if (bluff) {
         this.recordSelfAction(scope, botId, true);
         return { action: 'call', hand: bluff };
@@ -1171,7 +1193,8 @@ export class BotPlayer {
     const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust * cardPoolScale;
 
     // Factor in position and escalation patterns
-    const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
+    // positionAwareness scales position adjustment in bull phase too
+    const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId) * (0.5 + cfg.positionAwareness);
 
     // Position-aware reaction signal: what did other players think?
     const reactionSignal = this.getReactionPositionSignal(turnHistory, botId);
@@ -1229,12 +1252,14 @@ export class BotPlayer {
     }
 
     // Consider raising in bull phase — only with a legitimate higher hand
+    // headsUpAggression boosts raise rate in 1v1 situations
     const higherHand = this.findHandHigherThanFull(botCards, currentHand, totalCards);
     if (higherHand) {
       if (adjustedP < 0.5) {
-        const raiseChance = cardCount >= 4
+        const headsUpBoost = ctx?.isHeadsUp ? 1.0 + cfg.headsUpAggression : 1.0;
+        const raiseChance = (cardCount >= 4
           ? cfg.bullPhaseRaiseRate * 1.67
-          : cfg.bullPhaseRaiseRate;
+          : cfg.bullPhaseRaiseRate) * headsUpBoost;
         if (Math.random() < raiseChance) {
           this.recordSelfAction(scope, botId, false);
           return { action: 'call', hand: higherHand };
@@ -1243,18 +1268,27 @@ export class BotPlayer {
     }
 
     // Asymmetric cost-aware threshold based on card count, shifted by profile bullThreshold
+    // cardCountBullAdjust: >1.0 = more suspicious (lower threshold) at high card counts
+    const bullCardCountOffset = (cfg.cardCountBullAdjust - 1.0) * 0.08 * Math.min(1.0, (cardCount - 1) / 3);
     const baseThreshold = this.getDynamicBullThreshold(cardCount);
-    const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15;
+    const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15 - bullCardCountOffset;
     const noise = cfg.noiseBand;
 
     if (adjustedP > threshold + noise) {
-      return { action: 'true' };
+      // trueCallConfidence: higher = more eager to lock in true calls
+      // At high confidence, the bot commits more readily to true
+      const trueBoost = (cfg.trueCallConfidence - 0.5) * 0.1;
+      if (adjustedP > threshold + noise + trueBoost || Math.random() < 0.5 + cfg.trueCallConfidence * 0.5) {
+        return { action: 'true' };
+      }
+      // Slightly hesitant — fall through to noise band behavior
     }
     if (adjustedP < threshold - noise) {
       return { action: 'bull' };
     }
-    // Within noise band — randomize
-    return Math.random() < adjustedP ? { action: 'true' } : { action: 'bull' };
+    // Within noise band — trueCallConfidence biases toward true
+    const trueBias = (cfg.trueCallConfidence - 0.5) * 0.15;
+    return Math.random() < (adjustedP + trueBias) ? { action: 'true' } : { action: 'bull' };
   }
 
   /**
@@ -1322,12 +1356,14 @@ export class BotPlayer {
     const desperateNoise = ctx.botOneBehind ? cfg.noiseBand * 0.3 : cfg.noiseBand * 0.6;
 
     // Consider raising to redirect pressure — desperate bots should raise
-    // more often to avoid being the one who gets penalized for bull/true
+    // more often to avoid being the one who gets penalized for bull/true.
+    // survivalPressure: high = tighter (less raising), low = loose (more raising)
+    const survivalRaiseScale = 1.0 - cfg.survivalPressure * 0.5; // 0.5..1.0
     const higherHand = this.findHandHigherThanFull(botCards, currentHand, totalCards);
     if (higherHand && adjustedP < 0.5) {
-      const desperateRaiseChance = ctx.botOneBehind
+      const desperateRaiseChance = (ctx.botOneBehind
         ? cfg.bullPhaseRaiseRate * 2.5 * cfg.aggressionBias
-        : cfg.bullPhaseRaiseRate * 1.8 * cfg.aggressionBias;
+        : cfg.bullPhaseRaiseRate * 1.8 * cfg.aggressionBias) * survivalRaiseScale;
       if (Math.random() < desperateRaiseChance) {
         this.recordSelfAction(scope, botId, false);
         return { action: 'call', hand: higherHand };
@@ -1345,8 +1381,12 @@ export class BotPlayer {
       return { action: 'bull' };
     }
     // Desperate + noise band: bias slightly toward true (wrong bull = elimination)
-    const trueBias = ctx.botOneBehind ? 0.15 : 0.08;
-    return Math.random() < (adjustedP + trueBias) ? { action: 'true' } : { action: 'bull' };
+    // survivalPressure: high = more conservative = stronger true bias when desperate
+    // trueCallConfidence also contributes to true bias
+    const baseTrueBias = ctx.botOneBehind ? 0.15 : 0.08;
+    const survivalTrueBias = baseTrueBias * (0.5 + cfg.survivalPressure * 0.5)
+      + (cfg.trueCallConfidence - 0.5) * 0.1;
+    return Math.random() < (adjustedP + survivalTrueBias) ? { action: 'true' } : { action: 'bull' };
   }
 
   /**
@@ -1750,6 +1790,10 @@ export class BotPlayer {
       if (entry.action === TurnAction.TRUE) trueCallsBefore++;
     }
 
+    // Player count
+    const activePlayers = state.players.filter(p => !p.isEliminated).length;
+    const isHeadsUp = activePlayers === 2;
+
     return {
       callsBefore,
       totalRaises,
@@ -1764,6 +1808,8 @@ export class BotPlayer {
       callerCardCount,
       callerOneBehind,
       anyOpponentOneBehind,
+      activePlayers,
+      isHeadsUp,
       bullCallsBefore,
       trueCallsBefore,
       someoneCalledTrue: trueCallsBefore > 0,
@@ -1846,6 +1892,7 @@ export class BotPlayer {
     currentHand: HandCall,
     ownCards: Card[],
     totalCards: number,
+    bluffTargetSelection: number = 0.5,
   ): HandCall | null {
     const candidates: { hand: HandCall; semiBluff: boolean }[] = [];
     const rankCounts = this.getRankCounts(ownCards);
@@ -1958,14 +2005,18 @@ export class BotPlayer {
     // score = plausibility × (1 + semiBluffBonus) × escalationPenalty
     // Semi-bluffs get 30% bonus (they have backup equity)
     // Higher hand types get penalized (minimal escalation preferred)
+    // bluffTargetSelection controls the escalation penalty:
+    //   low (0.0) = strong penalty for big jumps (safe, incremental bluffs)
+    //   high (1.0) = weak penalty (ambitious, big hand-type jumps)
+    const escalationBase = 0.98 - (1.0 - bluffTargetSelection) * 0.16; // 0.82 at 0.0, 0.98 at 1.0
     let best: HandCall | null = null;
     let bestScore = -1;
     for (const { hand, semiBluff } of candidates) {
       const plausibility = this.estimatePlausibilityHard(hand, ownCards, totalCards);
       const semiBluffBonus = semiBluff ? 1.3 : 1.0;
-      // Penalize big jumps: each hand type above current costs 10%
+      // Penalize big jumps: each hand type above current costs (2-18)% based on bluffTargetSelection
       const typeGap = hand.type - currentHand.type;
-      const escalationFactor = Math.pow(0.9, Math.max(0, typeGap - 1));
+      const escalationFactor = Math.pow(escalationBase, Math.max(0, typeGap - 1));
       const score = plausibility * semiBluffBonus * escalationFactor;
       if (score > bestScore) {
         bestScore = score;
