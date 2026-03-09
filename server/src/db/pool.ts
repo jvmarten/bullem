@@ -70,6 +70,14 @@ if (process.env.DATABASE_URL) {
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    // Per-connection Postgres settings to limit memory usage on small VMs.
+    // statement_timeout: kill queries after 30s to prevent runaway scans.
+    // idle_in_transaction_session_timeout: kill abandoned transactions after 60s
+    //   to release held memory and locks.
+    // work_mem: limit per-operation sort/hash memory to 4MB (Postgres default is
+    //   4MB but explicitly setting it guards against config drift).
+    statement_timeout: 30_000,
+    idle_in_transaction_session_timeout: 60_000,
     // TODO(scale): When adding read replicas, create a separate read-only pool
     // pointing to the replica connection string. Route SELECT queries there to
     // reduce load on the primary (e.g. leaderboard queries, game history reads).
