@@ -955,6 +955,7 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
     for (const key of PARAM_KEYS) {
       const val = overallBest.individual.config[key];
       const def = DEFAULT_BOT_PROFILE_CONFIG[key];
+      if (val === undefined || def === undefined) continue;
       const diff = val - def;
       const sign = diff >= 0 ? '+' : '';
       console.log(
