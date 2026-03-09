@@ -294,6 +294,21 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
   return '6+';
 }
 
+// ── Total cards bucketing ────────────────────────────────────────────
+
+/**
+ * Bucket total cards in play across all players.
+ * Critical for evaluating claim plausibility — a pair is rare with 2 total
+ * cards but common with 10. Directly affects bull/true decision quality.
+ */
+function totalCardsBucket(totalCards: number): string {
+  if (totalCards <= 2) return 't2';    // 1v1 early rounds — pairs very unlikely
+  if (totalCards <= 4) return 't3-4';  // small pool — most hands unlikely
+  if (totalCards <= 6) return 't5-6';  // medium pool
+  if (totalCards <= 8) return 't7-8';  // large pool — pairs/trips common
+  return 't9+';                        // very large pool
+}
+
 // ── Information set key ──────────────────────────────────────────────
 
 /**
@@ -305,13 +320,15 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
 export function getInfoSetKey(
   state: ClientGameState,
   myCards: Card[],
-  _totalCards: number,
+  totalCards: number,
 ): string {
   const parts: string[] = [
     // Phase: c=calling, b=bull_phase, l=last_chance
     state.roundPhase.charAt(0),
     // How many cards I hold (1-5)
     `n${myCards.length}`,
+    // Total cards in play — critical for claim plausibility
+    totalCardsBucket(totalCards),
     // My hand quality
     myHandStrengthBucket(myCards),
     // How my cards relate to the current claim
