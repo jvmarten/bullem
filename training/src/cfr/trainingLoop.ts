@@ -457,24 +457,25 @@ function dispatchBotAction(
 // ── Outcome sampling regret updates ──────────────────────────────────
 
 /**
- * Update regrets for the traversing player only.
+ * Update regrets for the traversing player only (outcome sampling MCCFR).
  *
  * Key design decisions:
  * 1. Only update ONE player per iteration (the traverser). Updating all
  *    players simultaneously creates contradictory signals — a win for
  *    player A is a loss for player B from the same trajectory.
- * 2. Only update the CHOSEN action's regret. We have no counterfactual
- *    information about unchosen actions. Setting them to 0 would create
- *    a "grass is greener" bias: winning punishes unchosen actions (-u),
- *    losing rewards them (+u), causing strategy cycling instead of
- *    convergence.
- * 3. Use importance weighting for the chosen action to correct for the
- *    sampling distribution: actions chosen rarely but winning big get
- *    amplified regret, which is the correct unbiased estimate.
- *
- * Regret update for chosen action a with probability p:
- *   regret[a] += u/p - u = u * (1/p - 1)
- * where u is the traverser's utility. Unchosen actions are left unchanged.
+ * 2. Update ALL actions at each decision point — both chosen and unchosen.
+ *    In outcome sampling, the estimated counterfactual value is:
+ *    - Chosen action a*: v̂(a*) = u / σ(a*) (importance-weighted)
+ *    - Unchosen action a: v̂(a) = 0 (no sample for that branch)
+ *    The baseline (info set value) is: σ(a*) × v̂(a*) = u
+ *    So instantaneous regret is:
+ *    - Chosen:   u/σ(a*) - u = u × (1/σ(a*) - 1)
+ *    - Unchosen: 0 - u = -u
+ *    This ensures that after a loss, unchosen actions gain positive regret
+ *    (exploring alternatives), and after a win, unchosen actions lose regret
+ *    (reinforcing the winning action).
+ * 3. Importance weighting on the chosen action is capped to prevent
+ *    variance explosion from low-probability samples.
  */
 function updateRegrets(
   engine: CFREngine,
@@ -496,17 +497,24 @@ function updateRegrets(
     const p = Math.max(decision.strategy[decision.chosenAction] ?? 0, MIN_PROB);
     const importanceWeight = Math.min(1 / p, MAX_IMPORTANCE_WEIGHT);
 
-    // Chosen action: importance-weighted utility estimate
-    const chosenUtility = playerUtility * importanceWeight;
-    // Strategy baseline: the unbiased expected value = u
-    const strategyUtility = playerUtility;
+    // Estimated counterfactual value of the chosen action
+    const chosenValue = playerUtility * importanceWeight;
+    // Baseline: info set value estimate = σ(a*) × v̂(a*) = p × u/p = u
+    const baseline = playerUtility;
 
-    // Only update regret for the chosen action — we have no information
-    // about unchosen actions from this single sample
     const node = engine.getNode(decision.infoSetKey, decision.legalActions);
     node.visits++;
-    const chosenRegret = chosenUtility - strategyUtility;
-    node.regretSum[decision.chosenAction] =
-      (node.regretSum[decision.chosenAction] ?? 0) + chosenRegret;
+
+    for (const action of decision.legalActions) {
+      if (action === decision.chosenAction) {
+        // Chosen: v̂(a*) - baseline = u/p - u
+        const regret = chosenValue - baseline;
+        node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
+      } else {
+        // Unchosen: 0 - baseline = -u
+        const regret = -baseline;
+        node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
+      }
+    }
   }
 }

@@ -65,12 +65,25 @@ export function createCFRTrainingStrategy(
   };
 }
 
+/** Stats tracked during evaluation for diagnosing strategy coverage. */
+export interface EvaluationStats {
+  /** Total decision points encountered. */
+  totalDecisions: number;
+  /** Decision points where the info set was found in the strategy. */
+  hits: number;
+  /** Decision points where the info set was NOT in the strategy (uniform random fallback). */
+  misses: number;
+}
+
 /**
  * Create a CFR evaluation strategy from a pre-trained strategy file.
  * Uses the average strategy to make decisions — no exploration.
+ *
+ * Optionally accepts an EvaluationStats object to track info set coverage.
  */
 export function createCFREvaluationStrategy(
   exportedStrategy: ExportedStrategy,
+  evalStats?: EvaluationStats,
 ): BotStrategy {
   return (context: BotStrategyContext): BotStrategyAction | undefined => {
     const { state, botCards, totalCards } = context;
@@ -83,7 +96,11 @@ export function createCFREvaluationStrategy(
 
     let chosenAction: AbstractAction;
 
+    if (evalStats) evalStats.totalDecisions++;
+
     if (strategyEntry) {
+      if (evalStats) evalStats.hits++;
+
       // Build a proper probability distribution over legal actions
       // Strategy entry may not cover all legal actions (pruned near-zero probs)
       let totalProb = 0;
@@ -108,6 +125,7 @@ export function createCFREvaluationStrategy(
         chosenAction = legalActions[Math.floor(Math.random() * legalActions.length)]!;
       }
     } else {
+      if (evalStats) evalStats.misses++;
       // Info set not in trained strategy — fall back to uniform random
       chosenAction = legalActions[Math.floor(Math.random() * legalActions.length)]!;
     }
