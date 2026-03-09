@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for evaluating a trained CFR strategy against heuristic bots.
+ * CLI entry point for evaluating a trained CFR strategy against the full
+ * 81-profile bot pool.
  *
- * Runs games between CFR agents and heuristic bots of various difficulties,
- * then prints comparative win rates.
+ * Runs games between CFR agents and randomly sampled heuristic bot profiles
+ * across 2-player and 4-player games, then prints comparative win rates.
  *
  * Usage:
  *   npm run evaluate -w training
  *   npx tsx training/src/evaluate.ts --strategy training/strategies/cfr-strategy-100000.json
  */
 
-import { BotDifficulty } from '@bull-em/shared';
+import { BOT_PROFILES, BotDifficulty } from '@bull-em/shared';
+import type { BotProfileDefinition } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import {
   findLatestStrategy, loadStrategy,
@@ -19,16 +21,27 @@ import {
 } from './cfr/index.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
+/** Pick `count` random profiles from the 81-profile pool (no duplicates). */
+function sampleProfiles(count: number): BotProfileDefinition[] {
+  const pool = [...BOT_PROFILES];
+  const picked: BotProfileDefinition[] = [];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const profile = pool[idx];
+    if (profile) picked.push(profile);
+    pool.splice(idx, 1);
+  }
+  return picked;
+}
+
 function parseArgs(argv: string[]): {
   strategyFile: string | null;
   games: number;
-  players: number;
   maxCards: number;
 } {
   const args = argv.slice(2);
   let strategyFile: string | null = null;
   let games = 1000;
-  let players = 4;
   let maxCards = 5;
 
   for (let i = 0; i < args.length; i++) {
@@ -53,15 +66,6 @@ function parseArgs(argv: string[]): {
         }
         i++;
         break;
-      case '--players':
-      case '-p':
-        players = parseInt(next ?? '', 10);
-        if (isNaN(players) || players < 2 || players > 12) {
-          console.error('Error: --players must be between 2 and 12');
-          process.exit(1);
-        }
-        i++;
-        break;
       case '--max-cards':
       case '-m':
         maxCards = parseInt(next ?? '', 10);
@@ -76,7 +80,8 @@ function parseArgs(argv: string[]): {
         console.log(`
 Bull 'Em CFR Strategy Evaluation
 
-Runs a trained CFR strategy against heuristic bots and compares win rates.
+Runs a trained CFR strategy against randomly sampled opponents from the
+full 81-profile bot pool and compares win rates.
 
 Usage:
   npm run evaluate -w training
@@ -85,7 +90,6 @@ Usage:
 Options:
   --strategy, -s <path>  Path to strategy JSON file (default: latest in strategies/)
   --games, -g <n>        Games per matchup (default: 1000)
-  --players, -p <n>      Total players per game (default: 4, range: 2-12)
   --max-cards, -m <n>    Max cards before elimination (default: 5, range: 1-5)
   --help, -h             Show this help message
 
@@ -102,7 +106,7 @@ Examples:
     }
   }
 
-  return { strategyFile, games, players, maxCards };
+  return { strategyFile, games, maxCards };
 }
 
 const config = parseArgs(process.argv);
@@ -125,11 +129,10 @@ const cfrStrategy = createCFREvaluationStrategy(exportedStrategy);
 
 // ── Matchup configurations ──────────────────────────────────────────────
 
-interface MatchupConfig {
+interface MatchupDef {
   name: string;
   description: string;
-  botConfigs: BotConfig[];
-  strategy: BotStrategy;
+  playerCount: number;
 }
 
 /**
@@ -145,76 +148,10 @@ function createMixedStrategy(cfrBotIds: Set<string>): BotStrategy {
   };
 }
 
-const cfrPlayerCount = Math.max(1, Math.floor(config.players / 2));
-const heuristicPlayerCount = config.players - cfrPlayerCount;
-
-const matchups: MatchupConfig[] = [];
-
-// Matchup 1: CFR vs Normal bots
-{
-  const bots: BotConfig[] = [];
-  const cfrIds = new Set<string>();
-  for (let i = 0; i < cfrPlayerCount; i++) {
-    const id = `cfr-${i}`;
-    bots.push({ id, name: `CFR ${i + 1}`, difficulty: BotDifficulty.HARD });
-    cfrIds.add(id);
-  }
-  for (let i = 0; i < heuristicPlayerCount; i++) {
-    bots.push({ id: `normal-${i}`, name: `Normal ${i + 1}`, difficulty: BotDifficulty.NORMAL });
-  }
-  matchups.push({
-    name: 'CFR vs Normal',
-    description: `${cfrPlayerCount} CFR bot(s) vs ${heuristicPlayerCount} Normal bot(s)`,
-    botConfigs: bots,
-    strategy: createMixedStrategy(cfrIds),
-  });
-}
-
-// Matchup 2: CFR vs Hard bots
-{
-  const bots: BotConfig[] = [];
-  const cfrIds = new Set<string>();
-  for (let i = 0; i < cfrPlayerCount; i++) {
-    const id = `cfr-${i}`;
-    bots.push({ id, name: `CFR ${i + 1}`, difficulty: BotDifficulty.HARD });
-    cfrIds.add(id);
-  }
-  for (let i = 0; i < heuristicPlayerCount; i++) {
-    bots.push({ id: `hard-${i}`, name: `Hard ${i + 1}`, difficulty: BotDifficulty.HARD });
-  }
-  matchups.push({
-    name: 'CFR vs Hard',
-    description: `${cfrPlayerCount} CFR bot(s) vs ${heuristicPlayerCount} Hard bot(s)`,
-    botConfigs: bots,
-    strategy: createMixedStrategy(cfrIds),
-  });
-}
-
-// Matchup 3: CFR vs Mixed field (Normal + Hard)
-if (config.players >= 3) {
-  const bots: BotConfig[] = [];
-  const cfrIds = new Set<string>();
-  const id = 'cfr-0';
-  bots.push({ id, name: 'CFR', difficulty: BotDifficulty.HARD });
-  cfrIds.add(id);
-
-  const remaining = config.players - 1;
-  const normalCount = Math.ceil(remaining / 2);
-  const hardCount = remaining - normalCount;
-
-  for (let i = 0; i < normalCount; i++) {
-    bots.push({ id: `normal-${i}`, name: `Normal ${i + 1}`, difficulty: BotDifficulty.NORMAL });
-  }
-  for (let i = 0; i < hardCount; i++) {
-    bots.push({ id: `hard-${i}`, name: `Hard ${i + 1}`, difficulty: BotDifficulty.HARD });
-  }
-  matchups.push({
-    name: 'CFR vs Mixed Field',
-    description: `1 CFR vs ${normalCount} Normal + ${hardCount} Hard`,
-    botConfigs: bots,
-    strategy: createMixedStrategy(cfrIds),
-  });
-}
+const matchups: MatchupDef[] = [
+  { name: 'Heads-up (2P)', description: '1 CFR vs 1 random profile', playerCount: 2 },
+  { name: '4-Player', description: '1 CFR vs 3 random profiles', playerCount: 4 },
+];
 
 // ── Run evaluations ─────────────────────────────────────────────────────
 
@@ -222,23 +159,50 @@ console.log(`\n${'═'.repeat(50)}`);
 console.log("  Bull 'Em CFR Strategy Evaluation");
 console.log(`${'═'.repeat(50)}\n`);
 console.log(`  Games per matchup:  ${config.games}`);
-console.log(`  Players per game:   ${config.players}`);
+console.log(`  Opponent pool:      ${BOT_PROFILES.length} profiles`);
 console.log(`  Max cards:          ${config.maxCards}`);
 console.log('');
+
+let totalCfrWins = 0;
+let totalGames = 0;
 
 for (const matchup of matchups) {
   console.log(`\n── ${matchup.name} ──`);
   console.log(`  ${matchup.description}\n`);
 
-  simulate({
+  const opponentCount = matchup.playerCount - 1;
+  const opponents = sampleProfiles(opponentCount);
+  const opponentNames = opponents.map(p => `${p.name}`).join(', ');
+  console.log(`  Opponents: ${opponentNames}\n`);
+
+  const cfrIds = new Set<string>(['cfr-0']);
+  const bots: BotConfig[] = [
+    { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
+    ...opponents.map((p, i) => ({
+      id: `opp-${i}`,
+      name: p.name,
+      difficulty: BotDifficulty.HARD,
+      profileConfig: p.config,
+    })),
+  ];
+
+  const stats = simulate({
     games: config.games,
-    players: matchup.botConfigs.length,
+    players: bots.length,
     maxCards: config.maxCards,
     difficulty: BotDifficulty.HARD,
-    botConfigs: matchup.botConfigs,
-    strategy: matchup.strategy,
+    botConfigs: bots,
+    strategy: createMixedStrategy(cfrIds),
     progressInterval: Math.max(1, Math.floor(config.games / 10)),
   });
+
+  totalCfrWins += stats.wins['cfr-0'] ?? 0;
+  totalGames += stats.totalGames;
 }
 
-console.log(`\n${'═'.repeat(50)}\n`);
+// ── Overall summary ─────────────────────────────────────────────────────
+
+const overallWinRate = totalGames > 0 ? totalCfrWins / totalGames : 0;
+console.log(`\n${'═'.repeat(50)}`);
+console.log(`  Overall: CFR won ${totalCfrWins}/${totalGames} (${(overallWinRate * 100).toFixed(1)}%)`);
+console.log(`${'═'.repeat(50)}\n`);
