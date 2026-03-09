@@ -304,10 +304,9 @@ The bot system uses **evolved parameters as the universal baseline**. Every bot 
 When a new evolution training finishes with better parameters:
 
 1. Update `DEFAULT_BOT_PROFILE_CONFIG` in `shared/src/botProfiles.ts` to the new champion's values
-2. Update the Evolved personality's config to match
-3. Review each personality's non-signature parameters and update them to the new baseline
-4. Signature parameters stay divergent — they define personality identity, not strength
-5. Optionally raise `UNSKILLED_CONFIG` if the new baseline shifts significantly
+2. Review each personality's non-signature parameters and update them to the new baseline
+3. Signature parameters stay divergent — they define personality identity, not strength
+4. Optionally raise `UNSKILLED_CONFIG` if the new baseline shifts significantly
 
 ### Why Not a Separate Evolved Personality?
 

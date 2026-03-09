@@ -466,41 +466,6 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       eliminated: ['I\'ll be back.', 'The hustle never stops.'],
     },
   },
-  {
-    key: 'evolved',
-    name: 'Evolved',
-    personality: 'Machine-optimized baseline. All other bots derive from these parameters.',
-    avatar: '\u{1F9EC}',
-    config: {
-      // Reference personality — exact evolved champion values.
-      // After each evolution run, update DEFAULT_BOT_PROFILE_CONFIG and this config
-      // to the new champion. All other personalities derive from these values.
-      bluffFrequency: 0.0,
-      bullThreshold: 0.56,
-      riskTolerance: 0.99,
-      aggressionBias: 0.30,
-      lastChanceBluffRate: 0.49,
-      openingBluffRate: 0.57,
-      bullPhaseRaiseRate: 0.21,
-      trustMultiplier: 1.21,
-      cardCountSensitivity: 0.05,
-      headsUpAggression: 0.68,
-      survivalPressure: 0.40,
-      bluffTargetSelection: 0.46,
-      positionAwareness: 0.42,
-      trueCallConfidence: 1.0,
-      counterBluffRate: 0.62,
-      bullPhaseBluffRate: 0.75,
-      openingHandTypePreference: 0.26,
-    },
-    flavorText: {
-      callBull: ['Probability insufficient.', 'My training says no.', 'Evolved past that bluff.'],
-      caughtBluffing: ['Recalibrating...', 'Within expected variance.'],
-      winRound: ['Optimized outcome.', 'As the model predicted.', 'Natural selection.'],
-      bigRaise: ['Fitness function maximized.', 'Survival of the fittest.'],
-      eliminated: ['Mutation needed.', 'Next generation will adapt.'],
-    },
-  },
 ];
 
 // ── Level scaling ───────────────────────────────────────────────────────
