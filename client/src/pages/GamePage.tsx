@@ -118,7 +118,12 @@ export function GamePage() {
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
   const { play } = useSound();
-  useGameSounds(gameState, roundResult, winnerId, playerId);
+  // Derived state — safe to compute with null gameState (computed early for useGameSounds)
+  const myPlayer = gameState?.players.find(p => p.id === playerId) ?? null;
+  const isEliminated = myPlayer?.isEliminated ?? false;
+  const isSpectator = gameState ? !myPlayer : false;
+
+  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
@@ -133,11 +138,6 @@ export function GamePage() {
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-
-  // Derived state — safe to compute with null gameState
-  const myPlayer = gameState?.players.find(p => p.id === playerId) ?? null;
-  const isEliminated = myPlayer?.isEliminated ?? false;
-  const isSpectator = gameState ? !myPlayer : false;
   const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated && !isSpectator : false;
   const isAtMaxCards = !isEliminated && !isSpectator && myPlayer && gameState
     ? myPlayer.cardCount >= gameState.maxCards
