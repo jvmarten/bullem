@@ -67,10 +67,10 @@ describe('CalibrationManager', () => {
 
   // Fake bot pool with 4 bots
   const fakeBotPool: RankedBotEntry[] = [
-    makeBotEntry('rock_lvl9', '00000000-0000-4000-b000-000000000001'),
-    makeBotEntry('bluffer_lvl9', '00000000-0000-4000-b000-000000000002'),
-    makeBotEntry('grinder_lvl9', '00000000-0000-4000-b000-000000000003'),
-    makeBotEntry('wildcard_lvl9', '00000000-0000-4000-b000-000000000004'),
+    makeBotEntry('rock_lvl8', '00000000-0000-4000-b000-000000000001'),
+    makeBotEntry('bluffer_lvl8', '00000000-0000-4000-b000-000000000002'),
+    makeBotEntry('grinder_lvl8', '00000000-0000-4000-b000-000000000003'),
+    makeBotEntry('wildcard_lvl8', '00000000-0000-4000-b000-000000000004'),
   ];
 
   beforeEach(() => {

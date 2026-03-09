@@ -215,9 +215,9 @@ function crossover(a: BotProfileConfig, b: BotProfileConfig): BotProfileConfig {
 export function seedPopulation(size: number): Individual[] {
   const population: Individual[] = [];
 
-  // Seed from the 81 bot profiles (level 9 versions of each personality)
-  const level9Profiles = BOT_PROFILES.filter(p => p.key.endsWith('_lvl9'));
-  for (const profile of level9Profiles) {
+  // Seed from bot profiles (level 8 versions — strongest heuristic of each personality)
+  const level8Profiles = BOT_PROFILES.filter(p => p.key.endsWith('_lvl8'));
+  for (const profile of level8Profiles) {
     if (population.length >= size) break;
     population.push({
       id: makeId(profile.key),
@@ -534,12 +534,12 @@ function evaluateAgainstProfiles(
 }
 
 /**
- * Get the level 9 bot profiles as a benchmark sample for fitness evaluation.
- * Level 9 profiles are the strongest expression of each personality archetype.
+ * Get the level 8 bot profiles as a benchmark sample for fitness evaluation.
+ * Level 8 profiles are the strongest heuristic expression of each personality.
  */
 function getProfileBenchmarkSample(): { key: string; config: BotProfileConfig }[] {
   return BOT_PROFILES
-    .filter(p => p.key.endsWith('_lvl9'))
+    .filter(p => p.key.endsWith('_lvl8'))
     .map(p => ({ key: p.key, config: p.config }));
 }
 

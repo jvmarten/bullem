@@ -169,17 +169,17 @@ if (evolved.hofSize !== undefined) {
 
 const evolvedConfig = evolved.config;
 
-// ── Heads-up evaluation against level 9 bot profiles ─────────────────
-// Level 9 bots are the strongest expression of each personality archetype.
-// Lower levels are weaker variants that inflate win rates without adding signal.
+// ── Heads-up evaluation against level 8 bot profiles ─────────────────
+// Level 8 bots are the strongest heuristic expression of each personality.
+// Level 9 = CFR bots (not heuristic). Lower levels inflate win rates without signal.
 
-const lvl9Profiles = BOT_PROFILES.filter(p => p.key.endsWith('_lvl9'));
+const lvl8Profiles = BOT_PROFILES.filter(p => p.key.endsWith('_lvl8'));
 
 console.log(`\n${'═'.repeat(60)}`);
-console.log("  Bull 'Em Evolved Bot Evaluation — Heads-Up vs Lvl9 Profiles");
+console.log("  Bull 'Em Evolved Bot Evaluation — Heads-Up vs Lvl8 Profiles");
 console.log(`${'═'.repeat(60)}\n`);
 console.log(`  Games per matchup:  ${config.games}`);
-console.log(`  Profiles tested:    ${lvl9Profiles.length} (level 9 only)`);
+console.log(`  Profiles tested:    ${lvl8Profiles.length} (level 8 — strongest heuristic)`);
 console.log(`  Max cards:          ${config.maxCards}`);
 console.log('');
 
@@ -196,7 +196,7 @@ let totalGames = 0;
 
 console.log('── Heads-Up Results ──\n');
 
-for (const profile of lvl9Profiles) {
+for (const profile of lvl8Profiles) {
   const bots: BotConfig[] = [
     {
       id: 'evolved-0',

@@ -61,11 +61,11 @@ interface CountRow {
 }
 
 /**
- * Valid bot_profile pattern: {personality}_lvl{1-9}.
- * Ensures only the 81 matrix bots appear on the leaderboard, filtering out
- * any orphaned/duplicate bot rows that may exist in the database.
+ * Valid bot_profile pattern: {personality}_lvl{1-8} or cfr_{name}.
+ * Covers 72 heuristic bots (9 personalities × 8 levels) + 9 CFR bots = 81 total.
+ * Filters out orphaned/duplicate bot rows that may exist in the database.
  */
-const VALID_BOT_PROFILE_PATTERN = "'^(rock|bluffer|grinder|wildcard|professor|shark|cannon|frost|hustler)_lvl[1-9]$'";
+const VALID_BOT_PROFILE_PATTERN = "'^((rock|bluffer|grinder|wildcard|professor|shark|cannon|frost|hustler)_lvl[1-8]|cfr_(viper|ghost|reaper|specter|raptor|havoc|phantom|sentinel|vanguard))$'";
 
 /**
  * Build a WHERE clause fragment that filters by player type (all/players/bots).

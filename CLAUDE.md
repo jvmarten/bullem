@@ -286,20 +286,34 @@ fly tokens create deploy -x 999999h  # add output as FLY_API_TOKEN secret
 fly deploy
 ```
 
-## Bot Evolution Strategy
+## Bot Architecture
 
-The bot system uses **evolved parameters as the universal baseline**. Every bot in the matrix derives from the evolved champion's parameters — there is no separate "Evolved" personality concept; instead, the evolved values ARE the default that all bots build on.
+The bot system has **81 total bot profiles** organized into two tiers:
 
-### How It Works
+- **72 heuristic bots**: 9 personalities × 8 levels (1-8), using tunable decision parameters
+- **9 CFR bots**: trained via Counterfactual Regret Minimization, all at level 9
 
-1. **`DEFAULT_BOT_PROFILE_CONFIG`** = exact evolved champion values (currently gen80, 61.3% win rate vs all lvl9 profiles)
-2. **Professor lvl9** gets the exact default values — it's the "textbook optimal" bot
+### Level Categories
+
+- **Easy** (lvl 1-3): 27 heuristic bots — beginner-friendly
+- **Normal** (lvl 4-6): 27 heuristic bots — standard difficulty
+- **Hard** (lvl 7-9): 18 heuristic bots (lvl 7-8) + 9 CFR bots (lvl 9) = 27 bots
+- **Mixed** (lvl 1-9): all 81 bots
+
+### Heuristic Bot Evolution Strategy
+
+The heuristic bot system uses **evolved parameters as the universal baseline**. Every heuristic bot derives from the evolved champion's parameters.
+
+#### How It Works
+
+1. **`DEFAULT_BOT_PROFILE_CONFIG`** = exact evolved champion values (currently gen80, 61.3% win rate vs all lvl8 profiles)
+2. **Professor lvl8** gets the exact default values — it's the "textbook optimal" heuristic bot
 3. **Other personalities** deviate from the default only on 2-4 **signature parameters** that define their identity (e.g., Rock's low riskTolerance, Bluffer's low bullThreshold)
 4. **Non-signature parameters** use the evolved baseline directly
 5. **`UNSKILLED_CONFIG`** (level 1 baseline) is raised ~40% toward evolved — even easy bots play competently
-6. **Level scaling** lerps between `UNSKILLED_CONFIG` (lvl1) and personality's lvl9 config
+6. **Level scaling** lerps between `UNSKILLED_CONFIG` (lvl1) and personality's lvl8 config
 
-### After Each Evolution Run
+#### After Each Evolution Run
 
 When a new evolution training finishes with better parameters:
 
@@ -307,25 +321,40 @@ When a new evolution training finishes with better parameters:
 2. Review each personality's non-signature parameters and update them to the new baseline
 3. Signature parameters stay divergent — they define personality identity, not strength
 4. Optionally raise `UNSKILLED_CONFIG` if the new baseline shifts significantly
+5. The best evolved parameters go to the lvl8 bots (strongest heuristic level)
 
-### Why Not a Separate Evolved Personality?
+### CFR Bots (Level 9)
 
-The evolved champion's parameters are the **best known strategy**. Making it a separate personality would mean 9 weaker bots + 1 strong bot. Instead, the evolved DNA flows into EVERY bot, making the entire matrix stronger. Personalities provide playstyle variety, not strength variation — strength comes from level (1-9), not personality choice.
+The 9 CFR bots (Viper, Ghost, Reaper, Specter, Raptor, Havoc, Phantom, Sentinel, Vanguard) use trained game-theory strategy instead of heuristic decision logic. They:
+
+- Bypass the `BotProfileConfig` system entirely
+- Use `decideCFR()` from `shared/src/cfr/cfrEval.ts`
+- Are all level 9 — the strongest tier
+- Appear in the **hard** and **mixed** bot pools
+- Work in both online and offline/local games
+- Have database accounts for ranked play (seeded via migration 018)
+
+### Why Two Tiers?
+
+Heuristic bots provide **playstyle variety** — each personality feels different to play against. CFR bots provide **game-theoretic strength** — they play near-optimal strategy. Having both gives players variety at lower levels and a true challenge at the top.
 
 ### Avoiding Homogeneity
 
-Personalities won't converge because each one keeps its **signature parameters** intentionally divergent from evolved. The non-signature parameters (which evolution showed don't differentiate playstyles much) get the optimal values. The result: all bots are strong, but they feel different to play against.
+Heuristic personalities won't converge because each one keeps its **signature parameters** intentionally divergent from evolved. The non-signature parameters (which evolution showed don't differentiate playstyles much) get the optimal values. The result: all bots are strong, but they feel different to play against.
 
-### Running Evolution Training
+### Running Training
 
-The assistant can and should run evolution training directly — no need for the user to run it locally and paste results. The training scripts live in the `training` workspace:
+The assistant can and should run training directly. The training scripts live in the `training` workspace:
 
 ```bash
-# Run evolution training (genetic algorithm)
+# Run heuristic evolution training (genetic algorithm)
 npm run evolve -w training -- --generations 80 --population 30 --games-per-matchup 60 --players-per-game 2 --max-cards 5
 
-# Evaluate an evolved strategy against all lvl9 profiles and HoF
+# Evaluate an evolved strategy against all lvl8 profiles and HoF
 npm run evaluate-evolved -w training
+
+# Evaluate CFR strategy against lvl8 heuristic bots
+npm run evaluate -w training
 
 # Run simulations
 npm run simulate -w training
