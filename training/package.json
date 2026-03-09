@@ -1,0 +1,17 @@
+{
+  "name": "@bull-em/training",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "simulate": "node --import tsx src/simulate.ts"
+  },
+  "dependencies": {
+    "@bull-em/shared": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.7.0"
+  }
+}
