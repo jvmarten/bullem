@@ -28,7 +28,7 @@ function parseArgs(argv: string[]): {
 } {
   const args = argv.slice(2);
   let iterations = 100_000;
-  let players = 4;
+  let players = 2;
   let maxCards = 5;
   let progressInterval = 1000;
   let checkpointInterval = 10_000;
@@ -113,7 +113,7 @@ Usage:
 
 Options:
   --iterations, -i <n>       Number of self-play iterations (default: 100000)
-  --players, -p <n>          Players per game (default: 4, range: 2-12)
+  --players, -p <n>          Players per game (default: 2, range: 2-12)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
   --progress <n>             Log progress every N iterations (default: 1000)
   --checkpoint-interval <n>  Save checkpoint every N iterations (default: 10000)
