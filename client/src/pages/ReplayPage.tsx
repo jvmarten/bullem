@@ -317,18 +317,20 @@ export function ReplayPage() {
         </div>
 
         {/* Player cards */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold text-center">
             All Players' Cards
           </p>
-          {viewState.playerCards.map(({ playerId, playerName, cards }) => (
-            <div key={playerId} className="glass px-3 py-1.5">
-              <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5">
-                {playerName} ({cards.length} {cards.length === 1 ? 'card' : 'cards'})
-              </p>
-              <HandDisplay cards={cards} />
-            </div>
-          ))}
+          <div className="grid grid-cols-2 gap-1.5">
+            {viewState.playerCards.map(({ playerId, playerName, cards }) => (
+              <div key={playerId} className="glass px-2 py-1.5">
+                <p className="text-xs text-[var(--gold-dim)] font-semibold mb-0.5 truncate">
+                  {playerName} ({cards.length} {cards.length === 1 ? 'card' : 'cards'})
+                </p>
+                <HandDisplay cards={cards} />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Current hand */}
