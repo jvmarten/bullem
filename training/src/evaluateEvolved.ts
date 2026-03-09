@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for evaluating an evolved bot against heuristic bots.
+ * CLI entry point for evaluating an evolved bot against the full 81-profile
+ * bot pool.
  *
- * Loads the best evolved parameter set and pits it against Normal and Hard
- * heuristic bots, then prints comparative win rates.
+ * Loads the best evolved parameter set and pits it against randomly sampled
+ * opponents from the 81-profile matrix across 2-player and 4-player games,
+ * then prints win rates.
  *
  * Usage:
  *   npm run evaluate-evolved -w training
  *   npm run evaluate-evolved -w training -- --strategy training/strategies/evolved-best-gen100.json
  */
 
-import { BotDifficulty } from '@bull-em/shared';
-import type { BotProfileConfig } from '@bull-em/shared';
+import { BOT_PROFILES, BotDifficulty } from '@bull-em/shared';
+import type { BotProfileConfig, BotProfileDefinition } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import type { BotConfig } from './types.js';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -47,18 +49,29 @@ function loadEvolvedStrategy(path: string): EvolvedStrategy {
   return JSON.parse(raw) as EvolvedStrategy;
 }
 
+/** Pick `count` random profiles from the 81-profile pool (no duplicates). */
+function sampleProfiles(count: number): BotProfileDefinition[] {
+  const pool = [...BOT_PROFILES];
+  const picked: BotProfileDefinition[] = [];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const profile = pool[idx];
+    if (profile) picked.push(profile);
+    pool.splice(idx, 1);
+  }
+  return picked;
+}
+
 // ── Arg parsing ────────────────────────────────────────────────────────
 
 function parseArgs(argv: string[]): {
   strategyFile: string | null;
   games: number;
-  players: number;
   maxCards: number;
 } {
   const args = argv.slice(2);
   let strategyFile: string | null = null;
   let games = 1000;
-  let players = 4;
   let maxCards = 5;
 
   for (let i = 0; i < args.length; i++) {
@@ -83,15 +96,6 @@ function parseArgs(argv: string[]): {
         }
         i++;
         break;
-      case '--players':
-      case '-p':
-        players = parseInt(next ?? '', 10);
-        if (isNaN(players) || players < 2 || players > 12) {
-          console.error('Error: --players must be between 2 and 12');
-          process.exit(1);
-        }
-        i++;
-        break;
       case '--max-cards':
       case '-m':
         maxCards = parseInt(next ?? '', 10);
@@ -106,8 +110,8 @@ function parseArgs(argv: string[]): {
         console.log(`
 Bull 'Em Evolved Bot Evaluation
 
-Evaluates an evolved bot parameter set against heuristic bots of various
-difficulties and prints comparative win rates.
+Evaluates an evolved bot parameter set against randomly sampled opponents
+from the full 81-profile bot pool and prints comparative win rates.
 
 Usage:
   npm run evaluate-evolved -w training
@@ -116,7 +120,6 @@ Usage:
 Options:
   --strategy, -s <path>  Path to evolved strategy JSON file (default: latest in strategies/)
   --games, -g <n>        Games per matchup (default: 1000)
-  --players, -p <n>      Total players per game (default: 4, range: 2-12)
   --max-cards, -m <n>    Max cards before elimination (default: 5, range: 1-5)
   --help, -h             Show this help message
 
@@ -133,7 +136,7 @@ Examples:
     }
   }
 
-  return { strategyFile, games, players, maxCards };
+  return { strategyFile, games, maxCards };
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
@@ -158,82 +161,13 @@ const evolvedConfig = evolved.config;
 interface MatchupDef {
   name: string;
   description: string;
-  botConfigs: BotConfig[];
+  playerCount: number;
 }
 
-const evolvedPlayerCount = Math.max(1, Math.floor(config.players / 2));
-const heuristicPlayerCount = config.players - evolvedPlayerCount;
-
-const matchups: MatchupDef[] = [];
-
-// Matchup 1: Evolved vs Normal bots
-{
-  const bots: BotConfig[] = [];
-  for (let i = 0; i < evolvedPlayerCount; i++) {
-    bots.push({
-      id: `evolved-${i}`,
-      name: `Evolved ${i + 1}`,
-      difficulty: BotDifficulty.HARD,
-      profileConfig: evolvedConfig,
-    });
-  }
-  for (let i = 0; i < heuristicPlayerCount; i++) {
-    bots.push({ id: `normal-${i}`, name: `Normal ${i + 1}`, difficulty: BotDifficulty.NORMAL });
-  }
-  matchups.push({
-    name: 'Evolved vs Normal',
-    description: `${evolvedPlayerCount} Evolved bot(s) vs ${heuristicPlayerCount} Normal bot(s)`,
-    botConfigs: bots,
-  });
-}
-
-// Matchup 2: Evolved vs Hard bots
-{
-  const bots: BotConfig[] = [];
-  for (let i = 0; i < evolvedPlayerCount; i++) {
-    bots.push({
-      id: `evolved-${i}`,
-      name: `Evolved ${i + 1}`,
-      difficulty: BotDifficulty.HARD,
-      profileConfig: evolvedConfig,
-    });
-  }
-  for (let i = 0; i < heuristicPlayerCount; i++) {
-    bots.push({ id: `hard-${i}`, name: `Hard ${i + 1}`, difficulty: BotDifficulty.HARD });
-  }
-  matchups.push({
-    name: 'Evolved vs Hard',
-    description: `${evolvedPlayerCount} Evolved bot(s) vs ${heuristicPlayerCount} Hard bot(s)`,
-    botConfigs: bots,
-  });
-}
-
-// Matchup 3: Evolved vs Mixed field (Normal + Hard)
-if (config.players >= 3) {
-  const bots: BotConfig[] = [];
-  bots.push({
-    id: 'evolved-0',
-    name: 'Evolved',
-    difficulty: BotDifficulty.HARD,
-    profileConfig: evolvedConfig,
-  });
-
-  const remaining = config.players - 1;
-  const normalCount = Math.ceil(remaining / 2);
-  const hardCount = remaining - normalCount;
-
-  for (let i = 0; i < normalCount; i++) {
-    bots.push({ id: `normal-${i}`, name: `Normal ${i + 1}`, difficulty: BotDifficulty.NORMAL });
-  }
-  for (let i = 0; i < hardCount; i++) {
-    bots.push({ id: `hard-${i}`, name: `Hard ${i + 1}`, difficulty: BotDifficulty.HARD });
-  }
-  matchups.push({
-    name: 'Evolved vs Mixed Field',
-    description: `1 Evolved vs ${normalCount} Normal + ${hardCount} Hard`,
-    botConfigs: bots,
-  });
-}
+const matchups: MatchupDef[] = [
+  { name: 'Heads-up (2P)', description: '1 Evolved vs 1 random profile', playerCount: 2 },
+  { name: '4-Player', description: '1 Evolved vs 3 random profiles', playerCount: 4 },
+];
 
 // ── Run evaluations ─────────────────────────────────────────────────────
 
@@ -241,22 +175,53 @@ console.log(`\n${'═'.repeat(50)}`);
 console.log("  Bull 'Em Evolved Bot Evaluation");
 console.log(`${'═'.repeat(50)}\n`);
 console.log(`  Games per matchup:  ${config.games}`);
-console.log(`  Players per game:   ${config.players}`);
+console.log(`  Opponent pool:      ${BOT_PROFILES.length} profiles`);
 console.log(`  Max cards:          ${config.maxCards}`);
 console.log('');
+
+let totalEvolvedWins = 0;
+let totalGames = 0;
 
 for (const matchup of matchups) {
   console.log(`\n── ${matchup.name} ──`);
   console.log(`  ${matchup.description}\n`);
 
-  simulate({
+  const opponentCount = matchup.playerCount - 1;
+  const opponents = sampleProfiles(opponentCount);
+  const opponentNames = opponents.map(p => `${p.name}`).join(', ');
+  console.log(`  Opponents: ${opponentNames}\n`);
+
+  const bots: BotConfig[] = [
+    {
+      id: 'evolved-0',
+      name: 'Evolved',
+      difficulty: BotDifficulty.HARD,
+      profileConfig: evolvedConfig,
+    },
+    ...opponents.map((p, i) => ({
+      id: `opp-${i}`,
+      name: p.name,
+      difficulty: BotDifficulty.HARD,
+      profileConfig: p.config,
+    })),
+  ];
+
+  const stats = simulate({
     games: config.games,
-    players: matchup.botConfigs.length,
+    players: bots.length,
     maxCards: config.maxCards,
     difficulty: BotDifficulty.HARD,
-    botConfigs: matchup.botConfigs,
+    botConfigs: bots,
     progressInterval: Math.max(1, Math.floor(config.games / 10)),
   });
+
+  totalEvolvedWins += stats.wins['evolved-0'] ?? 0;
+  totalGames += stats.totalGames;
 }
 
-console.log(`\n${'═'.repeat(50)}\n`);
+// ── Overall summary ─────────────────────────────────────────────────────
+
+const overallWinRate = totalGames > 0 ? totalEvolvedWins / totalGames : 0;
+console.log(`\n${'═'.repeat(50)}`);
+console.log(`  Overall: Evolved won ${totalEvolvedWins}/${totalGames} (${(overallWinRate * 100).toFixed(1)}%)`);
+console.log(`${'═'.repeat(50)}\n`);
