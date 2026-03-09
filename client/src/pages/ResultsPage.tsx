@@ -24,11 +24,11 @@ function RatingChangeDisplay({ change }: { change: RatingChange }) {
       </p>
       <div className="flex items-center justify-center gap-3">
         <span className="text-sm text-[var(--gold-dim)]">
-          {change.before}
+          {Math.round(change.before)}
         </span>
         <span className="text-[var(--gold-dim)]">&rarr;</span>
         <span className="text-lg font-bold text-[var(--gold)] flex items-center gap-1">
-          {change.after}
+          {Math.round(change.after)}
           <RankBadge rating={change.after} size="md" />
         </span>
       </div>
@@ -36,7 +36,7 @@ function RatingChangeDisplay({ change }: { change: RatingChange }) {
         className="text-lg font-bold mt-1 animate-rating-slide-up"
         style={{ color, animationDelay: '0.6s' }}
       >
-        {sign}{Math.abs(change.delta)}
+        {sign}{Math.round(Math.abs(change.delta))}
       </p>
     </div>
   );

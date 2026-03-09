@@ -472,7 +472,7 @@ export function PublicProfilePage() {
                     Heads-Up 1v1
                   </p>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-xl font-bold text-[var(--gold)]">{r.elo}</span>
+                    <span className="text-xl font-bold text-[var(--gold)]">{Math.round(r.elo)}</span>
                     <RankBadge rating={r.elo} size="md" />
                   </div>
                   <p className="text-[10px] text-[var(--gold-dim)]">
