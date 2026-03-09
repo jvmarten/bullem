@@ -306,7 +306,7 @@ export function HomePage() {
   const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { play, startLoop, stopLoop, stopAllLoops } = useSound();
-  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, gameState, createRoom, deleteRoom, updateSettings, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound } = useGameContext();
+  const { isConnected, listRooms, listLiveGames, spectateGame, watchRandomGame, roomState, gameState, createRoom, deleteRoom, updateSettings, matchmakingStatus, matchmakingFound, joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, leaveRoom } = useGameContext();
 
   // Dev mode badge state — only checked in dev builds
   const [devStatus, setDevStatus] = useState<{ devAuth: boolean } | null>(null);
@@ -331,12 +331,23 @@ export function HomePage() {
     }
   }, [user]);
 
+  // Clean up spectator state when navigating back to home — spectators who
+  // press the browser back button arrive here with stale roomState/gameState.
+  useEffect(() => {
+    const spectatorRoom = sessionStorage.getItem('bull-em-spectator-room');
+    if (spectatorRoom) {
+      leaveRoom();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only cleanup
+
   // Auto-redirect to an active game when the user returns after browser close.
   // The GameContext connect handler rejoins from localStorage, which sets
   // roomState and gameState. If we detect an active in-progress game, navigate
   // directly to the game page instead of showing the home menu.
+  // Skip redirect for spectators — they should be able to navigate back freely.
   useEffect(() => {
-    if (roomState && roomState.gamePhase !== 'lobby') {
+    const isSpectator = !!sessionStorage.getItem('bull-em-spectator-room');
+    if (roomState && roomState.gamePhase !== 'lobby' && !isSpectator) {
       navigate(`/game/${roomState.roomCode}`);
     }
   }, [roomState, navigate]);
