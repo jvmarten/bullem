@@ -136,22 +136,23 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('has evolved-informed default values', () => {
-      // Post-evolution defaults: lower GTO bluffing, higher counter-bluff/bull-phase bluff,
-      // higher trueCallConfidence, lower cardCountSensitivity
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.3);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.55);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.40);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.18);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountSensitivity).toBe(0.3);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.headsUpAggression).toBe(0.6);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.survivalPressure).toBe(0.45);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffTargetSelection).toBe(0.45);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.positionAwareness).toBe(0.45);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.trueCallConfidence).toBe(0.8);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.counterBluffRate).toBe(0.4);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseBluffRate).toBe(0.3);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingHandTypePreference).toBe(0.35);
+    it('uses exact evolved champion values as baseline', () => {
+      // DEFAULT is the evolved champion — all personalities derive from this.
+      // After each evolution run, update DEFAULT and the Evolved personality config.
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.56);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.99);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.30);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.57);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.21);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.21);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountSensitivity).toBe(0.05);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.headsUpAggression).toBe(0.68);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.survivalPressure).toBe(0.40);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trueCallConfidence).toBe(1.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.counterBluffRate).toBe(0.62);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseBluffRate).toBe(0.75);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingHandTypePreference).toBe(0.26);
     });
   });
 
@@ -169,7 +170,7 @@ describe('botProfiles', () => {
       const rock1 = BOT_PROFILE_MAP.get('rock_lvl1')!;
       const rock9 = BOT_PROFILE_MAP.get('rock_lvl9')!;
       // Rock at lvl9 should have lower bluffFrequency (more conservative) than lvl1
-      // because lvl1 lerps toward unskilled defaults (1.1 bluffFreq) while rock lvl9 = 0.3
+      // because lvl1 lerps toward unskilled (0.55 bluffFreq) while rock lvl9 = 0.0
       expect(rock9.config.bluffFrequency).toBeLessThan(rock1.config.bluffFrequency);
     });
 
@@ -187,8 +188,10 @@ describe('botProfiles', () => {
     it('Rock bluffs much less than Bluffer', () => {
       const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
       const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
-      expect(rock.config.bluffFrequency).toBeLessThan(bluffer.config.bluffFrequency);
+      // Both evolved to bluffFrequency 0.0 — compare actual bluffing via opening/bull-phase rates
       expect(rock.config.openingBluffRate).toBeLessThan(bluffer.config.openingBluffRate);
+      expect(rock.config.bullPhaseBluffRate).toBeLessThan(bluffer.config.bullPhaseBluffRate);
+      expect(rock.config.counterBluffRate).toBeLessThan(bluffer.config.counterBluffRate);
     });
 
     it('Frost is more conservative than Cannon', () => {
@@ -200,7 +203,7 @@ describe('botProfiles', () => {
 
     it('Grinder takes moderate risks (evolved-informed but still cautious)', () => {
       const grinder = BOT_PROFILE_MAP.get('grinder_lvl9')!;
-      expect(grinder.config.riskTolerance).toBeLessThanOrEqual(0.4);
+      expect(grinder.config.riskTolerance).toBeLessThanOrEqual(0.55);
     });
 
     it('Shark has high trust multiplier for opponent reads', () => {
@@ -222,8 +225,8 @@ describe('botProfiles', () => {
 
     it('Rock has low cardCountSensitivity and high survivalPressure', () => {
       const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      expect(rock.config.cardCountSensitivity).toBeLessThan(1.0);
-      expect(rock.config.survivalPressure).toBeGreaterThanOrEqual(0.6);
+      expect(rock.config.cardCountSensitivity).toBeLessThanOrEqual(0.1);
+      expect(rock.config.survivalPressure).toBeGreaterThanOrEqual(0.55);
     });
 
     it('Cannon has high bluffTargetSelection (ambitious bluffs)', () => {
@@ -244,22 +247,23 @@ describe('botProfiles', () => {
       expect(frost.config.trueCallConfidence).toBeGreaterThan(0.7);
     });
 
-    it('Frost has moderate openingHandTypePreference (evolved: hide more info)', () => {
+    it('Frost has low openingHandTypePreference (evolved: hide info)', () => {
       const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
-      // Evolved insight: hiding info at opening is strong — Frost still prefers
-      // value but less extremely than before
-      expect(frost.config.openingHandTypePreference).toBeGreaterThanOrEqual(0.4);
+      // Evolved insight: hiding info at opening is strong
+      expect(frost.config.openingHandTypePreference).toBeLessThanOrEqual(0.35);
     });
 
-    it('Rock and Frost have low but non-zero counterBluffRate and bullPhaseBluffRate', () => {
+    it('Rock and Frost have counter-bluffs and bull-phase bluffs below evolved but significant', () => {
       const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
       const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
-      // Evolved insight: even conservative bots benefit from some counter-bluffing
-      // and bull-phase bluffing (evolved: counterBluff=0.62, bullPhaseBluff=0.75)
-      expect(rock.config.counterBluffRate).toBeLessThanOrEqual(0.25);
-      expect(rock.config.bullPhaseBluffRate).toBeLessThanOrEqual(0.15);
-      expect(frost.config.counterBluffRate).toBeLessThanOrEqual(0.25);
-      expect(frost.config.bullPhaseBluffRate).toBeLessThanOrEqual(0.2);
+      // Evolved insight: even conservative bots benefit from counter-bluffing
+      // and bull-phase bluffing — raised significantly from old values
+      expect(rock.config.counterBluffRate).toBeGreaterThanOrEqual(0.30);
+      expect(rock.config.counterBluffRate).toBeLessThan(DEFAULT_BOT_PROFILE_CONFIG.counterBluffRate);
+      expect(rock.config.bullPhaseBluffRate).toBeGreaterThanOrEqual(0.35);
+      expect(frost.config.counterBluffRate).toBeGreaterThanOrEqual(0.35);
+      expect(frost.config.counterBluffRate).toBeLessThan(DEFAULT_BOT_PROFILE_CONFIG.counterBluffRate);
+      expect(frost.config.bullPhaseBluffRate).toBeGreaterThanOrEqual(0.40);
     });
   });
 });
