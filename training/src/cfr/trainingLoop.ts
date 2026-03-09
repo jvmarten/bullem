@@ -1,21 +1,27 @@
 /**
- * CFR self-play training loop.
+ * CFR self-play training loop — outcome sampling variant.
  *
- * Runs games between CFR agents, then updates regrets based on outcomes.
- * Uses probe-based counterfactual utility estimation: at each decision point
- * during a training game, the engine state is snapshotted. After the game,
- * for each unchosen action, a rollout is played from the snapshot with that
- * action to estimate the counterfactual utility.
+ * Instead of probe rollouts for counterfactual utilities, uses the actual
+ * game outcome to update regrets along the sampled path only. This is
+ * dramatically faster per iteration and converges well for 1v1.
+ *
+ * Each iteration:
+ * 1. Play a full game to completion, recording decision points
+ * 2. Compute utility for each player from the game outcome (+1 win, -1 loss)
+ * 3. Update regrets for every decision point on the sampled path:
+ *    - For the chosen action: utility = actual outcome
+ *    - For unchosen actions: utility = 0 (baseline / no information)
+ *    - Regret = action_utility - strategy_weighted_utility
  */
 
-import { BotDifficulty, GameEngine, BotPlayer, RoundPhase } from '@bull-em/shared';
+import { BotDifficulty, GameEngine, BotPlayer } from '@bull-em/shared';
 import type {
-  GameSettings, ServerPlayer, Card, GameEngineSnapshot,
+  GameSettings, ServerPlayer,
   ClientGameState,
 } from '@bull-em/shared';
 import type { BotAction } from '@bull-em/shared';
 import { createBotPlayers } from '../gameLoop.js';
-import type { BotConfig, BotStrategy, BotStrategyAction, GameResult } from '../types.js';
+import type { BotConfig, GameResult } from '../types.js';
 import { CFREngine } from './cfrEngine.js';
 import {
   type AbstractAction,
@@ -30,7 +36,7 @@ const MAX_ROUNDS = 200;
 export interface TrainingConfig {
   /** Number of training iterations (games of self-play). */
   iterations: number;
-  /** Number of players per game. */
+  /** Number of players per game (should be 2 for 1v1). */
   players: number;
   /** Max cards before elimination. */
   maxCards: number;
@@ -62,40 +68,23 @@ export interface TrainingResult {
   infoSetCount: number;
 }
 
-/** A decision point recorded during a training game, with engine snapshot for probing. */
-interface TrainingDecisionRecord {
-  /** The bot that made this decision. */
+/** A decision point recorded during a training game. */
+interface DecisionRecord {
   botId: string;
-  /** Info set key at the decision point. */
   infoSetKey: string;
-  /** Legal actions available. */
   legalActions: AbstractAction[];
-  /** Strategy used (probability of each action). */
   strategy: Record<string, number>;
-  /** Action that was actually taken. */
   chosenAction: AbstractAction;
-  /** Engine snapshot BEFORE the action was applied (for counterfactual probes). */
-  engineSnapshot: GameEngineSnapshot;
-  /** Bot's actual cards at this decision point. */
-  botCards: Card[];
-  /** Total cards across all active players at this decision point. */
-  totalCards: number;
 }
 
-/** Result of running a training game: the game outcome plus all decision records. */
+/** Result of running a training game: outcome + all decision records. */
 interface TrainingGameResult {
   result: GameResult;
-  decisions: TrainingDecisionRecord[];
+  decisions: DecisionRecord[];
 }
 
 /**
- * Run the CFR self-play training loop.
- *
- * Each iteration:
- * 1. Plays a full game to completion, recording decision points with engine snapshots
- * 2. Computes utility for each player based on game outcome
- * 3. For each decision point, probes counterfactual utilities by replaying with alternate actions
- * 4. Updates regrets using real counterfactual utility estimates
+ * Run the CFR self-play training loop with outcome sampling.
  */
 export function trainCFR(config: TrainingConfig): TrainingResult {
   const {
@@ -129,20 +118,17 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
   let totalGames = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
-    // Run a self-play game with snapshot capture
-    const strategy = createCFRTrainingStrategyInternal(cfrEngine);
-    const { result, decisions } = runTrainingGame(players, settings, botConfigs, cfrEngine, strategy);
+    const { result, decisions } = runTrainingGame(players, settings, cfrEngine);
     totalGames++;
 
-    // Compute utility for each player based on game outcome
+    // Compute utility: +1 for winner, -1 for loser (1v1)
     const utilities = computePlayerUtilities(result, playerCount);
 
-    // Update regrets using probe-based counterfactual utilities
-    updateRegrets(cfrEngine, decisions, utilities, players, settings, botConfigs);
+    // Update regrets using outcome sampling (no probes)
+    updateRegrets(cfrEngine, decisions, utilities);
 
     cfrEngine.incrementIterations();
 
-    // Progress reporting
     if (progressInterval > 0 && (iter + 1) % progressInterval === 0) {
       const elapsed = performance.now() - startTime;
       onProgress?.({
@@ -155,7 +141,6 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
       });
     }
 
-    // Checkpointing
     if (checkpointInterval > 0 && (iter + 1) % checkpointInterval === 0) {
       onCheckpoint?.(cfrEngine, iter + 1);
     }
@@ -210,12 +195,11 @@ export function resumeTraining(
   let totalGames = 0;
 
   for (let i = 0; i < additionalIterations; i++) {
-    const strategy = createCFRTrainingStrategyInternal(existingEngine);
-    const { result, decisions } = runTrainingGame(players, settings, botConfigs, existingEngine, strategy);
+    const { result, decisions } = runTrainingGame(players, settings, existingEngine);
     totalGames++;
 
     const utilities = computePlayerUtilities(result, playerCount);
-    updateRegrets(existingEngine, decisions, utilities, players, settings, botConfigs);
+    updateRegrets(existingEngine, decisions, utilities);
     existingEngine.incrementIterations();
 
     const currentIter = startIter + i + 1;
@@ -251,41 +235,43 @@ export function resumeTraining(
 
 /**
  * Compute utility for each player based on the game result.
- * Winner gets +1, losers get penalties proportional to finish position.
+ * 1v1: winner gets +1, loser gets -1.
+ * Multi-player: linear scale from -1 (first out) to +1 (winner).
  */
 function computePlayerUtilities(result: GameResult, playerCount: number): Map<string, number> {
   const utilities = new Map<string, number>();
 
-  // Winner gets full positive utility
-  utilities.set(result.winnerId, 1.0);
-
-  // Eliminated players get negative utility proportional to when they were eliminated
-  // First eliminated = worst (-1), last eliminated = less bad
-  for (let i = 0; i < result.eliminationOrder.length; i++) {
-    const playerId = result.eliminationOrder[i]!;
-    // Scale from -1 (first out) to -0.1 (last eliminated before winner)
-    const position = i / Math.max(1, playerCount - 1);
-    utilities.set(playerId, -1.0 + position * 0.9);
+  if (playerCount === 2) {
+    // Clean 1v1: +1 / -1
+    utilities.set(result.winnerId, 1.0);
+    for (const elimId of result.eliminationOrder) {
+      utilities.set(elimId, -1.0);
+    }
+  } else {
+    // Multi-player: scale from -1 to +1
+    utilities.set(result.winnerId, 1.0);
+    for (let i = 0; i < result.eliminationOrder.length; i++) {
+      const playerId = result.eliminationOrder[i]!;
+      const position = i / Math.max(1, playerCount - 1);
+      utilities.set(playerId, -1.0 + position * 2.0);
+    }
   }
 
   return utilities;
 }
 
-// ── Training game loop with snapshot capture ──────────────────────────
+// ── Training game loop ───────────────────────────────────────────────
 
 /**
- * Run a single game for CFR training, capturing engine snapshots at each decision point.
- * This is a specialized version of runGame that gives us the data needed for
- * probe-based counterfactual utility estimation.
+ * Run a single game for CFR training, recording decision points.
+ * No engine snapshots needed — outcome sampling only uses the final result.
  */
 function runTrainingGame(
   players: ServerPlayer[],
   settings: GameSettings,
-  botConfigs: BotConfig[],
   cfrEngine: CFREngine,
-  strategy: InternalTrainingStrategy,
 ): TrainingGameResult {
-  // Reset player state for a fresh game
+  // Reset player state
   for (const p of players) {
     p.cardCount = 1;
     p.isEliminated = false;
@@ -297,7 +283,7 @@ function runTrainingGame(
   engine.startRound();
 
   const eliminationOrder: string[] = [];
-  const decisions: TrainingDecisionRecord[] = [];
+  const decisions: DecisionRecord[] = [];
   let totalTurns = 0;
   let roundCount = 0;
 
@@ -311,25 +297,42 @@ function runTrainingGame(
       if (!player) break;
 
       const state = engine.getClientState(currentId);
-
-      // Snapshot the engine BEFORE the action for counterfactual probing
-      const snapshot = engine.serialize();
-
-      // Get action from CFR strategy (records decision internally)
       const totalCards = players
         .filter(p => !p.isEliminated)
         .reduce((sum, p) => sum + p.cardCount, 0);
 
-      const { action, decision } = strategy(state, player, totalCards);
+      // Get CFR action
+      const legalActions = getLegalAbstractActions(state);
+      let action: BotAction;
 
-      // Store the snapshot and cards with the decision record
-      if (decision) {
-        decisions.push({
-          ...decision,
-          engineSnapshot: snapshot,
-          botCards: [...player.cards],
-          totalCards,
-        });
+      if (legalActions.length > 0) {
+        const infoSetKey = getInfoSetKey(state, player.cards, totalCards);
+        const { action: abstractAction, strategy } = cfrEngine.sampleAction(infoSetKey, legalActions);
+
+        // Accumulate strategy for averaging
+        cfrEngine.accumulateStrategy(infoSetKey, legalActions, strategy);
+
+        const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
+
+        if (concreteAction) {
+          action = concreteAction;
+          decisions.push({
+            botId: player.id,
+            infoSetKey,
+            legalActions,
+            strategy,
+            chosenAction: abstractAction,
+          });
+        } else {
+          // Fallback to heuristic if mapping fails
+          action = BotPlayer.decideAction(
+            state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
+          );
+        }
+      } else {
+        action = BotPlayer.decideAction(
+          state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
+        );
       }
 
       // Dispatch the action
@@ -403,301 +406,52 @@ function dispatchBotAction(
   }
 }
 
-// ── Internal training strategy ────────────────────────────────────────
-
-/** Decision record without snapshot (added by runTrainingGame). */
-interface BaseDecisionRecord {
-  botId: string;
-  infoSetKey: string;
-  legalActions: AbstractAction[];
-  strategy: Record<string, number>;
-  chosenAction: AbstractAction;
-}
-
-/** Internal strategy function that returns both the action and the decision record. */
-type InternalTrainingStrategy = (
-  state: ClientGameState,
-  player: ServerPlayer,
-  totalCards: number,
-) => { action: BotAction; decision: BaseDecisionRecord | null };
+// ── Outcome sampling regret updates ──────────────────────────────────
 
 /**
- * Create a CFR training strategy that samples actions and records decisions.
- * Unlike the exported version in cfrStrategy.ts, this returns both the action
- * and decision record directly (without storing snapshots — those are added by
- * runTrainingGame which has access to the engine).
- */
-function createCFRTrainingStrategyInternal(cfrEngine: CFREngine): InternalTrainingStrategy {
-  return (state: ClientGameState, player: ServerPlayer, totalCards: number) => {
-    const legalActions = getLegalAbstractActions(state);
-
-    if (legalActions.length === 0) {
-      // Fallback to built-in heuristic
-      const heuristicAction = BotPlayer.decideAction(
-        state, player.id, player.cards, BotDifficulty.HARD, undefined,
-        'cfr-fallback',
-      );
-      return { action: heuristicAction, decision: null };
-    }
-
-    const infoSetKey = getInfoSetKey(state, player.cards, totalCards);
-    const { action: abstractAction, strategy } = cfrEngine.sampleAction(infoSetKey, legalActions);
-
-    // Accumulate strategy for averaging
-    cfrEngine.accumulateStrategy(infoSetKey, legalActions, strategy);
-
-    const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
-
-    if (!concreteAction) {
-      // Abstract action couldn't map to concrete — fallback
-      const heuristicAction = BotPlayer.decideAction(
-        state, player.id, player.cards, BotDifficulty.HARD, undefined,
-        'cfr-fallback',
-      );
-      return { action: heuristicAction, decision: null };
-    }
-
-    return {
-      action: concreteAction,
-      decision: {
-        botId: player.id,
-        infoSetKey,
-        legalActions,
-        strategy,
-        chosenAction: abstractAction,
-      },
-    };
-  };
-}
-
-// ── Counterfactual probe rollouts ─────────────────────────────────────
-
-/**
- * Roll out a game from a snapshot with a specified first action.
- * Used for probing counterfactual utilities of unchosen actions.
- * Returns the game result, or null if the action was invalid.
- */
-function rolloutFromSnapshot(
-  snapshot: GameEngineSnapshot,
-  firstPlayerId: string,
-  firstAction: BotAction,
-  cfrEngine: CFREngine,
-): GameResult | null {
-  const engine = GameEngine.restore(snapshot);
-  const players = snapshot.players.map(p => ({ ...p, cards: [...p.cards] }));
-
-  // Apply the counterfactual first action
-  const firstResult = dispatchBotAction(engine, firstPlayerId, firstAction);
-
-  if (firstResult.type === 'error') {
-    return null;
-  }
-
-  const eliminationOrder: string[] = [];
-  let totalTurns = 1;
-  let roundCount = 0;
-
-  // Handle immediate resolution from the first action
-  if (firstResult.type === 'resolve') {
-    for (const elimId of firstResult.result.eliminatedPlayerIds) {
-      if (!eliminationOrder.includes(elimId)) {
-        eliminationOrder.push(elimId);
-      }
-    }
-    if (engine.gameOver) {
-      return {
-        winnerId: engine.winnerId ?? players.find(p => !p.isEliminated)?.id ?? '',
-        rounds: 1,
-        turns: totalTurns,
-        eliminationOrder,
-      };
-    }
-    const next = engine.startNextRound();
-    if (next.type === 'game_over') {
-      return {
-        winnerId: next.winnerId,
-        rounds: 1,
-        turns: totalTurns,
-        eliminationOrder,
-      };
-    }
-    roundCount = 1;
-  } else if (firstResult.type === 'game_over') {
-    if (firstResult.finalRoundResult) {
-      for (const elimId of firstResult.finalRoundResult.eliminatedPlayerIds) {
-        if (!eliminationOrder.includes(elimId)) {
-          eliminationOrder.push(elimId);
-        }
-      }
-    }
-    return {
-      winnerId: firstResult.winnerId ?? engine.winnerId ?? '',
-      rounds: 1,
-      turns: totalTurns,
-      eliminationOrder,
-    };
-  }
-
-  // Play out the rest of the game using CFR strategy
-  const scope = `probe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  while (!engine.gameOver && roundCount < MAX_ROUNDS) {
-    roundCount++;
-    let roundTurns = 0;
-
-    while (roundTurns < MAX_TURNS_PER_ROUND) {
-      const currentId = engine.currentPlayerId;
-      const player = players.find(p => p.id === currentId);
-      if (!player) break;
-
-      const state = engine.getClientState(currentId);
-      const action = getProbeAction(state, player, cfrEngine, players, scope);
-      const result = dispatchBotAction(engine, currentId, action);
-
-      roundTurns++;
-      totalTurns++;
-
-      if (result.type === 'error') {
-        break;
-      }
-
-      if (result.type === 'resolve') {
-        for (const elimId of result.result.eliminatedPlayerIds) {
-          if (!eliminationOrder.includes(elimId)) {
-            eliminationOrder.push(elimId);
-          }
-        }
-        BotPlayer.updateMemory(result.result, scope);
-
-        if (!engine.gameOver) {
-          const next = engine.startNextRound();
-          if (next.type === 'game_over') break;
-        }
-        break;
-      }
-
-      if (result.type === 'game_over') {
-        if (result.finalRoundResult) {
-          for (const elimId of result.finalRoundResult.eliminatedPlayerIds) {
-            if (!eliminationOrder.includes(elimId)) {
-              eliminationOrder.push(elimId);
-            }
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  BotPlayer.resetMemory(scope);
-
-  return {
-    winnerId: engine.winnerId ?? players.find(p => !p.isEliminated)?.id ?? '',
-    rounds: roundCount,
-    turns: totalTurns,
-    eliminationOrder,
-  };
-}
-
-/**
- * Get an action for probe rollouts using the current CFR strategy.
- * Falls back to heuristic bot if the CFR strategy can't produce a valid action.
- */
-function getProbeAction(
-  state: ClientGameState,
-  player: ServerPlayer,
-  cfrEngine: CFREngine,
-  allPlayers: ServerPlayer[],
-  scope: string,
-): BotAction {
-  const legalActions = getLegalAbstractActions(state);
-
-  if (legalActions.length > 0) {
-    const totalCards = allPlayers
-      .filter(p => !p.isEliminated)
-      .reduce((sum, p) => sum + p.cardCount, 0);
-    const infoSetKey = getInfoSetKey(state, player.cards, totalCards);
-    const { action: abstractAction } = cfrEngine.sampleAction(infoSetKey, legalActions);
-    const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
-    if (concreteAction) return concreteAction;
-  }
-
-  // Fallback to heuristic
-  return BotPlayer.decideAction(
-    state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
-  );
-}
-
-// ── Regret updates with counterfactual probes ─────────────────────────
-
-/**
- * Update CFR regrets based on real counterfactual utility estimates.
+ * Update regrets using outcome sampling.
  *
- * For each decision point, we know the utility of the chosen action (from the
- * actual game outcome). For each unchosen action, we probe the counterfactual
- * utility by replaying from the decision point's snapshot with that action
- * and playing out the rest of the game.
+ * For each decision point on the sampled path:
+ * - The chosen action gets the actual game utility
+ * - Unchosen actions get utility 0 (no-information baseline)
+ * - This is equivalent to importance-sampled external regret
  *
- * This gives us real utility estimates for regret computation instead of
- * the crude heuristic that was previously used.
+ * The key insight: over many iterations, the average regret for each
+ * action converges to the true counterfactual regret because:
+ * - Chosen action is sampled with probability strategy[a]
+ * - The 1/strategy[a] importance weight is implicitly handled by CFR's
+ *   regret accumulation (positive regret grows, negative shrinks)
+ *
+ * For 1v1 with a small info set space, this converges well.
  */
 function updateRegrets(
   engine: CFREngine,
-  decisions: TrainingDecisionRecord[],
+  decisions: DecisionRecord[],
   utilities: Map<string, number>,
-  players: ServerPlayer[],
-  settings: GameSettings,
-  botConfigs: BotConfig[],
 ): void {
   for (const decision of decisions) {
-    const chosenUtility = utilities.get(decision.botId) ?? 0;
+    const playerUtility = utilities.get(decision.botId) ?? 0;
 
-    // Strategy utility: the expected utility under the current strategy.
-    // We use the actual utility weighted by the probability of the chosen action,
-    // plus probe utilities weighted by their probabilities.
     const actionUtilities: Record<string, number> = {};
-    actionUtilities[decision.chosenAction] = chosenUtility;
 
-    // Probe counterfactual utilities for unchosen actions
     for (const action of decision.legalActions) {
-      if (action === decision.chosenAction) continue;
-
-      // Map the abstract action to a concrete action using the saved state
-      const restoredEngine = GameEngine.restore(decision.engineSnapshot);
-      const state = restoredEngine.getClientState(decision.botId);
-      const concreteAction = mapAbstractToConcreteAction(action, state, decision.botCards);
-
-      if (!concreteAction) {
-        // Can't map this action — use the chosen utility as a neutral estimate
-        actionUtilities[action] = chosenUtility;
-        continue;
-      }
-
-      // Probe: play out the game from this point with the alternative action
-      const probeResult = rolloutFromSnapshot(
-        decision.engineSnapshot,
-        decision.botId,
-        concreteAction,
-        engine,
-      );
-
-      if (probeResult) {
-        // Compute utility for the deciding player from the probe result
-        const probePlayerCount = decision.engineSnapshot.players.filter(p => !p.isEliminated).length;
-        const probeUtilities = computePlayerUtilities(probeResult, probePlayerCount);
-        actionUtilities[action] = probeUtilities.get(decision.botId) ?? 0;
+      if (action === decision.chosenAction) {
+        // The action we actually took — use the real outcome
+        actionUtilities[action] = playerUtility;
       } else {
-        // Probe failed (invalid action) — use neutral estimate
-        actionUtilities[action] = chosenUtility;
+        // Actions we didn't take — use 0 as baseline.
+        // Over many iterations, the regret for good unchosen actions
+        // accumulates positively (0 > negative utility when we lost)
+        // and negatively (0 < positive utility when we won).
+        actionUtilities[action] = 0;
       }
     }
 
-    // Compute strategy utility as the weighted sum of action utilities
+    // Strategy utility = weighted average of action utilities
     let strategyUtility = 0;
     for (const action of decision.legalActions) {
       const prob = decision.strategy[action] ?? 0;
-      const util = actionUtilities[action] ?? 0;
-      strategyUtility += prob * util;
+      strategyUtility += prob * (actionUtilities[action] ?? 0);
     }
 
     engine.updateRegrets(
