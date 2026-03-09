@@ -9,14 +9,20 @@ import {
   BOT_MATRIX_SIZE,
   LEGACY_PROFILE_KEY_MAP,
   CFR_BOTS,
+  HEURISTIC_BOT_PROFILES,
+  CFR_BOT_COUNT,
+  getBotsForCategory,
 } from './botProfiles.js';
 import type { BotProfileConfig } from './botProfiles.js';
 
 describe('botProfiles', () => {
   describe('BOT_PROFILES', () => {
-    it('has 81 profiles (9 personalities × 9 levels)', () => {
+    it('has 81 profiles (72 heuristic + 9 CFR)', () => {
       expect(BOT_PROFILES.length).toBe(BOT_MATRIX_SIZE);
-      expect(BOT_PROFILES.length).toBe(BOT_PERSONALITIES.length * BOT_LEVELS);
+      expect(BOT_PROFILES.length).toBe(81);
+      expect(HEURISTIC_BOT_PROFILES.length).toBe(BOT_PERSONALITIES.length * BOT_LEVELS);
+      expect(HEURISTIC_BOT_PROFILES.length).toBe(72);
+      expect(CFR_BOTS.length).toBe(CFR_BOT_COUNT);
     });
 
     it('every profile has a unique key', () => {
@@ -91,15 +97,21 @@ describe('botProfiles', () => {
   });
 
   describe('BOT_PROFILE_MAP', () => {
-    it('contains all profiles plus impossible bot and CFR bots', () => {
-      // 81 personality bots + 1 impossible bot + 9 CFR bots = 91
-      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length + 1 + 9);
+    it('contains all profiles plus impossible bot', () => {
+      // 81 bot profiles + 1 impossible bot = 82
+      expect(BOT_PROFILE_MAP.size).toBe(BOT_PROFILES.length + 1);
     });
 
     it('allows O(1) lookup by key', () => {
-      const rock9 = BOT_PROFILE_MAP.get('rock_lvl9');
-      expect(rock9).toBeDefined();
-      expect(rock9!.name).toBe('Rock lvl9');
+      const rock8 = BOT_PROFILE_MAP.get('rock_lvl8');
+      expect(rock8).toBeDefined();
+      expect(rock8!.name).toBe('Rock lvl8');
+    });
+
+    it('includes CFR bots in the map', () => {
+      const viper = BOT_PROFILE_MAP.get('cfr_viper');
+      expect(viper).toBeDefined();
+      expect(viper!.isCFR).toBe(true);
     });
 
     it('returns undefined for unknown keys', () => {
@@ -112,7 +124,6 @@ describe('botProfiles', () => {
       expect(BOT_PROFILE_KEYS).toEqual([
         ...BOT_PROFILES.map(p => p.key),
         'oracle_lvl10',
-        ...CFR_BOTS.map(p => p.key),
       ]);
     });
   });
@@ -135,7 +146,7 @@ describe('botProfiles', () => {
   });
 
   describe('LEGACY_PROFILE_KEY_MAP', () => {
-    it('maps all 8 old profile keys to new lvl9 keys', () => {
+    it('maps all 8 old profile keys to new lvl8 keys', () => {
       expect(LEGACY_PROFILE_KEY_MAP.size).toBe(8);
       for (const [_old, newKey] of LEGACY_PROFILE_KEY_MAP) {
         expect(BOT_PROFILE_MAP.has(newKey)).toBe(true);
@@ -144,15 +155,15 @@ describe('botProfiles', () => {
   });
 
   describe('level scaling', () => {
-    it('lvl9 profiles express personality more strongly than lvl1', () => {
+    it('lvl8 profiles express personality more strongly than lvl1', () => {
       const rock1 = BOT_PROFILE_MAP.get('rock_lvl1')!;
-      const rock9 = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      // Rock at lvl9 should have lower bluffFrequency (more conservative) than lvl1
-      // because lvl1 lerps toward unskilled (0.55 bluffFreq) while rock lvl9 = 0.15
-      expect(rock9.config.bluffFrequency).toBeLessThan(rock1.config.bluffFrequency);
+      const rock8 = BOT_PROFILE_MAP.get('rock_lvl8')!;
+      // Rock at lvl8 should have lower bluffFrequency (more conservative) than lvl1
+      // because lvl1 lerps toward unskilled (0.55 bluffFreq) while rock lvl8 = 0.15
+      expect(rock8.config.bluffFrequency).toBeLessThan(rock1.config.bluffFrequency);
     });
 
-    it('all 9 levels exist for each personality', () => {
+    it('all 8 heuristic levels exist for each personality', () => {
       for (const personality of BOT_PERSONALITIES) {
         for (let lvl = 1; lvl <= BOT_LEVELS; lvl++) {
           const key = `${personality.key}_lvl${lvl}`;
@@ -160,69 +171,131 @@ describe('botProfiles', () => {
         }
       }
     });
+
+    it('lvl9 does not exist for heuristic personalities', () => {
+      for (const personality of BOT_PERSONALITIES) {
+        const key = `${personality.key}_lvl9`;
+        expect(BOT_PROFILE_MAP.has(key)).toBe(false);
+      }
+    });
   });
 
-  describe('profile differentiation (lvl9 comparisons)', () => {
+  describe('CFR bots', () => {
+    it('all 9 CFR bots are in BOT_PROFILES', () => {
+      for (const cfr of CFR_BOTS) {
+        expect(BOT_PROFILES).toContain(cfr);
+      }
+    });
+
+    it('CFR bots have isCFR flag', () => {
+      for (const cfr of CFR_BOTS) {
+        expect(cfr.isCFR).toBe(true);
+      }
+    });
+
+    it('CFR bots are in the hard category', () => {
+      const hardBots = getBotsForCategory('hard');
+      for (const cfr of CFR_BOTS) {
+        expect(hardBots).toContain(cfr);
+      }
+    });
+
+    it('CFR bots are in the mixed category', () => {
+      const mixedBots = getBotsForCategory('mixed');
+      for (const cfr of CFR_BOTS) {
+        expect(mixedBots).toContain(cfr);
+      }
+    });
+  });
+
+  describe('profile differentiation (lvl8 comparisons)', () => {
     it('Rock bluffs much less than Bluffer', () => {
-      const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
+      const rock = BOT_PROFILE_MAP.get('rock_lvl8')!;
+      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl8')!;
       expect(rock.config.bluffFrequency).toBeLessThan(bluffer.config.bluffFrequency);
       expect(rock.config.openingBluffRate).toBeLessThan(bluffer.config.openingBluffRate);
     });
 
     it('Frost is more conservative than Cannon', () => {
-      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
-      const cannon = BOT_PROFILE_MAP.get('cannon_lvl9')!;
+      const frost = BOT_PROFILE_MAP.get('frost_lvl8')!;
+      const cannon = BOT_PROFILE_MAP.get('cannon_lvl8')!;
       expect(frost.config.riskTolerance).toBeLessThan(cannon.config.riskTolerance);
       expect(frost.config.aggressionBias).toBeLessThan(cannon.config.aggressionBias);
     });
 
     it('Grinder takes minimal risks', () => {
-      const grinder = BOT_PROFILE_MAP.get('grinder_lvl9')!;
+      const grinder = BOT_PROFILE_MAP.get('grinder_lvl8')!;
       expect(grinder.config.riskTolerance).toBeLessThanOrEqual(0.15);
     });
 
     it('Shark has high trust multiplier for opponent reads', () => {
-      const shark = BOT_PROFILE_MAP.get('shark_lvl9')!;
+      const shark = BOT_PROFILE_MAP.get('shark_lvl8')!;
       expect(shark.config.trustMultiplier).toBeGreaterThan(1.3);
     });
 
     it('Bluffer has high bluffFrequency and low bluffPlausibilityGate', () => {
-      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
+      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl8')!;
       expect(bluffer.config.bluffFrequency).toBeGreaterThan(0.4);
       expect(bluffer.config.bluffPlausibilityGate).toBeLessThan(0.3);
     });
 
-    it('Wildcard has the highest noiseBand (unpredictable)', () => {
-      const wildcard = BOT_PROFILE_MAP.get('wildcard_lvl9')!;
-      for (const profile of BOT_PROFILES) {
-        if (profile.key === 'wildcard_lvl9') continue;
-        // Wildcard's noiseBand should be >= all other lvl9 bots
+    it('Wildcard has the highest noiseBand among heuristic lvl8 bots', () => {
+      const wildcard = BOT_PROFILE_MAP.get('wildcard_lvl8')!;
+      for (const profile of HEURISTIC_BOT_PROFILES) {
+        if (profile.key === 'wildcard_lvl8') continue;
         const level = parseInt(profile.key.split('_lvl')[1]!, 10);
-        if (level === 9) {
+        if (level === 8) {
           expect(wildcard.config.noiseBand).toBeGreaterThanOrEqual(profile.config.noiseBand);
         }
       }
     });
 
     it('Rock and Frost have high bluffPlausibilityGate (conservative bluffs)', () => {
-      const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      const rock = BOT_PROFILE_MAP.get('rock_lvl8')!;
+      const frost = BOT_PROFILE_MAP.get('frost_lvl8')!;
       expect(rock.config.bluffPlausibilityGate).toBeGreaterThanOrEqual(0.45);
       expect(frost.config.bluffPlausibilityGate).toBeGreaterThanOrEqual(0.45);
     });
 
     it('Frost has low noiseBand (precise decisions)', () => {
-      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      const frost = BOT_PROFILE_MAP.get('frost_lvl8')!;
       expect(frost.config.noiseBand).toBeLessThanOrEqual(0.02);
     });
 
     it('Professor matches evolved baseline', () => {
-      const prof = BOT_PROFILE_MAP.get('professor_lvl9')!;
+      const prof = BOT_PROFILE_MAP.get('professor_lvl8')!;
       for (const key of Object.keys(DEFAULT_BOT_PROFILE_CONFIG) as (keyof BotProfileConfig)[]) {
         // Use toBeCloseTo to handle floating point precision from level scaling lerp
         expect(prof.config[key]).toBeCloseTo(DEFAULT_BOT_PROFILE_CONFIG[key], 10);
       }
+    });
+  });
+
+  describe('level categories', () => {
+    it('easy bots are levels 1-3', () => {
+      const easy = getBotsForCategory('easy');
+      expect(easy.length).toBe(9 * 3); // 9 personalities × 3 levels
+      for (const bot of easy) {
+        const lvl = parseInt(bot.key.split('_lvl')[1]!, 10);
+        expect(lvl).toBeGreaterThanOrEqual(1);
+        expect(lvl).toBeLessThanOrEqual(3);
+      }
+    });
+
+    it('normal bots are levels 4-6', () => {
+      const normal = getBotsForCategory('normal');
+      expect(normal.length).toBe(9 * 3); // 9 personalities × 3 levels
+    });
+
+    it('hard bots include levels 7-8 heuristic + 9 CFR bots', () => {
+      const hard = getBotsForCategory('hard');
+      // 9 personalities × 2 heuristic levels (7-8) + 9 CFR bots = 27
+      expect(hard.length).toBe(9 * 2 + 9);
+    });
+
+    it('mixed includes all 81 bots', () => {
+      const mixed = getBotsForCategory('mixed');
+      expect(mixed.length).toBe(81);
     });
   });
 });

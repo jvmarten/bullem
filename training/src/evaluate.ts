@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for evaluating a trained CFR strategy against the full
- * 81-profile bot pool.
+ * CLI entry point for evaluating a trained CFR strategy against the
+ * heuristic bot pool.
  *
- * Runs 1v1 matchups against each of the 9 level-9 (strongest) personality
- * archetypes, plus a 6-player reference matchup.
+ * Runs 1v1 matchups against each of the 9 level-8 (strongest heuristic)
+ * personality archetypes, plus a 6-player reference matchup.
  *
  * Usage:
  *   npm run evaluate -w training
@@ -22,17 +22,17 @@ import {
 import type { EvaluationStats, ExportedStrategy } from './cfr/index.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
-/** The 9 level-9 personality keys — strongest version of each archetype. */
-const LVL9_KEYS = [
-  'rock_lvl9',
-  'bluffer_lvl9',
-  'grinder_lvl9',
-  'wildcard_lvl9',
-  'professor_lvl9',
-  'shark_lvl9',
-  'cannon_lvl9',
-  'frost_lvl9',
-  'hustler_lvl9',
+/** The 9 level-8 personality keys — strongest heuristic version of each archetype. */
+const LVL8_KEYS = [
+  'rock_lvl8',
+  'bluffer_lvl8',
+  'grinder_lvl8',
+  'wildcard_lvl8',
+  'professor_lvl8',
+  'shark_lvl8',
+  'cannon_lvl8',
+  'frost_lvl8',
+  'hustler_lvl8',
 ] as const;
 
 /** Pick `count` random profiles from the 81-profile pool (no duplicates). */
@@ -95,7 +95,7 @@ function parseArgs(argv: string[]): {
 Bull 'Em CFR Strategy Evaluation
 
 Evaluates a trained CFR strategy by playing 1v1 against each of the 9 strongest
-bot personalities (lvl9), plus a 6-player reference matchup.
+heuristic bot personalities (lvl8), plus a 6-player reference matchup.
 
 Usage:
   npm run evaluate -w training
@@ -183,16 +183,16 @@ function createMixedStrategy(cfrBotIds: Set<string>): BotStrategy {
   };
 }
 
-// ── Resolve lvl9 profiles ───────────────────────────────────────────────
+// ── Resolve lvl8 profiles ───────────────────────────────────────────────
 
-const lvl9Profiles: BotProfileDefinition[] = [];
-for (const key of LVL9_KEYS) {
+const lvl8Profiles: BotProfileDefinition[] = [];
+for (const key of LVL8_KEYS) {
   const profile = BOT_PROFILE_MAP.get(key);
   if (!profile) {
     console.error(`Error: profile '${key}' not found in BOT_PROFILE_MAP`);
     process.exit(1);
   }
-  lvl9Profiles.push(profile);
+  lvl8Profiles.push(profile);
 }
 
 // ── Run evaluations ─────────────────────────────────────────────────────
@@ -207,7 +207,7 @@ console.log('');
 let totalCfrWins = 0;
 let totalGames = 0;
 
-// ── 1v1: CFR vs each lvl9 personality ───────────────────────────────────
+// ── 1v1: CFR vs each lvl8 personality ───────────────────────────────────
 
 interface HeadsUpResult {
   opponentName: string;
@@ -218,9 +218,9 @@ interface HeadsUpResult {
 
 const headsUpResults: HeadsUpResult[] = [];
 
-console.log(`── Heads-up (2P): CFR vs all 9 lvl9 personalities ──\n`);
+console.log(`── Heads-up (2P): CFR vs all 9 lvl8 personalities ──\n`);
 
-for (const opponent of lvl9Profiles) {
+for (const opponent of lvl8Profiles) {
   const cfrIds = new Set<string>(['cfr-0']);
   const bots: BotConfig[] = [
     { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
@@ -260,7 +260,7 @@ for (const opponent of lvl9Profiles) {
 const nameWidth = Math.max(...headsUpResults.map(r => r.opponentName.length), 10);
 
 console.log(`\n${'═'.repeat(50)}`);
-console.log('  Heads-up Results: CFR vs lvl9 Personalities');
+console.log('  Heads-up Results: CFR vs lvl8 Personalities');
 console.log(`${'═'.repeat(50)}\n`);
 console.log(
   `  ${'Opponent'.padEnd(nameWidth)}  ${'CFR Win%'.padStart(8)}  ${'W'.padStart(5)} / ${'L'.padStart(5)}  Bar`,
