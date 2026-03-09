@@ -61,6 +61,58 @@ interface BotSelfImage {
   roundsSinceCaught: number;
 }
 
+/**
+ * Situational context for context-aware bot decisions.
+ *
+ * Captures round-specific factors that should change the bot's base
+ * calculations before personality parameters are applied.
+ */
+interface SituationalContext {
+  // ── Position & escalation ──────────────────────────────────────
+  /** Number of CALL actions before the bot's turn (0 = bot is opener). */
+  callsBefore: number;
+  /** Total number of raises (CALL actions) in the round so far. */
+  totalRaises: number;
+
+  // ── Ceiling proximity ──────────────────────────────────────────
+  /** The current hand type (null if opening). */
+  currentHandType: HandType | null;
+  /** True when the hand is STRAIGHT_FLUSH or ROYAL_FLUSH — almost no room to raise. */
+  atCeiling: boolean;
+  /** True when the hand is FOUR_OF_A_KIND or higher — very limited raise room. */
+  nearCeiling: boolean;
+
+  // ── Elimination pressure (self) ────────────────────────────────
+  /** Bot's own card count. */
+  botCardCount: number;
+  /** Max cards before elimination. */
+  maxCards: number;
+  /** Cards until elimination (maxCards - botCardCount). 0 = next loss eliminates. */
+  cardsUntilElimination: number;
+  /** True when 1 card from elimination (next loss = out). */
+  botOneBehind: boolean;
+  /** True when 2 cards from elimination (losing twice = out). */
+  botTwoBehind: boolean;
+
+  // ── Elimination pressure (opponents) ───────────────────────────
+  /** The last caller's card count (null if unknown). */
+  callerCardCount: number | null;
+  /** True when the last caller is 1 card from elimination. */
+  callerOneBehind: boolean;
+  /** True when any active opponent is 1 card from elimination. */
+  anyOpponentOneBehind: boolean;
+
+  // ── Bull phase signals ─────────────────────────────────────────
+  /** Number of BULL calls before the bot in bull phase. */
+  bullCallsBefore: number;
+  /** Number of TRUE calls before the bot in bull phase. */
+  trueCallsBefore: number;
+  /** True when at least one player called TRUE before the bot in bull phase. */
+  someoneCalledTrue: boolean;
+  /** True when the bot is the first responder in bull phase (no prior signals). */
+  firstResponder: boolean;
+}
+
 export class BotPlayer {
   // Cross-round opponent memory — scoped per room/game to prevent leaking
   // between concurrent games. Outer key is the scope (room code or game ID).
@@ -788,6 +840,11 @@ export class BotPlayer {
   ): BotAction {
     const desperate = cardCount >= 4;
 
+    // Build situational context for branching decisions
+    const ctx = state
+      ? this.buildSituationalContext(state, botId, turnHistory)
+      : null;
+
     // Bayesian card beliefs — richer inference from full turn history
     const beliefs = state
       ? this.buildCardBeliefs(turnHistory, botId, state, mem)
@@ -804,13 +861,36 @@ export class BotPlayer {
     const cardPoolScale = Math.min(1.0, totalCards / 12); // Ramp from ~0.17 at 2 cards to 1.0 at 12+
     const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate * cardPoolScale;
 
-    // Factor in position: more raises → more likely someone is bluffing
-    const positionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
+    // Factor in position: more raises → more likely someone is bluffing.
+    // Late position amplifies this — with 4+ raises, the bot has rich info
+    // and should weight escalation patterns more heavily.
+    const basePositionAdj = this.getPositionBluffAdjustment(turnHistory, botId);
+    const positionInfoBonus = ctx ? Math.min(1.0, ctx.callsBefore / 4) : 0;
+    const positionAdj = basePositionAdj * (1 + positionInfoBonus * 0.5);
+
+    // Escalation pattern: many raises means someone along the chain probably
+    // has something real — but the LAST raiser is increasingly suspect.
+    // With few raises, the caller is more likely truthful. With many, the
+    // latest caller may be riding momentum without real cards.
+    const escalationAdj = ctx && ctx.totalRaises >= 3
+      ? (ctx.totalRaises - 2) * 0.05 * (1.0 - cfg.bullThreshold) // Suspicious profiles weigh this more
+      : 0;
 
     // Call chain consistency: consistent chains are more believable
     const chainBonus = (beliefs.chainConsistency - 0.5) * 0.12;
 
-    const adjustedP = Math.max(0, Math.min(1, pRaw + truthBoost - positionAdj + chainBonus));
+    // Ceiling proximity: when the hand is in STRAIGHT_FLUSH/ROYAL_FLUSH
+    // territory, there's almost no room to raise — lean heavily toward bull.
+    const ceilingBullBias = ctx?.atCeiling ? 0.15 : (ctx?.nearCeiling ? 0.08 : 0);
+
+    // Opponent desperation read: a desperate caller (1 card from elimination)
+    // is more likely telling the truth — they can't afford to get caught.
+    // But aggressive raises from a desperate opponent might be a hail mary bluff.
+    const opponentDesperationAdj = this.getOpponentDesperationAdjustment(ctx, turnHistory);
+
+    const adjustedP = Math.max(0, Math.min(1,
+      pRaw + truthBoost - positionAdj - escalationAdj + chainBonus - ceilingBullBias + opponentDesperationAdj,
+    ));
 
     // Impossibility override: if raw probability is near zero, the hand is mathematically
     // impossible or near-impossible given what we can see. Always call bull regardless of
@@ -821,13 +901,45 @@ export class BotPlayer {
       return { action: 'bull' };
     }
 
+    // ── Ceiling branch: when near the top of the hand hierarchy ──────
+    // With almost no room to raise, the EV of raising drops dramatically.
+    // Lean toward bull unless the hand is clearly plausible.
+    if (ctx?.atCeiling) {
+      if (adjustedP < 0.6) {
+        this.recordSelfAction(scope, botId, false);
+        return { action: 'bull' };
+      }
+    }
+
+    // ── Self-desperation branch: fundamentally different EV when close to elimination ──
+    if (ctx && (ctx.botOneBehind || ctx.botTwoBehind)) {
+      return this.callingPhaseDesperationBranch(
+        currentHand, botCards, totalCards, numOpponents, botId, higher,
+        adjustedP, cfg, scope, ctx,
+      );
+    }
+
     // Bull threshold: profiles with lower bullThreshold call bull at higher adjustedP values
     const confidentBullThreshold = 0.20 + (cfg.bullThreshold - 0.5) * 0.2;
 
-    // Confident bull: hand is very unlikely to exist
-    if (adjustedP < confidentBullThreshold && !desperate) {
-      this.recordSelfAction(scope, botId, false);
-      return { action: 'bull' };
+    // ── Late position branch: 4+ calls before us = rich information ──
+    // Late position bots have seen many raises and can make more informed
+    // decisions. They should weight the escalation pattern more heavily.
+    if (ctx && ctx.callsBefore >= 3) {
+      // With lots of history, the chain consistency and escalation pattern
+      // become primary signals. Lower the confidentBullThreshold slightly
+      // because we have better info to act on.
+      const latePositionThreshold = confidentBullThreshold * 0.85;
+      if (adjustedP < latePositionThreshold) {
+        this.recordSelfAction(scope, botId, false);
+        return { action: 'bull' };
+      }
+    } else {
+      // Confident bull: hand is very unlikely to exist
+      if (adjustedP < confidentBullThreshold && !desperate) {
+        this.recordSelfAction(scope, botId, false);
+        return { action: 'bull' };
+      }
     }
 
     // If current call is a high card, prefer bluffing a higher rank we don't hold
@@ -904,15 +1016,121 @@ export class BotPlayer {
   }
 
   /**
+   * Calling phase when the bot is 1-2 cards from elimination.
+   *
+   * Fundamentally different EV calculations: losing a card when you have 1 left
+   * means elimination. The cost/benefit of every action shifts dramatically.
+   *
+   * Key insight: playing safe just delays losing. The bot should be more willing
+   * to take calculated risks since the downside (getting 1 card) is catastrophic
+   * either way.
+   */
+  private static callingPhaseDesperationBranch(
+    currentHand: HandCall,
+    botCards: Card[],
+    totalCards: number,
+    numOpponents: number,
+    botId: string,
+    higher: HandCall | null,
+    adjustedP: number,
+    cfg: BotProfileConfig,
+    scope: string | undefined,
+    ctx: SituationalContext,
+  ): BotAction {
+    // 1 card from elimination: every wrong call = death. But playing passively
+    // means someone else controls our fate. Shift toward aggressive plays.
+    const survivalBias = ctx.botOneBehind ? 0.3 : 0.15;
+
+    // If we're sure the hand is fake, bull is high EV even when desperate
+    if (adjustedP < 0.10) {
+      this.recordSelfAction(scope, botId, false);
+      return { action: 'bull' };
+    }
+
+    // If we have a legitimate higher hand, raise — safer than calling bull
+    // on something uncertain and getting penalized
+    if (higher) {
+      this.recordSelfAction(scope, botId, false);
+      return { action: 'call', hand: higher };
+    }
+
+    // The hand is uncertain — desperate bots should bluff-raise more aggressively.
+    // With a probable hand (adjustedP > 0.35), bluffing over it avoids the risk
+    // of calling bull on a real hand (which = elimination).
+    const desperateBluffRate = (0.3 + survivalBias) * cfg.bluffFrequency * cfg.aggressionBias;
+    if (adjustedP > 0.35 && Math.random() < desperateBluffRate) {
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      if (bluff) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: bluff };
+      }
+    }
+
+    // Low-probability hand + desperate = risky bull call, but still better than
+    // bluffing with nothing. Scale willingness by how bad the hand looks.
+    if (adjustedP < 0.25) {
+      this.recordSelfAction(scope, botId, false);
+      return { action: 'bull' };
+    }
+
+    // In the uncertain zone when desperate: hail mary bluff if personality supports it
+    if (Math.random() < survivalBias * cfg.riskTolerance) {
+      const bluff = this.findBestPlausibleRaise(currentHand, botCards, totalCards);
+      if (bluff) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: bluff };
+      }
+    }
+
+    // Default: call bull (uncertain hand, no raise available)
+    this.recordSelfAction(scope, botId, false);
+    return { action: 'bull' };
+  }
+
+  /**
+   * Calculate opponent desperation adjustment for plausibility.
+   *
+   * Reads the last caller's desperation state to adjust hand plausibility:
+   * - Desperate caller making a normal/conservative call → more likely truthful
+   *   (they can't afford to get caught, so they're playing real hands)
+   * - Desperate caller making an aggressive raise (big type jump) → possible hail
+   *   mary bluff (they know they're losing anyway, might as well gamble)
+   */
+  private static getOpponentDesperationAdjustment(
+    ctx: SituationalContext | null,
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+  ): number {
+    if (!ctx || !ctx.callerOneBehind) return 0;
+
+    // Check if the last raise was a big jump (3+ hand type levels)
+    const calls = turnHistory.filter(e => e.action === TurnAction.CALL && e.hand);
+    if (calls.length < 2) {
+      // Single call from a desperate player — they're likely truthful
+      return 0.08;
+    }
+
+    const lastCall = calls[calls.length - 1]!.hand!;
+    const prevCall = calls[calls.length - 2]!.hand!;
+    const typeJump = lastCall.type - prevCall.type;
+
+    if (typeJump >= 3) {
+      // Big jump from a desperate player — possible hail mary bluff
+      return -0.06;
+    }
+    // Conservative raise from desperate player — likely truthful
+    return 0.08;
+  }
+
+  /**
    * Bull phase: EV decision with position-aware bluff detection.
    *
-   * Improvements:
-   * - Dynamic threshold based on card count (asymmetric cost-awareness)
-   * - Counter-bluff detection: bull-phase raises are suspicious
-   * - Reduced raise frequency (15% base, 25% desperate)
-   * - Only raise if current hand has low plausibility (< 0.5)
-   * - Call-sequence inference for better probability estimates
-   * - Memory-adjusted truthfulness per caller
+   * Branches on:
+   * - **Response order**: first responder (no signal) vs after seeing bulls
+   *   (more confident it's fake) vs after someone called true (strong signal it's real)
+   * - **Post-true context**: if someone called true, heavily weight toward true
+   *   unless strong evidence otherwise
+   * - **Self-desperation**: 1-2 cards from elimination = fundamentally different EV
+   * - **Opponent desperation**: desperate callers' claims read differently
    */
   private static handleHardBullPhase(
     currentHand: HandCall,
@@ -927,6 +1145,11 @@ export class BotPlayer {
     state?: ClientGameState,
     scope?: string,
   ): BotAction {
+    // Build situational context
+    const ctx = state
+      ? this.buildSituationalContext(state, botId, turnHistory)
+      : null;
+
     // Bayesian card beliefs — richer inference from full turn history
     const beliefs = state
       ? this.buildCardBeliefs(turnHistory, botId, state, mem)
@@ -959,21 +1182,62 @@ export class BotPlayer {
     // Counter-bluff detection: was the current hand raised during bull phase?
     const bullPhaseRaisePenalty = this.detectBullPhaseRaise(turnHistory) ? 0.15 : 0;
 
+    // ── Response order signal ────────────────────────────────────────
+    // Being the first responder means no social signal — rely on math alone.
+    // After seeing others call bull, the bot has confirmation bias toward bull.
+    // After seeing someone call true, that's a strong positive signal.
+    let responseOrderAdj = 0;
+    if (ctx) {
+      if (ctx.firstResponder) {
+        // No signal from others — slight conservative bias (less certain either way)
+        responseOrderAdj = 0;
+      } else if (ctx.someoneCalledTrue) {
+        // Someone called true — strong signal the hand is real.
+        // Weight scales with how many true calls vs bull calls we've seen.
+        const trueWeight = ctx.trueCallsBefore / (ctx.trueCallsBefore + ctx.bullCallsBefore);
+        responseOrderAdj = trueWeight * 0.15;
+      } else if (ctx.bullCallsBefore >= 2) {
+        // Multiple people called bull before us — growing confidence it's fake
+        responseOrderAdj = -0.05 * Math.min(ctx.bullCallsBefore, 3);
+      } else if (ctx.bullCallsBefore === 1) {
+        // One person called bull — mild negative signal
+        responseOrderAdj = -0.03;
+      }
+    }
+
+    // Opponent desperation read in bull phase
+    const opponentDespAdj = this.getOpponentDesperationAdjustment(ctx, turnHistory);
+
     let adjustedP = Math.max(0, Math.min(1,
-      pRaw + truthBoost - positionAdj + chainBonus + reactionSignal * 0.1,
+      pRaw + truthBoost - positionAdj + chainBonus + reactionSignal * 0.1
+      + responseOrderAdj + opponentDespAdj,
     ));
     adjustedP *= (1 - bullPhaseRaisePenalty);
 
+    // ── Post-true branch ─────────────────────────────────────────────
+    // If someone already called true, heavily weight toward calling true as well
+    // unless the bot has strong evidence otherwise (very low plausibility).
+    if (ctx?.someoneCalledTrue) {
+      const postTrueHigher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+      return this.bullPhasePostTrueBranch(adjustedP, pRaw, currentHand, botCards, totalCards, cardCount, botId, postTrueHigher, cfg, scope, ctx);
+    }
+
+    // ── Self-desperation branch ──────────────────────────────────────
+    // 1-2 cards from elimination: the cost of a wrong bull call is catastrophic.
+    if (ctx && (ctx.botOneBehind || ctx.botTwoBehind)) {
+      return this.bullPhaseDesperationBranch(adjustedP, currentHand, botCards, totalCards, cardCount, botId, cfg, scope, ctx);
+    }
+
     // Consider raising in bull phase — only with a legitimate higher hand
-    const higher = this.findHandHigherThanFull(botCards, currentHand, totalCards);
-    if (higher) {
+    const higherHand = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+    if (higherHand) {
       if (adjustedP < 0.5) {
         const raiseChance = cardCount >= 4
           ? cfg.bullPhaseRaiseRate * 1.67
           : cfg.bullPhaseRaiseRate;
         if (Math.random() < raiseChance) {
           this.recordSelfAction(scope, botId, false);
-          return { action: 'call', hand: higher };
+          return { action: 'call', hand: higherHand };
         }
       }
     }
@@ -991,6 +1255,98 @@ export class BotPlayer {
     }
     // Within noise band — randomize
     return Math.random() < adjustedP ? { action: 'true' } : { action: 'bull' };
+  }
+
+  /**
+   * Bull phase after someone already called true.
+   *
+   * A true call is a strong social signal — the caller believes the hand is real
+   * and is staking their own cards on it. Unless we have strong mathematical
+   * evidence the hand is fake, we should follow suit.
+   */
+  private static bullPhasePostTrueBranch(
+    adjustedP: number,
+    pRaw: number,
+    currentHand: HandCall,
+    botCards: Card[],
+    totalCards: number,
+    cardCount: number,
+    botId: string,
+    higher: HandCall | null,
+    cfg: BotProfileConfig,
+    scope: string | undefined,
+    ctx: SituationalContext,
+  ): BotAction {
+    // Strong mathematical evidence it's fake overrides social signal
+    if (pRaw < 0.05) {
+      return { action: 'bull' };
+    }
+
+    // If we have a legitimate raise, consider it — disrupts the round
+    if (higher && adjustedP < 0.5 && Math.random() < cfg.bullPhaseRaiseRate) {
+      this.recordSelfAction(scope, botId, false);
+      return { action: 'call', hand: higher };
+    }
+
+    // Post-true: the bar for calling bull is much higher.
+    // Only call bull if plausibility is quite low AND our profile is skeptical.
+    const postTrueBullThreshold = 0.25 - (cfg.bullThreshold - 0.5) * 0.15;
+    if (adjustedP < postTrueBullThreshold) {
+      return { action: 'bull' };
+    }
+
+    // Default: follow the true call
+    return { action: 'true' };
+  }
+
+  /**
+   * Bull phase when the bot is 1-2 cards from elimination.
+   *
+   * Wrong bull call = gaining a card = possibly eliminated. The cost is extreme.
+   * But wrong true call on a bluff also costs a card. The key insight: when
+   * desperate, the bot should be more decisive (less noise) and lean toward
+   * whichever option the math supports more strongly.
+   */
+  private static bullPhaseDesperationBranch(
+    adjustedP: number,
+    currentHand: HandCall,
+    botCards: Card[],
+    totalCards: number,
+    cardCount: number,
+    botId: string,
+    cfg: BotProfileConfig,
+    scope: string | undefined,
+    ctx: SituationalContext,
+  ): BotAction {
+    // When 1 card from elimination, reduce noise band — be more decisive
+    const desperateNoise = ctx.botOneBehind ? cfg.noiseBand * 0.3 : cfg.noiseBand * 0.6;
+
+    // Consider raising to redirect pressure — desperate bots should raise
+    // more often to avoid being the one who gets penalized for bull/true
+    const higherHand = this.findHandHigherThanFull(botCards, currentHand, totalCards);
+    if (higherHand && adjustedP < 0.5) {
+      const desperateRaiseChance = ctx.botOneBehind
+        ? cfg.bullPhaseRaiseRate * 2.5 * cfg.aggressionBias
+        : cfg.bullPhaseRaiseRate * 1.8 * cfg.aggressionBias;
+      if (Math.random() < desperateRaiseChance) {
+        this.recordSelfAction(scope, botId, false);
+        return { action: 'call', hand: higherHand };
+      }
+    }
+
+    // Use a tighter threshold — desperate bots need clearer signals
+    const baseThreshold = this.getDynamicBullThreshold(cardCount);
+    const threshold = baseThreshold + (cfg.bullThreshold - 0.5) * 0.15;
+
+    if (adjustedP > threshold + desperateNoise) {
+      return { action: 'true' };
+    }
+    if (adjustedP < threshold - desperateNoise) {
+      return { action: 'bull' };
+    }
+    // Desperate + noise band: bias slightly toward true (wrong bull = elimination)
+    const trueBias = ctx.botOneBehind ? 0.15 : 0.08;
+    return Math.random() < (adjustedP + trueBias) ? { action: 'true' } : { action: 'bull' };
   }
 
   /**
@@ -1332,6 +1688,87 @@ export class BotPlayer {
   private static isBotDesperate(botId: string, state: ClientGameState): boolean {
     const bot = state.players.find(p => p.id === botId);
     return bot !== undefined && bot.cardCount >= state.maxCards - 1;
+  }
+
+  // ─── SITUATIONAL CONTEXT BUILDER ──────────────────────────────────────
+
+  /**
+   * Build a snapshot of the current situational context for decision branching.
+   *
+   * This captures all the "what kind of situation am I in?" signals that should
+   * shift the bot's base calculations before personality parameters are applied.
+   */
+  private static buildSituationalContext(
+    state: ClientGameState,
+    botId: string,
+    turnHistory: { playerId: string; action: TurnAction; hand?: HandCall }[],
+  ): SituationalContext {
+    const currentHandType = state.currentHand?.type ?? null;
+    const maxCards = state.maxCards;
+    const botPlayer = state.players.find(p => p.id === botId);
+    const botCardCount = botPlayer?.cardCount ?? 1;
+
+    // Count calls and position before bot
+    let callsBefore = 0;
+    let totalRaises = 0;
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.CALL) {
+        totalRaises++;
+        if (entry.playerId !== botId) callsBefore++;
+      }
+    }
+
+    // Ceiling proximity
+    const atCeiling = currentHandType === HandType.STRAIGHT_FLUSH || currentHandType === HandType.ROYAL_FLUSH;
+    const nearCeiling = atCeiling || currentHandType === HandType.FOUR_OF_A_KIND;
+
+    // Self elimination pressure
+    const cardsUntilElimination = maxCards - botCardCount;
+    const botOneBehind = cardsUntilElimination === 0;
+    const botTwoBehind = cardsUntilElimination === 1;
+
+    // Opponent elimination pressure
+    const lastCaller = state.lastCallerId
+      ? state.players.find(p => p.id === state.lastCallerId)
+      : null;
+    const callerCardCount = lastCaller?.cardCount ?? null;
+    const callerOneBehind = callerCardCount !== null && (maxCards - callerCardCount) === 0;
+    const anyOpponentOneBehind = state.players.some(
+      p => !p.isEliminated && p.id !== botId && (maxCards - p.cardCount) === 0,
+    );
+
+    // Bull phase signals
+    let bullCallsBefore = 0;
+    let trueCallsBefore = 0;
+    let inBullPhase = false;
+    for (const entry of turnHistory) {
+      if (entry.action === TurnAction.BULL || entry.action === TurnAction.TRUE) {
+        inBullPhase = true;
+      }
+      if (!inBullPhase || entry.playerId === botId) continue;
+      if (entry.action === TurnAction.BULL) bullCallsBefore++;
+      if (entry.action === TurnAction.TRUE) trueCallsBefore++;
+    }
+
+    return {
+      callsBefore,
+      totalRaises,
+      currentHandType,
+      atCeiling,
+      nearCeiling,
+      botCardCount,
+      maxCards,
+      cardsUntilElimination,
+      botOneBehind,
+      botTwoBehind,
+      callerCardCount,
+      callerOneBehind,
+      anyOpponentOneBehind,
+      bullCallsBefore,
+      trueCallsBefore,
+      someoneCalledTrue: trueCallsBefore > 0,
+      firstResponder: bullCallsBefore === 0 && trueCallsBefore === 0,
+    };
   }
 
   // ─── TABLE IMAGE / META-STRATEGY ──────────────────────────────────────
