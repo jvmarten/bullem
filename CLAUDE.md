@@ -292,7 +292,7 @@ The bot system uses **evolved parameters as the universal baseline**. Every bot 
 
 ### How It Works
 
-1. **`DEFAULT_BOT_PROFILE_CONFIG`** = exact evolved champion values (currently gen50, 61% win rate vs all lvl9 profiles)
+1. **`DEFAULT_BOT_PROFILE_CONFIG`** = exact evolved champion values (currently gen80, 61.3% win rate vs all lvl9 profiles)
 2. **Professor lvl9** gets the exact default values — it's the "textbook optimal" bot
 3. **Other personalities** deviate from the default only on 2-4 **signature parameters** that define their identity (e.g., Rock's low riskTolerance, Bluffer's low bullThreshold)
 4. **Non-signature parameters** use the evolved baseline directly
@@ -315,6 +315,25 @@ The evolved champion's parameters are the **best known strategy**. Making it a s
 ### Avoiding Homogeneity
 
 Personalities won't converge because each one keeps its **signature parameters** intentionally divergent from evolved. The non-signature parameters (which evolution showed don't differentiate playstyles much) get the optimal values. The result: all bots are strong, but they feel different to play against.
+
+### Running Evolution Training
+
+The assistant can and should run evolution training directly — no need for the user to run it locally and paste results. The training scripts live in the `training` workspace:
+
+```bash
+# Run evolution training (genetic algorithm)
+npm run evolve -w training -- --generations 80 --population 30 --games-per-matchup 60 --players-per-game 2 --max-cards 5
+
+# Evaluate an evolved strategy against all lvl9 profiles and HoF
+npm run evaluate-evolved -w training
+
+# Run simulations
+npm run simulate -w training
+```
+
+The evolution script outputs a JSON file to `training/strategies/` with the champion's config, evaluation results, and metadata. After a successful run with improved results, integrate the new champion values into `DEFAULT_BOT_PROFILE_CONFIG` following the "After Each Evolution Run" steps above.
+
+Training runs can take 20-30+ minutes depending on population size and generations. Use `run_in_background` for long runs.
 
 ## Development Priorities
 
