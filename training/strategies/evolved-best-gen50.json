@@ -1,0 +1,70 @@
+{
+  "exportedAt": "2026-03-09T00:00:00.000Z",
+  "interrupted": false,
+  "generations": 50,
+  "targetGenerations": 50,
+  "populationSize": 30,
+  "gamesPerMatchup": 50,
+  "playersPerGame": 2,
+  "maxCards": 5,
+  "bestPopWinRate": 0.546,
+  "bestWinRate": 0.648,
+  "totalGames": 1757050,
+  "durationMs": 582200,
+  "config": {
+    "bluffFrequency": 0.0000,
+    "bullThreshold": 0.5592,
+    "riskTolerance": 0.9924,
+    "aggressionBias": 0.2958,
+    "lastChanceBluffRate": 0.4862,
+    "openingBluffRate": 0.5703,
+    "bullPhaseRaiseRate": 0.2130,
+    "trustMultiplier": 1.2086,
+    "cardCountSensitivity": 0.0470,
+    "headsUpAggression": 0.6835,
+    "survivalPressure": 0.3959,
+    "bluffTargetSelection": 0.4572,
+    "positionAwareness": 0.4210,
+    "trueCallConfidence": 1.0000,
+    "counterBluffRate": 0.6170,
+    "bullPhaseBluffRate": 0.7450,
+    "openingHandTypePreference": 0.2569
+  },
+  "origin": "evolved-gen50",
+  "bestBenchWinRate": 0.522,
+  "hofSize": 17,
+  "bestProfileWinRate": 0.609,
+  "evaluation": {
+    "headsUpVsLvl9": {
+      "overallWinRate": 0.611,
+      "totalWins": 5502,
+      "totalGames": 9000,
+      "profilesBeaten": 9,
+      "profilesTested": 9,
+      "results": {
+        "rock_lvl9": 0.528,
+        "bluffer_lvl9": 0.664,
+        "grinder_lvl9": 0.577,
+        "wildcard_lvl9": 0.646,
+        "professor_lvl9": 0.635,
+        "shark_lvl9": 0.589,
+        "cannon_lvl9": 0.641,
+        "frost_lvl9": 0.567,
+        "hustler_lvl9": 0.655
+      },
+      "hardest": ["rock_lvl9", "frost_lvl9", "grinder_lvl9"],
+      "easiest": ["bluffer_lvl9", "hustler_lvl9", "wildcard_lvl9"]
+    },
+    "headsUpVsHoF": {
+      "overallWinRate": 0.497,
+      "totalWins": 8453,
+      "totalGames": 17000,
+      "hofMembers": 17
+    },
+    "combined": {
+      "overallWinRate": 0.537,
+      "totalWins": 13955,
+      "totalGames": 26000
+    }
+  }
+}
