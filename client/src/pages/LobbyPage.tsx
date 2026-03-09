@@ -563,32 +563,46 @@ export function LobbyPage() {
                 )}
               </div>
             </div>
+
+            {/* The Oracle — toggle to add/remove the all-seeing impossible bot */}
+            {impossibleEnabled && (
+              <div className="glass px-4 py-3">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                  The Oracle
+                </p>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-[var(--gold-dim)]">Add The Oracle (lvl 10)</span>
+                  <button
+                    onClick={() => {
+                      play('uiSoft');
+                      const hasOracle = roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name);
+                      if (hasOracle) {
+                        const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
+                        if (oracleBot) removeBot(oracleBot.id);
+                      } else {
+                        addBot(IMPOSSIBLE_BOT.name).catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'));
+                      }
+                    }}
+                    disabled={!roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) && roomState.players.length >= effectiveMaxPlayers}
+                    className={`w-11 h-6 rounded-full transition-colors relative border ${
+                      roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                        ? 'bg-[var(--gold)] border-[var(--gold)]'
+                        : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
+                    }`}
+                  >
+                    <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                      roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                    }`} />
+                  </button>
+                </label>
+                <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                  {roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                    ? 'Sees all cards. Perfect play. Only one per match.'
+                    : 'All-seeing bot — knows every card in play'}
+                </p>
+              </div>
+            )}
           </>
-        )}
-
-
-        {/* Oracle bot button — shown when impossible mode is enabled */}
-        {isHost && impossibleEnabled && (
-          <button
-            onClick={() => {
-              play('uiSoft');
-              const hasOracle = roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name);
-              if (hasOracle) {
-                const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
-                if (oracleBot) removeBot(oracleBot.id);
-              } else {
-                addBot(IMPOSSIBLE_BOT.name).catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'));
-              }
-            }}
-            disabled={!roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) && roomState.players.length >= effectiveMaxPlayers}
-            className={`w-full glass px-4 py-2.5 text-sm transition-colors ${
-              roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name)
-                ? 'text-[var(--danger)] hover:text-red-300'
-                : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'
-            }`}
-          >
-            {roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'The Oracle Active (lvl 10)' : 'Add The Oracle (lvl 10)'}
-          </button>
         )}
 
         {/* Settings display — shown when host settings are locked, or for non-host players */}
