@@ -227,18 +227,6 @@ function generateTruthfulHand(
 // ── Bluff hand generation ────────────────────────────────────────────
 
 /**
- * Derive a deterministic-per-state seed from the player's cards.
- * Varies bluff choices based on what we hold without adding randomness.
- */
-function cardBasedSeed(myCards: Card[]): number {
-  let hash = 0;
-  for (const c of myCards) {
-    hash = (hash * 31 + RANK_VALUES[c.rank] * 4 + ALL_SUITS.indexOf(c.suit)) | 0;
-  }
-  return Math.abs(hash);
-}
-
-/**
  * Generate a hand claim the player does NOT hold.
  * Always returns a valid hand — falls back to minimum raise.
  *
@@ -257,23 +245,22 @@ function generateBluffHand(
 ): HandCall {
   const myRankSet = new Set(myCards.map(c => c.rank));
   const mySuitSet = new Set(myCards.map(c => c.suit));
-  const seed = cardBasedSeed(myCards);
 
   const nonHeldRanks = ALL_RANKS.filter(r => !myRankSet.has(r));
   const bluffRankPool = nonHeldRanks.length > 0 ? nonHeldRanks : ALL_RANKS;
 
-  // Vary rank selection based on card-derived seed + magnitude offset
-  const magnitudeOffset = magnitude === 'small' ? 0 : magnitude === 'mid' ? 3 : 7;
+  // Use randomness so different magnitudes produce distinct hands.
+  // The deterministic seed-based approach collapsed BLUFF_SMALL/MID/BIG
+  // to the same concrete hand, preventing CFR from distinguishing them.
   function pickBluffRank(): Rank {
-    const idx = (seed + magnitudeOffset) % bluffRankPool.length;
-    return bluffRankPool[idx]!;
+    return bluffRankPool[Math.floor(Math.random() * bluffRankPool.length)]!;
   }
 
-  // Vary suit selection — prefer suits we don't hold
+  // Vary suit selection randomly — prefer suits we don't hold
   const nonHeldSuits = ALL_SUITS.filter(s => !mySuitSet.has(s));
   const suitPool = nonHeldSuits.length > 0 ? nonHeldSuits : ALL_SUITS;
   function pickBluffSuit(): Suit {
-    return suitPool[seed % suitPool.length]!;
+    return suitPool[Math.floor(Math.random() * suitPool.length)]!;
   }
 
   const currentType = currentHand?.type ?? -1;
@@ -329,7 +316,7 @@ function generateBluffOfType(
 
     case HandType.STRAIGHT: {
       const validHighRanks = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
-      const idx = Math.floor(validHighRanks.length / 2);
+      const idx = Math.floor(Math.random() * validHighRanks.length);
       return { type: HandType.STRAIGHT, highRank: validHighRanks[idx]! };
     }
 
@@ -345,7 +332,7 @@ function generateBluffOfType(
 
     case HandType.STRAIGHT_FLUSH: {
       const validHighRanks = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5 && r !== 'A');
-      const idx = Math.floor(validHighRanks.length / 2);
+      const idx = Math.floor(Math.random() * validHighRanks.length);
       return {
         type: HandType.STRAIGHT_FLUSH,
         suit: pickSuit(),
