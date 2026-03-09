@@ -18,8 +18,21 @@ import logger from './logger.js';
 // ── Sliding window rate limiter ──────────────────────────────────────────
 
 /**
+ * Lua script for atomic INCR + conditional PEXPIRE.
+ * Ensures the TTL is always set when the key is first created, even if
+ * the server crashes between operations (prevents immortal rate-limit keys).
+ */
+const INCR_WITH_EXPIRE_LUA = `
+  local count = redis.call('INCR', KEYS[1])
+  if count == 1 then
+    redis.call('PEXPIRE', KEYS[1], ARGV[1])
+  end
+  return count
+`;
+
+/**
  * Check whether a key has exceeded a rate limit (N events per window).
- * Uses Redis INCR + PEXPIRE for atomic counter with TTL.
+ * Uses a Lua script for atomic INCR + conditional PEXPIRE.
  * Returns true if the request is ALLOWED, false if rate-limited.
  */
 async function redisSlidingWindowCheck(
@@ -28,13 +41,12 @@ async function redisSlidingWindowCheck(
   maxEvents: number,
   windowMs: number,
 ): Promise<boolean> {
-  // INCR atomically increments and returns the new count.
-  // If the key didn't exist, Redis creates it with value 1.
-  const count = await redis.incr(key);
-  if (count === 1) {
-    // First event in this window — set the expiry
-    await redis.pexpire(key, windowMs);
-  }
+  const count = await redis.eval(
+    INCR_WITH_EXPIRE_LUA,
+    1,     // number of keys
+    key,   // KEYS[1]
+    windowMs, // ARGV[1]
+  ) as number;
   return count <= maxEvents;
 }
 

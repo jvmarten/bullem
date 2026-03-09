@@ -118,13 +118,14 @@ export function LocalGamePage() {
     if (!gameState) navigate('/local');
   }, [gameState, navigate]);
 
-  // Show a one-time prominent notification when the player gets eliminated
+  // Show a one-time prominent notification when the player gets eliminated.
+  // Skip when winnerId is set — the game-over flow handles that state.
   useEffect(() => {
-    if (isEliminated && !wasEliminatedRef.current) {
+    if (isEliminated && !wasEliminatedRef.current && !winnerId) {
       addToast("You've been eliminated! You're now spectating.", 'info');
     }
     wasEliminatedRef.current = isEliminated;
-  }, [isEliminated, addToast]);
+  }, [isEliminated, winnerId, addToast]);
 
   // Show a toast for every player eliminated this round (including other players).
   // Fires when roundResult arrives so the notification coincides with the reveal overlay.

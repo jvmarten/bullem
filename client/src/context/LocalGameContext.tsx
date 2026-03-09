@@ -168,6 +168,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   // resume with the same time left instead of resetting to full duration.
   const pausedTimerRemainingRef = useRef<number | null>(null);
   const pendingWinnerRef = useRef<{ winnerId: PlayerId } | null>(null);
+  /** Stable ref to the latest handleTurnResult — used by executeAutoAction
+   *  and executeBotTurn to avoid stale closures in setTimeout callbacks. */
+  const handleTurnResultRef = useRef<(result: TurnResult) => void>(() => {});
   // Schedule bot/human turns after restore if we're mid-round (no round result overlay)
   const restoredRef = useRef(initialRestore !== null && !initialRestore.save.roundResult);
 
@@ -326,7 +329,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
 
     if (result.type !== 'error') {
-      handleTurnResult(result);
+      handleTurnResultRef.current(result);
     }
   }, []);
 
@@ -492,6 +495,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
   }, [broadcastState, scheduleBotTurn, clearHumanTimer, persistGame, buildAndSaveReplay, getSeriesInfo, startNextSet]);
 
+  // Keep the ref in sync so setTimeout callbacks always call the latest version
+  handleTurnResultRef.current = handleTurnResult;
+
   const executeBotTurn = useCallback((botId: PlayerId) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -537,9 +543,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     }
 
     if (result.type !== 'error') {
-      handleTurnResult(result);
+      handleTurnResultRef.current(result);
     }
-  }, [handleTurnResult]);
+  }, []);
 
   const togglePause = useCallback(() => {
     setIsPaused(prev => {

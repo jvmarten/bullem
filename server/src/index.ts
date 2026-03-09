@@ -601,7 +601,7 @@ app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
 });
 
 // ── Deck Draw minigame endpoints ─────────────────────────────────────────
-import { getDeckDrawStats, updateDeckDrawStats, syncGuestStats } from './db/deckDraw.js';
+import { getDeckDrawStats, updateDeckDrawStats, syncGuestStats, atomicDeductBalance } from './db/deckDraw.js';
 import {
   executeDraw, isFreeDrawAvailable,
   DECK_DRAW_MIN_WAGER, DECK_DRAW_MAX_WAGER,
@@ -650,12 +650,20 @@ app.post('/api/deck-draw/draw', requireAuth, async (req, res) => {
       res.status(400).json({ error: `Wager must be an integer between ${DECK_DRAW_MIN_WAGER} and ${DECK_DRAW_MAX_WAGER}` });
       return;
     }
-    if (stats.balance < wager) {
+
+    // Atomically reserve the wager at the DB level to prevent TOCTOU race
+    // conditions (two concurrent requests both passing the balance check
+    // before either deducts). If this succeeds, the wager is deducted.
+    const postDeductBalance = await atomicDeductBalance(req.user!.userId, wager);
+    if (postDeductBalance === null) {
       res.status(400).json({ error: 'Insufficient balance' });
       return;
     }
 
-    const { result, updatedStats } = executeDraw(stats, wager, false);
+    // Run the draw against stats with the pre-deducted balance, then add
+    // the wager back so executeDraw's own deduction produces the correct final value.
+    const adjustedStats = { ...stats, balance: postDeductBalance + wager };
+    const { result, updatedStats } = executeDraw(adjustedStats, wager, false);
     await updateDeckDrawStats(req.user!.userId, updatedStats);
     res.json({ result, stats: updatedStats });
   } catch (err) {
@@ -669,13 +677,32 @@ app.post('/api/deck-draw/sync', requireAuth, async (req, res) => {
   try {
     const guestStats = req.body as DeckDrawStats;
 
-    // Basic validation
+    // Validate stats structure and bounds to prevent clients from injecting
+    // arbitrarily inflated values or negative numbers.
     if (typeof guestStats !== 'object' || guestStats === null) {
       res.status(400).json({ error: 'Invalid stats object' });
       return;
     }
     if (typeof guestStats.totalDraws !== 'number' || typeof guestStats.balance !== 'number') {
       res.status(400).json({ error: 'Invalid stats format' });
+      return;
+    }
+    const MAX_REASONABLE_DRAWS = 100_000;
+    const MAX_REASONABLE_BALANCE = 10_000_000;
+    if (!Number.isInteger(guestStats.totalDraws) || guestStats.totalDraws < 0 || guestStats.totalDraws > MAX_REASONABLE_DRAWS) {
+      res.status(400).json({ error: 'Invalid totalDraws value' });
+      return;
+    }
+    if (!Number.isInteger(guestStats.balance) || guestStats.balance < 0 || guestStats.balance > MAX_REASONABLE_BALANCE) {
+      res.status(400).json({ error: 'Invalid balance value' });
+      return;
+    }
+    if (typeof guestStats.totalWagered === 'number' && (guestStats.totalWagered < 0 || !Number.isFinite(guestStats.totalWagered))) {
+      res.status(400).json({ error: 'Invalid totalWagered value' });
+      return;
+    }
+    if (typeof guestStats.totalWon === 'number' && (guestStats.totalWon < 0 || !Number.isFinite(guestStats.totalWon))) {
+      res.status(400).json({ error: 'Invalid totalWon value' });
       return;
     }
 

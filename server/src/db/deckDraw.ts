@@ -85,6 +85,25 @@ export async function updateDeckDrawStats(
   return result !== null;
 }
 
+/** Atomically deduct wager from balance. Returns the new balance, or null if
+ *  insufficient funds (prevents TOCTOU race where concurrent requests both
+ *  pass the balance check before either deducts). */
+export async function atomicDeductBalance(
+  userId: string,
+  wager: number,
+): Promise<number | null> {
+  const result = await query<{ balance: string }>(
+    `UPDATE deck_draw_stats
+     SET balance = balance - $2, updated_at = NOW()
+     WHERE user_id = $1 AND balance >= $2
+     RETURNING balance`,
+    [userId, wager],
+  );
+
+  if (!result || result.rows.length === 0) return null;
+  return parseInt(result.rows[0]!.balance, 10);
+}
+
 /** Sync guest localStorage stats into a user's DB record.
  *  Merges by taking the maximum of each stat and summing hand counts. */
 export async function syncGuestStats(
