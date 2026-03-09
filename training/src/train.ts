@@ -28,7 +28,7 @@ function parseArgs(argv: string[]): {
 } {
   const args = argv.slice(2);
   let iterations = 100_000;
-  let players: number | number[] = [2, 2, 3, 4, 6]; // Weighted toward heads-up, with multiplayer exposure
+  let players: number | number[] = [2, 3, 4, 5, 6]; // Mixed training across all table sizes
   let maxCards = 5;
   let progressInterval = 1000;
   let checkpointInterval = 50_000;
@@ -127,7 +127,7 @@ Usage:
 Options:
   --iterations, -i <n>       Number of self-play iterations (default: 100000)
   --players, -p <n|list>     Players per game: single number or comma-separated
-                             (default: 2,2,3,4,6 — mixed training)
+                             (default: 2,3,4,5,6 — mixed training)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
   --progress <n>             Log progress every N iterations (default: 1000)
   --checkpoint-interval <n>  Save checkpoint every N iterations (default: 50000)

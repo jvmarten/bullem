@@ -282,7 +282,7 @@ const avgHeadsUp = headsUpResults.reduce((s, r) => s + r.cfrWinRate, 0) / headsU
 console.log(`\n  Average CFR win rate (1v1): ${(avgHeadsUp * 100).toFixed(1)}%`);
 console.log(`${'═'.repeat(50)}`);
 
-// ── Multiplayer matchups: 3P, 4P, 6P ────────────────────────────────────
+// ── Multiplayer matchups: 3P, 4P, 5P, 6P ────────────────────────────────
 
 interface MultiplayerResult {
   playerCount: number;
@@ -294,7 +294,7 @@ interface MultiplayerResult {
 
 const mpResults: MultiplayerResult[] = [];
 
-for (const tableSize of [3, 4, 6]) {
+for (const tableSize of [3, 4, 5, 6]) {
   const oppCount = tableSize - 1;
   console.log(`\n── ${tableSize}-Player: 1 CFR vs ${oppCount} random profiles ──\n`);
 

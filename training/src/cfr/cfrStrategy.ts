@@ -125,7 +125,8 @@ function resolvePlayerBucket(activePlayers: number): string {
   if (activePlayers <= 2) return 'p2';
   if (activePlayers <= 3) return 'p3';
   if (activePlayers <= 4) return 'p4';
-  return 'p5+';
+  if (activePlayers <= 5) return 'p5';
+  return 'p6+';
 }
 
 /** Shared implementation for single-strategy evaluation. */
