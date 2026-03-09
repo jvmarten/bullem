@@ -4,15 +4,15 @@
  * CLI entry point for evaluating a trained CFR strategy against the full
  * 81-profile bot pool.
  *
- * Runs games between CFR agents and randomly sampled heuristic bot profiles
- * across 2-player and 4-player games, then prints comparative win rates.
+ * Runs 1v1 matchups against each of the 9 level-9 (strongest) personality
+ * archetypes, plus a 6-player reference matchup.
  *
  * Usage:
  *   npm run evaluate -w training
  *   npx tsx training/src/evaluate.ts --strategy training/strategies/cfr-strategy-100000.json
  */
 
-import { BOT_PROFILES, BotDifficulty } from '@bull-em/shared';
+import { BOT_PROFILES, BOT_PROFILE_MAP, BotDifficulty } from '@bull-em/shared';
 import type { BotProfileDefinition } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import {
@@ -21,6 +21,19 @@ import {
 } from './cfr/index.js';
 import type { EvaluationStats } from './cfr/index.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
+
+/** The 9 level-9 personality keys — strongest version of each archetype. */
+const LVL9_KEYS = [
+  'rock_lvl9',
+  'bluffer_lvl9',
+  'grinder_lvl9',
+  'wildcard_lvl9',
+  'professor_lvl9',
+  'shark_lvl9',
+  'cannon_lvl9',
+  'frost_lvl9',
+  'hustler_lvl9',
+] as const;
 
 /** Pick `count` random profiles from the 81-profile pool (no duplicates). */
 function sampleProfiles(count: number): BotProfileDefinition[] {
@@ -81,8 +94,8 @@ function parseArgs(argv: string[]): {
         console.log(`
 Bull 'Em CFR Strategy Evaluation
 
-Runs a trained CFR strategy against randomly sampled opponents from the
-full 81-profile bot pool and compares win rates.
+Evaluates a trained CFR strategy by playing 1v1 against each of the 9 strongest
+bot personalities (lvl9), plus a 6-player reference matchup.
 
 Usage:
   npm run evaluate -w training
@@ -129,13 +142,7 @@ console.log(`  Avg regret: ${exportedStrategy.avgRegret.toFixed(6)}`);
 const evalStats: EvaluationStats = { totalDecisions: 0, hits: 0, misses: 0 };
 const cfrStrategy = createCFREvaluationStrategy(exportedStrategy, evalStats);
 
-// ── Matchup configurations ──────────────────────────────────────────────
-
-interface MatchupDef {
-  name: string;
-  description: string;
-  playerCount: number;
-}
+// ── Strategy wrapper ────────────────────────────────────────────────────
 
 /**
  * Create a strategy wrapper that applies CFR only to CFR bots,
@@ -150,10 +157,17 @@ function createMixedStrategy(cfrBotIds: Set<string>): BotStrategy {
   };
 }
 
-const matchups: MatchupDef[] = [
-  { name: 'Heads-up (2P)', description: '1 CFR vs 1 random profile', playerCount: 2 },
-  { name: '6-Player', description: '1 CFR vs 5 random profiles', playerCount: 6 },
-];
+// ── Resolve lvl9 profiles ───────────────────────────────────────────────
+
+const lvl9Profiles: BotProfileDefinition[] = [];
+for (const key of LVL9_KEYS) {
+  const profile = BOT_PROFILE_MAP.get(key);
+  if (!profile) {
+    console.error(`Error: profile '${key}' not found in BOT_PROFILE_MAP`);
+    process.exit(1);
+  }
+  lvl9Profiles.push(profile);
+}
 
 // ── Run evaluations ─────────────────────────────────────────────────────
 
@@ -161,46 +175,119 @@ console.log(`\n${'═'.repeat(50)}`);
 console.log("  Bull 'Em CFR Strategy Evaluation");
 console.log(`${'═'.repeat(50)}\n`);
 console.log(`  Games per matchup:  ${config.games}`);
-console.log(`  Opponent pool:      ${BOT_PROFILES.length} profiles`);
 console.log(`  Max cards:          ${config.maxCards}`);
 console.log('');
 
 let totalCfrWins = 0;
 let totalGames = 0;
 
-for (const matchup of matchups) {
-  console.log(`\n── ${matchup.name} ──`);
-  console.log(`  ${matchup.description}\n`);
+// ── 1v1: CFR vs each lvl9 personality ───────────────────────────────────
 
-  const opponentCount = matchup.playerCount - 1;
-  const opponents = sampleProfiles(opponentCount);
-  const opponentNames = opponents.map(p => `${p.name}`).join(', ');
-  console.log(`  Opponents: ${opponentNames}\n`);
+interface HeadsUpResult {
+  opponentName: string;
+  cfrWins: number;
+  oppWins: number;
+  cfrWinRate: number;
+}
 
+const headsUpResults: HeadsUpResult[] = [];
+
+console.log(`── Heads-up (2P): CFR vs all 9 lvl9 personalities ──\n`);
+
+for (const opponent of lvl9Profiles) {
   const cfrIds = new Set<string>(['cfr-0']);
   const bots: BotConfig[] = [
     { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
-    ...opponents.map((p, i) => ({
-      id: `opp-${i}`,
-      name: p.name,
+    {
+      id: 'opp-0',
+      name: opponent.name,
       difficulty: BotDifficulty.HARD,
-      profileConfig: p.config,
-    })),
+      profileConfig: opponent.config,
+    },
   ];
 
   const stats = simulate({
     games: config.games,
-    players: bots.length,
+    players: 2,
     maxCards: config.maxCards,
     difficulty: BotDifficulty.HARD,
     botConfigs: bots,
     strategy: createMixedStrategy(cfrIds),
-    progressInterval: Math.max(1, Math.floor(config.games / 10)),
+    progressInterval: 0, // Suppress per-matchup progress for cleaner output
   });
 
-  totalCfrWins += stats.wins['cfr-0'] ?? 0;
-  totalGames += stats.totalGames;
+  const cfrWins = stats.wins['cfr-0'] ?? 0;
+  const oppWins = stats.wins['opp-0'] ?? 0;
+  headsUpResults.push({
+    opponentName: opponent.name,
+    cfrWins,
+    oppWins,
+    cfrWinRate: cfrWins / config.games,
+  });
+
+  totalCfrWins += cfrWins;
+  totalGames += config.games;
 }
+
+// ── Print heads-up summary table ────────────────────────────────────────
+
+const nameWidth = Math.max(...headsUpResults.map(r => r.opponentName.length), 10);
+
+console.log(`\n${'═'.repeat(50)}`);
+console.log('  Heads-up Results: CFR vs lvl9 Personalities');
+console.log(`${'═'.repeat(50)}\n`);
+console.log(
+  `  ${'Opponent'.padEnd(nameWidth)}  ${'CFR Win%'.padStart(8)}  ${'W'.padStart(5)} / ${'L'.padStart(5)}  Bar`,
+);
+console.log(`  ${'─'.repeat(nameWidth)}  ${'─'.repeat(8)}  ${'─'.repeat(5)}${'─'.repeat(5)}${'──'}  ${'─'.repeat(20)}`);
+
+// Sort by CFR win rate descending for readability
+const sorted = [...headsUpResults].sort((a, b) => b.cfrWinRate - a.cfrWinRate);
+
+for (const r of sorted) {
+  const pct = (r.cfrWinRate * 100).toFixed(1);
+  const bar = '█'.repeat(Math.round(r.cfrWinRate * 20));
+  console.log(
+    `  ${r.opponentName.padEnd(nameWidth)}  ${(pct + '%').padStart(8)}  ${String(r.cfrWins).padStart(5)} / ${String(r.oppWins).padStart(5)}  ${bar}`,
+  );
+}
+
+const avgHeadsUp = headsUpResults.reduce((s, r) => s + r.cfrWinRate, 0) / headsUpResults.length;
+console.log(`\n  Average CFR win rate (1v1): ${(avgHeadsUp * 100).toFixed(1)}%`);
+console.log(`${'═'.repeat(50)}`);
+
+// ── 6-Player reference matchup ──────────────────────────────────────────
+
+console.log(`\n── 6-Player (reference) ──`);
+console.log('  1 CFR vs 5 random profiles\n');
+
+const opponents6p = sampleProfiles(5);
+const opponentNames = opponents6p.map(p => p.name).join(', ');
+console.log(`  Opponents: ${opponentNames}\n`);
+
+const cfrIds6p = new Set<string>(['cfr-0']);
+const bots6p: BotConfig[] = [
+  { id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD },
+  ...opponents6p.map((p, i) => ({
+    id: `opp-${i}`,
+    name: p.name,
+    difficulty: BotDifficulty.HARD,
+    profileConfig: p.config,
+  })),
+];
+
+const stats6p = simulate({
+  games: config.games,
+  players: bots6p.length,
+  maxCards: config.maxCards,
+  difficulty: BotDifficulty.HARD,
+  botConfigs: bots6p,
+  strategy: createMixedStrategy(cfrIds6p),
+  progressInterval: Math.max(1, Math.floor(config.games / 10)),
+});
+
+totalCfrWins += stats6p.wins['cfr-0'] ?? 0;
+totalGames += stats6p.totalGames;
 
 // ── Overall summary ─────────────────────────────────────────────────────
 
