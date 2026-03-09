@@ -189,7 +189,18 @@ function generateTruthfulHand(
     : candidates;
 
   if (valid.length > 0) {
-    return valid[Math.floor(Math.random() * valid.length)]!;
+    // Pick deterministically: lowest valid candidate for low tier,
+    // middle for mid, highest for high — reduces variance in credit assignment
+
+    // Sort by hand type (ascending), then by rank value within type
+    valid.sort((a, b) => {
+      if (a.type !== b.type) return a.type - b.type;
+      const aRank = 'rank' in a ? RANK_VALUES[a.rank as Rank] : ('highRank' in a ? RANK_VALUES[a.highRank as Rank] : 0);
+      const bRank = 'rank' in b ? RANK_VALUES[b.rank as Rank] : ('highRank' in b ? RANK_VALUES[b.highRank as Rank] : 0);
+      return aRank - bRank;
+    });
+    const idx = tier === 'low' ? 0 : tier === 'mid' ? Math.floor(valid.length / 2) : valid.length - 1;
+    return valid[idx]!;
   }
 
   // Fallback: minimum raise if we have any truthful candidate at all
@@ -221,20 +232,23 @@ function generateBluffHand(
   myCards: Card[],
 ): HandCall | null {
   const myRankSet = new Set(myCards.map(c => c.rank));
-  const mySuitSet = new Set(myCards.map(c => c.suit));
 
-  // Pick ranks/suits we DON'T hold (true bluffs)
+  // Pick ranks/suits deterministically for consistent credit assignment.
+  // Small bluffs use mid-range non-held ranks, big bluffs use high ranks.
+  const nonHeldRanks = ALL_RANKS.filter(r => !myRankSet.has(r));
+  const bluffRankPool = nonHeldRanks.length > 0 ? nonHeldRanks : ALL_RANKS;
+
   function pickBluffRank(): Rank {
-    const nonHeldRanks = ALL_RANKS.filter(r => !myRankSet.has(r));
-    if (nonHeldRanks.length > 0) {
-      return nonHeldRanks[Math.floor(Math.random() * nonHeldRanks.length)]!;
-    }
-    return ALL_RANKS[Math.floor(Math.random() * ALL_RANKS.length)]!;
+    // Pick based on magnitude: small→low ranks, mid→mid ranks, big→high ranks
+    const idx = magnitude === 'small' ? 0
+      : magnitude === 'mid' ? Math.floor(bluffRankPool.length / 2)
+      : bluffRankPool.length - 1;
+    return bluffRankPool[idx]!;
   }
 
   function pickBluffSuit(): typeof ALL_SUITS[number] {
-    // For flush bluffs, pick any suit — having 1-2 of a suit doesn't make the flush
-    return ALL_SUITS[Math.floor(Math.random() * ALL_SUITS.length)]!;
+    // Deterministic: always pick the first suit for consistency
+    return ALL_SUITS[0]!;
   }
 
   const currentType = currentHand?.type ?? -1;
@@ -247,13 +261,13 @@ function generateBluffHand(
       if (targetType < HandType.HIGH_CARD) targetType = HandType.HIGH_CARD;
       break;
     case 'mid':
-      // 1-2 types above
-      targetType = Math.min(currentType + 1 + Math.floor(Math.random() * 2), HandType.ROYAL_FLUSH) as HandType;
+      // Exactly 2 types above (deterministic)
+      targetType = Math.min(currentType + 2, HandType.ROYAL_FLUSH) as HandType;
       if (targetType < HandType.PAIR) targetType = HandType.PAIR;
       break;
     case 'big':
-      // 2-4 types above
-      targetType = Math.min(currentType + 2 + Math.floor(Math.random() * 3), HandType.ROYAL_FLUSH) as HandType;
+      // Exactly 3 types above (deterministic)
+      targetType = Math.min(currentType + 3, HandType.ROYAL_FLUSH) as HandType;
       if (targetType < HandType.THREE_OF_A_KIND) targetType = HandType.THREE_OF_A_KIND;
       break;
   }
@@ -283,15 +297,12 @@ function generateBluffOfType(
       return { type: HandType.PAIR, rank: pickRank() };
 
     case HandType.TWO_PAIR: {
-      let high = pickRank();
-      let low = pickRank();
-      if (RANK_VALUES[high] <= RANK_VALUES[low]) [high, low] = [low, high];
-      if (high === low) {
-        const idx = ALL_RANKS.indexOf(high);
-        high = idx < ALL_RANKS.length - 1 ? ALL_RANKS[idx + 1]! : ALL_RANKS[idx - 1]!;
-        if (RANK_VALUES[high] <= RANK_VALUES[low]) [high, low] = [low, high];
-      }
-      return { type: HandType.TWO_PAIR, highRank: high, lowRank: low };
+      const high = pickRank();
+      // Pick a second rank deterministically (one below the high rank)
+      const highIdx = ALL_RANKS.indexOf(high);
+      const low = highIdx > 0 ? ALL_RANKS[highIdx - 1]! : ALL_RANKS[highIdx + 1]!;
+      const [hi, lo] = RANK_VALUES[high] > RANK_VALUES[low] ? [high, low] : [low, high];
+      return { type: HandType.TWO_PAIR, highRank: hi, lowRank: lo };
     }
 
     case HandType.FLUSH:
@@ -302,16 +313,16 @@ function generateBluffOfType(
 
     case HandType.STRAIGHT: {
       const validHighRanks = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
-      return { type: HandType.STRAIGHT, highRank: validHighRanks[Math.floor(Math.random() * validHighRanks.length)]! };
+      // Deterministic: pick middle-range straight
+      const idx = Math.floor(validHighRanks.length / 2);
+      return { type: HandType.STRAIGHT, highRank: validHighRanks[idx]! };
     }
 
     case HandType.FULL_HOUSE: {
-      let threeRank = pickRank();
-      let twoRank = pickRank();
-      if (threeRank === twoRank) {
-        const idx = ALL_RANKS.indexOf(threeRank);
-        twoRank = idx > 0 ? ALL_RANKS[idx - 1]! : ALL_RANKS[idx + 1]!;
-      }
+      const threeRank = pickRank();
+      // Deterministic: pair rank is one below the three rank
+      const threeIdx = ALL_RANKS.indexOf(threeRank);
+      const twoRank = threeIdx > 0 ? ALL_RANKS[threeIdx - 1]! : ALL_RANKS[threeIdx + 1]!;
       return { type: HandType.FULL_HOUSE, threeRank, twoRank };
     }
 
@@ -320,10 +331,11 @@ function generateBluffOfType(
 
     case HandType.STRAIGHT_FLUSH: {
       const validHighRanks = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5 && r !== 'A');
+      const idx = Math.floor(validHighRanks.length / 2);
       return {
         type: HandType.STRAIGHT_FLUSH,
         suit: pickSuit(),
-        highRank: validHighRanks[Math.floor(Math.random() * validHighRanks.length)]!,
+        highRank: validHighRanks[idx]!,
       };
     }
 
