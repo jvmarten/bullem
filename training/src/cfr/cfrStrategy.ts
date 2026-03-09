@@ -123,10 +123,52 @@ export function createCompositeEvaluationStrategy(
 /** Map active player count to the bucket key used in info set keys. */
 function resolvePlayerBucket(activePlayers: number): string {
   if (activePlayers <= 2) return 'p2';
-  if (activePlayers <= 3) return 'p3';
-  if (activePlayers <= 4) return 'p4';
-  if (activePlayers <= 5) return 'p5';
-  return 'p6+';
+  if (activePlayers <= 4) return 'p34';
+  return 'p5+';
+}
+
+/**
+ * Heuristic fallback for missing info sets.
+ * Instead of uniform random (which produces catastrophically bad play),
+ * use conservative defaults:
+ * - Opening: TRUTHFUL_LOW (conservative start)
+ * - Responding to a call: favor BULL slightly (default skepticism)
+ * - Bull phase: favor BULL (challenge is usually correct at lower claims)
+ * - Last chance: favor PASS (don't over-commit)
+ */
+function heuristicFallback(
+  legalActions: AbstractAction[],
+  state: BotStrategyContext['state'],
+): AbstractAction {
+  // Build weighted distribution based on game phase
+  const weights = new Map<AbstractAction, number>();
+  for (const action of legalActions) {
+    weights.set(action, 1); // base weight = 1
+  }
+
+  if (legalActions.includes(AbstractAction.BULL)) {
+    weights.set(AbstractAction.BULL, 3); // Favor challenging
+  }
+  if (legalActions.includes(AbstractAction.TRUE)) {
+    weights.set(AbstractAction.TRUE, 2); // Some belief
+  }
+  if (legalActions.includes(AbstractAction.PASS)) {
+    weights.set(AbstractAction.PASS, 4); // Strongly prefer passing
+  }
+  if (legalActions.includes(AbstractAction.TRUTHFUL_LOW)) {
+    weights.set(AbstractAction.TRUTHFUL_LOW, 2); // Prefer conservative claims
+  }
+
+  // Sample from weighted distribution
+  let totalWeight = 0;
+  for (const w of weights.values()) totalWeight += w;
+  const r = Math.random() * totalWeight;
+  let cumulative = 0;
+  for (const action of legalActions) {
+    cumulative += weights.get(action) ?? 1;
+    if (r <= cumulative) return action;
+  }
+  return legalActions[legalActions.length - 1]!;
 }
 
 /** Shared implementation for single-strategy evaluation. */
@@ -171,12 +213,13 @@ function makeEvalStrategy(
         }
       } else {
         // Strategy entry exists but has no coverage of current legal actions
-        chosenAction = legalActions[Math.floor(Math.random() * legalActions.length)]!;
+        chosenAction = heuristicFallback(legalActions, state);
       }
     } else {
       if (evalStats) evalStats.misses++;
-      // Info set not in trained strategy — fall back to uniform random
-      chosenAction = legalActions[Math.floor(Math.random() * legalActions.length)]!;
+      // Info set not in trained strategy — use heuristic fallback
+      // instead of uniform random (which produces catastrophically bad play)
+      chosenAction = heuristicFallback(legalActions, state);
     }
 
     return mapAbstractToConcreteAction(chosenAction, state, botCards);

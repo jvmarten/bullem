@@ -10,10 +10,11 @@
  *    providing direct credit assignment instead of diluting across the game
  */
 
-import { BotDifficulty, GameEngine, BotPlayer } from '@bull-em/shared';
+import { BotDifficulty, GameEngine, BotPlayer, BOT_PROFILES } from '@bull-em/shared';
 import type {
   GameSettings, ServerPlayer,
   ClientGameState,
+  BotProfileConfig,
 } from '@bull-em/shared';
 import type { BotAction } from '@bull-em/shared';
 import { createBotPlayers } from '../gameLoop.js';
@@ -156,38 +157,36 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
 
   const cfrEngine = new CFREngine();
 
-  // Pre-create player pools for each possible player count to avoid re-allocation.
-  // For mixed training, we reuse the pool matching each iteration's player count.
   const maxPlayerCount = typeof playerSpec === 'number'
     ? playerSpec
     : Math.max(...playerSpec);
-  const playerPool = createBotPlayers(
-    Array.from({ length: maxPlayerCount }, (_, i) => ({
-      id: `cfr-${i}`,
-      name: `CFR ${i + 1}`,
-      difficulty: BotDifficulty.HARD,
-    })),
-  );
 
   const settings: GameSettings = {
     maxCards,
     turnTimer: 0,
   };
 
+  // Pre-sample bot profiles for opponent pool
+  const profilePool = [...BOT_PROFILES];
+
   const startTime = performance.now();
   let totalGames = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
     const playerCount = resolvePlayerCount(playerSpec);
-    // Use a slice of the pool matching this iteration's player count
-    const players = playerPool.slice(0, playerCount);
 
-    // Alternate the traversing player each iteration — only update one
-    // player's regrets per game to avoid contradictory signals from the
-    // same trajectory (a win for player A is a loss for player B).
-    const traverserId = `cfr-${iter % playerCount}`;
+    // For multiplayer (3+), use 1 CFR traverser + (n-1) bot opponents.
+    // CFR self-play only converges to Nash in 2-player zero-sum games.
+    // In 3+ player games, training against the bot pool teaches the CFR
+    // agent to exploit patterns it will face in evaluation.
+    // For heads-up, use pure CFR self-play (Nash convergence guaranteed).
+    const { players, traverserId, opponentConfigs } = createTrainingPlayers(
+      playerCount, iter, profilePool,
+    );
 
-    const { result, decisions, roundOutcomes } = runTrainingGame(players, settings, cfrEngine, iter);
+    const { result, decisions, roundOutcomes } = runTrainingGame(
+      players, settings, cfrEngine, iter, opponentConfigs,
+    );
     totalGames++;
 
     // Update regrets per round — each round's decisions use that round's outcome.
@@ -244,21 +243,12 @@ export function resumeTraining(
 
   validatePlayerCounts(playerSpec, maxCards);
 
-  const maxPlayerCount = typeof playerSpec === 'number'
-    ? playerSpec
-    : Math.max(...playerSpec);
-  const playerPool = createBotPlayers(
-    Array.from({ length: maxPlayerCount }, (_, i) => ({
-      id: `cfr-${i}`,
-      name: `CFR ${i + 1}`,
-      difficulty: BotDifficulty.HARD,
-    })),
-  );
-
   const settings: GameSettings = {
     maxCards,
     turnTimer: 0,
   };
+
+  const profilePool = [...BOT_PROFILES];
 
   const startTime = performance.now();
   const startIter = existingEngine.iterations;
@@ -266,10 +256,13 @@ export function resumeTraining(
 
   for (let i = 0; i < additionalIterations; i++) {
     const playerCount = resolvePlayerCount(playerSpec);
-    const players = playerPool.slice(0, playerCount);
-    const traverserId = `cfr-${(startIter + i) % playerCount}`;
+    const { players, traverserId, opponentConfigs } = createTrainingPlayers(
+      playerCount, startIter + i, profilePool,
+    );
 
-    const { result, decisions, roundOutcomes } = runTrainingGame(players, settings, existingEngine, startIter + i);
+    const { result, decisions, roundOutcomes } = runTrainingGame(
+      players, settings, existingEngine, startIter + i, opponentConfigs,
+    );
     totalGames++;
 
     updateRegretsPerRound(existingEngine, decisions, roundOutcomes, traverserId);
@@ -321,17 +314,72 @@ function computeRoundUtilities(outcome: RoundOutcome): Map<string, number> {
   return utilities;
 }
 
+// ── Player setup for training ────────────────────────────────────────
+
+/** Configuration for a training game — which player is the CFR traverser and which are bots. */
+interface TrainingPlayerSetup {
+  players: ServerPlayer[];
+  traverserId: string;
+  /** Profile configs for bot opponents (keyed by player ID). Empty for pure self-play. */
+  opponentConfigs: Map<string, BotProfileConfig>;
+}
+
+/**
+ * Create players for a training game.
+ * - Heads-up (2P): pure CFR self-play (converges to Nash in 2-player zero-sum).
+ * - Multiplayer (3+): 1 CFR traverser + (n-1) heuristic bot opponents.
+ *   Training against the bot pool teaches CFR to exploit the opponents it
+ *   will face in evaluation, since CFR self-play doesn't converge in >2P.
+ */
+function createTrainingPlayers(
+  playerCount: number,
+  iteration: number,
+  profilePool: readonly { config: BotProfileConfig }[],
+): TrainingPlayerSetup {
+  const configs: BotConfig[] = [];
+  const opponentConfigs = new Map<string, BotProfileConfig>();
+
+  if (playerCount <= 2) {
+    // Pure CFR self-play for heads-up
+    for (let i = 0; i < playerCount; i++) {
+      configs.push({ id: `cfr-${i}`, name: `CFR ${i + 1}`, difficulty: BotDifficulty.HARD });
+    }
+  } else {
+    // 1 CFR traverser + (n-1) bot opponents for multiplayer
+    configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
+    for (let i = 1; i < playerCount; i++) {
+      const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
+      const botId = `bot-${i}`;
+      configs.push({
+        id: botId,
+        name: `Bot ${i}`,
+        difficulty: BotDifficulty.HARD,
+        profileConfig: profile.config,
+      });
+      opponentConfigs.set(botId, profile.config);
+    }
+  }
+
+  const players = createBotPlayers(configs);
+  const traverserId = playerCount <= 2
+    ? `cfr-${iteration % playerCount}`
+    : 'cfr-0'; // Always traverse the CFR agent in multiplayer
+
+  return { players, traverserId, opponentConfigs };
+}
+
 // ── Training game loop ───────────────────────────────────────────────
 
 /**
  * Run a single game for CFR training, recording decision points.
- * No engine snapshots needed — outcome sampling only uses the final result.
+ * Bot opponents use the heuristic engine; CFR agents use the CFR strategy.
  */
 function runTrainingGame(
   players: ServerPlayer[],
   settings: GameSettings,
   cfrEngine: CFREngine,
   iteration: number = 0,
+  opponentConfigs: Map<string, BotProfileConfig> = new Map(),
 ): TrainingGameResult {
   // Reset player state
   for (const p of players) {
@@ -366,62 +414,70 @@ function runTrainingGame(
       const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
       const activePlayerCount = activePlayers.length;
 
-      // Get CFR action
-      const legalActions = getLegalAbstractActions(state);
       let action: BotAction;
 
-      if (legalActions.length > 0) {
-        const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount);
-        const node = cfrEngine.getNode(infoSetKey, legalActions);
-        const baseStrategy = cfrEngine.getStrategy(node, legalActions);
+      // Check if this player is a bot opponent (not CFR)
+      const profileConfig = opponentConfigs.get(currentId);
+      if (profileConfig) {
+        // Bot opponent — use the heuristic engine with its profile config
+        action = BotPlayer.decideAction(
+          state, player.id, player.cards, BotDifficulty.HARD, undefined, scope, profileConfig,
+        );
+      } else {
+        // CFR agent — use CFR strategy with exploration
+        const legalActions = getLegalAbstractActions(state);
 
-        // Mix in exploration — decays from 0.4 to 0.05 over training
-        const epsilon = Math.max(0.05, 0.4 / Math.sqrt(1 + iteration / 1000));
-        const samplingStrategy = mixExploration(baseStrategy, legalActions, epsilon);
+        if (legalActions.length > 0) {
+          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount);
+          const node = cfrEngine.getNode(infoSetKey, legalActions);
+          const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 
-        // Accumulate the BASE strategy (not the exploration-mixed one)
-        // for the average strategy computation. Use linear weighting so later
-        // (more informed) iterations dominate the average.
-        const weight = Math.max(1, iteration);
-        cfrEngine.accumulateStrategy(infoSetKey, legalActions, baseStrategy, weight);
+          // Mix in exploration — decays from 0.4 to 0.05 over training
+          const epsilon = Math.max(0.05, 0.4 / Math.sqrt(1 + iteration / 1000));
+          const samplingStrategy = mixExploration(baseStrategy, legalActions, epsilon);
 
-        // Sample from the exploration-mixed strategy
-        let abstractAction: AbstractAction = legalActions[0]!;
-        const r = Math.random();
-        let cumulative = 0;
-        for (const a of legalActions) {
-          cumulative += samplingStrategy[a] ?? 0;
-          if (r <= cumulative) {
-            abstractAction = a;
-            break;
+          // Accumulate the BASE strategy (not the exploration-mixed one)
+          // for the average strategy computation. Use linear weighting so later
+          // (more informed) iterations dominate the average.
+          const weight = Math.max(1, iteration);
+          cfrEngine.accumulateStrategy(infoSetKey, legalActions, baseStrategy, weight);
+
+          // Sample from the exploration-mixed strategy
+          let abstractAction: AbstractAction = legalActions[0]!;
+          const r = Math.random();
+          let cumulative = 0;
+          for (const a of legalActions) {
+            cumulative += samplingStrategy[a] ?? 0;
+            if (r <= cumulative) {
+              abstractAction = a;
+              break;
+            }
           }
-        }
 
-        const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
+          const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
 
-        // mapAbstractToConcreteAction always returns a valid action for
-        // raise/bluff/bull/true/pass — undefined only for impossible states
-        if (concreteAction) {
-          action = concreteAction;
+          if (concreteAction) {
+            action = concreteAction;
+          } else {
+            action = BotPlayer.decideAction(
+              state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
+            );
+          }
+
+          // Record the decision so CFR learns from this state
+          decisions.push({
+            botId: player.id,
+            infoSetKey,
+            legalActions,
+            strategy: samplingStrategy,
+            chosenAction: abstractAction,
+            roundIndex: currentRoundIndex,
+          });
         } else {
           action = BotPlayer.decideAction(
             state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
           );
         }
-
-        // Always record the decision so CFR learns from every state
-        decisions.push({
-          botId: player.id,
-          infoSetKey,
-          legalActions,
-          strategy: samplingStrategy,
-          chosenAction: abstractAction,
-          roundIndex: currentRoundIndex,
-        });
-      } else {
-        action = BotPlayer.decideAction(
-          state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
-        );
       }
 
       // Dispatch the action

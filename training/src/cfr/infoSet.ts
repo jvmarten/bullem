@@ -233,22 +233,23 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 // ── Claim height bucketing ───────────────────────────────────────────
 
 /**
- * Bucket the current claim into low/mid/high/very_high.
- * Based on hand type, not specific cards.
+ * Bucket the current claim into low/high.
+ * Coarsened from 4 buckets to 3 — reduces info set space while keeping
+ * the critical distinction between low claims (likely true) and high
+ * claims (more likely bluffs).
  */
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.PAIR) return 'lo';         // high card, pair
-  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid'; // two pair, flush, trips
-  if (hand.type <= HandType.FULL_HOUSE) return 'hi';   // straight, full house
-  return 'vh';                                          // 4oak, straight flush, royal
+  if (hand.type <= HandType.FLUSH) return 'lo';          // high card, pair, two pair, flush
+  return 'hi';                                            // trips, straight, full house, 4oak, SF, RF
 }
 
 // ── My best hand type ────────────────────────────────────────────────
 
 /**
  * Rough bucket for the best hand the player could contribute to.
- * This is a coarse measure of hand quality.
+ * Coarsened from 6 buckets to 3 — keeps the essential distinction
+ * between strong hands (pairs/trips), draws, and nothing.
  */
 function myHandStrengthBucket(cards: Card[]): string {
   if (cards.length === 0) return 'x';
@@ -263,49 +264,29 @@ function myHandStrengthBucket(cards: Card[]): string {
   const maxGroup = Math.max(...rankCounts.values());
   const maxSuit = Math.max(...suitCounts.values());
 
-  // Check for consecutive ranks (straight draw)
-  const vals = [...new Set(cards.map(c => RANK_VALUES[c.rank]))].sort((a, b) => a - b);
-  let maxRun = 1;
-  let run = 1;
-  for (let i = 1; i < vals.length; i++) {
-    if (vals[i]! - vals[i - 1]! === 1) {
-      run++;
-      if (run > maxRun) maxRun = run;
-    } else {
-      run = 1;
-    }
-  }
-
-  // Bucket: what's the best thing I can contribute to?
-  if (maxGroup >= 3) return 'trips';   // trips or better
-  if (maxGroup >= 2) return 'pair';    // at least a pair
-  if (maxSuit >= 3) return 'flush_d';  // flush draw (3+ same suit)
-  if (maxRun >= 3) return 'str_d';     // straight draw (3+ consecutive)
-  if (maxSuit >= 2) return 'suited';   // two suited
-  return 'none';                       // nothing notable
+  // 3 buckets: strong (pair+), draw (suited/connected), weak (nothing)
+  if (maxGroup >= 2) return 'strong';  // pair, trips, or better
+  if (maxSuit >= 2) return 'draw';     // flush draw or suited
+  return 'weak';                       // nothing notable
 }
 
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
+/**
+ * Coarsened from 4 buckets to 2 — opening vs subsequent.
+ * The key distinction is whether this is the first call or a response.
+ */
 function turnDepthBucket(turnHistory: { action: string }[]): string {
-  const depth = turnHistory.length;
-  if (depth === 0) return '0';
-  if (depth <= 2) return '1-2';
-  if (depth <= 5) return '3-5';
-  return '6+';
+  return turnHistory.length <= 2 ? 'early' : 'late';
 }
 
 // ── Bull/true sentiment bucketing (multiplayer-critical) ────────────
 
 /**
  * Encode the bull/true voting distribution in the current round.
- * This is the CRITICAL missing context for multiplayer: in heads-up,
- * bull resolves immediately. In 4-6 player games, the voting chain
- * creates fundamentally different dynamics:
- * - If 3 others already called bull → calling bull is "safe" (shared risk)
- * - If 2 others called true → calling bull goes against table consensus
- *
- * Also encodes how many responses have occurred (position in the chain).
+ * Coarsened from 11 buckets to 5 — keeps the critical distinction
+ * between first responder, all-bull, all-true, and mixed consensus.
+ * Drops position depth (early/mid/late) to reduce info set space.
  */
 function bullSentimentBucket(
   turnHistory: { action: string }[],
@@ -314,7 +295,7 @@ function bullSentimentBucket(
   // Only relevant in bull_phase and last_chance
   if (roundPhase !== 'bull_phase' && roundPhase !== 'last_chance') return 'x';
 
-  // Count bull/true votes in the history (after the initial call that started the round)
+  // Count bull/true votes in the history
   let bullCount = 0;
   let trueCount = 0;
   for (const entry of turnHistory) {
@@ -322,53 +303,37 @@ function bullSentimentBucket(
     if (entry.action === 'true') trueCount++;
   }
 
-  // Encode: sentiment + response depth
-  // Sentiment: who's been calling what?
   const total = bullCount + trueCount;
   if (total === 0) return 'v0';              // First responder — no votes yet
-
-  // Response depth: am I early or late in the chain?
-  const depthTag = total <= 1 ? 'e' : total <= 3 ? 'm' : 'l'; // early/mid/late
-
-  if (trueCount === 0) return `${depthTag}B`;   // All bull so far
-  if (bullCount === 0) return `${depthTag}T`;   // All true so far
-  return `${depthTag}X`;                         // Mixed responses
+  if (trueCount === 0) return 'aB';          // All bull so far
+  if (bullCount === 0) return 'aT';          // All true so far
+  return 'mix';                               // Mixed responses
 }
 
 // ── Total cards bucketing ────────────────────────────────────────────
 
 /**
  * Bucket total cards in play across all players.
- * Critical for evaluating claim plausibility — a pair is rare with 2 total
- * cards but common with 10. Directly affects bull/true decision quality.
- *
- * Finer granularity at the high end because multiplayer games (4-6P with
- * 3-5 cards each) produce 12-30 total cards, and claim plausibility
- * changes significantly across that range.
+ * Coarsened from 6 buckets to 3 — keeps the essential plausibility
+ * distinction (few cards = bluffs likely, many cards = claims likely true).
  */
 function totalCardsBucket(totalCards: number): string {
-  if (totalCards <= 2) return 't2';     // 1v1 early rounds — pairs very unlikely
-  if (totalCards <= 4) return 't3-4';   // small pool — most hands unlikely
-  if (totalCards <= 6) return 't5-6';   // medium pool
-  if (totalCards <= 8) return 't7-8';   // large pool — pairs/trips common
-  if (totalCards <= 12) return 't9-12'; // multiplayer pool — most low hands exist
-  return 't13+';                        // very large pool — even straights/flushes likely
+  if (totalCards <= 4) return 'tLo';    // small pool — most hands unlikely
+  if (totalCards <= 8) return 'tMid';   // medium pool — pairs/trips possible
+  return 'tHi';                          // large pool — most hands likely exist
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
 
 /**
  * Bucket the number of active players.
- * Critical for strategy: bull/true thresholds change dramatically with
- * player count. In heads-up, claims are often bluffs. In 6-player, more
- * cards in play means claims are far more likely to be true.
+ * Coarsened from 5 buckets to 3 — heads-up is fundamentally different
+ * from small multiplayer (3-4) which differs from large multiplayer (5+).
  */
 function playerCountBucket(activePlayers: number): string {
-  if (activePlayers <= 2) return 'p2';    // Heads-up: aggressive bull is correct
-  if (activePlayers <= 3) return 'p3';    // 3-player: transitional dynamics
-  if (activePlayers <= 4) return 'p4';    // 4-player: multiplayer dynamics kick in
-  if (activePlayers <= 5) return 'p5';    // 5-player: claims commonly true
-  return 'p6+';                            // 6+ players: claims very likely true
+  if (activePlayers <= 2) return 'p2';     // Heads-up: aggressive bull is correct
+  if (activePlayers <= 4) return 'p34';    // Small multiplayer: transitional dynamics
+  return 'p5+';                             // Large multiplayer: claims very likely true
 }
 
 // ── Information set key ──────────────────────────────────────────────
@@ -376,7 +341,8 @@ function playerCountBucket(activePlayers: number): string {
 /**
  * Generate a compact info set key for CFR.
  *
- * Designed to produce ~20-40K unique keys across all player counts.
+ * Coarsened abstraction designed to produce ~5-10K unique keys across all
+ * player counts, enabling convergence with 500K+ iterations.
  * Format: phase|playerCount|cardCount|totalCardsBucket|myStrength|handVsClaim|claimHeight|turnDepth|bullSentiment
  *
  * The bullSentiment segment is critical for multiplayer: it encodes the
@@ -395,8 +361,8 @@ export function getInfoSetKey(
     state.roundPhase.charAt(0),
     // Player count bucket — determines bull/true calibration
     playerCountBucket(activePlayers),
-    // How many cards I hold (1-5)
-    `n${myCards.length}`,
+    // How many cards I hold — coarsened to 2 buckets
+    myCards.length <= 2 ? 'nLo' : 'nHi',
     // Total cards in play — critical for claim plausibility
     totalCardsBucket(totalCards),
     // My hand quality
