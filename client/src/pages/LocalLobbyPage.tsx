@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
+import { useAuth } from '../context/AuthContext.js';
 import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF } from '@bull-em/shared';
 import type { BotLevelCategory, BestOf } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
@@ -22,6 +23,7 @@ export function LocalLobbyPage() {
     addBot, removeBot, error, clearError, botDifficulty, setBotDifficulty,
     gameSettings, setGameSettings,
   } = useGameContext();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
   useErrorToast(error, clearError);
@@ -90,7 +92,7 @@ export function LocalLobbyPage() {
       }
     }
 
-    createRoom(name).then(() => {
+    createRoom(name, user?.avatar).then(() => {
       // Auto-add 5 bots for a quick start
       return Promise.all([addBot(), addBot(), addBot(), addBot(), addBot()]);
     }).catch(e => {

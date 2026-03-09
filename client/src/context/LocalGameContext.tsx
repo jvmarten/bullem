@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
-import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay, SeriesInfo, BestOf } from '@bull-em/shared';
+import type { ClientGameState, HandCall, RoomState, RoundResult, PlayerId, ServerPlayer, Player, GameSettings, GameStats, GameEngineSnapshot, GameReplay, SeriesInfo, BestOf, AvatarId } from '@bull-em/shared';
 import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
@@ -94,6 +94,7 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isEliminated: p.isEliminated,
     isHost: p.isHost,
     isBot: p.isBot,
+    avatar: p.avatar,
   };
 }
 
@@ -594,7 +595,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   // --- Context API methods ---
 
-  const createRoom = useCallback(async (playerName: string): Promise<string> => {
+  const createRoom = useCallback(async (playerName: string, avatar?: AvatarId | null): Promise<string> => {
     const humanPlayer: ServerPlayer = {
       id: HUMAN_ID,
       name: playerName,
@@ -604,6 +605,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       isHost: true,
       isBot: false,
       cards: [],
+      avatar: avatar ?? undefined,
     };
     playersRef.current = [humanPlayer];
 
