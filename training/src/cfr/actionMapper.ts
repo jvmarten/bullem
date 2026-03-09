@@ -5,6 +5,12 @@
  * actually has (or is close to having). BLUFF actions claim hands the
  * player doesn't have. The mapper inspects the player's cards to make
  * this distinction concrete.
+ *
+ * Design guarantees:
+ * - mapAbstractToConcreteAction NEVER returns undefined for raise/bluff actions.
+ *   If the preferred hand can't be generated, it falls back to minimum raise.
+ * - Bluff generation uses varied rank/suit selection based on cards held,
+ *   avoiding predictable patterns while remaining deterministic per-state.
  */
 
 import type { Card, HandCall, ClientGameState, Rank, Suit } from '@bull-em/shared';
@@ -19,6 +25,9 @@ import { AbstractAction } from './infoSet.js';
  *
  * For TRUTHFUL_* actions, generates hands based on what the player holds.
  * For BLUFF_* actions, generates hands the player doesn't hold.
+ *
+ * Raise/bluff actions always produce a valid result — never returns undefined
+ * for actions that require a hand claim.
  */
 export function mapAbstractToConcreteAction(
   abstractAction: AbstractAction,
@@ -41,7 +50,6 @@ export function mapAbstractToConcreteAction(
       const tier = abstractAction === AbstractAction.TRUTHFUL_LOW ? 'low'
         : abstractAction === AbstractAction.TRUTHFUL_MID ? 'mid' : 'high';
       const hand = generateTruthfulHand(tier, state.currentHand, myCards);
-      if (!hand) return undefined;
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -54,7 +62,6 @@ export function mapAbstractToConcreteAction(
       const magnitude = abstractAction === AbstractAction.BLUFF_SMALL ? 'small'
         : abstractAction === AbstractAction.BLUFF_MID ? 'mid' : 'big';
       const hand = generateBluffHand(magnitude, state.currentHand, myCards);
-      if (!hand) return undefined;
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -67,132 +74,125 @@ export function mapAbstractToConcreteAction(
 
 /**
  * Generate a hand claim based on cards the player actually holds.
- * Tiers control how ambitious the claim is:
- * - low: claim something very close to what we have (high card, pair we hold)
- * - mid: claim something we partially support (pair from our rank, trips from our pair)
- * - high: claim the strongest hand type we can justify with our cards
+ * Always returns a valid hand — falls back to minimum raise if no
+ * tier-appropriate candidate beats the current claim.
  */
 function generateTruthfulHand(
   tier: 'low' | 'mid' | 'high',
   currentHand: HandCall | null,
   myCards: Card[],
-): HandCall | null {
-  if (myCards.length === 0) return null;
-
-  const myRanks = myCards.map(c => c.rank);
-  const mySuits = myCards.map(c => c.suit);
-  const rankCounts = new Map<Rank, number>();
-  const suitCounts = new Map<Suit, number>();
-
-  for (const c of myCards) {
-    rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
-    suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
-  }
-
-  const bestRank = myCards.reduce(
-    (best, c) => RANK_VALUES[c.rank] > RANK_VALUES[best] ? c.rank : best,
-    myCards[0]!.rank,
-  );
-
-  // Find max rank group
-  let maxGroupRank = myCards[0]!.rank;
-  let maxGroupSize = 1;
-  for (const [rank, count] of rankCounts) {
-    if (count > maxGroupSize || (count === maxGroupSize && RANK_VALUES[rank] > RANK_VALUES[maxGroupRank])) {
-      maxGroupRank = rank;
-      maxGroupSize = count;
-    }
-  }
-
-  // Find dominant suit
-  let bestSuit = myCards[0]!.suit;
-  let bestSuitCount = 1;
-  for (const [suit, count] of suitCounts) {
-    if (count > bestSuitCount) {
-      bestSuit = suit;
-      bestSuitCount = count;
-    }
-  }
-
-  // Generate candidates based on tier
+): HandCall {
   const candidates: HandCall[] = [];
 
-  switch (tier) {
-    case 'low':
-      // High card using our best rank
-      candidates.push({ type: HandType.HIGH_CARD, rank: bestRank });
-      // If we have a pair, claim it
-      if (maxGroupSize >= 2) {
-        candidates.push({ type: HandType.PAIR, rank: maxGroupRank });
-      }
-      // Pair of a rank we hold (claiming there's another out there)
-      for (const rank of myRanks) {
-        candidates.push({ type: HandType.PAIR, rank });
-      }
-      break;
+  if (myCards.length > 0) {
+    const myRanks = myCards.map(c => c.rank);
+    const rankCounts = new Map<Rank, number>();
+    const suitCounts = new Map<Suit, number>();
 
-    case 'mid':
-      // Pair or trips if we have support
-      if (maxGroupSize >= 2) {
-        candidates.push({ type: HandType.PAIR, rank: maxGroupRank });
-        candidates.push({ type: HandType.THREE_OF_A_KIND, rank: maxGroupRank });
+    for (const c of myCards) {
+      rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
+      suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
+    }
+
+    const bestRank = myCards.reduce(
+      (best, c) => RANK_VALUES[c.rank] > RANK_VALUES[best] ? c.rank : best,
+      myCards[0]!.rank,
+    );
+
+    let maxGroupRank = myCards[0]!.rank;
+    let maxGroupSize = 1;
+    for (const [rank, count] of rankCounts) {
+      if (count > maxGroupSize || (count === maxGroupSize && RANK_VALUES[rank] > RANK_VALUES[maxGroupRank])) {
+        maxGroupRank = rank;
+        maxGroupSize = count;
       }
-      // Two pair using ranks we hold
-      if (rankCounts.size >= 2) {
-        const ranks = [...rankCounts.keys()].sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
-        if (ranks.length >= 2) {
-          const [hi, lo] = RANK_VALUES[ranks[0]!] > RANK_VALUES[ranks[1]!]
-            ? [ranks[0]!, ranks[1]!]
-            : [ranks[1]!, ranks[0]!];
-          candidates.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
+    }
+
+    let bestSuit = myCards[0]!.suit;
+    let bestSuitCount = 1;
+    for (const [suit, count] of suitCounts) {
+      if (count > bestSuitCount) {
+        bestSuit = suit;
+        bestSuitCount = count;
+      }
+    }
+
+    switch (tier) {
+      case 'low':
+        candidates.push({ type: HandType.HIGH_CARD, rank: bestRank });
+        if (maxGroupSize >= 2) {
+          candidates.push({ type: HandType.PAIR, rank: maxGroupRank });
         }
-      }
-      // Flush if we have suit support
-      if (bestSuitCount >= 2) {
-        candidates.push({ type: HandType.FLUSH, suit: bestSuit });
-      }
-      break;
-
-    case 'high':
-      // Trips or better if we have support
-      if (maxGroupSize >= 2) {
-        candidates.push({ type: HandType.THREE_OF_A_KIND, rank: maxGroupRank });
-        candidates.push({ type: HandType.FOUR_OF_A_KIND, rank: maxGroupRank });
-      }
-      if (maxGroupSize >= 3) {
-        // Full house: we have trips, pair with something else
         for (const rank of myRanks) {
-          if (rank !== maxGroupRank) {
-            candidates.push({ type: HandType.FULL_HOUSE, threeRank: maxGroupRank, twoRank: rank });
+          candidates.push({ type: HandType.PAIR, rank });
+        }
+        break;
+
+      case 'mid':
+        if (maxGroupSize >= 2) {
+          candidates.push({ type: HandType.PAIR, rank: maxGroupRank });
+          candidates.push({ type: HandType.THREE_OF_A_KIND, rank: maxGroupRank });
+        }
+        if (rankCounts.size >= 2) {
+          const ranks = [...rankCounts.keys()].sort((a, b) => RANK_VALUES[b] - RANK_VALUES[a]);
+          if (ranks.length >= 2) {
+            const [hi, lo] = RANK_VALUES[ranks[0]!] > RANK_VALUES[ranks[1]!]
+              ? [ranks[0]!, ranks[1]!]
+              : [ranks[1]!, ranks[0]!];
+            candidates.push({ type: HandType.TWO_PAIR, highRank: hi, lowRank: lo });
           }
         }
-      }
-      // Straight from our best cards
-      {
-        const vals = [...new Set(myCards.map(c => RANK_VALUES[c.rank]))].sort((a, b) => a - b);
-        if (vals.length >= 2) {
-          const highVal = Math.min(vals[vals.length - 1]! + 2, 14);
-          if (highVal >= 5) {
-            const highRank = ALL_RANKS.find(r => RANK_VALUES[r] === highVal);
-            if (highRank) {
-              candidates.push({ type: HandType.STRAIGHT, highRank });
+        if (bestSuitCount >= 2) {
+          candidates.push({ type: HandType.FLUSH, suit: bestSuit });
+        }
+        // Also include low-tier candidates as fallback
+        candidates.push({ type: HandType.HIGH_CARD, rank: bestRank });
+        for (const rank of myRanks) {
+          candidates.push({ type: HandType.PAIR, rank });
+        }
+        break;
+
+      case 'high':
+        if (maxGroupSize >= 2) {
+          candidates.push({ type: HandType.THREE_OF_A_KIND, rank: maxGroupRank });
+          candidates.push({ type: HandType.FOUR_OF_A_KIND, rank: maxGroupRank });
+        }
+        if (maxGroupSize >= 3) {
+          for (const rank of myRanks) {
+            if (rank !== maxGroupRank) {
+              candidates.push({ type: HandType.FULL_HOUSE, threeRank: maxGroupRank, twoRank: rank });
             }
           }
         }
-      }
-      break;
+        {
+          const vals = [...new Set(myCards.map(c => RANK_VALUES[c.rank]))].sort((a, b) => a - b);
+          if (vals.length >= 2) {
+            const highVal = Math.min(vals[vals.length - 1]! + 2, 14);
+            if (highVal >= 5) {
+              const highRank = ALL_RANKS.find(r => RANK_VALUES[r] === highVal);
+              if (highRank) {
+                candidates.push({ type: HandType.STRAIGHT, highRank });
+              }
+            }
+          }
+        }
+        // Also include mid/low-tier candidates as fallback
+        if (maxGroupSize >= 2) {
+          candidates.push({ type: HandType.PAIR, rank: maxGroupRank });
+        }
+        for (const rank of myRanks) {
+          candidates.push({ type: HandType.PAIR, rank });
+        }
+        break;
+    }
   }
 
-  // Filter to only valid raises above current hand
+  // Filter to valid raises
   const valid = currentHand
     ? candidates.filter(h => isHigherHand(h, currentHand))
     : candidates;
 
   if (valid.length > 0) {
-    // Pick deterministically: lowest valid candidate for low tier,
-    // middle for mid, highest for high — reduces variance in credit assignment
-
-    // Sort by hand type (ascending), then by rank value within type
     valid.sort((a, b) => {
       if (a.type !== b.type) return a.type - b.type;
       const aRank = 'rank' in a ? RANK_VALUES[a.rank as Rank] : ('highRank' in a ? RANK_VALUES[a.highRank as Rank] : 0);
@@ -203,91 +203,101 @@ function generateTruthfulHand(
     return valid[idx]!;
   }
 
-  // Fallback: minimum raise if we have any truthful candidate at all
+  // Guaranteed fallback: minimum raise always produces a valid hand
   if (currentHand) {
-    const minRaise = getMinimumRaise(currentHand);
-    if (minRaise) return minRaise;
+    return getMinimumRaise(currentHand)!;
   }
 
-  // Opening fallback
-  if (!currentHand) {
+  // Opening: high card with best rank, or fallback to 7
+  if (myCards.length > 0) {
+    const bestRank = myCards.reduce(
+      (best, c) => RANK_VALUES[c.rank] > RANK_VALUES[best] ? c.rank : best,
+      myCards[0]!.rank,
+    );
     return { type: HandType.HIGH_CARD, rank: bestRank };
   }
-
-  return null;
+  return { type: HandType.HIGH_CARD, rank: '7' };
 }
 
 // ── Bluff hand generation ────────────────────────────────────────────
 
 /**
+ * Derive a deterministic-per-state seed from the player's cards.
+ * Varies bluff choices based on what we hold without adding randomness.
+ */
+function cardBasedSeed(myCards: Card[]): number {
+  let hash = 0;
+  for (const c of myCards) {
+    hash = (hash * 31 + RANK_VALUES[c.rank] * 4 + ALL_SUITS.indexOf(c.suit)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+/**
  * Generate a hand claim the player does NOT hold.
+ * Always returns a valid hand — falls back to minimum raise.
+ *
  * Magnitude controls how far above the current claim:
- * - small: just above current claim, same or next type
+ * - small: same type or next type (conservative bluff)
  * - mid: 1-2 types above
  * - big: 2+ types above (major bluff)
+ *
+ * Rank/suit selection varies based on held cards to avoid
+ * predictable bluff patterns while staying deterministic per-state.
  */
 function generateBluffHand(
   magnitude: 'small' | 'mid' | 'big',
   currentHand: HandCall | null,
   myCards: Card[],
-): HandCall | null {
+): HandCall {
   const myRankSet = new Set(myCards.map(c => c.rank));
+  const mySuitSet = new Set(myCards.map(c => c.suit));
+  const seed = cardBasedSeed(myCards);
 
-  // Pick ranks/suits deterministically for consistent credit assignment.
-  // Small bluffs use mid-range non-held ranks, big bluffs use high ranks.
   const nonHeldRanks = ALL_RANKS.filter(r => !myRankSet.has(r));
   const bluffRankPool = nonHeldRanks.length > 0 ? nonHeldRanks : ALL_RANKS;
 
+  // Vary rank selection based on card-derived seed + magnitude offset
+  const magnitudeOffset = magnitude === 'small' ? 0 : magnitude === 'mid' ? 3 : 7;
   function pickBluffRank(): Rank {
-    // Pick based on magnitude: small→low ranks, mid→mid ranks, big→high ranks
-    const idx = magnitude === 'small' ? 0
-      : magnitude === 'mid' ? Math.floor(bluffRankPool.length / 2)
-      : bluffRankPool.length - 1;
+    const idx = (seed + magnitudeOffset) % bluffRankPool.length;
     return bluffRankPool[idx]!;
   }
 
-  function pickBluffSuit(): typeof ALL_SUITS[number] {
-    // Deterministic: always pick the first suit for consistency
-    return ALL_SUITS[0]!;
+  // Vary suit selection — prefer suits we don't hold
+  const nonHeldSuits = ALL_SUITS.filter(s => !mySuitSet.has(s));
+  const suitPool = nonHeldSuits.length > 0 ? nonHeldSuits : ALL_SUITS;
+  function pickBluffSuit(): Suit {
+    return suitPool[seed % suitPool.length]!;
   }
 
   const currentType = currentHand?.type ?? -1;
 
-  let targetType: HandType;
-  switch (magnitude) {
-    case 'small':
-      // Same type or next type
-      targetType = Math.min(currentType + 1, HandType.ROYAL_FLUSH) as HandType;
-      if (targetType < HandType.HIGH_CARD) targetType = HandType.HIGH_CARD;
-      break;
-    case 'mid':
-      // Exactly 2 types above (deterministic)
-      targetType = Math.min(currentType + 2, HandType.ROYAL_FLUSH) as HandType;
-      if (targetType < HandType.PAIR) targetType = HandType.PAIR;
-      break;
-    case 'big':
-      // Exactly 3 types above (deterministic)
-      targetType = Math.min(currentType + 3, HandType.ROYAL_FLUSH) as HandType;
-      if (targetType < HandType.THREE_OF_A_KIND) targetType = HandType.THREE_OF_A_KIND;
-      break;
+  // Try progressively from target type down to find a valid bluff
+  const targetOffset = magnitude === 'small' ? 1 : magnitude === 'mid' ? 2 : 3;
+  const startType = Math.min(currentType + targetOffset, HandType.ROYAL_FLUSH);
+
+  // Try target type, then scan upward for a valid hand
+  for (let tryType = startType; tryType <= HandType.ROYAL_FLUSH; tryType++) {
+    if (tryType < HandType.HIGH_CARD) continue;
+    const hand = generateBluffOfType(tryType as HandType, pickBluffRank, pickBluffSuit);
+    if (!currentHand || isHigherHand(hand, currentHand)) {
+      return hand;
+    }
   }
 
-  const hand = generateBluffOfType(targetType, pickBluffRank, pickBluffSuit);
-
-  // Verify it's actually higher
-  if (currentHand && !isHigherHand(hand, currentHand)) {
-    // Fallback: use minimum raise
-    const minRaise = getMinimumRaise(currentHand);
-    return minRaise;
+  // Guaranteed fallback: minimum raise
+  if (currentHand) {
+    return getMinimumRaise(currentHand)!;
   }
 
-  return hand;
+  return { type: HandType.HIGH_CARD, rank: pickBluffRank() };
 }
 
 function generateBluffOfType(
   type: HandType,
   pickRank: () => Rank,
-  pickSuit: () => typeof ALL_SUITS[number],
+  pickSuit: () => Suit,
 ): HandCall {
   switch (type) {
     case HandType.HIGH_CARD:
@@ -298,7 +308,6 @@ function generateBluffOfType(
 
     case HandType.TWO_PAIR: {
       const high = pickRank();
-      // Pick a second rank deterministically (one below the high rank)
       const highIdx = ALL_RANKS.indexOf(high);
       const low = highIdx > 0 ? ALL_RANKS[highIdx - 1]! : ALL_RANKS[highIdx + 1]!;
       const [hi, lo] = RANK_VALUES[high] > RANK_VALUES[low] ? [high, low] : [low, high];
@@ -313,14 +322,12 @@ function generateBluffOfType(
 
     case HandType.STRAIGHT: {
       const validHighRanks = ALL_RANKS.filter(r => RANK_VALUES[r] >= 5);
-      // Deterministic: pick middle-range straight
       const idx = Math.floor(validHighRanks.length / 2);
       return { type: HandType.STRAIGHT, highRank: validHighRanks[idx]! };
     }
 
     case HandType.FULL_HOUSE: {
       const threeRank = pickRank();
-      // Deterministic: pair rank is one below the three rank
       const threeIdx = ALL_RANKS.indexOf(threeRank);
       const twoRank = threeIdx > 0 ? ALL_RANKS[threeIdx - 1]! : ALL_RANKS[threeIdx + 1]!;
       return { type: HandType.FULL_HOUSE, threeRank, twoRank };

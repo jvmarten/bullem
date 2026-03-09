@@ -352,21 +352,24 @@ function runTrainingGame(
 
         const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
 
+        // mapAbstractToConcreteAction always returns a valid action for
+        // raise/bluff/bull/true/pass — undefined only for impossible states
         if (concreteAction) {
           action = concreteAction;
-          decisions.push({
-            botId: player.id,
-            infoSetKey,
-            legalActions,
-            strategy: samplingStrategy,
-            chosenAction: abstractAction,
-          });
         } else {
-          // Fallback to heuristic if mapping fails
           action = BotPlayer.decideAction(
             state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
           );
         }
+
+        // Always record the decision so CFR learns from every state
+        decisions.push({
+          botId: player.id,
+          infoSetKey,
+          legalActions,
+          strategy: samplingStrategy,
+          chosenAction: abstractAction,
+        });
       } else {
         action = BotPlayer.decideAction(
           state, player.id, player.cards, BotDifficulty.HARD, undefined, scope,
