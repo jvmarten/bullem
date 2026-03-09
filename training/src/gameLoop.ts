@@ -6,7 +6,7 @@ import type {
   ServerPlayer, GameSettings, TurnResult, Card,
   ClientGameState,
 } from '@bull-em/shared';
-import type { BotAction } from '@bull-em/shared';
+import type { BotAction, BotProfileConfig } from '@bull-em/shared';
 import type { BotConfig, BotStrategy, GameResult } from './types.js';
 
 const MAX_TURNS_PER_ROUND = 500;
@@ -50,6 +50,7 @@ function getBotAction(
   scope: string,
   strategy: BotStrategy | undefined,
   allPlayers: ServerPlayer[],
+  profileConfig?: BotProfileConfig,
 ): BotAction {
   if (strategy) {
     const totalCards = allPlayers
@@ -69,7 +70,7 @@ function getBotAction(
     ? allPlayers.filter(p => !p.isEliminated).flatMap(p => p.cards)
     : undefined;
 
-  return BotPlayer.decideAction(state, player.id, player.cards, difficulty, allCards, scope);
+  return BotPlayer.decideAction(state, player.id, player.cards, difficulty, allCards, scope, profileConfig);
 }
 
 /** Run a single complete game and return the result. */
@@ -109,7 +110,7 @@ export function runGame(
       const difficulty = botCfg?.difficulty ?? defaultDifficulty;
 
       const state = engine.getClientState(currentId);
-      const action = getBotAction(state, player, difficulty, scope, strategy, players);
+      const action = getBotAction(state, player, difficulty, scope, strategy, players, botCfg?.profileConfig);
       const result = dispatchAction(engine, currentId, action);
 
       roundTurns++;
