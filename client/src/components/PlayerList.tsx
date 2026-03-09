@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { TurnAction, handToString, BOT_AVATAR_MAP } from '@bull-em/shared';
+import { TurnAction, handToString } from '@bull-em/shared';
 import type { Player, PlayerId, TurnEntry, EmojiReaction, RankTier } from '@bull-em/shared';
-import { playerInitial, playerColor } from '../utils/cardUtils.js';
-import { avatarDisplay } from '../pages/ProfilePage.js';
+import { playerColor } from '../utils/cardUtils.js';
+import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { RankBadge } from './RankBadge.js';
 
 interface Props {
@@ -225,9 +225,9 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           role={onPlayerClick ? 'button' : undefined}
           tabIndex={onPlayerClick ? 0 : undefined}
           onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
-          className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+          className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''} overflow-hidden`}
         >
-          {p.isBot ? (BOT_AVATAR_MAP.get(p.name) ?? '\u2699') : avatarDisplay(p.avatar, p.name)}
+          <PlayerAvatarContent name={p.name} avatar={p.avatar} photoUrl={p.photoUrl} isBot={p.isBot} />
         </div>
         <div className="flex flex-col min-w-0">
           <span className="font-medium truncate text-xs">

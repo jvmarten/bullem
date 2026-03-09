@@ -103,7 +103,7 @@ import { verifyToken } from './auth/jwt.js';
 import { AUTH_COOKIE_NAME } from './auth/middleware.js';
 import cookie from 'cookie';
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const cookieHeader = socket.handshake.headers.cookie;
   if (cookieHeader) {
     const cookies = cookie.parse(cookieHeader);
@@ -115,6 +115,15 @@ io.use((socket, next) => {
         socket.data.userId = payload.userId;
         socket.data.username = payload.username;
         socket.data.role = payload.role;
+
+        // Fetch photo URL from database so it's available in all handlers
+        try {
+          const { getUserPhotoUrl } = await import('./db/users.js');
+          const photoUrl = await getUserPhotoUrl(payload.userId);
+          if (photoUrl) socket.data.photoUrl = photoUrl;
+        } catch {
+          // Non-fatal — photo just won't be available
+        }
       }
     }
   }
