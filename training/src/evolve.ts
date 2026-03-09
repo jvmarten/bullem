@@ -23,6 +23,8 @@ function parseArgs(argv: string[]): {
   mutationStrength: number;
   mutationRate: number;
   outputDir: string;
+  hofSize: number;
+  hofWeight: number;
 } {
   const args = argv.slice(2);
   let generations = 50;
@@ -34,6 +36,8 @@ function parseArgs(argv: string[]): {
   let mutationStrength = 0.15;
   let mutationRate = 0.8;
   let outputDir = 'training/strategies';
+  let hofSize = 20;
+  let hofWeight = 0.3;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -112,6 +116,22 @@ function parseArgs(argv: string[]): {
         outputDir = next ?? outputDir;
         i++;
         break;
+      case '--hof-size':
+        hofSize = parseInt(next ?? '', 10);
+        if (isNaN(hofSize) || hofSize < 0) {
+          console.error('Error: --hof-size must be a non-negative integer');
+          process.exit(1);
+        }
+        i++;
+        break;
+      case '--hof-weight':
+        hofWeight = parseFloat(next ?? '');
+        if (isNaN(hofWeight) || hofWeight < 0 || hofWeight > 1) {
+          console.error('Error: --hof-weight must be between 0 and 1');
+          process.exit(1);
+        }
+        i++;
+        break;
       case '--help':
       case '-h':
         console.log(`
@@ -134,6 +154,8 @@ Options:
   --mutation-strength <f>     Max parameter nudge fraction (default: 0.15)
   --mutation-rate <f>         Probability of mutating each param (default: 0.8)
   --output-dir, -o <path>     Output directory for results (default: training/strategies)
+  --hof-size <n>              Hall-of-fame archive size, 0 to disable (default: 20)
+  --hof-weight <f>            Weight of HoF win rate in fitness, 0-1 (default: 0.3)
   --help, -h                  Show this help message
 
 Examples:
@@ -152,6 +174,7 @@ Examples:
   return {
     generations, populationSize, gamesPerMatchup, playersPerGame,
     maxCards, survivalRate, mutationStrength, mutationRate, outputDir,
+    hofSize, hofWeight,
   };
 }
 
@@ -167,4 +190,6 @@ evolve({
   mutationStrength: opts.mutationStrength,
   mutationRate: opts.mutationRate,
   outputDir: opts.outputDir,
+  hofSize: opts.hofSize,
+  hofWeight: opts.hofWeight,
 });
