@@ -322,7 +322,8 @@ function playerCountBucket(activePlayers: number): string {
   if (activePlayers <= 2) return 'p2';    // Heads-up: aggressive bull is correct
   if (activePlayers <= 3) return 'p3';    // 3-player: transitional dynamics
   if (activePlayers <= 4) return 'p4';    // 4-player: multiplayer dynamics kick in
-  return 'p5+';                            // 5+ players: claims very likely true
+  if (activePlayers <= 5) return 'p5';    // 5-player: claims commonly true
+  return 'p6+';                            // 6+ players: claims very likely true
 }
 
 // ── Information set key ──────────────────────────────────────────────
