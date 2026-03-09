@@ -32,9 +32,9 @@ describe('botProfiles', () => {
       const requiredFields: (keyof BotProfileConfig)[] = [
         'bluffFrequency', 'bullThreshold', 'riskTolerance', 'aggressionBias',
         'lastChanceBluffRate', 'openingBluffRate', 'bullPhaseRaiseRate',
-        'trustMultiplier', 'bluffPlausibilityGate', 'noiseBand',
-        'cardCountBluffAdjust', 'cardCountBullAdjust', 'headsUpAggression',
+        'trustMultiplier', 'cardCountSensitivity', 'headsUpAggression',
         'survivalPressure', 'bluffTargetSelection', 'positionAwareness', 'trueCallConfidence',
+        'counterBluffRate', 'bullPhaseBluffRate', 'openingHandTypePreference',
       ];
 
       for (const profile of BOT_PROFILES) {
@@ -82,17 +82,8 @@ describe('botProfiles', () => {
         expect(cfg.trustMultiplier).toBeGreaterThanOrEqual(0);
         expect(cfg.trustMultiplier).toBeLessThanOrEqual(2.0);
 
-        expect(cfg.bluffPlausibilityGate).toBeGreaterThanOrEqual(0);
-        expect(cfg.bluffPlausibilityGate).toBeLessThanOrEqual(1.0);
-
-        expect(cfg.noiseBand).toBeGreaterThanOrEqual(0);
-        expect(cfg.noiseBand).toBeLessThanOrEqual(0.2);
-
-        expect(cfg.cardCountBluffAdjust).toBeGreaterThanOrEqual(0);
-        expect(cfg.cardCountBluffAdjust).toBeLessThanOrEqual(2.0);
-
-        expect(cfg.cardCountBullAdjust).toBeGreaterThanOrEqual(0);
-        expect(cfg.cardCountBullAdjust).toBeLessThanOrEqual(2.0);
+        expect(cfg.cardCountSensitivity).toBeGreaterThanOrEqual(0);
+        expect(cfg.cardCountSensitivity).toBeLessThanOrEqual(2.0);
 
         expect(cfg.headsUpAggression).toBeGreaterThanOrEqual(0);
         expect(cfg.headsUpAggression).toBeLessThanOrEqual(1.0);
@@ -108,6 +99,15 @@ describe('botProfiles', () => {
 
         expect(cfg.trueCallConfidence).toBeGreaterThanOrEqual(0);
         expect(cfg.trueCallConfidence).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.counterBluffRate).toBeGreaterThanOrEqual(0);
+        expect(cfg.counterBluffRate).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.bullPhaseBluffRate).toBeGreaterThanOrEqual(0);
+        expect(cfg.bullPhaseBluffRate).toBeLessThanOrEqual(1.0);
+
+        expect(cfg.openingHandTypePreference).toBeGreaterThanOrEqual(0);
+        expect(cfg.openingHandTypePreference).toBeLessThanOrEqual(1.0);
       }
     });
   });
@@ -141,15 +141,15 @@ describe('botProfiles', () => {
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.5);
       expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.30);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.15);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.2);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.05);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountBluffAdjust).toBe(1.0);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountBullAdjust).toBe(1.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.cardCountSensitivity).toBe(1.0);
       expect(DEFAULT_BOT_PROFILE_CONFIG.headsUpAggression).toBe(0.5);
       expect(DEFAULT_BOT_PROFILE_CONFIG.survivalPressure).toBe(0.5);
       expect(DEFAULT_BOT_PROFILE_CONFIG.bluffTargetSelection).toBe(0.5);
       expect(DEFAULT_BOT_PROFILE_CONFIG.positionAwareness).toBe(0.5);
       expect(DEFAULT_BOT_PROFILE_CONFIG.trueCallConfidence).toBe(0.5);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.counterBluffRate).toBe(0.2);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseBluffRate).toBe(0.0);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingHandTypePreference).toBe(0.5);
     });
   });
 
@@ -163,11 +163,12 @@ describe('botProfiles', () => {
   });
 
   describe('level scaling', () => {
-    it('lvl9 profiles are more skilled than lvl1 profiles for same personality', () => {
+    it('lvl9 profiles express personality more strongly than lvl1', () => {
       const rock1 = BOT_PROFILE_MAP.get('rock_lvl1')!;
       const rock9 = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      // Level 9 should have tighter noise band (more precise)
-      expect(rock9.config.noiseBand).toBeLessThanOrEqual(rock1.config.noiseBand);
+      // Rock at lvl9 should have lower bluffFrequency (more conservative) than lvl1
+      // because lvl1 lerps toward unskilled defaults (1.1 bluffFreq) while rock lvl9 = 0.3
+      expect(rock9.config.bluffFrequency).toBeLessThan(rock1.config.bluffFrequency);
     });
 
     it('all 9 levels exist for each personality', () => {
@@ -205,9 +206,10 @@ describe('botProfiles', () => {
       expect(shark.config.trustMultiplier).toBeGreaterThan(1.0);
     });
 
-    it('Wildcard has wide noise band for unpredictability', () => {
-      const wildcard = BOT_PROFILE_MAP.get('wildcard_lvl9')!;
-      expect(wildcard.config.noiseBand).toBeGreaterThan(DEFAULT_BOT_PROFILE_CONFIG.noiseBand);
+    it('Bluffer has high counterBluffRate and bullPhaseBluffRate', () => {
+      const bluffer = BOT_PROFILE_MAP.get('bluffer_lvl9')!;
+      expect(bluffer.config.counterBluffRate).toBeGreaterThan(0.3);
+      expect(bluffer.config.bullPhaseBluffRate).toBeGreaterThan(0.1);
     });
 
     it('Bluffer has high headsUpAggression and low survivalPressure', () => {
@@ -216,9 +218,9 @@ describe('botProfiles', () => {
       expect(bluffer.config.survivalPressure).toBeLessThan(0.3);
     });
 
-    it('Rock has low cardCountBluffAdjust and high survivalPressure', () => {
+    it('Rock has low cardCountSensitivity and high survivalPressure', () => {
       const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
-      expect(rock.config.cardCountBluffAdjust).toBeLessThan(1.0);
+      expect(rock.config.cardCountSensitivity).toBeLessThan(1.0);
       expect(rock.config.survivalPressure).toBeGreaterThan(0.7);
     });
 
@@ -239,6 +241,20 @@ describe('botProfiles', () => {
     it('Frost has high trueCallConfidence', () => {
       const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
       expect(frost.config.trueCallConfidence).toBeGreaterThan(0.7);
+    });
+
+    it('Frost has high openingHandTypePreference (plays value)', () => {
+      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      expect(frost.config.openingHandTypePreference).toBeGreaterThan(0.7);
+    });
+
+    it('Rock and Frost have near-zero counterBluffRate and bullPhaseBluffRate', () => {
+      const rock = BOT_PROFILE_MAP.get('rock_lvl9')!;
+      const frost = BOT_PROFILE_MAP.get('frost_lvl9')!;
+      expect(rock.config.counterBluffRate).toBeLessThanOrEqual(0.1);
+      expect(rock.config.bullPhaseBluffRate).toBe(0.0);
+      expect(frost.config.counterBluffRate).toBeLessThanOrEqual(0.1);
+      expect(frost.config.bullPhaseBluffRate).toBe(0.0);
     });
   });
 });

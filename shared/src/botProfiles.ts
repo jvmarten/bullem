@@ -17,16 +17,17 @@
  * fall back to the existing default values.
  */
 export interface BotProfileConfig {
-  /** How often the bot bluffs when it doesn't have a legitimate hand (0.0–1.0).
-   *  Scales the GTO bluff frequency multiplier. Default ~1.0 (standard GTO). */
+  /** How often the bot bluffs when it doesn't have a legitimate hand (0.0–2.0).
+   *  Scales the GTO bluff frequency multiplier. Default ~1.3 (standard GTO + 30%). */
   bluffFrequency: number;
 
   /** How suspicious the bot is before calling bull (0.0–1.0).
    *  Lower = calls bull more aggressively. Maps to dynamic bull threshold offsets. */
   bullThreshold: number;
 
-  /** Willingness to make big hand-type jumps when raising (0.0–1.0).
-   *  Higher = prefers larger jumps over safe incremental raises. */
+  /** Willingness to take calculated risks across all decision phases (0.0–1.0).
+   *  Affects bluff-raise attempts, desperate plays, uncertain-zone decisions,
+   *  and bull-phase raise willingness. Higher = bolder play. */
   riskTolerance: number;
 
   /** Preference for raising vs calling bull/true in uncertain situations (0.0–1.0).
@@ -45,24 +46,15 @@ export interface BotProfileConfig {
   bullPhaseRaiseRate: number;
 
   /** Trust factor multiplier for opponent memory (0.0–2.0).
+   *  Scales the continuous trust score (not just coarse buckets).
    *  Higher = trusts callers more, lower = more skeptical of all claims. */
   trustMultiplier: number;
 
-  /** Plausibility gate for bluff hands (0.0–1.0).
-   *  Only bluffs hands with plausibility above this threshold. */
-  bluffPlausibilityGate: number;
-
-  /** Noise band width for bull/true threshold decisions (0.0–0.2).
-   *  Wider = more random decisions near the threshold. */
-  noiseBand: number;
-
   // ── Card count awareness ──────────────────────────────────────────
-  /** Multiplier scaling bluffing up/down based on current card count (0.0–2.0).
-   *  >1.0 = bluff more at high card counts, <1.0 = bluff less. Default 1.0. */
-  cardCountBluffAdjust: number;
-  /** Multiplier scaling bull-calling suspicion by card count (0.0–2.0).
-   *  >1.0 = more suspicious at high card counts, <1.0 = more trusting. Default 1.0. */
-  cardCountBullAdjust: number;
+  /** How much card count affects both bluffing and bull-calling (0.0–2.0).
+   *  >1.0 = more reactive to card counts (bluff more + bull more at high counts).
+   *  <1.0 = less reactive. Default 1.0 (neutral). Replaces separate bluff/bull adjusts. */
+  cardCountSensitivity: number;
 
   // ── Game state awareness ──────────────────────────────────────────
   /** How much more aggressive the bot gets in 1v1 situations (0.0–1.0).
@@ -82,6 +74,19 @@ export interface BotProfileConfig {
   /** Eagerness to call true when the bot believes the claim (0.0–1.0).
    *  Separate from bullThreshold — governs the "I believe you" decision. Default 0.5. */
   trueCallConfidence: number;
+
+  // ── New high-impact parameters ────────────────────────────────────
+  /** Rate of counter-bluffing: raising over a hand the bot thinks is fake (0.0–1.0).
+   *  Instead of always calling bull on suspected bluffs, sometimes raise over them.
+   *  This exploits opponents who call bull reflexively. Default 0.2. */
+  counterBluffRate: number;
+  /** Bluff-raise rate in bull phase even without a legitimate hand (0.0–1.0).
+   *  Allows bluff-raising in bull phase to signal false confidence. Default 0.0. */
+  bullPhaseBluffRate: number;
+  /** Opening hand type preference (0.0–1.0).
+   *  Low = prefer high card openings, high = prefer pairs+ when available.
+   *  Controls the ratio of conservative vs aggressive opening calls. Default 0.5. */
+  openingHandTypePreference: number;
 }
 
 // ── Flavor text ─────────────────────────────────────────────────────────
@@ -128,15 +133,15 @@ export const DEFAULT_BOT_PROFILE_CONFIG: Readonly<BotProfileConfig> = {
   openingBluffRate: 0.30,
   bullPhaseRaiseRate: 0.15,
   trustMultiplier: 1.0,
-  bluffPlausibilityGate: 0.2,
-  noiseBand: 0.05,
-  cardCountBluffAdjust: 1.0,
-  cardCountBullAdjust: 1.0,
+  cardCountSensitivity: 1.0,
   headsUpAggression: 0.5,
   survivalPressure: 0.5,
   bluffTargetSelection: 0.5,
   positionAwareness: 0.5,
   trueCallConfidence: 0.5,
+  counterBluffRate: 0.2,
+  bullPhaseBluffRate: 0.0,
+  openingHandTypePreference: 0.5,
 };
 
 // ── Personality base definitions (level 9 = full personality expression) ─
@@ -173,15 +178,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.12,
       bullPhaseRaiseRate: 0.05,
       trustMultiplier: 1.3,
-      bluffPlausibilityGate: 0.4,
-      noiseBand: 0.03,
-      cardCountBluffAdjust: 0.6,   // Bluffs less even at high card counts
-      cardCountBullAdjust: 0.8,    // Slightly less suspicious — trusts the math
+      cardCountSensitivity: 0.7,   // Low reactivity to card counts — trusts the math
       headsUpAggression: 0.3,      // Stays conservative even heads-up
       survivalPressure: 0.8,       // Tightens up significantly near elimination
       bluffTargetSelection: 0.2,   // Safe, barely-above bluffs when forced to bluff
       positionAwareness: 0.7,      // Pays attention to position — tighter early
       trueCallConfidence: 0.7,     // Confidently calls true when math supports it
+      counterBluffRate: 0.05,      // Almost never counter-bluffs — prefers bull call
+      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
+      openingHandTypePreference: 0.7, // Prefers pairs+ when available — plays honest
     },
     flavorText: {
       callBull: ['I\'ve done the math.', 'Not buying it.', 'The numbers don\'t lie.'],
@@ -205,15 +210,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.40,
       bullPhaseRaiseRate: 0.35,
       trustMultiplier: 0.6,
-      bluffPlausibilityGate: 0.15,
-      noiseBand: 0.08,
-      cardCountBluffAdjust: 1.5,   // Bluffs even more at high card counts
-      cardCountBullAdjust: 1.3,    // More suspicious at high counts — projects bluff onto others
+      cardCountSensitivity: 1.4,   // Very reactive — bluffs more + bulls more at high counts
       headsUpAggression: 0.85,     // Very aggressive heads-up
       survivalPressure: 0.2,       // Barely changes play near elimination — "no regrets"
       bluffTargetSelection: 0.8,   // Ambitious bluffs — big hand-type jumps
       positionAwareness: 0.3,      // Doesn't care about position much
       trueCallConfidence: 0.3,     // Rarely calls true — prefers raising or calling bull
+      counterBluffRate: 0.45,      // Loves counter-bluffing — raises over suspected bluffs
+      bullPhaseBluffRate: 0.25,    // Sometimes bluff-raises even in bull phase
+      openingHandTypePreference: 0.3, // Prefers high card bluffs — hides info
     },
     flavorText: {
       callBull: ['BULL! No way!', 'You\'re bluffing and we both know it.', 'Nice try, pal.'],
@@ -237,15 +242,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.18,
       bullPhaseRaiseRate: 0.1,
       trustMultiplier: 1.1,
-      bluffPlausibilityGate: 0.3,
-      noiseBand: 0.04,
-      cardCountBluffAdjust: 0.8,   // Slightly less bluffing at high counts
-      cardCountBullAdjust: 1.1,    // Slightly more suspicious at high counts
+      cardCountSensitivity: 0.9,   // Slightly less reactive to card counts
       headsUpAggression: 0.4,      // Stays patient even heads-up
       survivalPressure: 0.7,       // Tightens up near elimination
       bluffTargetSelection: 0.15,  // Minimal escalation — safe incremental bluffs
       positionAwareness: 0.6,      // Moderate position awareness
       trueCallConfidence: 0.6,     // Willing to call true — patient style
+      counterBluffRate: 0.1,       // Rarely counter-bluffs — grinds safely
+      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
+      openingHandTypePreference: 0.6, // Slightly prefers pairs — safe play
     },
     flavorText: {
       callBull: ['Doesn\'t add up.', 'I\'ll take that bet.', 'Calling it.'],
@@ -269,15 +274,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.30,
       bullPhaseRaiseRate: 0.25,
       trustMultiplier: 0.8,
-      bluffPlausibilityGate: 0.2,
-      noiseBand: 0.15,
-      cardCountBluffAdjust: 1.2,   // Erratic — bluffs more at high counts
-      cardCountBullAdjust: 0.8,    // Erratic — less suspicious at high counts
+      cardCountSensitivity: 1.0,   // Neutral — erratic play comes from other params
       headsUpAggression: 0.6,      // Somewhat more aggressive heads-up
       survivalPressure: 0.3,       // Barely adjusts for survival — chaos reigns
       bluffTargetSelection: 0.7,   // Tends toward big jumps — unpredictable
       positionAwareness: 0.2,      // Ignores position — random style
       trueCallConfidence: 0.5,     // Neutral — sometimes true, sometimes bull
+      counterBluffRate: 0.35,      // Sometimes counter-bluffs — unpredictable
+      bullPhaseBluffRate: 0.15,    // Occasionally bluff-raises in bull phase
+      openingHandTypePreference: 0.4, // Mixed openings — keeps opponents guessing
     },
     flavorText: {
       callBull: ['BULL!', 'Nah.', 'Hmm... nope!', 'My gut says no.'],
@@ -301,15 +306,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.25,
       bullPhaseRaiseRate: 0.15,
       trustMultiplier: 1.0,
-      bluffPlausibilityGate: 0.2,
-      noiseBand: 0.03,
-      cardCountBluffAdjust: 1.1,   // Slightly adjusts bluff with card count — optimal
-      cardCountBullAdjust: 1.1,    // Slightly more suspicious at high counts
+      cardCountSensitivity: 1.1,   // Slightly reactive — close to optimal
       headsUpAggression: 0.55,     // Slightly more aggressive heads-up — optimal play
       survivalPressure: 0.55,      // Moderate tightening — balanced survival
       bluffTargetSelection: 0.45,  // Slightly safe bluffs — close to GTO
       positionAwareness: 0.8,      // Strong position awareness — knows info value
       trueCallConfidence: 0.55,    // Slightly eager to lock in believed hands
+      counterBluffRate: 0.2,       // GTO counter-bluff frequency
+      bullPhaseBluffRate: 0.05,    // Rare bull-phase bluffs — only when optimal
+      openingHandTypePreference: 0.5, // Balanced openings — GTO mix
     },
     flavorText: {
       callBull: ['Statistically improbable.', 'The odds are against you.', 'P < 0.05.'],
@@ -333,15 +338,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.28,
       bullPhaseRaiseRate: 0.2,
       trustMultiplier: 1.5,
-      bluffPlausibilityGate: 0.2,
-      noiseBand: 0.04,
-      cardCountBluffAdjust: 1.2,   // Exploits opponents' desperation reads
-      cardCountBullAdjust: 1.4,    // Very suspicious of high-count players
+      cardCountSensitivity: 1.3,   // Exploits opponents' card count tells
       headsUpAggression: 0.7,      // Ramps aggression heads-up — exploitative
       survivalPressure: 0.5,       // Balanced — adjusts based on reads not fear
       bluffTargetSelection: 0.5,   // Balanced — reads opponents to pick bluff size
       positionAwareness: 0.85,     // Highest position awareness — info is power
       trueCallConfidence: 0.4,     // Prefers to raise over call true — keeps control
+      counterBluffRate: 0.35,      // Counter-bluffs when reads suggest it
+      bullPhaseBluffRate: 0.1,     // Occasional bull-phase bluffs to keep control
+      openingHandTypePreference: 0.5, // Balanced — adapts based on reads
     },
     flavorText: {
       callBull: ['I\'ve seen your pattern.', 'You always do this.', 'Predictable.'],
@@ -365,15 +370,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.35,
       bullPhaseRaiseRate: 0.3,
       trustMultiplier: 0.7,
-      bluffPlausibilityGate: 0.1,
-      noiseBand: 0.1,
-      cardCountBluffAdjust: 1.4,   // Ramps bluffing at high counts — go out with a bang
-      cardCountBullAdjust: 1.2,    // Somewhat more suspicious at high counts
+      cardCountSensitivity: 1.3,   // Ramps up at high counts — go out with a bang
       headsUpAggression: 0.8,      // Very aggressive heads-up
       survivalPressure: 0.15,      // Barely adjusts near elimination — "full send"
       bluffTargetSelection: 0.9,   // Big ambitious jumps — straight to full house
       positionAwareness: 0.3,      // Doesn't care about position — fires regardless
       trueCallConfidence: 0.35,    // Prefers raising over calling true
+      counterBluffRate: 0.4,       // Loves counter-bluffing — fires big over anything
+      bullPhaseBluffRate: 0.2,     // Sometimes bluff-raises in bull phase
+      openingHandTypePreference: 0.3, // Prefers high card openings — then escalates big
     },
     flavorText: {
       callBull: ['No chance!', 'BULL! Fight me!', 'Yeah right.'],
@@ -397,15 +402,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.14,
       bullPhaseRaiseRate: 0.08,
       trustMultiplier: 1.2,
-      bluffPlausibilityGate: 0.35,
-      noiseBand: 0.02,
-      cardCountBluffAdjust: 0.5,   // Bluffs less at high counts — ice cold discipline
-      cardCountBullAdjust: 0.9,    // Slightly less suspicious — trusts her reads
+      cardCountSensitivity: 0.7,   // Low reactivity — ice cold discipline
       headsUpAggression: 0.35,     // Stays tight even heads-up
       survivalPressure: 0.85,      // Very tight near elimination — survival first
       bluffTargetSelection: 0.2,   // Minimal bluff escalation — precise
       positionAwareness: 0.75,     // Good position awareness
       trueCallConfidence: 0.75,    // Confidently calls true — locks in believed hands
+      counterBluffRate: 0.05,      // Almost never counter-bluffs — discipline
+      bullPhaseBluffRate: 0.0,     // Never bluff-raises in bull phase
+      openingHandTypePreference: 0.8, // Strongly prefers pairs+ — plays value
     },
     flavorText: {
       callBull: ['I don\'t think so.', 'Cold read: you\'re lying.', 'Not a chance.'],
@@ -429,15 +434,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
       openingBluffRate: 0.32,
       bullPhaseRaiseRate: 0.22,
       trustMultiplier: 0.9,
-      bluffPlausibilityGate: 0.15,
-      noiseBand: 0.06,
-      cardCountBluffAdjust: 1.3,   // Bluffs more at high counts — exploitative
-      cardCountBullAdjust: 1.2,    // More suspicious at high counts
+      cardCountSensitivity: 1.25,  // Exploits card count dynamics
       headsUpAggression: 0.75,     // Aggressive heads-up — turns up the heat
       survivalPressure: 0.4,       // Loose-ish near elimination — hustler's nerve
       bluffTargetSelection: 0.6,   // Moderate jump preference — well-timed
       positionAwareness: 0.65,     // Good position awareness — picks spots
       trueCallConfidence: 0.45,    // Prefers action over calling true
+      counterBluffRate: 0.3,       // Counter-bluffs opportunistically
+      bullPhaseBluffRate: 0.1,     // Occasional bull-phase bluffs — keep 'em guessing
+      openingHandTypePreference: 0.4, // Slightly prefers high cards — hides info
     },
     flavorText: {
       callBull: ['I know a hustle when I see one.', 'Not today.', 'That ain\'t it.'],
@@ -475,15 +480,15 @@ const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
   openingBluffRate: 0.30,
   bullPhaseRaiseRate: 0.18,
   trustMultiplier: 0.65,
-  bluffPlausibilityGate: 0.15,
-  noiseBand: 0.14,
-  cardCountBluffAdjust: 1.0,
-  cardCountBullAdjust: 1.0,
+  cardCountSensitivity: 1.0,
   headsUpAggression: 0.5,
   survivalPressure: 0.5,
   bluffTargetSelection: 0.5,
   positionAwareness: 0.5,
   trueCallConfidence: 0.5,
+  counterBluffRate: 0.15,
+  bullPhaseBluffRate: 0.05,
+  openingHandTypePreference: 0.5,
 };
 
 /**
@@ -512,15 +517,15 @@ function scaleConfigForLevel(personality: BotProfileConfig, level: number): BotP
     openingBluffRate: lerp(UNSKILLED_CONFIG.openingBluffRate, personality.openingBluffRate),
     bullPhaseRaiseRate: lerp(UNSKILLED_CONFIG.bullPhaseRaiseRate, personality.bullPhaseRaiseRate),
     trustMultiplier: lerp(UNSKILLED_CONFIG.trustMultiplier, personality.trustMultiplier),
-    bluffPlausibilityGate: lerp(UNSKILLED_CONFIG.bluffPlausibilityGate, personality.bluffPlausibilityGate),
-    noiseBand: lerp(UNSKILLED_CONFIG.noiseBand, personality.noiseBand),
-    cardCountBluffAdjust: lerp(UNSKILLED_CONFIG.cardCountBluffAdjust, personality.cardCountBluffAdjust),
-    cardCountBullAdjust: lerp(UNSKILLED_CONFIG.cardCountBullAdjust, personality.cardCountBullAdjust),
+    cardCountSensitivity: lerp(UNSKILLED_CONFIG.cardCountSensitivity, personality.cardCountSensitivity),
     headsUpAggression: lerp(UNSKILLED_CONFIG.headsUpAggression, personality.headsUpAggression),
     survivalPressure: lerp(UNSKILLED_CONFIG.survivalPressure, personality.survivalPressure),
     bluffTargetSelection: lerp(UNSKILLED_CONFIG.bluffTargetSelection, personality.bluffTargetSelection),
     positionAwareness: lerp(UNSKILLED_CONFIG.positionAwareness, personality.positionAwareness),
     trueCallConfidence: lerp(UNSKILLED_CONFIG.trueCallConfidence, personality.trueCallConfidence),
+    counterBluffRate: lerp(UNSKILLED_CONFIG.counterBluffRate, personality.counterBluffRate),
+    bullPhaseBluffRate: lerp(UNSKILLED_CONFIG.bullPhaseBluffRate, personality.bullPhaseBluffRate),
+    openingHandTypePreference: lerp(UNSKILLED_CONFIG.openingHandTypePreference, personality.openingHandTypePreference),
   };
 
   return config;
@@ -564,15 +569,15 @@ export const IMPOSSIBLE_BOT: BotProfileDefinition = {
     openingBluffRate: 0.08,
     bullPhaseRaiseRate: 0.15,
     trustMultiplier: 1.0,
-    bluffPlausibilityGate: 0.3,
-    noiseBand: 0.0,
-    cardCountBluffAdjust: 1.0,
-    cardCountBullAdjust: 1.0,
+    cardCountSensitivity: 1.0,
     headsUpAggression: 0.5,
     survivalPressure: 0.5,
     bluffTargetSelection: 0.5,
     positionAwareness: 0.5,
     trueCallConfidence: 0.5,
+    counterBluffRate: 0.2,
+    bullPhaseBluffRate: 0.0,
+    openingHandTypePreference: 0.5,
   },
   flavorText: {
     callBull: ['I see everything.', 'Your cards betray you.', 'I know what you hold.'],
