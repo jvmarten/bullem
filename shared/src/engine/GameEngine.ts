@@ -146,7 +146,10 @@ export class GameEngine {
     // map to the wrong player.
     const prevStarterGlobalIndex = this.players.findIndex(p => p.id === this._startingPlayerId);
     let nextGlobalIndex = (prevStarterGlobalIndex + 1) % this.players.length;
-    while (this.players[nextGlobalIndex]!.isEliminated) {
+    // Safety bound: iterate at most players.length times to prevent infinite loop
+    // if game state is somehow inconsistent (e.g. all players eliminated).
+    let guard = this.players.length;
+    while (this.players[nextGlobalIndex]!.isEliminated && guard-- > 0) {
       nextGlobalIndex = (nextGlobalIndex + 1) % this.players.length;
     }
     const nextStarterId = this.players[nextGlobalIndex]!.id;
@@ -201,7 +204,8 @@ export class GameEngine {
     this.currentHand = hand;
     this.lastCallerId = playerId;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
-    this.gameStats.playerStats[playerId]!.callsMade++;
+    const callerStats = this.gameStats.playerStats[playerId];
+    if (callerStats) callerStats.callsMade++;
     this.trackHandCall(playerId, hand.type);
     // Track whether the called hand actually exists in the combined cards at call
     // time, regardless of whether this hand survives to the reveal. This gives
@@ -227,7 +231,8 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.BULL);
     this.respondedPlayers.add(playerId);
-    this.gameStats.playerStats[playerId]!.bullsCalled++;
+    const bullStats = this.gameStats.playerStats[playerId];
+    if (bullStats) bullStats.bullsCalled++;
 
     if (this.roundPhase === RoundPhase.CALLING) {
       this.roundPhase = RoundPhase.BULL_PHASE;
@@ -267,7 +272,8 @@ export class GameEngine {
 
     this.addTurnEntry(playerId, TurnAction.TRUE);
     this.respondedPlayers.add(playerId);
-    this.gameStats.playerStats[playerId]!.truesCalled++;
+    const trueStats = this.gameStats.playerStats[playerId];
+    if (trueStats) trueStats.truesCalled++;
 
     if (this.allNonCallersResponded()) {
       return this.resolveRound();
@@ -291,7 +297,8 @@ export class GameEngine {
     this.currentHand = hand;
     this.lastChanceUsed = true;
     this.addTurnEntry(playerId, TurnAction.LAST_CHANCE_RAISE, hand);
-    this.gameStats.playerStats[playerId]!.callsMade++;
+    const lcStats = this.gameStats.playerStats[playerId];
+    if (lcStats) lcStats.callsMade++;
     this.trackHandCall(playerId, hand.type);
     if (HandChecker.exists(this.getAllCards(), hand)) {
       this.trackHandExisted(playerId, hand.type);
