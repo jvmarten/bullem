@@ -45,10 +45,12 @@ const MAX_PROFILES_PER_SCOPE = 50;
 /**
  * AI player for bot opponents. All methods are static — no instance state.
  *
- * Three difficulty levels:
- * - **NORMAL** — estimates hand probability using only its own cards.
- * - **HARD** — factors in opponent behavior patterns (bluff rate, call history)
- *   via cross-round {@link OpponentProfile} memory scoped per room.
+ * Two decision paths:
+ * - **Standard** (levels 1–9) — hypergeometric math, opponent memory, and
+ *   profile-config-driven decisions. Difficulty is controlled entirely by
+ *   {@link BotProfileConfig} parameters interpolated across bot levels.
+ *   The {@link BotDifficulty} enum (NORMAL/HARD) still exists for UI
+ *   categorization but both route through the same decision logic.
  * - **IMPOSSIBLE** — sees ALL players' cards (including other bots').
  */
 /** Bot's own action history — used to vary play and avoid predictability. */
@@ -281,163 +283,12 @@ export class BotPlayer {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
     }
-    if (difficulty === BotDifficulty.HARD) {
-      // Merge provided profile config with defaults so every field is guaranteed present
-      const cfg: BotProfileConfig = profileConfig
-        ? { ...DEFAULT_BOT_PROFILE_CONFIG, ...profileConfig }
-        : DEFAULT_BOT_PROFILE_CONFIG;
-      return this.decideHard(state, botId, botCards, scope, cfg);
-    }
-    return this.decideNormal(state, botId, botCards);
-  }
-
-  // ─── NORMAL MODE — "The Competent Player" ───────────────────────────
-  // Plays like a competent average player — knows the game, makes reasonable
-  // plays, occasionally bluffs, but doesn't use advanced math or opponent tracking.
-  // Uses estimatePlausibilitySimple and simple random percentages only.
-
-  private static decideNormal(state: ClientGameState, botId: string, botCards: Card[]): BotAction {
-    const { roundPhase, currentHand, lastCallerId } = state;
-    const totalCards = this.getTotalCards(state);
-
-    // LAST_CHANCE phase — everyone called bull on our hand.
-    // Raise if we have a legitimate higher hand. Otherwise 20% bluff raise
-    // (passing = guaranteed loss anyway), 80% pass.
-    if (roundPhase === RoundPhase.LAST_CHANCE && lastCallerId === botId) {
-      if (currentHand) {
-        const higher = this.findHandHigherThanSimple(botCards, currentHand);
-        if (higher) {
-          return { action: 'lastChanceRaise', hand: higher };
-        }
-        // No legitimate hand — 30% bluff raise (passing is almost guaranteed loss)
-        if (Math.random() < 0.30) {
-          const bluff = this.makeNormalBluff(botCards, currentHand);
-          if (isHigherHand(bluff, currentHand)) {
-            return { action: 'lastChanceRaise', hand: bluff };
-          }
-        }
-      }
-      return { action: 'lastChancePass' };
-    }
-
-    // Opening call — no current hand.
-    // Human players almost never call the high card rank they hold — it reveals
-    // info. Bots should open with ranks they DON'T have, or bluff stronger hands.
-    if (roundPhase === RoundPhase.CALLING && !currentHand) {
-      const bestHand = this.findBestHandInCards(botCards);
-      // If we have a pair+, open with it (strong enough to not care about info leak)
-      if (bestHand && bestHand.type >= HandType.PAIR) {
-        return { action: 'call', hand: bestHand };
-      }
-
-      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.06);
-      if (Math.random() < 0.25 + earlyBluffBonus) {
-        // Bluff a pair or other hand type we don't hold
-        const bluff = this.makeNormalBluff(botCards, bestHand ?? { type: HandType.HIGH_CARD, rank: '2' });
-        return { action: 'call', hand: bluff };
-      }
-
-      // Default: open with a high card we DON'T hold (hide our actual cards)
-      const heldRanks = new Set(botCards.map(c => c.rank));
-      const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 8);
-      if (bluffRanks.length > 0) {
-        const rank = bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!;
-        return { action: 'call', hand: { type: HandType.HIGH_CARD, rank } };
-      }
-      // Fallback if we somehow hold all high ranks
-      return { action: 'call', hand: bestHand ?? { type: HandType.HIGH_CARD, rank: 'A' } };
-    }
-
-    // Raising in calling phase
-    if (roundPhase === RoundPhase.CALLING && currentHand) {
-      // Check if hand is mathematically impossible — always bull
-      const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
-      if (p < 0.01) return { action: 'bull' };
-
-      // If current call is a high card, try bluffing a higher high card rank we
-      // don't hold before revealing our actual cards via a pair call.
-      if (currentHand.type === HandType.HIGH_CARD) {
-        const bluffHigher = this.findBluffHighCardAbove(botCards, currentHand.rank!);
-        if (bluffHigher) {
-          return Math.random() < 0.80
-            ? { action: 'call', hand: bluffHigher }
-            : { action: 'bull' };
-        }
-      }
-
-      const higher = this.findHandHigherThanSimple(botCards, currentHand);
-      if (higher) {
-        return Math.random() < 0.80
-          ? { action: 'call', hand: higher }
-          : { action: 'bull' };
-      }
-      // No legitimate raise — bluff more in early rounds
-      const earlyBluffBonus = Math.max(0, (8 - totalCards) * 0.05);
-      if (Math.random() < 0.25 + earlyBluffBonus) {
-        const bluff = this.makeNormalBluff(botCards, currentHand);
-        if (isHigherHand(bluff, currentHand)) {
-          return { action: 'call', hand: bluff };
-        }
-      }
-      return { action: 'bull' };
-    }
-
-    // Bull phase — use estimatePlausibilitySimple heuristic.
-    if (roundPhase === RoundPhase.BULL_PHASE && currentHand) {
-      return this.handleNormalBullPhase(currentHand, botCards, totalCards);
-    }
-
-    // Fallback
-    if (currentHand) return { action: 'bull' };
-    return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: 'A' } };
-  }
-
-  /**
-   * Normal bull phase: uses estimatePlausibilitySimple to decide.
-   * P > 0.6 → true. P < 0.4 → bull. 0.4–0.6 → 50/50.
-   * 10% chance to raise if bot has a legitimate higher hand.
-   */
-  private static handleNormalBullPhase(currentHand: HandCall, botCards: Card[], totalCards: number): BotAction {
-    const p = this.estimatePlausibilitySimple(currentHand, botCards, totalCards);
-
-    // If the hand is mathematically impossible, always call bull
-    if (p < 0.01) return { action: 'bull' };
-
-    // 10% chance to raise if bot has a legitimate higher hand
-    const higher = this.findHandHigherThanSimple(botCards, currentHand);
-    if (higher && Math.random() < 0.10) {
-      return { action: 'call', hand: higher };
-    }
-
-    if (p > 0.6) return { action: 'true' };
-    if (p < 0.4) return { action: 'bull' };
-    // 0.4–0.6 uncertain zone: 50/50
-    return Math.random() < 0.5 ? { action: 'true' } : { action: 'bull' };
-  }
-
-  /**
-   * Normal bluff: call one hand type above what the bot actually has,
-   * using a rank it actually holds. E.g., holds King high → bluff "pair of Kings."
-   */
-  private static makeNormalBluff(botCards: Card[], bestHand: HandCall): HandCall {
-    // Pick a bluff rank we DON'T hold — avoids revealing our actual cards.
-    // Use a mid-to-high rank (7-K) so the bluff is believable but not suspicious.
-    const heldRanks = new Set(botCards.map(c => c.rank));
-    const bluffRanks = ALL_RANKS.filter(r => !heldRanks.has(r) && RANK_VALUES[r] >= 7 && RANK_VALUES[r] <= 13);
-    const bluffRank = bluffRanks.length > 0
-      ? bluffRanks[Math.floor(Math.random() * bluffRanks.length)]!
-      : (botCards[0]?.rank ?? '2');
-
-    switch (bestHand.type) {
-      case HandType.HIGH_CARD:
-        return { type: HandType.PAIR, rank: bluffRank };
-      case HandType.PAIR:
-        return { type: HandType.THREE_OF_A_KIND, rank: bluffRank };
-      case HandType.THREE_OF_A_KIND:
-        return { type: HandType.FOUR_OF_A_KIND, rank: bluffRank };
-      default:
-        return { type: HandType.PAIR, rank: bluffRank };
-    }
+    // All non-impossible bots (NORMAL and HARD) use the same decision logic,
+    // differentiated only by their BotProfileConfig parameters.
+    const cfg: BotProfileConfig = profileConfig
+      ? { ...DEFAULT_BOT_PROFILE_CONFIG, ...profileConfig }
+      : DEFAULT_BOT_PROFILE_CONFIG;
+    return this.decideHard(state, botId, botCards, scope, cfg);
   }
 
   // ─── IMPOSSIBLE MODE (Perfect Information) ─────────────────────────
@@ -701,7 +552,7 @@ export class BotPlayer {
     return candidates;
   }
 
-  // ─── HARD MODE (Probability-Driven + GTO Bluffing) ──────────────────
+  // ─── STANDARD MODE (Probability-Driven + GTO Bluffing) ─────────────
 
   private static decideHard(state: ClientGameState, botId: string, botCards: Card[], scope?: string, cfg: BotProfileConfig = DEFAULT_BOT_PROFILE_CONFIG): BotAction {
     const { roundPhase, currentHand, lastCallerId } = state;
@@ -1727,27 +1578,7 @@ export class BotPlayer {
     return null;
   }
 
-  /**
-   * Simple hand search — only checks HIGH_CARD, PAIR, THREE_OF_A_KIND candidates.
-   */
-  private static findHandHigherThanSimple(cards: Card[], currentHand: HandCall): HandCall | null {
-    const candidates: HandCall[] = [];
-    const rankCounts = this.getRankCounts(cards);
-
-    for (const c of cards) {
-      candidates.push({ type: HandType.HIGH_CARD, rank: c.rank });
-    }
-    for (const [rank, count] of rankCounts) {
-      if (count >= 2) candidates.push({ type: HandType.PAIR, rank });
-    }
-    for (const [rank, count] of rankCounts) {
-      if (count >= 3) candidates.push({ type: HandType.THREE_OF_A_KIND, rank });
-    }
-
-    return this.pickLowestValid(candidates, currentHand);
-  }
-
-  // ─── HAND FINDING (FULL — Hard mode) ────────────────────────────────
+  // ─── HAND FINDING (FULL) ─────────────────────────────────────────────
 
   /**
    * Find the best hand considering all hand types and what might exist in the full card pool.
@@ -1890,79 +1721,19 @@ export class BotPlayer {
     return this.pickLowestValid(candidates, currentHand);
   }
 
-  // ─── PLAUSIBILITY (SIMPLE — Normal mode) ─────────────────────────────
-
-  private static estimatePlausibilitySimple(
-    hand: HandCall,
-    ownCards: Card[],
-    totalCards: number,
-  ): number {
-    switch (hand.type) {
-      case HandType.HIGH_CARD: {
-        const hasIt = ownCards.some(c => c.rank === hand.rank);
-        if (hasIt) return 0.95;
-        return Math.min(0.9, totalCards * 0.07);
-      }
-      case HandType.PAIR: {
-        const count = ownCards.filter(c => c.rank === hand.rank).length;
-        if (count >= 2) return 0.95;
-        const pairNeeded = 2 - count;
-        const othersCards = totalCards - ownCards.length;
-        if (pairNeeded > othersCards) return 0.0;
-        if (count === 1) return Math.min(0.7, totalCards * 0.05);
-        return Math.min(0.4, totalCards * 0.02);
-      }
-      case HandType.TWO_PAIR:
-        return totalCards >= 6 ? 0.35 : 0.15;
-      case HandType.THREE_OF_A_KIND: {
-        const count = ownCards.filter(c => c.rank === hand.rank).length;
-        if (count >= 3) return 0.95;
-        const tripleNeeded = 3 - count;
-        const othersCards3 = totalCards - ownCards.length;
-        if (tripleNeeded > othersCards3) return 0.0;
-        if (count >= 2) return 0.4;
-        return totalCards >= 8 ? 0.2 : 0.1;
-      }
-      case HandType.FLUSH: {
-        const suit = (hand as { type: HandType.FLUSH; suit: Suit }).suit;
-        const ownSuitCount = ownCards.filter(c => c.suit === suit).length;
-        const otherPlayerCards = totalCards - ownCards.length;
-        // If we need more suited cards than opponents could possibly hold, impossible
-        const needed = 5 - ownSuitCount;
-        if (needed > otherPlayerCards) return 0.0;
-        // Scale by how many of the suit we already hold
-        if (ownSuitCount >= 3) return totalCards >= 8 ? 0.5 : 0.25;
-        if (ownSuitCount >= 1) return totalCards >= 10 ? 0.3 : 0.1;
-        // No cards of this suit — unlikely, scale down further
-        return totalCards >= 12 ? 0.2 : 0.05;
-      }
-      case HandType.STRAIGHT:
-        return totalCards >= 8 ? 0.25 : 0.08;
-      case HandType.FULL_HOUSE:
-        return totalCards >= 10 ? 0.15 : 0.05;
-      case HandType.FOUR_OF_A_KIND:
-        return totalCards >= 12 ? 0.1 : 0.03;
-      case HandType.STRAIGHT_FLUSH:
-        return 0.02;
-      case HandType.ROYAL_FLUSH:
-        return 0.01;
-      default:
-        return 0.3;
-    }
-  }
-
   /**
-   * Public estimatePlausibility for backward compatibility (used by tests).
+   * Public estimatePlausibility using hypergeometric-approximation math.
+   * Delegates to the full plausibility estimator without inferred cards.
    */
   static estimatePlausibility(hand: HandCall, ownCards: Card[], totalCards: number): number {
-    return this.estimatePlausibilitySimple(hand, ownCards, totalCards);
+    return this.estimatePlausibilityHard(hand, ownCards, totalCards);
   }
 
-  // ─── PLAUSIBILITY (HARD MODE) ───────────────────────────────────────
+  // ─── PLAUSIBILITY ──────────────────────────────────────────────────
 
   /**
    * Hypergeometric-approximation plausibility estimation.
-   * More accurate probability estimates using number of cards seen vs remaining.
+   * Probability estimates using number of cards seen vs remaining.
    * Optional inferredCards adjusts the unseen pool based on call history analysis.
    */
   private static estimatePlausibilityHard(

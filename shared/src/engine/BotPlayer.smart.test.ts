@@ -553,12 +553,12 @@ describe('Smart Hard Bot - Bayesian Beliefs with TRUE calls', () => {
   });
 });
 
-describe('Smart Hard Bot - Normal and Impossible modes unchanged', () => {
+describe('Smart Bot - NORMAL unified with HARD, Impossible unchanged', () => {
   beforeEach(() => {
     BotPlayer.resetMemory();
   });
 
-  it('normal mode produces valid actions without new features', () => {
+  it('NORMAL mode produces valid actions using unified decision path', () => {
     const state = makeState({
       roundPhase: RoundPhase.CALLING,
       currentHand: { type: HandType.PAIR, rank: '5' },
