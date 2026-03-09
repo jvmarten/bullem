@@ -111,15 +111,8 @@ const PARAM_BOUNDS: Record<keyof BotProfileConfig, { min: number; max: number; i
   openingBluffRate:         { min: 0.0, max: 1.0, impact: 0.7 },
   bullPhaseRaiseRate:       { min: 0.0, max: 1.0, impact: 0.6 },
   trustMultiplier:          { min: 0.0, max: 2.0, impact: 0.7 },
-  cardCountSensitivity:     { min: 0.0, max: 2.0, impact: 0.4 },
-  headsUpAggression:        { min: 0.0, max: 1.0, impact: 0.8 },
-  survivalPressure:         { min: 0.0, max: 1.0, impact: 0.7 },
-  bluffTargetSelection:     { min: 0.0, max: 1.0, impact: 0.5 },
-  positionAwareness:        { min: 0.0, max: 1.0, impact: 0.6 },
-  trueCallConfidence:       { min: 0.0, max: 1.0, impact: 0.6 },
-  counterBluffRate:         { min: 0.0, max: 1.0, impact: 0.8 },
-  bullPhaseBluffRate:       { min: 0.0, max: 1.0, impact: 0.6 },
-  openingHandTypePreference:{ min: 0.0, max: 1.0, impact: 0.5 },
+  bluffPlausibilityGate:    { min: 0.0, max: 1.0, impact: 0.7 },
+  noiseBand:                { min: 0.0, max: 0.2, impact: 0.5 },
 };
 
 const PARAM_KEYS = Object.keys(PARAM_BOUNDS) as (keyof BotProfileConfig)[];
@@ -176,10 +169,9 @@ function mutateConfig(
  * Within each group, all params come from the same parent (70% of the time).
  */
 const COUPLED_PARAM_GROUPS: (keyof BotProfileConfig)[][] = [
-  ['bluffFrequency', 'aggressionBias', 'counterBluffRate'],  // Bluff aggression cluster
-  ['bullThreshold', 'trueCallConfidence', 'cardCountSensitivity'], // Defensiveness cluster
-  ['riskTolerance', 'bluffTargetSelection', 'bullPhaseBluffRate'], // Risk-taking cluster
-  ['survivalPressure', 'headsUpAggression', 'lastChanceBluffRate'], // Game-state awareness cluster
+  ['bluffFrequency', 'aggressionBias', 'bluffPlausibilityGate'],  // Bluff aggression cluster
+  ['bullThreshold', 'trustMultiplier', 'noiseBand'],               // Defensiveness cluster
+  ['riskTolerance', 'lastChanceBluffRate', 'bullPhaseRaiseRate'],   // Risk-taking cluster
 ];
 
 /** Crossover two parent configs — coupled-aware crossover.

@@ -205,8 +205,8 @@ describe('Smart Hard Bot - Desperation Awareness', () => {
 
     let desperateBulls = 0;
     let safeBulls = 0;
-    // Increased iterations for statistical stability — the evolved lower
-    // cardCountSensitivity narrows the desperation signal margin
+    // Increased iterations for statistical stability — the hardcoded low
+    // CARD_COUNT_SENSITIVITY narrows the desperation signal margin
     const n = 2000;
 
     for (let i = 0; i < n; i++) {
@@ -221,7 +221,7 @@ describe('Smart Hard Bot - Desperation Awareness', () => {
     }
 
     // Should call bull more on desperate players (they're more likely bluffing).
-    // With evolved-informed lower cardCountSensitivity, the margin is slimmer
+    // With hardcoded low CARD_COUNT_SENSITIVITY, the margin is slimmer
     // but the desperation trust factor still creates a measurable difference.
     // Threshold set to 0.90 to avoid flaky failures from statistical variance.
     expect(desperateBulls).toBeGreaterThanOrEqual(safeBulls * 0.90);
