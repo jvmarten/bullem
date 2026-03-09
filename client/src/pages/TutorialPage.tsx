@@ -86,84 +86,46 @@ interface TutorialStep {
   };
 }
 
-const STEPS: TutorialStep[] = [
+/* ── Quick Tutorial (5 steps) — core game loop ────────── */
+
+const QUICK_STEPS: TutorialStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to Bull \'Em!',
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          Bull &apos;Em is a bluffing card game where you claim poker hands exist across
+          Bull &apos;Em is a bluffing card game — claim poker hands exist across
           <strong className="text-[var(--gold)]"> all players&apos; combined cards</strong>.
+          Bluff or call out bluffs!
         </p>
-        <p className="text-sm text-[#e8e0d4]">
-          Let&apos;s play through a quick round so you can see how it works.
+        <div className="glass p-2.5 rounded-lg mb-2" style={{ border: '1px solid var(--danger)' }}>
+          <p className="text-[10px] uppercase tracking-widest text-[var(--danger)] font-semibold mb-1.5">Key Rule</p>
+          <div className="space-y-2">
+            <HandExample rank={4} name="Flush" cards={[{rank:'2',suit:'hearts'},{rank:'5',suit:'hearts'},{rank:'8',suit:'hearts'}]} desc="All same suit — ranked LOWER here!" highlight />
+            <div className="text-center text-[var(--danger)] text-xs font-bold">&#9650; is LOWER than &#9660;</div>
+            <HandExample rank={5} name="Three of a Kind" cards={[{rank:'9',suit:'spades'},{rank:'9',suit:'hearts'},{rank:'9',suit:'diamonds'}]} desc="Three cards of the same rank — beats Flush!" />
+          </div>
+        </div>
+        <p className="text-xs text-[var(--gold-dim)]">
+          This is different from standard poker — don&apos;t forget it!
         </p>
       </>
     ),
     visibleSections: [],
   },
   {
-    id: 'deal',
-    title: 'Cards Are Dealt',
+    id: 'deal-and-turn',
+    title: 'Your Cards & Turn',
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          Each player starts with <strong className="text-[var(--gold)]">1 card</strong> in Round 1.
-          You can only see your own card.
+          Each player starts with <strong className="text-[var(--gold)]">1 card</strong>. You can only see your own.
+          You have the <strong>7 of Hearts</strong> — the bot&apos;s card is hidden.
         </p>
         <p className="text-sm text-[#e8e0d4]">
-          You have the <strong>7 of Hearts</strong>. The bot has a card too, but you can&apos;t see it.
-        </p>
-      </>
-    ),
-    highlight: '[data-tutorial="my-cards"]',
-    position: 'bottom',
-    visibleSections: ['players', 'cards'],
-  },
-  {
-    id: 'players',
-    title: 'Player List',
-    body: (
-      <p className="text-sm text-[#e8e0d4]">
-        The player list shows everyone in the game, how many cards they have,
-        and who&apos;s currently taking their turn (gold highlight).
-      </p>
-    ),
-    highlight: '[data-tutorial="players"]',
-    position: 'bottom',
-    visibleSections: ['players', 'cards'],
-  },
-  {
-    id: 'your-turn',
-    title: 'Your Turn — Call a Hand',
-    body: (
-      <>
-        <p className="text-sm text-[#e8e0d4] mb-2">
-          It&apos;s your turn! You need to <strong className="text-[var(--gold)]">call a poker hand</strong> that
-          you claim exists across all players&apos; combined cards.
-        </p>
-        <p className="text-sm text-[#e8e0d4]">
-          You have a 7, so claiming &ldquo;Pair of 7s&rdquo; is a reasonable bluff — maybe the bot has a 7 too!
-        </p>
-      </>
-    ),
-    highlight: '[data-tutorial="turn-indicator"]',
-    position: 'bottom',
-    visibleSections: ['players', 'cards', 'turn'],
-    gameState: { currentPlayerId: MY_ID, roundPhase: RoundPhase.CALLING, currentHand: null, turnHistory: [] },
-  },
-  {
-    id: 'call-hand',
-    title: 'Select Your Hand',
-    body: (
-      <>
-        <p className="text-sm text-[#e8e0d4] mb-2">
-          Use the <strong className="text-[var(--gold)]">hand selector</strong> to pick your call.
-          The left wheel selects the hand type, the right wheel selects the rank.
-        </p>
-        <p className="text-sm text-[#e8e0d4]">
-          Try selecting any hand and tap <strong>&ldquo;Call&rdquo;</strong> to submit it!
+          It&apos;s your turn — <strong className="text-[var(--gold)]">call a poker hand</strong> you
+          claim exists across all players&apos; combined cards. Try selecting any hand and tap <strong>&ldquo;Call&rdquo;</strong>!
         </p>
       </>
     ),
@@ -179,11 +141,11 @@ const STEPS: TutorialStep[] = [
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          {BOT_NAME} decided to <strong className="text-[var(--gold)]">raise</strong> — calling an even higher hand.
+          {BOT_NAME} <strong className="text-[var(--gold)]">raised</strong> — claiming an even higher hand:
+          &ldquo;Three 9s&rdquo;. Each call must beat the previous one.
         </p>
         <p className="text-sm text-[#e8e0d4]">
-          Each call must be <strong>higher</strong> than the previous one. The bot claimed
-          &ldquo;Three 9s&rdquo; — that sounds suspicious with only 2 cards in play!
+          Three 9s with only 2 cards in play? That&apos;s impossible!
         </p>
       </>
     ),
@@ -200,16 +162,16 @@ const STEPS: TutorialStep[] = [
     },
   },
   {
-    id: 'bull-or-raise',
-    title: 'Bull or Raise?',
+    id: 'call-bull',
+    title: 'Call BULL!',
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          Now you can <strong className="text-[var(--danger)]">call BULL</strong> (you don&apos;t believe the hand exists)
-          or <strong className="text-[var(--gold)]">Raise</strong> (call an even higher hand).
+          You can <strong className="text-[var(--danger)]">call BULL</strong> (you don&apos;t believe the hand exists)
+          or <strong className="text-[var(--gold)]">Raise</strong> (call something even higher).
         </p>
         <p className="text-sm text-[#e8e0d4]">
-          Three 9s with only 2 cards? That&apos;s impossible! Tap <strong className="text-[var(--danger)]">BULL!</strong> to challenge.
+          Tap <strong className="text-[var(--danger)]">BULL!</strong> to challenge the bot&apos;s bluff.
         </p>
       </>
     ),
@@ -227,28 +189,34 @@ const STEPS: TutorialStep[] = [
     },
   },
   {
-    id: 'reveal',
-    title: 'Cards Revealed!',
+    id: 'reveal-done',
+    title: 'You Got \'Em!',
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          When bull is called, the relevant cards are <strong className="text-[var(--gold)]">revealed</strong>.
-          The game checks if the called hand really exists across all players&apos; combined cards.
+          Cards are revealed — <strong className="text-[var(--danger)]">Three 9s</strong> was fake!
+          The bot bluffed and gets <strong>+1 card</strong> as penalty.
         </p>
         <p className="text-sm text-[#e8e0d4] mb-2">
-          <strong className="text-[var(--danger)]">Three 9s</strong> — the combined cards are 7♥ and 7♠. No nines at all!
-          The hand was <strong>fake</strong>.
+          Exceed the max card limit and you&apos;re <strong>eliminated</strong>.
+          Last player standing <strong className="text-[var(--gold)]">wins</strong>!
         </p>
         <p className="text-sm text-[#e8e0d4]">
-          Since you correctly called bull, the <strong>bot gets +1 card</strong> next round as a penalty.
+          That&apos;s the core loop: <strong>Call → Raise → Bull → Reveal</strong>.
+          Ready to play?
         </p>
       </>
     ),
     visibleSections: ['players', 'cards', 'result'],
   },
+];
+
+/* ── Advanced Rules (optional deep-dive) ──────────────── */
+
+const ADVANCED_STEPS: TutorialStep[] = [
   {
     id: 'true-explain',
-    title: 'What About TRUE?',
+    title: 'The TRUE Action',
     body: (
       <>
         <p className="text-sm text-[#e8e0d4] mb-2">
@@ -260,22 +228,6 @@ const STEPS: TutorialStep[] = [
         </p>
         <p className="text-sm text-[#e8e0d4]">
           <strong>If the hand is fake:</strong> true callers get +1 card, bull callers are safe.
-        </p>
-      </>
-    ),
-    visibleSections: [],
-  },
-  {
-    id: 'rankings-intro',
-    title: 'Hand Rankings',
-    body: (
-      <>
-        <p className="text-sm text-[#e8e0d4] mb-2">
-          Bull &apos;Em uses <strong className="text-[var(--gold)]">custom hand rankings</strong> that differ from standard poker.
-          Let&apos;s walk through each hand type from lowest to highest.
-        </p>
-        <p className="text-sm text-[#e8e0d4]">
-          Pay close attention — the order has a <strong className="text-[var(--danger)]">key difference</strong> you need to know!
         </p>
       </>
     ),
@@ -404,17 +356,6 @@ const STEPS: TutorialStep[] = [
     ),
     visibleSections: [],
   },
-  {
-    id: 'done',
-    title: 'You\'re Ready!',
-    body: (
-      <p className="text-sm text-[#e8e0d4]">
-        That&apos;s the core of Bull &apos;Em. Start a local game with bots to practice,
-        or jump online and bluff your friends!
-      </p>
-    ),
-    visibleSections: [],
-  },
 ];
 
 /* ── Component ─────────────────────────────────────────── */
@@ -422,24 +363,36 @@ const STEPS: TutorialStep[] = [
 export function TutorialPage() {
   const navigate = useNavigate();
   const { play } = useSound();
+  const [section, setSection] = useState<'quick' | 'advanced'>('quick');
   const [stepIndex, setStepIndex] = useState(0);
   const [playerHand, setPlayerHand] = useState<HandCall | null>(null);
   const [playerHandValid, setPlayerHandValid] = useState(false);
   const [quizAnswer, setQuizAnswer] = useState<'flush' | 'three' | null>(null);
 
-  const step = STEPS[stepIndex]!;
-  const isLastStep = stepIndex === STEPS.length - 1;
+  const steps = section === 'quick' ? QUICK_STEPS : ADVANCED_STEPS;
+  const step = steps[stepIndex]!;
+  const isLastStep = stepIndex === steps.length - 1;
+  const isQuickDone = section === 'quick' && isLastStep;
 
   // Persist step progress
   useEffect(() => {
-    setTutorialStepReached(stepIndex);
-  }, [stepIndex]);
+    // Offset advanced steps so they don't collide with quick step progress
+    const globalIndex = section === 'quick' ? stepIndex : QUICK_STEPS.length + stepIndex;
+    setTutorialStepReached(globalIndex);
+  }, [stepIndex, section]);
 
   const advance = useCallback(() => {
     if (isLastStep) return;
     play('uiClick');
     setStepIndex(prev => prev + 1);
   }, [isLastStep, play]);
+
+  const enterAdvanced = useCallback(() => {
+    play('uiClick');
+    setSection('advanced');
+    setStepIndex(0);
+    setQuizAnswer(null);
+  }, [play]);
 
   const goBack = useCallback(() => {
     if (stepIndex === 0) return;
@@ -486,7 +439,7 @@ export function TutorialPage() {
         ...turnHistory,
       ];
     }
-    if (step.id === 'bull-or-raise' && playerHand) {
+    if (step.id === 'call-bull' && playerHand) {
       return [
         { playerId: MY_ID, playerName: MY_NAME, action: TurnAction.CALL, hand: playerHand, timestamp: Date.now() - 2000 },
         ...turnHistory,
@@ -502,17 +455,20 @@ export function TutorialPage() {
       <div className="flex flex-col gap-3 pb-8 relative">
         {/* Progress bar */}
         <div className="flex items-center gap-2 px-1">
+          <span className="text-[10px] text-[var(--gold-dim)] font-semibold uppercase tracking-wider shrink-0">
+            {section === 'quick' ? 'Quick Start' : 'Advanced'}
+          </span>
           <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{
-                width: `${((stepIndex + 1) / STEPS.length) * 100}%`,
+                width: `${((stepIndex + 1) / steps.length) * 100}%`,
                 background: 'var(--gold)',
               }}
             />
           </div>
           <span className="text-[10px] text-[var(--gold-dim)] font-mono tabular-nums">
-            {stepIndex + 1}/{STEPS.length}
+            {stepIndex + 1}/{steps.length}
           </span>
         </div>
 
@@ -806,20 +762,30 @@ export function TutorialPage() {
                         Back
                       </button>
                     )}
-                    {isLastStep ? (
-                      <div className="flex gap-2 ml-auto">
-                        <button
-                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/local'); }}
-                          className="btn-ghost px-4 py-1.5 text-sm font-semibold"
-                        >
-                          Play Offline
-                        </button>
-                        <button
-                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
-                          className="btn-gold px-4 py-1.5 text-sm font-semibold"
-                        >
-                          Play Online
-                        </button>
+                    {isQuickDone || (section === 'advanced' && isLastStep) ? (
+                      <div className="flex flex-col gap-2 ml-auto w-full">
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/local'); }}
+                            className="btn-ghost px-4 py-1.5 text-sm font-semibold"
+                          >
+                            Play Offline
+                          </button>
+                          <button
+                            onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
+                            className="btn-gold px-4 py-1.5 text-sm font-semibold"
+                          >
+                            Play Online
+                          </button>
+                        </div>
+                        {isQuickDone && (
+                          <button
+                            onClick={enterAdvanced}
+                            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-right"
+                          >
+                            Learn Advanced Rules →
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
@@ -835,7 +801,7 @@ export function TutorialPage() {
 
         {/* Skip / Back to home */}
         <div className="flex justify-center gap-4">
-          {!isLastStep && (
+          {!(isQuickDone || (section === 'advanced' && isLastStep)) && (
             <button
               onClick={() => { clearTutorialStepProgress(); navigate('/'); }}
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
@@ -843,7 +809,7 @@ export function TutorialPage() {
               Skip Tutorial
             </button>
           )}
-          {isLastStep && (
+          {(isQuickDone || (section === 'advanced' && isLastStep)) && (
             <button
               onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); navigate('/'); }}
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
