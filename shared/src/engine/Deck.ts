@@ -1,24 +1,32 @@
 import { ALL_RANKS, ALL_SUITS } from '../constants.js';
-import type { Card } from '../types.js';
+import type { Card, JokerCount } from '../types.js';
 
 /**
- * Standard 52-card deck with Fisher-Yates shuffle.
+ * Card deck with Fisher-Yates shuffle. Supports 0, 1, or 2 joker (wild) cards.
  * Call {@link reset} between rounds to rebuild and reshuffle.
  */
 export class Deck {
   private cards: Card[] = [];
+  private jokerCount: JokerCount;
 
-  constructor() {
+  constructor(jokerCount: JokerCount = 0) {
+    this.jokerCount = jokerCount;
     this.reset();
   }
 
-  /** Rebuild the full 52-card deck and shuffle it. */
+  /** Rebuild the deck (52 standard cards + jokers) and shuffle it. */
   reset(): void {
     this.cards = [];
     for (const suit of ALL_SUITS) {
       for (const rank of ALL_RANKS) {
         this.cards.push({ rank, suit });
       }
+    }
+    // Jokers use a dummy rank/suit — the isJoker flag is what matters.
+    // Suit alternates so the two jokers are distinguishable in the UI.
+    const jokerSuits: Card['suit'][] = ['hearts', 'spades'];
+    for (let i = 0; i < this.jokerCount; i++) {
+      this.cards.push({ rank: 'A', suit: jokerSuits[i]!, isJoker: true });
     }
     this.shuffle();
   }

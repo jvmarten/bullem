@@ -4,7 +4,7 @@ import {
   GamePhase, RoundPhase, HandType, STARTING_CARDS, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
-  DECK_SIZE, maxPlayersForMaxCards, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
+  DECK_SIZE, maxPlayersForMaxCards, getDeckSize, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
   saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
@@ -650,9 +650,10 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       return;
     }
     const settings = gameSettingsRef.current;
+    const effectiveDeckSize = getDeckSize(settings.jokerCount ?? 0);
     const totalNeeded = playersRef.current.length * settings.maxCards;
-    if (totalNeeded > DECK_SIZE) {
-      setError(`Too many players for ${settings.maxCards}-card game (${playersRef.current.length} x ${settings.maxCards} = ${totalNeeded} > ${DECK_SIZE})`);
+    if (totalNeeded > effectiveDeckSize) {
+      setError(`Too many players for ${settings.maxCards}-card game (${playersRef.current.length} x ${settings.maxCards} = ${totalNeeded} > ${effectiveDeckSize})`);
       return;
     }
     const shuffled = [...playersRef.current];
@@ -762,7 +763,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const addBot = useCallback(async (botName?: string): Promise<string> => {
     const settings = gameSettingsRef.current;
     const newCount = playersRef.current.length + 1;
-    if (newCount * settings.maxCards > DECK_SIZE) {
+    if (newCount * settings.maxCards > getDeckSize(settings.jokerCount ?? 0)) {
       throw new Error(`Too many players for ${settings.maxCards}-card game. Reduce max cards or remove a player.`);
     }
     const usedNames = new Set(playersRef.current.map(p => p.name));

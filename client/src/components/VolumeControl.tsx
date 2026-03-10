@@ -72,6 +72,7 @@ export interface SavedMatchSettings {
   allowSpectators?: boolean;
   spectatorsCanSeeCards?: boolean;
   bestOf?: number;
+  jokerCount?: number;
 }
 
 type SettingsMode = 'online' | 'local';

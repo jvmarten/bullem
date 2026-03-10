@@ -80,7 +80,7 @@ export class BotManager {
   }
 
   addBot(room: Room, botName?: string, opts?: { username?: string }): string {
-    const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
+    const cardBased = maxPlayersForMaxCards(room.settings.maxCards, room.settings.jokerCount ?? 0);
     const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
     const effectiveMax = Math.min(MAX_PLAYERS, cardBased, userCap);
     if (room.playerCount >= effectiveMax) {

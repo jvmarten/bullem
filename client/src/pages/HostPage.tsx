@@ -5,8 +5,8 @@ import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
-import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed } from '@bull-em/shared';
-import type { LastChanceMode, BotLevelCategory, BestOf } from '@bull-em/shared';
+import { MAX_PLAYERS_OPTIONS, ONLINE_TURN_TIMER_OPTIONS, maxPlayersForMaxCards, BotSpeed, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
+import type { LastChanceMode, BotLevelCategory, BestOf, JokerCount } from '@bull-em/shared';
 import { loadMatchSettings, saveMatchSettings } from '../components/VolumeControl.js';
 import { friendlyError } from '../utils/friendlyErrors.js';
 
@@ -31,10 +31,11 @@ export function HostPage() {
   const [botSpeed, setBotSpeed] = useState<BotSpeed>((saved?.botSpeed as BotSpeed) ?? BotSpeed.NORMAL);
   const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>((saved?.lastChanceMode as LastChanceMode) ?? 'classic');
   const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>((saved?.botLevelCategory as BotLevelCategory) ?? 'normal');
+  const [jokerCount, setJokerCount] = useState<JokerCount>((saved?.jokerCount as JokerCount) ?? DEFAULT_JOKER_COUNT);
   const [showLcrInfo, setShowLcrInfo] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const dynamicMaxPlayers = maxPlayersForMaxCards(maxCards);
+  const dynamicMaxPlayers = maxPlayersForMaxCards(maxCards, jokerCount);
   const validPlayerOptions = useMemo(
     () => MAX_PLAYERS_OPTIONS.filter(n => n <= dynamicMaxPlayers),
     [dynamicMaxPlayers],
@@ -42,7 +43,7 @@ export function HostPage() {
 
   const handleMaxCardsChange = (n: number) => {
     setMaxCards(n);
-    const newMax = maxPlayersForMaxCards(n);
+    const newMax = maxPlayersForMaxCards(n, jokerCount);
     if (maxPlayers > newMax) {
       // Find the largest valid option that fits
       const clamped = [...MAX_PLAYERS_OPTIONS].reverse().find(o => o <= newMax) ?? 2;
@@ -57,8 +58,8 @@ export function HostPage() {
     setLoading(true);
     try {
       const roomCode = await createRoom(playerName, user?.avatar);
-      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory });
-      saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory }, 'online');
+      updateSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory, jokerCount });
+      saveMatchSettings({ maxCards, maxPlayers, turnTimer, allowSpectators, spectatorsCanSeeCards, botSpeed, lastChanceMode, botLevelCategory, jokerCount }, 'online');
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (e) {
       addToast(friendlyError(e instanceof Error ? e.message : 'Failed to create room — check your connection'));
@@ -149,6 +150,15 @@ export function HostPage() {
             {lastChanceMode === 'classic'
               ? 'After LCR, all players can bull, true, or raise'
               : 'After LCR, next player must bull or raise — no true option'}
+          </p>
+        </div>
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Jokers (Wild)</p>
+          <div className="flex gap-1.5">{JOKER_COUNT_OPTIONS.map(n => (
+            <button key={n} onClick={() => { play('uiSoft'); setJokerCount(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${jokerCount===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}</button>
+          ))}</div>
+          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+            {jokerCount === 0 ? 'Standard 52-card deck' : `${jokerCount} wild joker${jokerCount > 1 ? 's' : ''} — can substitute for any card`}
           </p>
         </div>
         </div>{/* end host-left */}

@@ -3,8 +3,8 @@ import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF } from '@bull-em/shared';
-import type { BotLevelCategory, BestOf } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
+import type { BotLevelCategory, BestOf, JokerCount } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useToast } from '../context/ToastContext.js';
@@ -60,7 +60,8 @@ export function LocalLobbyPage() {
   }, []);
 
   const maxCards = gameSettings?.maxCards ?? MAX_CARDS;
-  const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards));
+  const localJokerCount = gameSettings?.jokerCount ?? 0;
+  const dynamicMaxPlayers = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(maxCards, localJokerCount));
   const playerCount = roomState?.players.length ?? 0;
 
   const firstGame = isFirstGame();
@@ -87,6 +88,7 @@ export function LocalLobbyPage() {
             ...(saved.botSpeed && { botSpeed: saved.botSpeed as BotSpeed }),
             ...(saved.lastChanceMode && { lastChanceMode: saved.lastChanceMode as 'classic' | 'strict' }),
             ...(saved.bestOf != null && { bestOf: saved.bestOf as BestOf }),
+            ...(saved.jokerCount != null && { jokerCount: saved.jokerCount as JokerCount }),
           });
         }
       }
@@ -111,6 +113,7 @@ export function LocalLobbyPage() {
       botSpeed: gameSettings.botSpeed,
       lastChanceMode: gameSettings.lastChanceMode,
       bestOf: gameSettings.bestOf,
+      jokerCount: gameSettings.jokerCount,
     }, 'local');
   }, [gameSettings]);
 
@@ -132,7 +135,7 @@ export function LocalLobbyPage() {
 
   const handleMaxCardsChange = (newMax: number) => {
     if (!setGameSettings || !gameSettings) return;
-    const newDynamic = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax));
+    const newDynamic = Math.min(MAX_PLAYERS, maxPlayersForMaxCards(newMax, localJokerCount));
     // If reducing max cards would make current player count invalid, block
     if (playerCount > newDynamic) {
       addToast(`Can't set max cards to ${newMax} with ${playerCount} players (max ${newDynamic} players at ${newMax} cards)`);
@@ -292,6 +295,34 @@ export function LocalLobbyPage() {
             </div>
             <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
               Eliminated after {maxCards + 1} cards &middot; Max {dynamicMaxPlayers} players
+            </p>
+          </div>
+        )}
+
+        {setGameSettings && gameSettings && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Jokers (Wild)
+            </p>
+            <div className="flex gap-1.5">
+              {JOKER_COUNT_OPTIONS.map(n => (
+                <button
+                  key={n}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, jokerCount: n }); }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    (gameSettings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {(gameSettings.jokerCount ?? 0) === 0
+                ? 'Standard 52-card deck'
+                : `${gameSettings.jokerCount} wild joker${(gameSettings.jokerCount ?? 0) > 1 ? 's' : ''} \u2014 can substitute for any card`}
             </p>
           </div>
         )}

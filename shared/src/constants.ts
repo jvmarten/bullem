@@ -1,4 +1,4 @@
-import type { Rank, Suit, BotSpeed } from './types.js';
+import type { Rank, Suit, BotSpeed, JokerCount } from './types.js';
 
 /** Numeric value for each rank (2=2, ..., A=14). Used for hand comparison ordering. */
 export const RANK_VALUES: Record<Rank, number> = {
@@ -21,9 +21,18 @@ export const MIN_MAX_CARDS = 1;
 export const STARTING_CARDS = 1;
 export const DECK_SIZE = 52;
 
+/** Number of jokers in the deck. Valid values: 0, 1, 2. */
+export const JOKER_COUNT_OPTIONS: readonly JokerCount[] = [0, 1, 2] as const;
+export const DEFAULT_JOKER_COUNT: JokerCount = 0;
+
+/** Effective deck size including jokers. */
+export function getDeckSize(jokerCount: JokerCount = 0): number {
+  return DECK_SIZE + jokerCount;
+}
+
 /** Max players is limited by deck size — each player needs at least maxCards cards. */
-export function maxPlayersForMaxCards(maxCards: number): number {
-  return Math.floor(DECK_SIZE / maxCards);
+export function maxPlayersForMaxCards(maxCards: number, jokerCount: JokerCount = 0): number {
+  return Math.floor(getDeckSize(jokerCount) / maxCards);
 }
 
 export const TURN_TIMER_OPTIONS = [0, 15, 30, 60] as const; // 0 = no timer (local only)
