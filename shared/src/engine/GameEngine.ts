@@ -874,5 +874,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     userId: p.userId,
     username: p.username,
     avatar: p.avatar,
+    photoUrl: p.photoUrl,
   };
 }
