@@ -308,5 +308,11 @@ export function getInfoSetKey(
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
+  // 2P refinement: distinguish high card claims (trivially true) from
+  // pair+ claims (may be bluffs). Only appended for p2.
+  if (activePlayers <= 2 && state.currentHand) {
+    parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
+  }
+
   return parts.join('|');
 }

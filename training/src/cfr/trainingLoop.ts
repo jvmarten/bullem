@@ -166,8 +166,13 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
     turnTimer: 0,
   };
 
-  // Pre-sample bot profiles for opponent pool
-  const profilePool = [...BOT_PROFILES];
+  // Filter opponent pool to lvl7-8 profiles (strongest heuristic bots).
+  // Training against the strongest opponents teaches CFR to exploit the
+  // patterns it will actually face in evaluation, rather than diluting
+  // the signal across weak/easy bots with different play styles.
+  const profilePool = BOT_PROFILES.filter(p =>
+    p.key.includes('_lvl7') || p.key.includes('_lvl8'),
+  );
 
   const startTime = performance.now();
   let totalGames = 0;
@@ -248,7 +253,9 @@ export function resumeTraining(
     turnTimer: 0,
   };
 
-  const profilePool = [...BOT_PROFILES];
+  const profilePool = BOT_PROFILES.filter(p =>
+    p.key.includes('_lvl7') || p.key.includes('_lvl8'),
+  );
 
   const startTime = performance.now();
   const startIter = existingEngine.iterations;
@@ -326,10 +333,11 @@ interface TrainingPlayerSetup {
 
 /**
  * Create players for a training game.
- * - Heads-up (2P): pure CFR self-play (converges to Nash in 2-player zero-sum).
- * - Multiplayer (3+): 1 CFR traverser + (n-1) heuristic bot opponents.
- *   Training against the bot pool teaches CFR to exploit the opponents it
- *   will face in evaluation, since CFR self-play doesn't converge in >2P.
+ * All player counts use 1 CFR traverser + (n-1) heuristic bot opponents.
+ * Training against the bot pool teaches CFR to exploit the opponents it
+ * will face in evaluation. For 2P, this produces a best-response strategy
+ * that beats heuristic bots, rather than a Nash equilibrium (which only
+ * guarantees 50% and can't exploit opponent weaknesses).
  */
 function createTrainingPlayers(
   playerCount: number,
@@ -339,31 +347,22 @@ function createTrainingPlayers(
   const configs: BotConfig[] = [];
   const opponentConfigs = new Map<string, BotProfileConfig>();
 
-  if (playerCount <= 2) {
-    // Pure CFR self-play for heads-up
-    for (let i = 0; i < playerCount; i++) {
-      configs.push({ id: `cfr-${i}`, name: `CFR ${i + 1}`, difficulty: BotDifficulty.HARD });
-    }
-  } else {
-    // 1 CFR traverser + (n-1) bot opponents for multiplayer
-    configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
-    for (let i = 1; i < playerCount; i++) {
-      const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
-      const botId = `bot-${i}`;
-      configs.push({
-        id: botId,
-        name: `Bot ${i}`,
-        difficulty: BotDifficulty.HARD,
-        profileConfig: profile.config,
-      });
-      opponentConfigs.set(botId, profile.config);
-    }
+  // 1 CFR traverser + (n-1) bot opponents for all player counts
+  configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
+  for (let i = 1; i < playerCount; i++) {
+    const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
+    const botId = `bot-${i}`;
+    configs.push({
+      id: botId,
+      name: `Bot ${i}`,
+      difficulty: BotDifficulty.HARD,
+      profileConfig: profile.config,
+    });
+    opponentConfigs.set(botId, profile.config);
   }
 
   const players = createBotPlayers(configs);
-  const traverserId = playerCount <= 2
-    ? `cfr-${iteration % playerCount}`
-    : 'cfr-0'; // Always traverse the CFR agent in multiplayer
+  const traverserId = 'cfr-0';
 
   return { players, traverserId, opponentConfigs };
 }

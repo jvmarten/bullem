@@ -378,6 +378,15 @@ export function getInfoSetKey(
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
+  // 2P refinement: distinguish high card claims (trivially true) from
+  // pair+ claims (may be bluffs). This is the biggest abstraction error
+  // in 1v1 — the optimal bull rate for "high card" is ~0% while for
+  // "pair" it's ~94% with 2 cards. Merging them produces bad strategy.
+  // Only appended for p2 so multiplayer keys stay identical.
+  if (activePlayers <= 2 && state.currentHand) {
+    parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
+  }
+
   return parts.join('|');
 }
 
