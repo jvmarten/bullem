@@ -428,6 +428,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setWinnerId(wId);
       setGameStats(stats);
       setRatingChanges(rChanges ?? null);
+      // Clear round result overlay so the navigation to results page fires
+      // immediately. Without this, eliminated spectators who haven't clicked
+      // "Continue" on the round result overlay would stay stuck on GamePage —
+      // their game:continue is ignored by the server (eliminated), so no
+      // pending game state clears the overlay for them.
+      setRoundResult(null);
+      roundResultRef.current = null;
+      if (roundResultTimerRef.current) {
+        clearTimeout(roundResultTimerRef.current);
+        roundResultTimerRef.current = null;
+      }
+      // Discard any stale pending game state — the game is over, don't apply
+      // a buffered mid-game state after navigating to results.
+      pendingGameStateRef.current = null;
       // Game is over — clear active session so we don't try to rejoin on next browser open
       clearActiveSession();
       // Record other human players for the "Recent Players" list
