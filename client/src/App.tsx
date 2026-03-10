@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { GameStartBanner, ActiveGameRedirect } from './components/GameStartBanner.js';
 import { AuthProvider } from './context/AuthContext.js';
@@ -137,6 +137,7 @@ export default function App() {
           <Route path="/replays" element={<SuspenseRoute label="replays"><ReplaysPage /></SuspenseRoute>} />
           <Route path="/leaderboard" element={<SuspenseRoute label="leaderboard"><LeaderboardPage /></SuspenseRoute>} />
           <Route path="/draw" element={<SuspenseRoute label="deck draw"><DeckDrawPage /></SuspenseRoute>} />
+          <Route path="/deck-draw" element={<Navigate to="/draw" replace />} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
