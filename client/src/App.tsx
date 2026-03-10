@@ -124,7 +124,6 @@ export default function App() {
           <Route path="/tutorial" element={<TutorialPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/replays" element={<ReplaysPage />} />
@@ -133,6 +132,7 @@ export default function App() {
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
+            <Route path="/u/:username" element={<PublicProfilePage />} />
             <Route path="/" element={<HomePage />} />
             <Route path="/host" element={<HostPage />} />
             <Route path="/room/:roomCode" element={<LobbyPage />} />
