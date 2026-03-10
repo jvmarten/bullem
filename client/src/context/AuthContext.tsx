@@ -100,12 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const uploadPhoto = useCallback(async (photoDataUrl: string | null) => {
-    await apiFetch<{ ok: boolean; photoUrl: string | null }>('/auth/upload-photo', {
+    const data = await apiFetch<{ ok: boolean; photoUrl: string | null }>('/auth/upload-photo', {
       method: 'POST',
       body: JSON.stringify({ photo: photoDataUrl }),
     });
-    setUser(prev => prev ? { ...prev, photoUrl: photoDataUrl } : null);
-    setProfile(prev => prev ? { ...prev, photoUrl: photoDataUrl } : null);
+    // Use the URL returned by the server (Tigris URL), not the data URL we sent
+    setUser(prev => prev ? { ...prev, photoUrl: data.photoUrl } : null);
+    setProfile(prev => prev ? { ...prev, photoUrl: data.photoUrl } : null);
   }, []);
 
   const updateUsername = useCallback(async (username: string) => {
