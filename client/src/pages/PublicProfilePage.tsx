@@ -662,7 +662,7 @@ export function PublicProfilePage() {
         )}
 
         {/* Advanced Stats — admin only */}
-        {isAdmin && profile.id && <AdvancedStats userId={profile.id} />}
+        {isAdmin && profile.id && <AdvancedStats userId={profile.id} displayName={profile.displayName} />}
 
         {/* Bot flavor text */}
         {profile.isBot && botProfile && (

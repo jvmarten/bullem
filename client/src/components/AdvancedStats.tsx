@@ -11,8 +11,11 @@ import type {
   PerformanceByPlayerCount,
   TodaySession,
   OpponentRecord,
+  PlayerStatsResponse,
 } from '@bull-em/shared';
 import { PlayerAvatarContent } from './PlayerAvatar.js';
+import { BluffHeatMap, WinProbabilityGraph, RivalryStats, CareerTrajectory, ShareableStatCard } from './DataViz/index.js';
+import type { StatCardSummary } from './DataViz/ShareableStatCard.js';
 
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
@@ -302,22 +305,35 @@ function AdvancedStatsSkeleton() {
   );
 }
 
-export function AdvancedStats({ userId }: { userId: string }) {
+export function AdvancedStats({ userId, displayName }: { userId: string; displayName?: string }) {
   const [stats, setStats] = useState<AdvancedStatsResponse | null>(null);
+  const [basicStats, setBasicStats] = useState<StatCardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
 
   const fetchAdvancedStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/stats/${userId}/advanced`, {
-        credentials: 'include',
-      });
-      if (!res.ok) {
+      const [advancedRes, basicRes] = await Promise.all([
+        fetch(`${API_BASE}/api/stats/${userId}/advanced`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/stats/${userId}`, { credentials: 'include' }),
+      ]);
+      if (!advancedRes.ok) {
         setError(true);
         return;
       }
-      const data = await res.json() as AdvancedStatsResponse;
+      const data = await advancedRes.json() as AdvancedStatsResponse;
       setStats(data);
+
+      if (basicRes.ok) {
+        const basic = await basicRes.json() as PlayerStatsResponse;
+        setBasicStats({
+          gamesPlayed: basic.gamesPlayed,
+          wins: basic.wins,
+          winRate: basic.winRate,
+          bullAccuracy: basic.bullAccuracy,
+        });
+      }
     } catch {
       setError(true);
     } finally {
@@ -337,7 +353,11 @@ export function AdvancedStats({ userId }: { userId: string }) {
     || stats.handBreakdown.length > 0
     || stats.performanceByPlayerCount.length > 0
     || stats.todaySession !== null
-    || stats.opponentRecords.length > 0;
+    || stats.opponentRecords.length > 0
+    || stats.bluffHeatMap.length > 0
+    || stats.winProbabilityTimeline.length > 0
+    || stats.rivalries.length > 0
+    || stats.careerTrajectory.length >= 2;
 
   if (!hasData) return null;
 
@@ -345,11 +365,35 @@ export function AdvancedStats({ userId }: { userId: string }) {
     <>
       {stats.todaySession && <TodaySessionCard session={stats.todaySession} />}
       {stats.ratingHistory.length > 0 && <RatingHistoryChart entries={stats.ratingHistory} />}
+      {stats.careerTrajectory.length >= 2 && <CareerTrajectory data={stats.careerTrajectory} />}
+      {stats.bluffHeatMap.length > 0 && <BluffHeatMap data={stats.bluffHeatMap} />}
+      {stats.winProbabilityTimeline.length > 0 && <WinProbabilityGraph data={stats.winProbabilityTimeline} />}
       {stats.handBreakdown.length > 0 && <HandBreakdownSection breakdown={stats.handBreakdown} />}
       {stats.performanceByPlayerCount.length > 0 && (
         <PerformanceSection data={stats.performanceByPlayerCount} />
       )}
+      {stats.rivalries.length > 0 && <RivalryStats rivalries={stats.rivalries} />}
       {stats.opponentRecords.length > 0 && <OpponentRecordsSection records={stats.opponentRecords} />}
+
+      {/* Shareable stat card toggle */}
+      {basicStats && (
+        <div className="w-full mb-6">
+          {!showShareCard ? (
+            <button
+              onClick={() => setShowShareCard(true)}
+              className="w-full glass px-4 py-3 text-center text-[var(--gold)] text-sm font-medium hover:bg-white/5 transition-colors cursor-pointer bg-transparent border-none min-h-[44px]"
+            >
+              Generate Shareable Stat Card
+            </button>
+          ) : (
+            <ShareableStatCard
+              displayName={displayName ?? 'Player'}
+              summary={basicStats}
+              advancedStats={stats}
+            />
+          )}
+        </div>
+      )}
     </>
   );
 }

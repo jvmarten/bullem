@@ -648,7 +648,7 @@ export function ProfilePage() {
         </div>
 
         {/* Advanced Stats — loaded asynchronously so basic stats render immediately */}
-        {profile && <AdvancedStats userId={profile.id} />}
+        {profile && <AdvancedStats userId={profile.id} displayName={profile.displayName} />}
 
         {/* Actions */}
         <div className="w-full flex flex-col gap-3">

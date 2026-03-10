@@ -416,6 +416,10 @@ export function getDevAdvancedStats(userId: string): AdvancedStatsResponse {
     performanceByPlayerCount,
     todaySession,
     opponentRecords: opponents,
+    bluffHeatMap: [],
+    winProbabilityTimeline: [],
+    rivalries: [],
+    careerTrajectory: [],
   };
 
   advancedStatsCache.set(userId, result);
