@@ -437,3 +437,14 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 - **Keep existing workflows lean** — do not add steps, matrix builds, or additional triggers to `auto-merge.yml` or `deploy.yml`
 
 If a new feature needs automated checks, implement it as a local script (e.g., `npm run lint`, `npm run check`) that developers run manually or that existing workflows already cover. The bar for adding any GitHub Actions usage is extremely high — discuss with the maintainer first.
+
+### GitHub Repository Size Limits
+
+GitHub enforces a **hard 2GB limit** on repository size. Keep the repo well under this limit:
+
+- **Never commit large binary files** — no audio/video assets, compiled binaries, dataset files, or model weights directly in git
+- **Never commit `node_modules/`** or build output (`dist/`, `build/`)
+- **Training output files** (strategies, logs, checkpoints) should be `.gitignore`d — only commit the final integrated values in source code
+- **Use `.gitignore` aggressively** for generated files, logs, and temporary data
+- **If large assets are needed**, use external storage (CDN, S3, Git LFS) instead of committing to the repo
+- **Watch for git history bloat** — if a large file is accidentally committed, it stays in git history even after deletion. Use `git rev-list --objects --all | git cat-file --batch-check | sort -k3nr | head -20` to audit large objects
