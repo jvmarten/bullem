@@ -621,6 +621,57 @@ export const BOT_AVATAR_MAP: ReadonlyMap<string, string> = new Map([
   ['Data Diana', '\u{1F4CA}'],
 ]);
 
+// ── Bot name → user ID mapping ──────────────────────────────────────────
+
+/** Personality name → 2-digit code used in deterministic bot UUIDs. */
+const PERSONALITY_UUID_CODES: Record<string, string> = {
+  rock: '01', bluffer: '02', grinder: '03', wildcard: '04',
+  professor: '05', shark: '06', cannon: '07', frost: '08', hustler: '09',
+};
+
+/** Deterministic UUIDs for CFR bots (mirrors migration 018 / botPool.ts). */
+const CFR_USER_IDS: Record<string, string> = {
+  cfr_viper:    '00000000-0000-4000-b101-000000000000',
+  cfr_ghost:    '00000000-0000-4000-b102-000000000000',
+  cfr_reaper:   '00000000-0000-4000-b103-000000000000',
+  cfr_specter:  '00000000-0000-4000-b104-000000000000',
+  cfr_raptor:   '00000000-0000-4000-b105-000000000000',
+  cfr_havoc:    '00000000-0000-4000-b106-000000000000',
+  cfr_phantom:  '00000000-0000-4000-b107-000000000000',
+  cfr_sentinel: '00000000-0000-4000-b108-000000000000',
+  cfr_vanguard: '00000000-0000-4000-b109-000000000000',
+};
+
+/**
+ * Compute the deterministic database user ID for a bot profile key.
+ * Returns null for keys that don't follow the known UUID scheme (e.g. oracle_lvl10).
+ */
+export function getBotUserIdByKey(key: string): string | null {
+  // CFR bots
+  if (key in CFR_USER_IDS) return CFR_USER_IDS[key]!;
+
+  // Heuristic bots: {personality}_lvl{1-8}
+  const match = key.match(/^([a-z]+)_lvl([1-8])$/);
+  if (!match) return null;
+  const code = PERSONALITY_UUID_CODES[match[1]!];
+  if (!code) return null;
+  return `00000000-0000-4000-b0${code}${match[2]}-000000000000`;
+}
+
+/**
+ * Map from bot display name → database user ID.
+ * Covers all 81 standard bots (72 heuristic + 9 CFR).
+ * Does not include The Oracle (no database account).
+ */
+export const BOT_NAME_TO_USER_ID: ReadonlyMap<string, string> = new Map(
+  BOT_PROFILES
+    .map(p => {
+      const userId = getBotUserIdByKey(p.key);
+      return userId ? [p.name, userId] as const : null;
+    })
+    .filter((entry): entry is readonly [string, string] => entry !== null),
+);
+
 // ── Level category helpers ──────────────────────────────────────────────
 
 import type { BotLevelCategory } from './types.js';

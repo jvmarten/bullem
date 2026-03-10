@@ -3,7 +3,7 @@ import {
   GamePhase, RoundPhase, HandType, BOT_THINK_DELAY_MIN, BOT_THINK_DELAY_MAX,
   MAX_PLAYERS, BotDifficulty, BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX, DEFAULT_BOT_DIFFICULTY,
   maxPlayersForMaxCards, BOT_SPEED_MULTIPLIERS, BotSpeed, DEFAULT_BOT_SPEED,
-  pickRandomBot, IMPOSSIBLE_BOT, CFR_BOT_MAP,
+  pickRandomBot, IMPOSSIBLE_BOT, CFR_BOT_MAP, BOT_NAME_TO_USER_ID,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, PlayerId, BotProfileConfig } from '@bull-em/shared';
@@ -102,6 +102,12 @@ export class BotManager {
 
     const botId = `bot-${++botCounter}`;
     room.addBot(botId, name);
+
+    // Always link the bot's database user ID so clients can fetch lifetime stats
+    const dbUserId = BOT_NAME_TO_USER_ID.get(name);
+    if (dbUserId) {
+      room.setPlayerUserId(botId, dbUserId);
+    }
 
     // Track CFR bots by checking if the name matches a CFR profile
     for (const [, profile] of CFR_BOT_MAP) {
