@@ -41,7 +41,7 @@ export function clearLeaderboardCache(): void {
 }
 
 /** Minimum number of ranked games required for humans to appear on the leaderboard. */
-const MIN_GAMES = 5;
+const MIN_GAMES = 0;
 
 /**
  * SQL fragment: bots always qualify (they play continuously via background games),
