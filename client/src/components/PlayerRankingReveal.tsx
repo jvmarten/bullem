@@ -180,12 +180,6 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
                 );
               })()}
 
-              {/* Winner crown */}
-              {isWinner && (
-                <span className={`text-lg animate-pulse-glow flex-shrink-0 ${ratingChanges?.[entry.player.id] ? '' : 'ml-auto'}`} title="Winner">
-                  &#x1F451;
-                </span>
-              )}
             </div>
           );
         })}
