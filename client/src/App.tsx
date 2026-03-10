@@ -4,6 +4,7 @@ import { GameProvider } from './context/GameContext.js';
 import { GameStartBanner, ActiveGameRedirect } from './components/GameStartBanner.js';
 import { AuthProvider } from './context/AuthContext.js';
 import { ToastProvider } from './context/ToastContext.js';
+import { FriendsProvider } from './context/FriendsContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
@@ -40,6 +41,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage.js').then(m => ({ def
 const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage.js').then(m => ({ default: m.PublicProfilePage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.js').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.js').then(m => ({ default: m.ResetPasswordPage })));
+const FriendsPage = lazy(() => import('./pages/FriendsPage.js').then(m => ({ default: m.FriendsPage })));
 
 function OnlineLayout() {
   return (
@@ -115,6 +117,7 @@ export default function App() {
     <ErrorBoundary>
     <AuthProvider>
     <ToastProvider>
+    <FriendsProvider>
     <BrowserRouter>
       <ToastContainer />
       <ScrollToTop />
@@ -126,6 +129,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/friends" element={<FriendsPage />} />
           <Route path="/replays" element={<ReplaysPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/draw" element={<DeckDrawPage />} />
@@ -154,6 +158,7 @@ export default function App() {
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </FriendsProvider>
     </ToastProvider>
     </AuthProvider>
     </ErrorBoundary>

@@ -770,6 +770,62 @@ app.post('/api/deck-draw/sync', requireAuth, async (req, res) => {
   }
 });
 
+// ── Friends API routes ──────────────────────────────────────────────────
+import { getFriendsForUser, getIncomingRequestCount } from './db/friends.js';
+
+/** GET /api/friends — fetch the current user's friends list with online status. */
+app.get('/api/friends', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const friends = await getFriendsForUser(userId);
+    if (!friends) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+
+    // Enrich with online status from connected sockets
+    const sockets = await io.fetchSockets();
+    const onlineUserIds = new Set<string>();
+    const userSocketMap = new Map<string, string>();
+    for (const s of sockets) {
+      if (s.data.userId) {
+        onlineUserIds.add(s.data.userId);
+        userSocketMap.set(s.data.userId, s.id);
+      }
+    }
+
+    const enriched = friends.map((f) => {
+      const isOnline = onlineUserIds.has(f.userId);
+      let currentRoomCode: string | null = null;
+      if (isOnline && f.status === 'accepted') {
+        const socketId = userSocketMap.get(f.userId);
+        if (socketId) {
+          const room = roomManager.getRoomForSocket(socketId);
+          if (room) currentRoomCode = room.roomCode;
+        }
+      }
+      return { ...f, isOnline, currentRoomCode };
+    });
+
+    const incomingCount = enriched.filter((f) => f.status === 'pending' && f.isIncoming).length;
+    res.json({ friends: enriched, incomingCount });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch friends list');
+    res.status(500).json({ error: 'Failed to fetch friends' });
+  }
+});
+
+/** GET /api/friends/count — fetch just the incoming request count (for badge). */
+app.get('/api/friends/count', requireAuth, async (req, res) => {
+  try {
+    const count = await getIncomingRequestCount(req.user!.userId);
+    res.json({ incomingCount: count });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch friend request count');
+    res.status(500).json({ error: 'Failed to fetch count' });
+  }
+});
+
 // ── Calibration status endpoint ─────────────────────────────────────────
 app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
   res.json(calibrationManager.getStatus());
