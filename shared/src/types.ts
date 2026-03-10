@@ -651,6 +651,88 @@ export interface AdvancedStatsResponse {
   performanceByPlayerCount: PerformanceByPlayerCount[];
   todaySession: TodaySession | null;
   opponentRecords: OpponentRecord[];
+  /** Bluff pattern data bucketed by round number for heat map visualization. */
+  bluffHeatMap: BluffHeatMapEntry[];
+  /** Win probability over time from the player's match history. */
+  winProbabilityTimeline: WinProbabilityEntry[];
+  /** Head-to-head rivalry data for the most-played opponents. */
+  rivalries: RivalryRecord[];
+  /** Career trajectory showing rating, win rate, and play style evolution. */
+  careerTrajectory: CareerTrajectoryPoint[];
+}
+
+// ── Match analytics visualization types ──────────────────────────────
+
+/** Bluff pattern data for a specific round-number bucket.
+ *  Aggregated across all games to show when in a game a player bluffs most. */
+export interface BluffHeatMapEntry {
+  /** Round number (1-based). */
+  roundNumber: number;
+  /** Total bluffs attempted in rounds with this number. */
+  bluffsAttempted: number;
+  /** Bluffs that were caught. */
+  bluffsCaught: number;
+  /** Total calls made in rounds with this number (for bluff rate calculation). */
+  totalCalls: number;
+  /** Total bulls called in rounds with this number. */
+  bullsCalled: number;
+  /** Correct bulls in rounds with this number. */
+  correctBulls: number;
+}
+
+/** Win probability data point from a completed match.
+ *  Shows card count ratio progression during a game. */
+export interface WinProbabilityEntry {
+  /** Game ID for linking to replay. */
+  gameId: string;
+  /** Date the game was played. */
+  playedAt: string;
+  /** Whether the player won this game. */
+  won: boolean;
+  /** Round-by-round card count snapshots (lower is better). */
+  snapshots: {
+    roundNumber: number;
+    /** Player's card count at end of this round. */
+    playerCards: number;
+    /** Average card count of opponents at end of this round. */
+    avgOpponentCards: number;
+    /** Total players still alive. */
+    playersAlive: number;
+  }[];
+}
+
+/** Extended rivalry data for a frequent opponent. */
+export interface RivalryRecord {
+  opponentId: string;
+  opponentName: string;
+  opponentUsername: string;
+  opponentAvatar: AvatarId | null;
+  opponentPhotoUrl?: string | null;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  /** Recent form: array of 'W' | 'L' for last 10 games, newest first. */
+  recentForm: ('W' | 'L')[];
+  /** Average game duration in seconds when playing this opponent. */
+  avgDurationSeconds: number;
+  /** Win streak (positive = user streak, negative = opponent streak, 0 = no streak). */
+  currentStreak: number;
+}
+
+/** Career trajectory data point — one per week or per N games. */
+export interface CareerTrajectoryPoint {
+  /** ISO date string for this data point (start of period). */
+  periodStart: string;
+  /** Rating at the end of this period. */
+  rating: number;
+  /** Win rate percentage during this period. */
+  winRate: number;
+  /** Games played during this period. */
+  gamesPlayed: number;
+  /** Bluff success rate during this period (null if no bluffs). */
+  bluffRate: number | null;
+  /** Bull accuracy during this period (null if no bulls called). */
+  bullAccuracy: number | null;
 }
 
 // ── In-game stats types ─────────────────────────────────────────────────
