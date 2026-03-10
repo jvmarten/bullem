@@ -7,12 +7,13 @@ interface Props {
 interface State {
   hasError: boolean;
   errorMessage: string | null;
+  showDetails: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, errorMessage: null };
+  state: State = { hasError: false, errorMessage: null, showDetails: false };
 
-  static getDerivedStateFromError(error: unknown): State {
+  static getDerivedStateFromError(error: unknown): Partial<State> {
     const message = error instanceof Error ? error.message : String(error);
     return { hasError: true, errorMessage: message };
   }
@@ -37,9 +38,19 @@ export class ErrorBoundary extends Component<Props, State> {
               An unexpected error occurred. Please refresh the page.
             </p>
             {this.state.errorMessage && (
-              <p className="text-[var(--danger)] text-xs font-mono break-words opacity-70">
-                {this.state.errorMessage}
-              </p>
+              <div>
+                <button
+                  onClick={() => this.setState(prev => ({ showDetails: !prev.showDetails }))}
+                  className="text-[var(--gold-dim)] text-xs underline hover:text-[var(--gold)] transition-colors"
+                >
+                  {this.state.showDetails ? 'Hide details' : 'Show details'}
+                </button>
+                {this.state.showDetails && (
+                  <p className="text-[var(--danger)] text-xs font-mono break-words opacity-70 mt-2">
+                    {this.state.errorMessage}
+                  </p>
+                )}
+              </div>
             )}
             <button
               onClick={() => window.location.reload()}

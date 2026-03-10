@@ -33,6 +33,7 @@ export function LobbyPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   const joinAttemptedRef = useRef(false);
+  const [joinFailed, setJoinFailed] = useState(false);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) {
       setSelectedPlayer(player);
@@ -66,9 +67,8 @@ export function LobbyPage() {
       joinAttemptedRef.current = true;
       setJoining(true);
       joinRoom(roomCode, storedName, user?.avatar)
-        .catch((e) => {
-          addToast(friendlyError(e instanceof Error ? e.message : 'Failed to join room'));
-          setTimeout(() => navigate('/'), 3000);
+        .catch(() => {
+          setJoinFailed(true);
         })
         .finally(() => setJoining(false));
     }
@@ -153,6 +153,29 @@ export function LobbyPage() {
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
             >
               Back to Home
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (joinFailed) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center pt-16">
+          <div className="text-center space-y-4 w-full max-w-xs animate-fade-in">
+            <h2 className="font-display text-2xl font-bold text-[var(--gold)]">
+              Room Not Found
+            </h2>
+            <p className="text-[var(--gold-dim)] text-sm">
+              This room may have expired, been closed, or the link is invalid.
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full btn-gold py-3 text-lg"
+            >
+              Go Home
             </button>
           </div>
         </div>
