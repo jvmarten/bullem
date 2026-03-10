@@ -25,6 +25,7 @@ import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
+import { QuickDrawHint } from '../components/QuickDrawHint.js';
 import { useUISettings } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 
@@ -445,6 +446,11 @@ export function LocalGamePage() {
 
             {/* My cards */}
             {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
+
+            {/* Quick Draw first-use hint */}
+            {!isEliminated && quickDrawEnabled && !quickDrawOpen && (
+              <QuickDrawHint visible={canRaise} />
+            )}
 
             {/* Quick Draw suggestion chips */}
             {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (

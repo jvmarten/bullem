@@ -12,6 +12,7 @@ const TUTORIAL_COMPLETED_KEY = 'bull-em-tutorial-completed';
 const FIRST_GAME_TOOLTIPS_KEY = 'bull-em-first-game-tooltips-shown';
 const FIRST_GAME_PLAYED_KEY = 'bull-em-first-game-played';
 const TUTORIAL_STEP_KEY = 'bull-em-tutorial-step';
+const QUICK_DRAW_HINT_KEY = 'bull-em-quick-draw-hint-shown';
 
 /* ── Tutorial completion ─────────────────────────────── */
 
@@ -66,4 +67,16 @@ export function setTutorialStepReached(step: number): void {
 /** Clear saved tutorial step progress so the tutorial starts from the beginning next time. */
 export function clearTutorialStepProgress(): void {
   localStorage.removeItem(TUTORIAL_STEP_KEY);
+}
+
+/* ── Quick Draw hint ───────────────────────────────────── */
+
+/** Returns true if the Quick Draw hint has NOT been shown yet. */
+export function shouldShowQuickDrawHint(): boolean {
+  return localStorage.getItem(QUICK_DRAW_HINT_KEY) !== 'true';
+}
+
+/** Mark the Quick Draw hint as shown so it never appears again. */
+export function markQuickDrawHintShown(): void {
+  localStorage.setItem(QUICK_DRAW_HINT_KEY, 'true');
 }
