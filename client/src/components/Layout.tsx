@@ -15,6 +15,8 @@ interface LayoutProps {
   headerLeftExtra?: ReactNode;
   /** Extra elements rendered in the header right group — visible only in landscape/desktop */
   headerRightExtra?: ReactNode;
+  /** Override the default title click behavior (e.g., to reset submenu state before navigating home) */
+  onTitleClick?: () => void;
 }
 
 function getGuestDisplayName(): string {
@@ -71,7 +73,7 @@ function AuthLink() {
   );
 }
 
-export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra }: LayoutProps) {
+export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra, onTitleClick }: LayoutProps) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
   const hasConnected = ctx?.hasConnected ?? true;
@@ -112,6 +114,11 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
     const inLobby = /^\/room\//.test(location.pathname);
     if (inLobby) {
       navigate('/');
+      return;
+    }
+    // Allow pages to override title click (e.g., reset submenu state)
+    if (onTitleClick) {
+      onTitleClick();
       return;
     }
     navigate('/');

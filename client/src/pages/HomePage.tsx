@@ -613,7 +613,7 @@ export function HomePage() {
     : new Set<number>();
 
   return (
-    <Layout largeTitle={mode === 'menu'}>
+    <Layout largeTitle={mode === 'menu'} onTitleClick={mode !== 'menu' ? () => { play('uiBack'); setMode('menu'); } : undefined}>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
         {/* Tagline — orients first-time visitors */}
         {mode === 'menu' && (
