@@ -1,8 +1,8 @@
 import type { QueryResult, QueryResultRow } from 'pg';
-import { pool } from './pool.js';
+import { pool, readPool } from './pool.js';
 import logger from '../logger.js';
 
-export { pool, closePool, connectWithRetry, getDbStatus } from './pool.js';
+export { pool, readPool, closePool, connectWithRetry, getDbStatus } from './pool.js';
 export type { DbStatus } from './pool.js';
 export { migrate } from './migrate.js';
 
@@ -83,6 +83,70 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
     logger.error(
       { err, durationMs, query: text },
       'Database query failed — returning null to degrade gracefully',
+    );
+    return null;
+  }
+}
+
+/**
+ * Execute a read-only SQL query against the read-replica pool.
+ *
+ * Uses the same retry/slow-query logic as `query()` but routes to the
+ * read pool (which may be a separate replica or the primary, depending
+ * on whether READ_DATABASE_URL is configured).
+ *
+ * Use this for SELECT-heavy workloads (leaderboards, stats) to reduce
+ * load on the primary database.
+ */
+export async function readQuery<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[],
+): Promise<QueryResult<T> | null> {
+  if (!readPool) return null;
+
+  const start = performance.now();
+  try {
+    const result = await readPool.query<T>(text, params);
+    const durationMs = Math.round(performance.now() - start);
+
+    if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+      logger.warn(
+        { durationMs, query: text, rows: result.rowCount },
+        'Slow read-replica query detected',
+      );
+    }
+
+    return result;
+  } catch (err) {
+    if (isRetryable(err)) {
+      logger.warn(
+        { err, query: text },
+        'Transient read-replica error — retrying once',
+      );
+      try {
+        const result = await readPool.query<T>(text, params);
+        const durationMs = Math.round(performance.now() - start);
+        if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+          logger.warn(
+            { durationMs, query: text, rows: result.rowCount },
+            'Slow read-replica query detected (after retry)',
+          );
+        }
+        return result;
+      } catch (retryErr) {
+        const durationMs = Math.round(performance.now() - start);
+        logger.error(
+          { err: retryErr, durationMs, query: text },
+          'Read-replica query failed after retry — returning null',
+        );
+        return null;
+      }
+    }
+
+    const durationMs = Math.round(performance.now() - start);
+    logger.error(
+      { err, durationMs, query: text },
+      'Read-replica query failed — returning null',
     );
     return null;
   }

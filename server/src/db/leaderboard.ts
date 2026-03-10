@@ -1,4 +1,4 @@
-import { query } from './index.js';
+import { readQuery } from './index.js';
 import logger from '../logger.js';
 import type {
   RankedMode,
@@ -144,7 +144,7 @@ export async function getLeaderboard(
   const playerTypeWhere = playerTypeFilter(playerFilter);
 
   // Fetch ranked entries with ROW_NUMBER()
-  const entriesResult = await query<LeaderboardRow>(
+  const entriesResult = await readQuery<LeaderboardRow>(
     `SELECT
        u.id AS user_id,
        u.username,
@@ -169,7 +169,7 @@ export async function getLeaderboard(
   if (!entriesResult) return null;
 
   // Total count of qualifying players
-  const countResult = await query<CountRow>(
+  const countResult = await readQuery<CountRow>(
     `SELECT COUNT(*) AS total
      FROM ratings r
      JOIN users u ON u.id = r.user_id
@@ -237,7 +237,7 @@ async function getUserRank(
   const botFilter = `AND (u.is_bot = false OR u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})`;
 
   // First check if the user qualifies
-  const userResult = await query<LeaderboardRow>(
+  const userResult = await readQuery<LeaderboardRow>(
     `SELECT
        u.id AS user_id,
        u.username,
@@ -310,7 +310,7 @@ export async function getLeaderboardNearby(
   // Exclude orphaned/invalid bot rows (same filter as 'all' mode in main leaderboard)
   const botFilter = `AND (u.is_bot = false OR u.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})`;
 
-  const result = await query<LeaderboardRow>(
+  const result = await readQuery<LeaderboardRow>(
     `SELECT
        u.id AS user_id,
        u.username,
