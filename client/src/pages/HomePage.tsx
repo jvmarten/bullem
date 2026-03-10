@@ -845,6 +845,12 @@ export function HomePage() {
             >
               Tutorial
             </Link>
+            <Link
+              to="/draw"
+              className="w-full btn-purple py-4 text-lg text-center block"
+            >
+              Deck Draw
+            </Link>
             <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
               Play vs Bots
             </button>
