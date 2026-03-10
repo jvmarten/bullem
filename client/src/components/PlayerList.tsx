@@ -34,6 +34,18 @@ interface Props {
    Updated at 10fps via direct DOM manipulation to avoid React re-renders.
    The SVG viewBox is set dynamically via ResizeObserver so the rect
    always matches the tile size. */
+const RECT_RX = 7;
+
+/** Compute the perimeter of a rounded rect mathematically.
+ *  More reliable than SVGRectElement.getTotalLength() which can return 0
+ *  when the SVG engine hasn't computed geometry yet (e.g. during
+ *  useLayoutEffect before first paint in some browsers). */
+function roundedRectPerimeter(w: number, h: number, r: number): number {
+  const cr = Math.min(r, w / 2, h / 2);
+  // 4 straight edges (each shortened by cr at both ends) + 4 quarter-circle arcs
+  return 2 * (w - 2 * cr) + 2 * (h - 2 * cr) + 2 * Math.PI * cr;
+}
+
 const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
   const rectRef = useRef<SVGRectElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -50,11 +62,13 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const rect = rectRef.current;
     if (rect) {
+      const rw = width - 2;
+      const rh = height - 2;
       rect.setAttribute('x', '1');
       rect.setAttribute('y', '1');
-      rect.setAttribute('width', String(width - 2));
-      rect.setAttribute('height', String(height - 2));
-      perimRef.current = rect.getTotalLength();
+      rect.setAttribute('width', String(rw));
+      rect.setAttribute('height', String(rh));
+      perimRef.current = roundedRectPerimeter(rw, rh, RECT_RX);
     }
   }, []);
 
@@ -68,6 +82,17 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     if (!parent) return;
 
     syncSize();
+
+    // If the parent has zero dimensions (rare — e.g. mid-transition mount),
+    // retry on the next animation frame when layout is guaranteed complete.
+    if (!perimRef.current) {
+      const raf = requestAnimationFrame(syncSize);
+      // Cleanup below disconnects the observer; also cancel the raf.
+      const ro = new ResizeObserver(syncSize);
+      ro.observe(parent);
+      return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    }
+
     const ro = new ResizeObserver(syncSize);
     ro.observe(parent);
     return () => ro.disconnect();
@@ -123,8 +148,8 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     >
       <rect
         ref={rectRef}
-        rx="7"
-        ry="7"
+        rx={RECT_RX}
+        ry={RECT_RX}
         fill="none"
         strokeWidth="2.5"
         stroke="var(--gold-dim)"
