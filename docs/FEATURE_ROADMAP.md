@@ -51,6 +51,10 @@ The codebase is production-grade and feature-rich. These do **not** need work:
 | **Admin panel** | User management, analytics, bot management endpoints |
 | **Project email** | Resend API integration for password reset emails with HTML/plaintext templates |
 | **Bot calibration** | Continuous round-robin calibration pipeline with convergence detection |
+| **Deck variants** | Configurable deck variants with joker support in `Deck.ts`, `HandChecker.ts`, lobby settings |
+| **Analytics & balance DB** | `analytics_balance_snapshot` table (migration 014), `server/src/db/analytics.ts`, admin dashboard endpoints |
+| **Read replicas** | `readPool` in `pool.ts` with `READ_DATABASE_URL` support, fallback to primary pool |
+| **Apple OAuth** | Full Sign in with Apple flow in `oauth.ts` — redirect URI, ES256 client secret, callback handler |
 
 ---
 
@@ -114,14 +118,6 @@ The codebase is production-grade and feature-rich. These do **not** need work:
 **Touches:** new `server/src/tournament/` module (bracket engine, match scheduling, result tracking), `shared/src/types.ts` (tournament types), new `client/src/pages/TournamentPage.tsx` + `TournamentBracketPage.tsx`, new DB migration (tournament tables)
 **Complexity:** Large
 **Dependencies:** None (best-of series already shipped)
-**Tag:** Claude Code
-
-### 2c. Configurable Deck Variants
-**What:** Allow the host to select deck variants beyond the current standard 52-card + jokers option: no face cards (32-card deck), or aces-low mode. Display the active variant in lobby and during gameplay. Each variant changes the strategic meta.
-**Why:** Adds replayability and variety. Different deck sizes change hand probabilities and strategy — keeps experienced players engaged with fresh gameplay.
-**Touches:** `shared/src/engine/Deck.ts` (variant decks), `shared/src/types.ts` (deck variant setting), `shared/src/engine/HandChecker.ts` (variant-aware validation), `server/src/socket/lobbyHandlers.ts` (validate variant), `client/src/pages/LobbyPage.tsx` + `LocalLobbyPage.tsx` (variant picker in settings)
-**Complexity:** Medium–Large
-**Dependencies:** None, but requires extensive testing of hand evaluation with variant decks
 **Tag:** Claude Code
 
 ### 2d. Bitcoin Lightning Integration (Money Games)
@@ -204,37 +200,13 @@ The codebase is production-grade and feature-rich. These do **not** need work:
 **Dependencies:** None
 **Tag:** Manual Setup (LN provider account creation, API keys, node setup)
 
-### 4b. Analytics Expansion & Game Balance Database
-**What:** Expand the existing analytics foundation (`server/src/analytics/track.ts`) with gameplay balance metrics: win rate by starting position, hand type call frequency vs actual occurrence, average game duration by player count, bluff success rate by hand type, bot difficulty win rates. Implement the two `TODO(scale)` matchmaking stubs (lines 17–18). Store in PostgreSQL analytics tables with time-series queries. Expose via admin dashboard.
-**Why:** Data-driven balance decisions become critical as the player base grows. If starting player always wins 60%, the rotation needs adjustment. This also informs bot calibration and future game rule tweaks.
-**Touches:** `server/src/analytics/track.ts` (expand event tracking), new DB migration (analytics tables), `server/src/admin/routes.ts` (analytics dashboard endpoints)
-**Complexity:** Medium
-**Dependencies:** None
-**Tag:** Claude Code
-
-### 4c. Read Replicas for Leaderboard Queries
-**What:** Add a separate read-only database pool for leaderboard and stats queries. Currently all queries go through the same pool (`TODO(scale)` at `pool.ts:73`). Leaderboard queries with time filters and ranking calculations are expensive.
-**Why:** When leaderboards get popular, read queries shouldn't compete with game result writes. Fly.io Postgres supports read replicas natively.
-**Touches:** `server/src/db/pool.ts` (new read pool), `server/src/db/leaderboard.ts` (use read pool), `server/src/db/advancedStats.ts` (use read pool)
-**Complexity:** Small–Medium
-**Dependencies:** None
-**Tag:** Manual Setup (Fly.io read replica provisioning) + Claude Code (code changes)
-
-### 4d. Multi-Region Deployment
+### 4b. Multi-Region Deployment
 **What:** Expand from single-region ("arn") to multi-region on Fly.io. Add a second region (e.g., "iad" for US East). Configure Redis as primary/replica and Postgres with read replicas. Resolve `TODO(scale)` markers: `getOnlinePlayerNames()` (`index.ts:933`), rate limiting (`rateLimit.ts:136`), Prometheus metrics (`metrics.ts:8`), and `io.fetchSockets()` in friend handlers (`friendHandlers.ts:22`).
 **Why:** Players outside Northern Europe experience 100–200ms latency. A US region cuts that to <50ms for North American players. The architecture is already designed for this — it's mostly config plus fixing the handful of single-instance assumptions.
 **Touches:** `fly.toml` (add regions), Redis and Postgres provisioning, `server/src/index.ts`, `server/src/rateLimit.ts`, `server/src/metrics.ts`, `server/src/socket/friendHandlers.ts`
 **Complexity:** Medium
-**Dependencies:** 4c (read replicas)
+**Dependencies:** None (read replicas already shipped)
 **Tag:** Manual Setup (infrastructure provisioning) + Claude Code (code fixes)
-
-### 4e. Apple OAuth
-**What:** Add Sign in with Apple as an OAuth provider alongside existing Google OAuth. Apple OAuth is required for iOS App Store apps that offer third-party sign-in.
-**Why:** Prerequisite for the native iOS app (5a). Apple requires apps that offer Google sign-in to also offer Apple sign-in.
-**Touches:** `server/src/auth/oauth.ts` (Apple OAuth flow), `client/src/pages/LoginPage.tsx` (Apple sign-in button), Apple Developer account config
-**Complexity:** Small–Medium
-**Dependencies:** None
-**Tag:** Manual Setup (Apple Developer account, Service ID, key config) + Claude Code (code changes)
 
 ---
 
@@ -245,7 +217,7 @@ The codebase is production-grade and feature-rich. These do **not** need work:
 **Why:** App store presence is the #1 growth channel for mobile games. Web apps have friction (no home screen icon by default, Safari limitations). A native wrapper with the existing codebase is low effort for high distribution gain.
 **Touches:** new `mobile/` directory with Capacitor config, `client/` (minor tweaks for native bridges), app store assets (icons, screenshots, descriptions)
 **Complexity:** Medium–Large
-**Dependencies:** 3a (aesthetic polish for screenshots), 3e (accessibility for Apple review), 4e (Apple OAuth is required)
+**Dependencies:** 3a (aesthetic polish for screenshots), 3e (accessibility for Apple review)
 **Tag:** Manual Setup (Apple Developer account $99/yr, Google Play Console $25, app signing, store listings)
 
 ### 5b. Spectator Streaming & "Watch Live" Tab
@@ -278,15 +250,13 @@ The codebase is production-grade and feature-rich. These do **not** need work:
 
 | Location | What | When to Address | Roadmap Item |
 |---|---|---|---|
-| `server/src/index.ts:57` | CORS origins hardcoded for single domain | When serving from multiple domains/CDN | 4d |
-| `server/src/index.ts:161` | Single Redis client for adapter + rate limiting | At very high scale, separate clients | 4d |
-| `server/src/index.ts:933` | `getOnlinePlayerNames()` single-instance only | Multi-instance deployment | 4d |
-| `server/src/db/pool.ts:73` | No read replicas configured | When leaderboard query load increases | 4c |
-| `server/src/db/leaderboard.ts:14` | In-memory leaderboard cache (TTL-based) | Replace with Redis cache | 4d |
-| `server/src/rateLimit.ts:136` | In-memory rate limiting fallback (single instance) | Multi-instance — must use REDIS_URL | 4d |
-| `server/src/metrics.ts:8` | Single-instance Prometheus metrics | Multi-instance aggregation | 4d |
-| `server/src/analytics/track.ts:17–18` | Matchmaking analytics events stubbed | Implement matchmaking telemetry | 4b |
-| `server/src/socket/friendHandlers.ts:22` | `io.fetchSockets()` queries all instances | Multi-instance correctness | 4d |
+| `server/src/index.ts:57` | CORS origins hardcoded for single domain | When serving from multiple domains/CDN | 4b |
+| `server/src/index.ts:161` | Single Redis client for adapter + rate limiting | At very high scale, separate clients | 4b |
+| `server/src/index.ts:933` | `getOnlinePlayerNames()` single-instance only | Multi-instance deployment | 4b |
+| `server/src/db/leaderboard.ts:14` | In-memory leaderboard cache (TTL-based) | Replace with Redis cache | 4b |
+| `server/src/rateLimit.ts:136` | In-memory rate limiting fallback (single instance) | Multi-instance — must use REDIS_URL | 4b |
+| `server/src/metrics.ts:8` | Single-instance Prometheus metrics | Multi-instance aggregation | 4b |
+| `server/src/socket/friendHandlers.ts:22` | `io.fetchSockets()` queries all instances | Multi-instance correctness | 4b |
 
 ---
 
@@ -303,7 +273,6 @@ Items within each batch can be run as **parallel Claude Code sessions** without 
 | B | **1b** | Per-category volume sliders | Small | Claude Code | `soundEngine.ts`, `VolumeControl.tsx`, `useSound.ts` |
 | C | **1c** | `prefers-reduced-motion` support | Small | Claude Code | `index.css`, `useWinConfetti.ts`, `soundEngine.ts` (haptics only) |
 | D | **1d** | Keyboard focus indicators & skip nav | Small | Claude Code | `index.css` (`:focus-visible`), `Layout.tsx`, `WheelPicker.tsx` |
-| E | **4b** | Analytics expansion & balance database | Medium | Claude Code | `analytics/track.ts`, new DB migration, `admin/routes.ts` |
 
 ### Batch 2 — "Casino Quality"
 *Goal: Visual and audio polish that makes the game feel premium. Sessions touch different systems.*
@@ -331,9 +300,8 @@ Items within each batch can be run as **parallel Claude Code sessions** without 
 | Session | Item | What | Complexity | Tag | Key Files |
 |---|---|---|---|---|---|
 | A | **2a** | Seasonal ranked play | Medium | Claude Code | `MatchmakingQueue.ts`, new DB migration, `LeaderboardPage.tsx` |
-| B | **2c** | Configurable deck variants | Medium–Large | Claude Code | `Deck.ts`, `HandChecker.ts`, `types.ts`, lobby pages |
-| C | **3e** | Full accessibility audit | Medium | Claude Code | All components (ARIA, focus, contrast) |
-| D | **5d** | Achievement system | Medium | Claude Code | `types.ts`, new DB migration, game handlers, `ProfilePage.tsx` |
+| B | **3e** | Full accessibility audit | Medium | Claude Code | All components (ARIA, focus, contrast) |
+| C | **5d** | Achievement system | Medium | Claude Code | `types.ts`, new DB migration, game handlers, `ProfilePage.tsx` |
 
 ### Batch 5 — "Scale & Money Infrastructure"
 *Goal: Backend infrastructure for growth and monetization. Independent systems — no file conflicts.*
@@ -341,21 +309,19 @@ Items within each batch can be run as **parallel Claude Code sessions** without 
 | Session | Item | What | Complexity | Tag | Key Files |
 |---|---|---|---|---|---|
 | A | **4a** | Lightning payment infrastructure | Large | Manual Setup | New `lightning/` module, wallet DB tables, LN credentials |
-| B | **4c** | Read replicas for leaderboard | Small–Medium | Manual Setup + Claude Code | `pool.ts`, `leaderboard.ts`, `advancedStats.ts` |
-| C | **4e** | Apple OAuth | Small–Medium | Manual Setup + Claude Code | `oauth.ts`, `LoginPage.tsx`, Apple Developer config |
-| D | **5c** | In-app currency & cosmetics shop | Large | Claude Code | New `shop/` module, DB tables, `ShopPage.tsx` |
+| B | **5c** | In-app currency & cosmetics shop | Large | Claude Code | New `shop/` module, DB tables, `ShopPage.tsx` |
 
 ### Batch 6 — "Money Games & Distribution"
-*Goal: Live money games and app store distribution. Depends on Batch 5 for Lightning infra (4a) and Apple OAuth (4e).*
+*Goal: Live money games, tournaments, and multi-region. Depends on Batch 5 for Lightning infra (4a).*
 
 | Session | Item | What | Complexity | Tag | Key Files |
 |---|---|---|---|---|---|
 | A | **2d** | Bitcoin Lightning money games | Large | Manual Setup | `lightning/`, room escrow, deposit/withdraw UI |
 | B | **2b** | Tournament mode | Large | Claude Code | New `tournament/` module, bracket pages, DB tables |
-| C | **4d** | Multi-region deployment | Medium | Manual Setup + Claude Code | `fly.toml`, Redis/Postgres provisioning, TODO(scale) fixes |
+| C | **4b** | Multi-region deployment | Medium | Manual Setup + Claude Code | `fly.toml`, Redis/Postgres provisioning, TODO(scale) fixes |
 
 ### Batch 7 — "Native Apps"
-*Goal: App store distribution. Depends on Batch 4 (accessibility) and Batch 5 (Apple OAuth).*
+*Goal: App store distribution. Depends on Batch 4 (accessibility). Apple OAuth already shipped.*
 
 | Session | Item | What | Complexity | Tag | Key Files |
 |---|---|---|---|---|---|
@@ -368,16 +334,16 @@ Items within each batch can be run as **parallel Claude Code sessions** without 
 | Category | Count | Items |
 |---|---|---|
 | **Quick Wins** | 5 | 1a–1e |
-| **Core Features** | 5 | 2a–2e |
+| **Core Features** | 4 | 2a–2b, 2d–2e (2c shipped) |
 | **Polish** | 6 | 3a–3f |
-| **Infrastructure** | 5 | 4a–4e |
+| **Infrastructure** | 2 | 4a–4b (4c, 4e shipped) |
 | **Future Vision** | 4 | 5a–5d |
-| **Total** | **25** | Across 7 batches |
+| **Total** | **21** | Across 7 batches |
 
 | Tag | Count |
 |---|---|
-| **Claude Code** | 17 items (fully implementable in sessions) |
-| **Manual Setup** | 5 items (require external accounts, credentials, or asset sourcing) |
+| **Claude Code** | 14 items (fully implementable in sessions) |
+| **Manual Setup** | 4 items (require external accounts, credentials, or asset sourcing) |
 | **Manual Setup + Claude Code** | 3 items (code changes + external provisioning) |
 
 The sequencing prioritizes **accessibility foundations** (reduced motion, focus) → **premium visuals** (overhaul, animations) → **engagement** (onboarding, PWA, spectating) → **competition** (seasons, tournaments, achievements) → **monetization** (Lightning) → **distribution** (native apps). Each batch builds on the prior one, and items within a batch are safe to develop in parallel.
