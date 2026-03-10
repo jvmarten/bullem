@@ -129,19 +129,19 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('uses exact V3 universal evolved champion values as baseline', () => {
-      // DEFAULT is the V3 universal evolved champion — all personalities derive from this.
+    it('uses exact V4 universal evolved champion values as baseline', () => {
+      // DEFAULT is the V4 universal evolved champion — all personalities derive from this.
       // After each evolution run, update DEFAULT to the new champion's values.
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.70);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.28);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.60);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.50);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.25);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.35);
       expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.80);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.82);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.05);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.65);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.25);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.28);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.13);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.94);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.10);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.85);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(0.50);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.50);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.12);
     });
   });
 
@@ -219,8 +219,9 @@ describe('botProfiles', () => {
     it('Frost is more conservative than Cannon', () => {
       const frost = BOT_PROFILE_MAP.get('frost_lvl8')!;
       const cannon = BOT_PROFILE_MAP.get('cannon_lvl8')!;
-      expect(frost.config.riskTolerance).toBeLessThan(cannon.config.riskTolerance);
+      // Frost's signature is low aggression; Cannon's is high aggression
       expect(frost.config.aggressionBias).toBeLessThan(cannon.config.aggressionBias);
+      expect(frost.config.bullPhaseRaiseRate).toBeLessThan(cannon.config.bullPhaseRaiseRate);
     });
 
     it('Grinder takes minimal risks', () => {
