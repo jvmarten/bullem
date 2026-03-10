@@ -196,16 +196,12 @@ export class BotManager {
         ? this.computeBullDelay(speedMultiplier)
         : this.computeBotDelay(room, speedMultiplier);
 
-      // Set a synthetic deadline so clients can show a TileMeter countdown
-      // on the bot's tile while it "thinks". Cleared when the bot acts.
-      // Use the room's turn timer as the visual duration so the countdown
-      // pace is consistent across all turns. When no timer is configured,
-      // use a fixed 5s visual pace so the meter always animates consistently.
+      // Only show TileMeter countdown on bot tiles when a turn timer is
+      // configured — if the timer is off, there's nothing to count down.
       const timerSeconds = room.settings.turnTimer;
-      const visualDurationMs = timerSeconds && timerSeconds > 0
-        ? timerSeconds * 1000
-        : 5000;
-      room.game.setTurnDeadline(Date.now() + delay + graceMs, visualDurationMs);
+      if (timerSeconds && timerSeconds > 0) {
+        room.game.setTurnDeadline(Date.now() + delay + graceMs, timerSeconds * 1000);
+      }
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);

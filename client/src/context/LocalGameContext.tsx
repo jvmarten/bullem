@@ -305,17 +305,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       ? Math.round((BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))) * speedMultiplier)
       : computeBotDelay();
 
-    // Set a synthetic deadline so the TileMeter can show a countdown
-    // on the bot's tile while it "thinks". Cleared when the bot acts.
-    // Use the room's turn timer as the visual duration so the countdown
-    // pace is consistent across all turns. When no timer is configured,
-    // use a fixed 5s visual pace (roughly matching the max bot delay) so
-    // the meter always animates at the same speed.
+    // Only show TileMeter countdown on bot tiles when a turn timer is
+    // configured — if the timer is off, there's nothing to count down.
     const timerSeconds = gameSettingsRef.current.turnTimer;
-    const visualDurationMs = timerSeconds && timerSeconds > 0
-      ? timerSeconds * 1000
-      : 5000;
-    engine.setTurnDeadline(Date.now() + delay, visualDurationMs);
+    if (timerSeconds && timerSeconds > 0) {
+      engine.setTurnDeadline(Date.now() + delay, timerSeconds * 1000);
+    }
 
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
