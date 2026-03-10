@@ -1,4 +1,4 @@
-import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo, AvatarId } from './types.js';
+import type { HandCall, ClientGameState, RoomState, RoomListing, LiveGameListing, RoundResult, PlayerId, GameSettings, GameStats, PushSubscriptionJSON, RankedMode, MatchmakingStatus, MatchmakingFound, RatingChange, SeriesInfo, AvatarId, FriendEntry } from './types.js';
 import type { GameReplay } from './replay.js';
 
 /** Curated set of emoji reactions available during gameplay. */
@@ -59,6 +59,16 @@ export interface ClientToServerEvents {
   'push:unsubscribe': (callback: (response: { ok: true } | { error: string }) => void) => void;
   'matchmaking:join': (data: { mode: RankedMode }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'matchmaking:leave': (callback: (response: { ok: true } | { error: string }) => void) => void;
+  /** Send a friend request by username. */
+  'friends:request': (data: { username: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
+  /** Accept or reject a pending friend request. */
+  'friends:respond': (data: { friendUserId: string; accept: boolean }, callback: (response: { ok: true } | { error: string }) => void) => void;
+  /** Remove an existing friend. */
+  'friends:remove': (data: { friendUserId: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
+  /** Invite a friend to the current room. */
+  'friends:invite': (data: { friendUserId: string; roomCode: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
+  /** Request the current friends list (with online status). */
+  'friends:list': (callback: (response: { friends: FriendEntry[]; incomingCount: number } | { error: string }) => void) => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */
@@ -88,4 +98,14 @@ export interface ServerToClientEvents {
    *  transferred to a new connection (same userId, different socket).
    *  The old client should show a message and stop reconnecting. */
   'session:transferred': () => void;
+  /** A friend request was received. */
+  'friends:requestReceived': (from: FriendEntry) => void;
+  /** A friend request was accepted (by the other party). */
+  'friends:requestAccepted': (friend: FriendEntry) => void;
+  /** A friend's online status changed. */
+  'friends:statusChanged': (data: { userId: string; isOnline: boolean; currentRoomCode?: string | null }) => void;
+  /** You were invited to join a friend's room. */
+  'friends:invited': (data: { fromUserId: string; fromUsername: string; roomCode: string }) => void;
+  /** A friend created or joined a room (for notifications). */
+  'friends:roomCreated': (data: { userId: string; username: string; roomCode: string }) => void;
 }

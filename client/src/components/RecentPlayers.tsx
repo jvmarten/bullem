@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
+import { useFriends } from '../context/FriendsContext.js';
 import { useSound } from '../hooks/useSound.js';
 import { getRecentPlayers, clearRecentPlayers, type RecentPlayer } from '../utils/recentPlayers.js';
 
@@ -36,9 +37,11 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
   const [players, setPlayers] = useState<RecentPlayer[]>(() => getRecentPlayers());
   const [isExpanded, setIsExpanded] = useState(false);
   const [invitingPlayer, setInvitingPlayer] = useState<string | null>(null);
+  const [addingFriend, setAddingFriend] = useState<string | null>(null);
   const { isConnected, createRoom } = useGameContext();
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { sendRequest, acceptedFriends } = useFriends();
   const { play } = useSound();
   const navigate = useNavigate();
 
@@ -75,6 +78,32 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
       setInvitingPlayer(null);
     }
   }, [isConnected, invitingPlayer, createRoom, addToast, navigate, onCreateRoom]);
+
+  const handleAddFriend = useCallback(async (player: RecentPlayer) => {
+    if (!user) {
+      addToast('Log in to add friends');
+      return;
+    }
+    if (addingFriend) return;
+    setAddingFriend(player.name);
+    play('uiSoft');
+    // Try adding by the player's display name as username — this works when
+    // the player is logged in and their display name matches their username.
+    const result = await sendRequest(player.name);
+    if ('ok' in result) {
+      addToast(`Friend request sent to ${player.name}`, 'success');
+    } else {
+      addToast(result.error, 'error');
+    }
+    setAddingFriend(null);
+  }, [user, addingFriend, sendRequest, addToast, play]);
+
+  /** Check if a player is already a friend (by display name match). */
+  const isFriend = useCallback((playerName: string): boolean => {
+    return acceptedFriends.some(
+      (f) => f.displayName.toLowerCase() === playerName.toLowerCase() || f.username.toLowerCase() === playerName.toLowerCase(),
+    );
+  }, [acceptedFriends]);
 
   const handleClear = useCallback(() => {
     clearRecentPlayers();
@@ -114,13 +143,25 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
                 {timeAgo(player.lastPlayedAt)} &middot; {player.lastRoomCode}
               </span>
             </div>
-            <button
-              onClick={() => { play('uiSoft'); handleInvite(player); }}
-              disabled={invitingPlayer !== null}
-              className="btn-gold px-3 py-1.5 text-xs min-h-[36px] whitespace-nowrap"
-            >
-              {invitingPlayer === player.name ? 'Creating...' : 'Invite'}
-            </button>
+            <div className="flex gap-1.5">
+              {user && !isFriend(player.name) && (
+                <button
+                  onClick={() => handleAddFriend(player)}
+                  disabled={addingFriend !== null}
+                  className="btn-outline px-2.5 py-1.5 text-xs min-h-[36px] whitespace-nowrap"
+                  title="Send friend request"
+                >
+                  {addingFriend === player.name ? '...' : '+ Friend'}
+                </button>
+              )}
+              <button
+                onClick={() => { play('uiSoft'); handleInvite(player); }}
+                disabled={invitingPlayer !== null}
+                className="btn-gold px-3 py-1.5 text-xs min-h-[36px] whitespace-nowrap"
+              >
+                {invitingPlayer === player.name ? 'Creating...' : 'Invite'}
+              </button>
+            </div>
           </div>
         ))}
       </div>

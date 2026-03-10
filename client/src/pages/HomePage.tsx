@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { loadMatchSettings } from '../components/VolumeControl.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
+import { useFriends } from '../context/FriendsContext.js';
 import { isTutorialCompleted, isFirstGame } from '../utils/tutorialProgress.js';
 import { friendlyError } from '../utils/friendlyErrors.js';
 import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
@@ -276,6 +277,26 @@ function MatchFoundScreen({ match, gameReady, onNavigate }: { match: { roomCode:
         <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
       </div>
     </div>
+  );
+}
+
+/** Friends link with incoming request badge. Only shown for authenticated users. */
+function FriendsMenuLink() {
+  const { user } = useAuth();
+  const { incomingCount } = useFriends();
+  if (!user) return null;
+  return (
+    <Link
+      to="/friends"
+      className="w-full btn-ghost py-4 text-lg text-center block relative"
+    >
+      Friends
+      {incomingCount > 0 && (
+        <span className="absolute top-2 right-4 w-5 h-5 rounded-full bg-[var(--danger)] text-white text-[10px] flex items-center justify-center font-bold">
+          {incomingCount}
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -808,6 +829,7 @@ export function HomePage() {
             >
               Leaderboard
             </Link>
+            <FriendsMenuLink />
             <Link
               to="/draw"
               className="w-full btn-purple py-4 text-lg text-center block"

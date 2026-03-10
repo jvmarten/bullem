@@ -7,6 +7,7 @@ import { BotManager } from '../game/BotManager.js';
 import { registerLobbyHandlers } from './lobbyHandlers.js';
 import { registerGameHandlers } from './gameHandlers.js';
 import { registerPushHandlers } from './pushHandlers.js';
+import { registerFriendHandlers, broadcastStatusChange } from './friendHandlers.js';
 import { registerMatchmakingHandlers } from './matchmakingHandlers.js';
 import type { PushManager } from '../push/PushManager.js';
 import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
@@ -125,8 +126,14 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
     registerPushHandlers(io, socket, roomManager, pushManager);
+    registerFriendHandlers(io, socket, roomManager);
     if (matchmakingQueue) {
       registerMatchmakingHandlers(io, socket, matchmakingQueue);
+    }
+
+    // Broadcast online status to friends when an authenticated user connects
+    if (socket.data.userId) {
+      void broadcastStatusChange(io, roomManager, socket.data.userId, true);
     }
 
     socket.on('error', (err) => {
@@ -153,6 +160,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
 
     socket.on('disconnect', () => {
       socketLog.info('Socket disconnected');
+
+      // Broadcast offline status to friends when an authenticated user disconnects
+      if (socket.data.userId) {
+        void broadcastStatusChange(io, roomManager, socket.data.userId, false);
+      }
 
       // Remove from matchmaking queue on disconnect
       if (matchmakingQueue) {

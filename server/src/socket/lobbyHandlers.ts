@@ -9,6 +9,7 @@ import { beginRoundResultPhase, checkRoundContinueComplete, recordRoundStart, ha
 import { getCorrelatedLogger } from '../logger.js';
 import { roomsCreatedTotal, playersJoinedTotal } from '../metrics.js';
 import { track } from '../analytics/track.js';
+import { getAcceptedFriendIds } from '../db/friends.js';
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -77,6 +78,22 @@ export function registerLobbyHandlers(
     broadcastPlayerNames(io, roomManager);
     roomManager.persistRoom(room);
     callback({ roomCode: room.roomCode, reconnectToken });
+
+    // Notify friends that this user created a room
+    if (socket.data.userId && socket.data.username) {
+      const userId = socket.data.userId;
+      const username = socket.data.username;
+      const roomCode = room.roomCode;
+      void getAcceptedFriendIds(userId).then(async (friendIds) => {
+        if (friendIds.length === 0) return;
+        const allSockets = await io.fetchSockets();
+        for (const s of allSockets) {
+          if (s.data.userId && friendIds.includes(s.data.userId)) {
+            s.emit('friends:roomCreated', { userId, username, roomCode });
+          }
+        }
+      }).catch(() => { /* Non-fatal — friend notifications are best-effort */ });
+    }
   });
 
   socket.on('room:join', (data, callback) => {

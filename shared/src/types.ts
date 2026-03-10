@@ -765,6 +765,37 @@ export interface InGameStats {
   roundSnapshots: CardCountSnapshot[];
 }
 
+// ── Friends types ─────────────────────────────────────────────────────
+
+/** Status of a friendship row in the database. */
+export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
+
+/** A friend entry returned to the client. */
+export interface FriendEntry {
+  /** The friend's user ID. */
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: AvatarId | null;
+  photoUrl?: string | null;
+  /** Relationship status from the current user's perspective. */
+  status: FriendshipStatus;
+  /** Whether this is an incoming request (true) or outgoing (false). Only meaningful when status='pending'. */
+  isIncoming: boolean;
+  /** Whether the friend is currently connected via WebSocket. */
+  isOnline: boolean;
+  /** Room code the friend is currently in, if any and if they are a friend (not pending). */
+  currentRoomCode?: string | null;
+  /** ISO timestamp of the friendship creation. */
+  createdAt: string;
+}
+
+/** Response body for GET /api/friends. */
+export interface FriendsListResponse {
+  friends: FriendEntry[];
+  incomingCount: number;
+}
+
 /** Summary of an in-progress game available for spectating. */
 export interface LiveGameListing {
   roomCode: string;
