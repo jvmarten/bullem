@@ -191,6 +191,104 @@ describe('getLeaderboard', () => {
   });
 });
 
+describe('CFR bots in leaderboard', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    clearLeaderboardCache();
+  });
+
+  it('includes CFR bots when filter is "all"', async () => {
+    // Entries query — includes a CFR bot
+    mockQuery.mockResolvedValueOnce(makeResult([
+      { user_id: USER_A, username: 'alice', display_name: 'Alice', avatar: null, photo_url: null, is_bot: false, rating: '1500', games_played: '20', rank: '1' },
+      { user_id: '00000000-0000-4000-b101-000000000000', username: 'cfr_viper', display_name: 'Viper', avatar: null, photo_url: null, is_bot: true, rating: '1400', games_played: '50', rank: '2' },
+    ]));
+    // Count query
+    mockQuery.mockResolvedValueOnce(makeResult([{ total: '2' }]));
+
+    const result = await getLeaderboard('heads_up', 'all_time', 50, 0);
+    expect(result).not.toBeNull();
+    expect(result!.entries).toHaveLength(2);
+
+    const viperEntry = result!.entries.find(e => e.username === 'cfr_viper');
+    expect(viperEntry).toBeDefined();
+    expect(viperEntry!.displayName).toBe('Viper');
+    expect(viperEntry!.isBot).toBe(true);
+    expect(viperEntry!.gamesPlayed).toBe(50);
+    expect(viperEntry!.rating).toBe(1400);
+  });
+
+  it('includes CFR bots when filter is "bots"', async () => {
+    mockQuery.mockResolvedValueOnce(makeResult([
+      { user_id: '00000000-0000-4000-b101-000000000000', username: 'cfr_viper', display_name: 'Viper', avatar: null, photo_url: null, is_bot: true, rating: '1400', games_played: '50', rank: '1' },
+      { user_id: '00000000-0000-4000-b011-000000000000', username: 'rock_lvl1', display_name: 'Rock lvl1', avatar: null, photo_url: null, is_bot: true, rating: '1200', games_played: '30', rank: '2' },
+    ]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ total: '2' }]));
+
+    const result = await getLeaderboard('heads_up', 'all_time', 50, 0, undefined, 'bots');
+    expect(result).not.toBeNull();
+
+    const viperEntry = result!.entries.find(e => e.username === 'cfr_viper');
+    expect(viperEntry).toBeDefined();
+    expect(viperEntry!.isBot).toBe(true);
+  });
+
+  it('SQL query uses bot_profile regex that matches CFR bot keys', async () => {
+    // This test verifies the SQL query sent to readQuery includes the
+    // CFR bot pattern in the WHERE clause. We check the actual SQL text.
+    mockQuery.mockResolvedValueOnce(makeResult([]));
+    mockQuery.mockResolvedValueOnce(makeResult([{ total: '0' }]));
+
+    await getLeaderboard('heads_up', 'all_time', 50, 0, undefined, 'all');
+
+    // The first call should be the entries query
+    const sql = mockQuery.mock.calls[0]![0] as string;
+    // Verify the query includes CFR bot names in the regex pattern
+    expect(sql).toContain('cfr_');
+    expect(sql).toContain('viper');
+    expect(sql).toContain('ghost');
+    expect(sql).toContain('vanguard');
+    // Verify it also allows non-bot users through
+    expect(sql).toContain('u.is_bot = false');
+  });
+});
+
+describe('CFR bot profile regex validation', () => {
+  // The leaderboard SQL uses a PostgreSQL regex to filter valid bot profiles.
+  // This test verifies the JavaScript equivalent matches all expected bot keys.
+  const PG_PATTERN = /^((rock|bluffer|grinder|wildcard|professor|shark|cannon|frost|hustler)_lvl[1-8]|cfr_(viper|ghost|reaper|specter|raptor|havoc|phantom|sentinel|vanguard))$/;
+
+  it('matches all 9 CFR bot keys', () => {
+    const cfrKeys = [
+      'cfr_viper', 'cfr_ghost', 'cfr_reaper', 'cfr_specter', 'cfr_raptor',
+      'cfr_havoc', 'cfr_phantom', 'cfr_sentinel', 'cfr_vanguard',
+    ];
+    for (const key of cfrKeys) {
+      expect(PG_PATTERN.test(key), `${key} should match the leaderboard regex`).toBe(true);
+    }
+  });
+
+  it('matches all 72 heuristic bot keys', () => {
+    const personalities = ['rock', 'bluffer', 'grinder', 'wildcard', 'professor', 'shark', 'cannon', 'frost', 'hustler'];
+    for (const p of personalities) {
+      for (let lvl = 1; lvl <= 8; lvl++) {
+        const key = `${p}_lvl${lvl}`;
+        expect(PG_PATTERN.test(key), `${key} should match`).toBe(true);
+      }
+    }
+  });
+
+  it('rejects evolved bot keys', () => {
+    expect(PG_PATTERN.test('evolved_lvl1')).toBe(false);
+    expect(PG_PATTERN.test('evolved_lvl9')).toBe(false);
+  });
+
+  it('rejects lvl9 heuristic keys', () => {
+    expect(PG_PATTERN.test('rock_lvl9')).toBe(false);
+    expect(PG_PATTERN.test('bluffer_lvl9')).toBe(false);
+  });
+});
+
 describe('getLeaderboardNearby', () => {
   beforeEach(() => {
     mockQuery.mockReset();

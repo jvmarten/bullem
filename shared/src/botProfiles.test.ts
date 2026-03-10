@@ -12,6 +12,7 @@ import {
   HEURISTIC_BOT_PROFILES,
   CFR_BOT_COUNT,
   getBotsForCategory,
+  getBotUserIdByKey,
 } from './botProfiles.js';
 import type { BotProfileConfig } from './botProfiles.js';
 
@@ -205,6 +206,38 @@ describe('botProfiles', () => {
       for (const cfr of CFR_BOTS) {
         expect(mixedBots).toContain(cfr);
       }
+    });
+
+    it('CFR bot UUIDs do not collide with heuristic bot UUIDs', () => {
+      const heuristicUUIDs = new Set<string>();
+      for (const profile of HEURISTIC_BOT_PROFILES) {
+        const uuid = getBotUserIdByKey(profile.key);
+        expect(uuid).not.toBeNull();
+        heuristicUUIDs.add(uuid!);
+      }
+
+      for (const cfr of CFR_BOTS) {
+        const cfrUUID = getBotUserIdByKey(cfr.key);
+        expect(cfrUUID).not.toBeNull();
+        expect(
+          heuristicUUIDs.has(cfrUUID!),
+          `CFR bot ${cfr.key} UUID ${cfrUUID} collides with a heuristic bot UUID`,
+        ).toBe(false);
+      }
+    });
+
+    it('all bot UUIDs are unique across the full 81-bot matrix', () => {
+      const allUUIDs = new Map<string, string>();
+      for (const profile of BOT_PROFILES) {
+        const uuid = getBotUserIdByKey(profile.key);
+        expect(uuid, `${profile.key} should have a UUID`).not.toBeNull();
+        expect(
+          allUUIDs.has(uuid!),
+          `UUID ${uuid} used by both ${allUUIDs.get(uuid!)} and ${profile.key}`,
+        ).toBe(false);
+        allUUIDs.set(uuid!, profile.key);
+      }
+      expect(allUUIDs.size).toBe(81);
     });
   });
 
