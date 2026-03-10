@@ -83,7 +83,7 @@ export class Room {
     return { player, reconnectToken };
   }
 
-  addBot(botId: PlayerId, name: string): ServerPlayer {
+  addBot(botId: PlayerId, name: string, opts?: { username?: string }): ServerPlayer {
     const player: ServerPlayer = {
       id: botId,
       name,
@@ -93,6 +93,7 @@ export class Room {
       isHost: false,
       isBot: true,
       cards: [],
+      username: opts?.username,
     };
     this.players.set(botId, player);
     return player;

@@ -308,8 +308,8 @@ export class CalibrationManager {
       bestOf: RANKED_BEST_OF as BestOf,
     });
 
-    const botAId = this.botManager.addRankedBot(room, botA.userId, botA.displayName, botA.profileConfig);
-    const botBId = this.botManager.addRankedBot(room, botB.userId, botB.displayName, botB.profileConfig);
+    const botAId = this.botManager.addRankedBot(room, botA.userId, botA.displayName, botA.profileConfig, botA.username);
+    const botBId = this.botManager.addRankedBot(room, botB.userId, botB.displayName, botB.profileConfig, botB.username);
 
     // Initialize series state for Bo3
     const playerIds = [botAId, botBId] as [PlayerId, PlayerId];
@@ -356,7 +356,7 @@ export class CalibrationManager {
     });
 
     for (const bot of selectedBots) {
-      this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig);
+      this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig, bot.username);
     }
 
     room.startGame();

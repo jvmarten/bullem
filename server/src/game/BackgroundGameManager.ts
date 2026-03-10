@@ -153,7 +153,7 @@ export class BackgroundGameManager {
         const available = botPool.filter(b => !usedBotUserIds.has(b.userId));
         if (available.length > 0) {
           const bot = available[Math.floor(Math.random() * available.length)]!;
-          this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig);
+          this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig, bot.username);
           usedBotUserIds.add(bot.userId);
           continue;
         }

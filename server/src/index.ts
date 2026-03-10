@@ -521,11 +521,22 @@ app.get('/api/u/:username', async (req, res) => {
       'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
       [username],
     );
-    if (!result || result.rows.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+    if (result && result.rows.length > 0) {
+      res.json({ userId: result.rows[0]!.id });
       return;
     }
-    res.json({ userId: result.rows[0]!.id });
+    // Fallback: try matching by display_name for bot accounts.
+    // CFR bots have username "cfr_phantom" but display_name "Phantom",
+    // so /u/phantom should resolve to the cfr_phantom user.
+    const botResult = await query<{ id: string }>(
+      'SELECT id FROM users WHERE is_bot = true AND LOWER(display_name) = LOWER($1)',
+      [username],
+    );
+    if (botResult && botResult.rows.length > 0) {
+      res.json({ userId: botResult.rows[0]!.id });
+      return;
+    }
+    res.status(404).json({ error: 'User not found' });
   } catch (err) {
     logger.error({ err }, 'Failed to resolve username');
     res.status(500).json({ error: 'Failed to resolve username' });

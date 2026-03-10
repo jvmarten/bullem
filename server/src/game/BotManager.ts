@@ -79,7 +79,7 @@ export class BotManager {
     this.difficulty = difficulty;
   }
 
-  addBot(room: Room, botName?: string): string {
+  addBot(room: Room, botName?: string, opts?: { username?: string }): string {
     const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
     const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
     const effectiveMax = Math.min(MAX_PLAYERS, cardBased, userCap);
@@ -101,7 +101,7 @@ export class BotManager {
     }
 
     const botId = `bot-${++botCounter}`;
-    room.addBot(botId, name);
+    room.addBot(botId, name, { username: opts?.username });
 
     // Track CFR bots by checking if the name matches a CFR profile
     for (const [, profile] of CFR_BOT_MAP) {
@@ -122,10 +122,11 @@ export class BotManager {
    * @param userId - The bot's database user ID (from the users table)
    * @param botName - Display name for the bot
    * @param profileConfig - Profile config that tunes BotPlayer decision logic
+   * @param username - The bot's DB username (e.g., "cfr_phantom") for profile linking
    * @returns The in-game player ID assigned to the bot
    */
-  addRankedBot(room: Room, userId: string, botName: string, profileConfig: BotProfileConfig): string {
-    const botId = this.addBot(room, botName);
+  addRankedBot(room: Room, userId: string, botName: string, profileConfig: BotProfileConfig, username?: string): string {
+    const botId = this.addBot(room, botName, { username });
     this.botProfileConfigs.set(botId, profileConfig);
     this.botUserIds.set(botId, userId);
     // Link the bot's in-game ID to its database user ID for rating updates

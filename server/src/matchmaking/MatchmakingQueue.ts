@@ -556,7 +556,7 @@ export class MatchmakingQueue {
     let botRating: number;
 
     if (rankedBot) {
-      botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig);
+      botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig, rankedBot.username);
       botDisplayName = rankedBot.displayName;
       botRating = rankedBot.rating;
     } else {
@@ -659,7 +659,7 @@ export class MatchmakingQueue {
       let botRating: number;
 
       if (rankedBot) {
-        botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig);
+        botId = this.botManager.addRankedBot(room, rankedBot.userId, rankedBot.displayName, rankedBot.profileConfig, rankedBot.username);
         usedBotUserIds.add(rankedBot.userId);
         botDisplayName = rankedBot.displayName;
         botRating = rankedBot.rating;
