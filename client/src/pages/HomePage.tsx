@@ -843,16 +843,16 @@ export function HomePage() {
               Play vs Bots
             </button>
             <Link
-              to="/draw"
-              className="w-full btn-gold py-4 text-lg text-center block"
-            >
-              Deck Draw
-            </Link>
-            <Link
               to="/tutorial"
               className="w-full btn-gold py-4 text-lg text-center block"
             >
               Tutorial
+            </Link>
+            <Link
+              to="/draw"
+              className="w-full btn-gold py-4 text-lg text-center block"
+            >
+              Deck Draw
             </Link>
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
@@ -910,15 +910,6 @@ export function HomePage() {
                 <button onClick={() => { play('uiSoft'); handleQuickStart(); }} className="w-full btn-gold py-4 text-lg">
                   Quick Start
                 </button>
-                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-gold py-4 text-lg">
-                  Host Game
-                </button>
-                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
-                  Lobby
-                </button>
-                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-                  Join with Code
-                </button>
               </>
             )}
             {/* Ranked Play — expandable with 1v1 / Multiplayer sub-options */}
@@ -972,6 +963,9 @@ export function HomePage() {
                 )}
               </div>
             )}
+            <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+              Lobby
+            </button>
             <button
               onClick={() => { play('uiSoft'); handleWatchRandom(); }}
               className="w-full btn-ghost py-4 text-lg"
@@ -984,6 +978,12 @@ export function HomePage() {
             >
               Leaderboard
             </Link>
+            <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
+              Host Game
+            </button>
+            <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+              Join with Code
+            </button>
             <FriendsMenuLink />
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
