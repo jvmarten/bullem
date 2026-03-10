@@ -364,13 +364,13 @@ export function getInfoSetKey(
     playerCountBucket(activePlayers),
     // How many cards I hold — 3 buckets for better calibration
     myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
-    // Total cards in play — critical for claim plausibility
+    // Total cards in play — still needed for opening plausibility assessment
     totalCardsBucket(totalCards),
     // My hand quality
     myHandStrengthBucket(myCards),
     // How my cards relate to the current claim
     handVsClaimBucket(myCards, state.currentHand),
-    // How high is the current claim
+    // Claim height — splits high card (trivially true) from pair (real decision)
     claimHeightBucket(state.currentHand),
     // How deep are we in this round
     turnDepthBucket(state.turnHistory),
