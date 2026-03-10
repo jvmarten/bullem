@@ -325,26 +325,27 @@ export function FriendsPage() {
               <p className="text-sm text-[var(--gold-dim)]">
                 Enter a username to send a friend request.
               </p>
-              <div className="flex gap-2">
+              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); handleSendRequest(); }} autoComplete="off">
                 <input
-                  type="text"
+                  type="search"
+                  name="friend_search_username"
                   value={addUsername}
                   onChange={(e) => setAddUsername(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendRequest(); }}
                   placeholder="Username"
-                  className="flex-1 px-3 py-2.5 rounded-lg bg-[var(--felt-dark)] border border-[var(--gold-glow)] text-[var(--gold)] placeholder-[var(--gold-dim)] text-sm focus:outline-none focus:border-[var(--gold)] min-h-[44px]"
+                  className="flex-1 px-3 py-2.5 rounded-lg bg-[var(--felt-dark)] border border-[var(--gold-glow)] text-[var(--gold)] placeholder-[var(--gold-dim)] text-sm focus:outline-none focus:border-[var(--gold)] min-h-[44px] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                   maxLength={30}
                   autoCapitalize="none"
                   autoCorrect="off"
+                  autoComplete="off"
                 />
                 <button
-                  onClick={handleSendRequest}
+                  type="submit"
                   disabled={sending || !addUsername.trim()}
                   className="btn-gold px-4 py-2.5 text-sm min-h-[44px] whitespace-nowrap"
                 >
                   {sending ? 'Sending...' : 'Add Friend'}
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         )}
