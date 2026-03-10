@@ -186,6 +186,15 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
       logger.error({ err }, 'Database migration failed — continuing without persistence');
     }
 
+    // Ensure CFR bot accounts and ratings exist so they appear on the
+    // leaderboard and their profiles are resolvable from the first request.
+    try {
+      const { ensureCFRBotAccounts } = await import('./db/botPool.js');
+      await ensureCFRBotAccounts();
+    } catch (err) {
+      logger.error({ err }, 'Failed to verify CFR bot accounts at startup');
+    }
+
     // Load persisted push subscriptions into the in-memory cache
     try {
       await pushManager.loadFromDatabase();

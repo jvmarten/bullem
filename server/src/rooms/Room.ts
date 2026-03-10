@@ -575,6 +575,7 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isBot: p.isBot,
     isAdmin: p.isAdmin,
     userId: p.userId,
+    username: p.username,
     avatar: p.avatar,
     photoUrl: p.photoUrl,
   };

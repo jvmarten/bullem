@@ -33,14 +33,16 @@ interface BotProfileData {
 function getBotProfileFromName(name: string): BotProfileData | null {
   for (const [key, profile] of BOT_PROFILE_MAP) {
     if (profile.name === name) {
+      // CFR bots use "cfr_{name}" keys (all level 9), heuristic bots use "{personality}_lvl{N}"
+      const isCFR = key.startsWith('cfr_');
       const levelMatch = key.match(/_lvl(\d+)$/);
-      const level = levelMatch ? parseInt(levelMatch[1]!, 10) : 0;
+      const level = isCFR ? 9 : (levelMatch ? parseInt(levelMatch[1]!, 10) : 0);
       return {
         name: profile.name,
         personality: profile.personality,
         avatar: profile.avatar,
         level,
-        personalityKey: key.replace(/_lvl\d+$/, ''),
+        personalityKey: isCFR ? key : key.replace(/_lvl\d+$/, ''),
       };
     }
   }
@@ -499,7 +501,9 @@ export function PublicProfilePage() {
           </h1>
           {profile.isBot && botInfo && (
             <>
-              <p className="text-xs text-[var(--gold-dim)] mt-1">Level {botInfo.level} Bot</p>
+              <p className="text-xs text-[var(--gold-dim)] mt-1">
+                Level {botInfo.level} Bot{botInfo.personalityKey.startsWith('cfr_') ? ' — CFR Strategy' : ''}
+              </p>
               <p className="text-[10px] text-[var(--gold-dim)] mt-0.5 max-w-[280px] mx-auto">
                 {botInfo.personality}
               </p>

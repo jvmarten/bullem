@@ -203,6 +203,62 @@ async function seedMissingCFRBotRatings(userIds: string[]): Promise<void> {
 }
 
 /**
+ * Verify all CFR bot accounts and ratings exist at server startup.
+ * Unlike the reactive self-heal in getRankedBotPool (which only runs during
+ * matchmaking), this runs once at boot to ensure CFR bots are visible on the
+ * leaderboard and their profiles are resolvable from the very first request.
+ */
+export async function ensureCFRBotAccounts(): Promise<void> {
+  try {
+    // Check which CFR bots are missing from the users table
+    const existingResult = await query<{ username: string }>(
+      `SELECT username FROM users WHERE is_bot = true AND bot_profile LIKE 'cfr_%'`,
+    );
+    const existingUsernames = new Set(existingResult?.rows.map(r => r.username) ?? []);
+
+    let seededUsers = 0;
+    let seededRatings = 0;
+
+    for (const bot of CFR_BOTS) {
+      const uuid = CFR_BOT_UUIDS[bot.key];
+      if (!uuid) continue;
+
+      // Ensure user row exists
+      if (!existingUsernames.has(bot.key)) {
+        await query(
+          `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
+           VALUES ($1, $2, $3, 'bot', true, $4)
+           ON CONFLICT (username) DO UPDATE
+             SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name`,
+          [uuid, bot.key, bot.name, bot.key],
+        );
+        seededUsers++;
+      }
+
+      // Ensure rating rows exist for both modes
+      for (const m of ['heads_up', 'multiplayer'] as const) {
+        const inserted = await query<{ user_id: string }>(
+          `INSERT INTO ratings (user_id, mode, elo, mu, sigma, games_played, peak_rating)
+           VALUES ($1, $2, 1200, 25, 8.333, 0, 1200)
+           ON CONFLICT (user_id, mode) DO NOTHING
+           RETURNING user_id`,
+          [uuid, m],
+        );
+        if (inserted && inserted.rows.length > 0) seededRatings++;
+      }
+    }
+
+    if (seededUsers > 0 || seededRatings > 0) {
+      logger.info({ seededUsers, seededRatings }, 'Startup: seeded missing CFR bot accounts/ratings');
+    } else {
+      logger.debug('Startup: all CFR bot accounts and ratings verified');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Startup: failed to verify CFR bot accounts — leaderboard may be incomplete');
+  }
+}
+
+/**
  * Pick the best bot from the pool whose rating is closest to the target.
  * Optionally exclude bots already in use (by userId).
  */
