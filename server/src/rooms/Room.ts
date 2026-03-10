@@ -385,6 +385,11 @@ export class Room {
     if (snapshot.playerUserIds) {
       for (const [playerId, userId] of Object.entries(snapshot.playerUserIds)) {
         room.playerUserIds.set(playerId, userId);
+        // Also restore userId on the player object for client state
+        const player = room.players.get(playerId);
+        if (player) {
+          player.userId = userId;
+        }
       }
     }
     room.gameStartedAt = snapshot.gameStartedAt ? new Date(snapshot.gameStartedAt) : null;
@@ -536,6 +541,11 @@ export class Room {
   /** Associate an in-game player ID with an authenticated user ID. */
   setPlayerUserId(playerId: PlayerId, userId: string): void {
     this.playerUserIds.set(playerId, userId);
+    // Also set on the player object so it's included in client state
+    const player = this.players.get(playerId);
+    if (player) {
+      player.userId = userId;
+    }
   }
 
   get playerCount(): number {
