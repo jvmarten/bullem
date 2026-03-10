@@ -172,10 +172,16 @@ export class MatchmakingQueue {
       return 'Already in matchmaking queue';
     }
 
-    // Check if already in a game
+    // Check if already in a game — but allow re-queuing from the results screen
+    // (game phase GAME_OVER or FINISHED means the match is done).
     const existingRoom = this.roomManager.getRoomForSocket(socket.id);
     if (existingRoom) {
-      return 'Already in a game — leave your current room first';
+      if (existingRoom.gamePhase === GamePhase.GAME_OVER || existingRoom.gamePhase === GamePhase.FINISHED) {
+        // Clean up the stale socket-to-room mapping so the player can join a new match
+        this.roomManager.removeSocketMapping(socket.id);
+      } else {
+        return 'Already in a game — leave your current room first';
+      }
     }
 
     // Fetch the player's rating, avatar, and photo URL in parallel

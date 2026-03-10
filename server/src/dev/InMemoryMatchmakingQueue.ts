@@ -123,9 +123,14 @@ export class InMemoryMatchmakingQueue {
       return 'Already in matchmaking queue';
     }
 
+    // Allow re-queuing from the results screen (game is over)
     const existingRoom = this.roomManager.getRoomForSocket(socket.id);
     if (existingRoom) {
-      return 'Already in a game — leave your current room first';
+      if (existingRoom.gamePhase === GamePhase.GAME_OVER || existingRoom.gamePhase === GamePhase.FINISHED) {
+        this.roomManager.removeSocketMapping(socket.id);
+      } else {
+        return 'Already in a game — leave your current room first';
+      }
     }
 
     const rating = mode === 'heads_up'
