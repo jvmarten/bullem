@@ -74,6 +74,26 @@ export function LobbyPage() {
     }
   }, [roomState, roomCode, joining, joinRoom, navigate]);
 
+  // Persist online match settings to localStorage whenever the host changes them
+  // (must be above early returns to maintain consistent hook ordering)
+  const isHost = playerId === roomState?.hostId;
+  const maybeSettings = roomState?.settings;
+  useEffect(() => {
+    if (!isHost || !maybeSettings) return;
+    saveMatchSettings({
+      maxCards: maybeSettings.maxCards,
+      turnTimer: maybeSettings.turnTimer,
+      maxPlayers: maybeSettings.maxPlayers,
+      botSpeed: maybeSettings.botSpeed,
+      lastChanceMode: maybeSettings.lastChanceMode,
+      botLevelCategory: maybeSettings.botLevelCategory,
+      allowSpectators: maybeSettings.allowSpectators,
+      spectatorsCanSeeCards: maybeSettings.spectatorsCanSeeCards,
+      bestOf: maybeSettings.bestOf,
+      jokerCount: maybeSettings.jokerCount,
+    }, 'online');
+  }, [isHost, maybeSettings]);
+
   const handleManualJoin = async () => {
     if (!joinName.trim() || !roomCode) return;
     setJoining(true);
@@ -155,7 +175,7 @@ export function LobbyPage() {
     );
   }
 
-  const isHost = playerId === roomState.hostId;
+  // roomState is guaranteed non-null below this point (early returns above handle null case)
   const settings = roomState.settings;
   const maxCards = settings?.maxCards ?? MAX_CARDS;
   const turnTimer = settings?.turnTimer ?? 0;
@@ -163,27 +183,10 @@ export function LobbyPage() {
   const jokerCount = settings?.jokerCount ?? 0;
   const cardBasedMax = maxPlayersForMaxCards(maxCards, jokerCount);
   const effectiveMaxPlayers = Math.min(MAX_PLAYERS, cardBasedMax, maxPlayersSetting);
-  const canStart = isHost && roomState.players.length >= MIN_PLAYERS;
+  const canStart = isHost && roomState!.players.length >= MIN_PLAYERS;
   // Settings locked once another human (non-bot) player has joined
-  const hasOtherHumans = roomState.players.some(p => !p.isBot && p.id !== roomState.hostId);
+  const hasOtherHumans = roomState!.players.some(p => !p.isBot && p.id !== roomState!.hostId);
   const settingsLocked = hasOtherHumans;
-
-  // Persist online match settings to localStorage whenever the host changes them
-  useEffect(() => {
-    if (!isHost || !settings) return;
-    saveMatchSettings({
-      maxCards: settings.maxCards,
-      turnTimer: settings.turnTimer,
-      maxPlayers: settings.maxPlayers,
-      botSpeed: settings.botSpeed,
-      lastChanceMode: settings.lastChanceMode,
-      botLevelCategory: settings.botLevelCategory,
-      allowSpectators: settings.allowSpectators,
-      spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
-      bestOf: settings.bestOf,
-      jokerCount: settings.jokerCount,
-    }, 'online');
-  }, [isHost, settings]);
 
   const handleMaxCardsChange = (newMax: number) => {
     if (settingsLocked) return;
