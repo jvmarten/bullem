@@ -239,9 +239,9 @@ export function seedPopulation(size: number): Individual[] {
 
   // Fill remaining slots with random configs and mutations of existing profiles
   while (population.length < size) {
-    if (Math.random() < 0.5 && level9Profiles.length > 0) {
+    if (Math.random() < 0.5 && level8Profiles.length > 0) {
       // Mutated version of an existing profile
-      const base = level9Profiles[Math.floor(Math.random() * level9Profiles.length)]!;
+      const base = level8Profiles[Math.floor(Math.random() * level8Profiles.length)]!;
       population.push({
         id: makeId('mutant'),
         config: mutateConfig(base.config, 0.3, 1.0),

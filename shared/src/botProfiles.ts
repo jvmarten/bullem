@@ -118,16 +118,16 @@ export interface BotProfileDefinition {
 // in the matrix benefits from the latest training insights.
 
 export const DEFAULT_BOT_PROFILE_CONFIG: Readonly<BotProfileConfig> = {
-  bluffFrequency: 0.00,           // Never proactively bluff — honest play wins
-  bullThreshold: 0.33,            // Aggressive bull-calling — call often
-  riskTolerance: 0.97,            // Very high risk tolerance — bold phase play
-  aggressionBias: 0.41,           // Moderate raise preference
-  lastChanceBluffRate: 0.68,      // Aggressive last-chance raises
-  openingBluffRate: 0.00,         // Never bluff openings — play honest
-  bullPhaseRaiseRate: 0.62,       // Aggressive bull-phase raises
-  trustMultiplier: 1.49,          // Trust opponent reads heavily
-  bluffPlausibilityGate: 0.38,    // Moderate plausibility gate
-  noiseBand: 0.12,                // Wider noise band — less exploitable
+  bluffFrequency: 0.70,           // Moderate bluffing — key for multi-player dominance
+  bullThreshold: 0.28,            // Aggressive bull-calling — challenge claims early
+  riskTolerance: 0.60,            // Balanced risk — bold but not reckless
+  aggressionBias: 0.80,           // High aggression — prefer raising over passive play
+  lastChanceBluffRate: 0.82,      // Strong last-chance raises — fight elimination
+  openingBluffRate: 0.05,         // Rare opening bluffs — mostly honest openers
+  bullPhaseRaiseRate: 0.65,       // Frequent bull-phase raises — stay aggressive
+  trustMultiplier: 1.25,          // Moderate trust — slightly skeptical of claims
+  bluffPlausibilityGate: 0.28,    // Low plausibility gate — attempt creative bluffs
+  noiseBand: 0.13,                // Moderate noise — balanced unpredictability
 };
 
 // ── Personality base definitions (level 9 = full personality expression) ─
@@ -157,14 +157,14 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1FAA8}',
     config: {
       // Signature: high bullThreshold, low riskTolerance, high bluffPlausibilityGate, low noiseBand
-      bluffFrequency: 0.00,          // Evolved baseline (already never bluffs)
+      bluffFrequency: 0.70,          // Evolved baseline
       bullThreshold: 0.55,           // Signature: much more cautious bull-caller
-      riskTolerance: 0.50,           // Signature: conservative — half of baseline boldness
-      aggressionBias: 0.41,          // Evolved baseline
+      riskTolerance: 0.50,           // Signature: conservative — below baseline boldness
+      aggressionBias: 0.80,          // Evolved baseline
       lastChanceBluffRate: 0.40,     // Signature: below baseline — conservative
-      openingBluffRate: 0.00,        // Evolved baseline
+      openingBluffRate: 0.05,        // Evolved baseline
       bullPhaseRaiseRate: 0.30,      // Signature: below baseline — selective raises
-      trustMultiplier: 1.49,         // Evolved baseline
+      trustMultiplier: 1.25,         // Evolved baseline
       bluffPlausibilityGate: 0.55,   // Signature: only very plausible bluffs
       noiseBand: 0.08,              // Signature: precise decisions
     },
@@ -183,15 +183,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F920}',
     config: {
       // Signature: high bluffFrequency, low bullThreshold, high lastChanceBluffRate, low trustMultiplier
-      bluffFrequency: 0.50,          // Signature: bluffs a lot (vs baseline 0)
+      bluffFrequency: 1.20,          // Signature: bluffs a lot (above baseline 0.70)
       bullThreshold: 0.20,           // Signature: aggressive bull-caller
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.55,          // Signature: more raise-happy
-      lastChanceBluffRate: 0.85,     // Signature: very high last-chance raises
-      openingBluffRate: 0.25,        // Signature: aggressive openers (vs baseline 0)
-      bullPhaseRaiseRate: 0.62,      // Evolved baseline
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.90,          // Signature: more raise-happy
+      lastChanceBluffRate: 0.90,     // Signature: very high last-chance raises
+      openingBluffRate: 0.25,        // Signature: aggressive openers
+      bullPhaseRaiseRate: 0.65,      // Evolved baseline
       trustMultiplier: 1.00,         // Signature: skeptical
-      bluffPlausibilityGate: 0.25,   // Signature: will bluff with less plausible hands
+      bluffPlausibilityGate: 0.18,   // Signature: will bluff with less plausible hands
       noiseBand: 0.14,              // Slightly more noise — unpredictable
     },
     flavorText: {
@@ -209,14 +209,14 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{26CF}\u{FE0F}',
     config: {
       // Signature: low riskTolerance, low openingBluffRate, high bluffPlausibilityGate
-      bluffFrequency: 0.00,          // Evolved baseline
-      bullThreshold: 0.33,           // Evolved baseline
-      riskTolerance: 0.50,           // Signature: cautious — half of baseline boldness
-      aggressionBias: 0.41,          // Evolved baseline
-      lastChanceBluffRate: 0.45,     // Signature: below baseline — patient
-      openingBluffRate: 0.00,        // Evolved baseline
+      bluffFrequency: 0.70,          // Evolved baseline
+      bullThreshold: 0.28,           // Evolved baseline
+      riskTolerance: 0.40,           // Signature: cautious — below baseline boldness
+      aggressionBias: 0.80,          // Evolved baseline
+      lastChanceBluffRate: 0.50,     // Signature: below baseline — patient
+      openingBluffRate: 0.02,        // Signature: almost no opening bluffs
       bullPhaseRaiseRate: 0.40,      // Signature: below baseline — selective
-      trustMultiplier: 1.49,         // Evolved baseline
+      trustMultiplier: 1.25,         // Evolved baseline
       bluffPlausibilityGate: 0.55,   // Signature: only very plausible bluffs
       noiseBand: 0.08,              // Precise — no wasted moves
     },
@@ -235,15 +235,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F3B2}',
     config: {
       // Signature: high noiseBand (unpredictable), variable aggression, low bluffPlausibilityGate
-      bluffFrequency: 0.25,          // Signature: some bluffing (vs baseline 0)
+      bluffFrequency: 0.90,          // Signature: more bluffing than baseline
       bullThreshold: 0.25,           // Signature: slightly more aggressive bull-caller
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.55,          // Signature: raise-happy (chaotic)
-      lastChanceBluffRate: 0.80,     // Above baseline — chaotic last-chance plays
-      openingBluffRate: 0.15,        // Signature: some opening bluffs (vs baseline 0)
-      bullPhaseRaiseRate: 0.70,      // Above baseline — unpredictable raises
-      trustMultiplier: 1.20,         // Below baseline — chaos doesn't commit
-      bluffPlausibilityGate: 0.25,   // Signature: willing to try risky bluffs
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.85,          // Signature: raise-happy (chaotic)
+      lastChanceBluffRate: 0.85,     // Above baseline — chaotic last-chance plays
+      openingBluffRate: 0.15,        // Signature: some opening bluffs
+      bullPhaseRaiseRate: 0.75,      // Signature: above baseline — unpredictable raises
+      trustMultiplier: 1.10,         // Signature: below baseline — chaos doesn't commit
+      bluffPlausibilityGate: 0.20,   // Signature: willing to try risky bluffs
       noiseBand: 0.18,              // Signature: very high noise — unpredictable
     },
     flavorText: {
@@ -261,16 +261,16 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F393}',
     config: {
       // Signature: exact evolved baseline — the "textbook" bot. Identical to DEFAULT.
-      bluffFrequency: 0.00,          // Evolved baseline
-      bullThreshold: 0.33,           // Evolved baseline
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.41,          // Evolved baseline
-      lastChanceBluffRate: 0.68,     // Evolved baseline
-      openingBluffRate: 0.00,        // Evolved baseline
-      bullPhaseRaiseRate: 0.62,      // Evolved baseline
-      trustMultiplier: 1.49,         // Evolved baseline
-      bluffPlausibilityGate: 0.38,   // Evolved baseline
-      noiseBand: 0.12,              // Evolved baseline
+      bluffFrequency: 0.70,          // Evolved baseline
+      bullThreshold: 0.28,           // Evolved baseline
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.80,          // Evolved baseline
+      lastChanceBluffRate: 0.82,     // Evolved baseline
+      openingBluffRate: 0.05,        // Evolved baseline
+      bullPhaseRaiseRate: 0.65,      // Evolved baseline
+      trustMultiplier: 1.25,         // Evolved baseline
+      bluffPlausibilityGate: 0.28,   // Evolved baseline
+      noiseBand: 0.13,              // Evolved baseline
     },
     flavorText: {
       callBull: ['Statistically improbable.', 'The odds are against you.', 'P < 0.05.'],
@@ -287,16 +287,16 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F988}',
     config: {
       // Signature: high trustMultiplier, low bullThreshold, low bluffPlausibilityGate (exploitative)
-      bluffFrequency: 0.00,          // Evolved baseline
-      bullThreshold: 0.28,           // Signature: more aggressive bull-caller (reads)
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.41,          // Evolved baseline
-      lastChanceBluffRate: 0.68,     // Evolved baseline
-      openingBluffRate: 0.00,        // Evolved baseline
-      bullPhaseRaiseRate: 0.62,      // Evolved baseline
+      bluffFrequency: 0.70,          // Evolved baseline
+      bullThreshold: 0.25,           // Signature: more aggressive bull-caller (reads)
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.80,          // Evolved baseline
+      lastChanceBluffRate: 0.82,     // Evolved baseline
+      openingBluffRate: 0.05,        // Evolved baseline
+      bullPhaseRaiseRate: 0.65,      // Evolved baseline
       trustMultiplier: 1.70,         // Signature: trusts reads heavily
-      bluffPlausibilityGate: 0.30,   // Signature: wider bluff range based on reads
-      noiseBand: 0.10,              // Slightly below baseline — precise reads
+      bluffPlausibilityGate: 0.22,   // Signature: wider bluff range based on reads
+      noiseBand: 0.10,              // Signature: slightly below baseline — precise reads
     },
     flavorText: {
       callBull: ['I\'ve seen your pattern.', 'You always do this.', 'Predictable.'],
@@ -313,15 +313,15 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F4A3}',
     config: {
       // Signature: high aggressionBias, high lastChanceBluffRate, low bullThreshold
-      bluffFrequency: 0.30,          // Signature: bluffs for big raises (vs baseline 0)
+      bluffFrequency: 1.00,          // Signature: bluffs aggressively for big raises
       bullThreshold: 0.20,           // Signature: aggressive bull-caller
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.65,          // Signature: very raise-happy
-      lastChanceBluffRate: 0.85,     // Signature: always goes for it
-      openingBluffRate: 0.15,        // Signature: opens big (vs baseline 0)
-      bullPhaseRaiseRate: 0.75,      // Signature: above baseline — more raises
-      trustMultiplier: 1.20,         // Below baseline — Cannon is skeptical
-      bluffPlausibilityGate: 0.30,   // Lower gate — willing to try bold bluffs
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.92,          // Signature: very raise-happy
+      lastChanceBluffRate: 0.90,     // Signature: always goes for it
+      openingBluffRate: 0.15,        // Signature: opens big
+      bullPhaseRaiseRate: 0.80,      // Signature: above baseline — more raises
+      trustMultiplier: 1.15,         // Signature: below baseline — Cannon is skeptical
+      bluffPlausibilityGate: 0.22,   // Signature: willing to try bold bluffs
       noiseBand: 0.14,              // Slightly more noise
     },
     flavorText: {
@@ -339,14 +339,14 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{2744}\u{FE0F}',
     config: {
       // Signature: high bullThreshold, low aggressionBias, low riskTolerance, low noiseBand
-      bluffFrequency: 0.00,          // Evolved baseline
+      bluffFrequency: 0.70,          // Evolved baseline
       bullThreshold: 0.55,           // Signature: much more cautious bull-caller
-      riskTolerance: 0.50,           // Signature: tight — half of baseline boldness
-      aggressionBias: 0.25,          // Signature: low aggression — Frost's discipline
-      lastChanceBluffRate: 0.35,     // Signature: below baseline — conservative
-      openingBluffRate: 0.00,        // Evolved baseline
+      riskTolerance: 0.40,           // Signature: tight — below baseline boldness
+      aggressionBias: 0.35,          // Signature: low aggression — Frost's discipline
+      lastChanceBluffRate: 0.40,     // Signature: below baseline — conservative
+      openingBluffRate: 0.05,        // Evolved baseline
       bullPhaseRaiseRate: 0.35,      // Signature: below baseline — very selective
-      trustMultiplier: 1.49,         // Evolved baseline
+      trustMultiplier: 1.25,         // Evolved baseline
       bluffPlausibilityGate: 0.55,   // Signature: only very plausible bluffs
       noiseBand: 0.06,              // Signature: minimal noise — very precise
     },
@@ -365,16 +365,16 @@ const PERSONALITY_BASES: readonly PersonalityBase[] = [
     avatar: '\u{1F3B1}',
     config: {
       // Signature: high openingBluffRate, moderate aggression, low bluffPlausibilityGate
-      bluffFrequency: 0.20,          // Signature: some bluffing (vs baseline 0)
-      bullThreshold: 0.28,           // Signature: slightly more aggressive
-      riskTolerance: 0.97,           // Evolved baseline
-      aggressionBias: 0.48,          // Slightly above baseline
-      lastChanceBluffRate: 0.75,     // Above baseline
-      openingBluffRate: 0.18,        // Signature: opens strong (vs baseline 0)
-      bullPhaseRaiseRate: 0.65,      // Slightly above baseline
-      trustMultiplier: 1.25,         // Below baseline — skeptical
-      bluffPlausibilityGate: 0.30,   // Signature: well-timed risky bluffs
-      noiseBand: 0.12,              // Evolved baseline
+      bluffFrequency: 0.80,          // Signature: bluffs a bit above baseline
+      bullThreshold: 0.26,           // Signature: slightly more aggressive
+      riskTolerance: 0.60,           // Evolved baseline
+      aggressionBias: 0.82,          // Slightly above baseline
+      lastChanceBluffRate: 0.85,     // Above baseline
+      openingBluffRate: 0.18,        // Signature: opens strong
+      bullPhaseRaiseRate: 0.68,      // Slightly above baseline
+      trustMultiplier: 1.15,         // Signature: below baseline — skeptical
+      bluffPlausibilityGate: 0.22,   // Signature: well-timed risky bluffs
+      noiseBand: 0.13,              // Evolved baseline
     },
     flavorText: {
       callBull: ['I know a hustle when I see one.', 'Not today.', 'That ain\'t it.'],
@@ -406,20 +406,20 @@ export const BOT_MATRIX_SIZE = BOT_PERSONALITY_COUNT * BOT_LEVELS + CFR_BOT_COUN
  * too cautious about calling bull, lower risk tolerance, doesn't trust reads.
  * Level scaling lerps from here to personality lvl8.
  *
- * V2 evolved baseline is "honest aggressive" (no bluffs, bold phase play).
- * Unskilled bots deviate by bluffing too much, being too cautious, and noisy.
+ * V3 evolved baseline is "balanced aggressive" (moderate bluffs, high aggression).
+ * Unskilled bots deviate by over-bluffing, being too cautious, and noisy.
  */
 const UNSKILLED_CONFIG: Readonly<BotProfileConfig> = {
-  bluffFrequency: 0.40,          // Unskilled bluff too much (evolved: 0.00)
-  bullThreshold: 0.55,           // Unskilled too cautious calling bull (evolved: 0.33)
-  riskTolerance: 0.50,           // Unskilled less bold (evolved: 0.97)
-  aggressionBias: 0.50,          // Unskilled unfocused aggression (evolved: 0.41)
-  lastChanceBluffRate: 0.45,     // Unskilled less decisive last-chance (evolved: 0.68)
-  openingBluffRate: 0.25,        // Unskilled bluff openings (evolved: 0.00)
-  bullPhaseRaiseRate: 0.35,      // Unskilled fewer bull-phase raises (evolved: 0.62)
-  trustMultiplier: 0.90,         // Unskilled don't trust reads (evolved: 1.49)
-  bluffPlausibilityGate: 0.20,   // Unskilled try implausible bluffs (evolved: 0.38)
-  noiseBand: 0.15,               // Unskilled are noisy (evolved: 0.12)
+  bluffFrequency: 0.50,          // Unskilled over-bluff (evolved: 0.70, bad: 1.2)
+  bullThreshold: 0.50,           // Unskilled too cautious calling bull (evolved: 0.28)
+  riskTolerance: 0.45,           // Unskilled less bold (evolved: 0.60)
+  aggressionBias: 0.55,          // Unskilled unfocused aggression (evolved: 0.80)
+  lastChanceBluffRate: 0.50,     // Unskilled less decisive last-chance (evolved: 0.82)
+  openingBluffRate: 0.20,        // Unskilled bluff openings too much (evolved: 0.05)
+  bullPhaseRaiseRate: 0.40,      // Unskilled fewer bull-phase raises (evolved: 0.65)
+  trustMultiplier: 0.85,         // Unskilled don't trust reads (evolved: 1.25)
+  bluffPlausibilityGate: 0.15,   // Unskilled try implausible bluffs (evolved: 0.28)
+  noiseBand: 0.17,               // Unskilled are noisy (evolved: 0.13)
 };
 
 /**

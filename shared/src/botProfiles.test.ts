@@ -129,19 +129,19 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('uses exact 2P-V2 evolved champion values as baseline', () => {
-      // DEFAULT is the 2P-V2 evolved champion — all personalities derive from this.
+    it('uses exact V3 universal evolved champion values as baseline', () => {
+      // DEFAULT is the V3 universal evolved champion — all personalities derive from this.
       // After each evolution run, update DEFAULT to the new champion's values.
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.00);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.33);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.97);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.41);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.68);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.00);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.62);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.49);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.38);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.12);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.70);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.28);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.60);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.80);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.82);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.05);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.65);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.25);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.28);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.13);
     });
   });
 
@@ -158,9 +158,9 @@ describe('botProfiles', () => {
     it('lvl8 profiles express personality more strongly than lvl1', () => {
       const rock1 = BOT_PROFILE_MAP.get('rock_lvl1')!;
       const rock8 = BOT_PROFILE_MAP.get('rock_lvl8')!;
-      // Rock at lvl8 should have lower bluffFrequency (more conservative) than lvl1
-      // because lvl1 lerps toward unskilled (0.55 bluffFreq) while rock lvl8 = 0.15
-      expect(rock8.config.bluffFrequency).toBeLessThan(rock1.config.bluffFrequency);
+      // Rock at lvl8 should have higher bullThreshold (more cautious) than lvl1
+      // because lvl1 lerps toward unskilled (0.50 bullThreshold) while rock lvl8 = 0.55
+      expect(rock8.config.bullThreshold).toBeGreaterThan(rock1.config.bullThreshold);
     });
 
     it('all 8 heuristic levels exist for each personality', () => {
