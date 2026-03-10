@@ -308,10 +308,10 @@ export function HomePage() {
     return getOrCreatePlayerName();
   });
   const location = useLocation();
-  const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
+  const [mode, setMode] = useState<'menu' | 'online' | 'offline' | 'join' | 'browse'>(
     () => {
       const stateMode = (location.state as { mode?: string } | null)?.mode;
-      if (stateMode === 'online' || stateMode === 'browse') return stateMode;
+      if (stateMode === 'online' || stateMode === 'offline' || stateMode === 'browse') return stateMode;
       return 'menu';
     },
   );
@@ -776,7 +776,7 @@ export function HomePage() {
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
         {/* Player name / auth display — centered */}
-        {(mode === 'menu' || mode === 'online') && (
+        {(mode === 'menu' || mode === 'online' || mode === 'offline') && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
             {user ? (
               /* Signed-in: show user icon + username linking to profile */
@@ -806,39 +806,14 @@ export function HomePage() {
               Quick Play
             </button>
             <button onClick={() => { play('uiSoft'); setMode('online'); }} className="w-full btn-gold py-4 text-lg">
-              Play Online
+              Online
             </button>
-            <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
-              Play Offline
+            <button onClick={() => { play('uiSoft'); setMode('offline'); }} className="w-full btn-gold py-4 text-lg">
+              Offline
             </button>
-            <Link
-              to="/tutorial"
-              className="w-full btn-info py-4 text-lg text-center block"
-            >
-              Interactive Tutorial
-            </Link>
-            <button
-              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
-              className="w-full btn-ghost py-4 text-lg"
-            >
-              Watch a Game
-            </button>
-            <Link
-              to="/leaderboard"
-              className="w-full btn-ghost py-4 text-lg text-center block"
-            >
-              Leaderboard
-            </Link>
-            <FriendsMenuLink />
-            <Link
-              to="/draw"
-              className="w-full btn-purple py-4 text-lg text-center block"
-            >
-              Deck Draw
-            </Link>
             <Link
               to="/rules"
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
+              className="w-full btn-ghost py-4 text-lg text-center block"
             >
               Rules
             </Link>
@@ -859,6 +834,32 @@ export function HomePage() {
               </svg>
             </button>
             {showRecentPlayers && <RecentPlayers />}
+          </div>
+        )}
+
+        {mode === 'offline' && (
+          <div className="flex flex-col gap-3 w-full animate-fade-in">
+            <Link
+              to="/tutorial"
+              className="w-full btn-info py-4 text-lg text-center block"
+            >
+              Tutorial
+            </Link>
+            <Link
+              to="/draw"
+              className="w-full btn-purple py-4 text-lg text-center block"
+            >
+              Deck Draw
+            </Link>
+            <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
+              Play vs Bots
+            </button>
+            <button
+              onClick={() => { play('uiBack'); setMode('menu'); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
           </div>
         )}
 
@@ -971,6 +972,19 @@ export function HomePage() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
+              className="w-full btn-ghost py-4 text-lg"
+            >
+              Watch a Game
+            </button>
+            <Link
+              to="/leaderboard"
+              className="w-full btn-ghost py-4 text-lg text-center block"
+            >
+              Leaderboard
+            </Link>
+            <FriendsMenuLink />
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
