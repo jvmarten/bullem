@@ -684,6 +684,44 @@ body {
   padding: 0 1px;
 }
 
+/* ── Quick Draw Hint (first-use callout) ────────────── */
+@keyframes quick-draw-hint-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-quick-draw-hint-in {
+  animation: quick-draw-hint-in 0.35s ease-out both;
+}
+.quick-draw-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.quick-draw-hint-arrow {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 7px solid var(--gold-dim);
+}
+.quick-draw-hint-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--gold-dim);
+  background: rgba(11, 61, 30, 0.92);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+
 /* Staggered card deal delays */
 .deal-delay-0 { animation-delay: 0ms; }
 .deal-delay-1 { animation-delay: 100ms; }
