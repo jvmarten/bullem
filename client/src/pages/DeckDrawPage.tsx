@@ -180,7 +180,7 @@ export function DeckDrawPage() {
                 if (merged) {
                   setStats(merged);
                   localStorage.setItem(SYNCED_KEY, 'true');
-                  addToast('Guest Deck Draw Minigame stats synced to your account');
+                  addToast('Guest deck draw stats synced to your account');
                 }
               })
               .catch(() => {});
@@ -405,7 +405,7 @@ export function DeckDrawPage() {
   return (
     <Layout>
       <div className="flex flex-col items-center gap-6 pt-4 max-w-md mx-auto">
-        <h1 className="text-2xl font-bold text-[var(--gold)]">Deck Draw Minigame</h1>
+        <h1 className="text-2xl font-bold text-[var(--gold)]">Deck Draw</h1>
         <p className="text-sm text-[var(--gold-dim)] text-center -mt-4">
           Draw 5 cards, get paid by rarity. No house edge.
         </p>
