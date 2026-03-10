@@ -103,13 +103,12 @@ const TileMeter = memo(function TileMeter({ turnDeadline, turnDurationMs }: { tu
   }, [syncSize]);
 
   useEffect(() => {
-    const now = Date.now();
-    // Use the authoritative duration when available so the countdown speed
-    // is consistent regardless of when this component mounts. Fall back to
-    // remaining time if turnDurationMs is not provided (backwards compat).
+    // Use turnDurationMs (the room's turn timer) so the countdown pace is
+    // consistent across all turns. Fall back to remaining-to-deadline if
+    // turnDurationMs is not available.
     const total = turnDurationMs != null && turnDurationMs > 0
       ? turnDurationMs
-      : Math.max(0, turnDeadline - now);
+      : Math.max(0, turnDeadline - Date.now());
 
     // Ensure perim is computed (handles mount before layout is ready)
     if (!perimRef.current) syncSize();
@@ -126,16 +125,21 @@ const TileMeter = memo(function TileMeter({ turnDeadline, turnDurationMs }: { tu
 
     if (total <= 0) return;
 
+    // Track elapsed time from mount so the animation always starts at 100%
+    // and counts down at a consistent pace (1/total per ms), regardless of
+    // when the component mounts relative to the deadline.
+    const mountTime = Date.now();
+
     const update = () => {
-      const remaining = Math.max(0, turnDeadline - Date.now());
       // Lazy-init perim if it wasn't available at mount time
       let perim = perimRef.current;
       if (!perim) {
         syncSize();
         perim = perimRef.current;
       }
-      if (total <= 0 || !perim || !rectRef.current) return;
-      const pct = remaining / total;
+      if (!perim || !rectRef.current) return;
+      const elapsed = Date.now() - mountTime;
+      const pct = Math.max(0, 1 - elapsed / total);
       // Diminish clockwise: gap grows from top-left by offsetting the dash start
       const visibleLength = perim * pct;
       const gapLength = perim - visibleLength;
