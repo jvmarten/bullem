@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { RoundPhase } from '@bull-em/shared';
+import { RoundPhase, getDeckSize } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { HandDisplay } from '../components/HandDisplay.js';
@@ -237,11 +237,12 @@ export function GamePage() {
     lastResultRef.current = roundResult;
   }, [roundResult, playerId, gameState, addToast]);
 
+  const deckSize = getDeckSize(roomState?.settings?.jokerCount ?? 0);
   const cardStats = useMemo(() => {
     if (!gameState) return { total: 0, pct: 0 };
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
-    return { total, pct: Math.round((total / 52) * 100) };
-  }, [gameState]);
+    return { total, pct: Math.round((total / deckSize) * 100) };
+  }, [gameState, deckSize]);
 
   const cardCounts = useMemo(() => {
     if (!gameState) return {};
@@ -411,8 +412,8 @@ export function GamePage() {
           Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
         </span>
       )}
-      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
-        {cardStats.total}/52 ({cardStats.pct}%)
+      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${deckSize} cards in play`}>
+        {cardStats.total}/{deckSize} ({cardStats.pct}%)
       </span>
     </>
   );

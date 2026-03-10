@@ -4,7 +4,12 @@ export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 
 export interface Card {
   rank: Rank;
   suit: Suit;
+  /** True if this card is a joker (wild — can substitute for any card). */
+  isJoker?: boolean;
 }
+
+/** Number of jokers to include in the deck (0 = standard 52-card deck). */
+export type JokerCount = 0 | 1 | 2;
 
 /**
  * Hand types in ascending strength order. Note the custom ranking:
@@ -215,6 +220,9 @@ export interface GameSettings {
    *  'easy' = lvl 1-3, 'normal' = lvl 4-6, 'hard' = lvl 7-9 (includes CFR bots),
    *  'mixed' = lvl 1-9. Defaults to 'normal'. */
   botLevelCategory?: BotLevelCategory;
+  /** Number of joker (wild) cards in the deck: 0, 1, or 2. Defaults to 0 (standard 52-card deck).
+   *  Jokers act as wildcards — they can substitute for any card when checking hand existence. */
+  jokerCount?: JokerCount;
 }
 
 // ── Series (Best-of) types ────────────────────────────────────────────

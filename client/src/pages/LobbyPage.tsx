@@ -5,7 +5,7 @@ import { ShareButton } from '../components/ShareButton.js';
 import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, BotDifficulty } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, BotDifficulty, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
 import type { BestOf, BotLevelCategory } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -160,7 +160,8 @@ export function LobbyPage() {
   const maxCards = settings?.maxCards ?? MAX_CARDS;
   const turnTimer = settings?.turnTimer ?? 0;
   const maxPlayersSetting = settings?.maxPlayers ?? MAX_PLAYERS;
-  const cardBasedMax = maxPlayersForMaxCards(maxCards);
+  const jokerCount = settings?.jokerCount ?? 0;
+  const cardBasedMax = maxPlayersForMaxCards(maxCards, jokerCount);
   const effectiveMaxPlayers = Math.min(MAX_PLAYERS, cardBasedMax, maxPlayersSetting);
   const canStart = isHost && roomState.players.length >= MIN_PLAYERS;
   // Settings locked once another human (non-bot) player has joined
@@ -180,13 +181,14 @@ export function LobbyPage() {
       allowSpectators: settings.allowSpectators,
       spectatorsCanSeeCards: settings.spectatorsCanSeeCards,
       bestOf: settings.bestOf,
+      jokerCount: settings.jokerCount,
     }, 'online');
   }, [isHost, settings]);
 
   const handleMaxCardsChange = (newMax: number) => {
     if (settingsLocked) return;
     play('uiSoft');
-    const newCardMax = maxPlayersForMaxCards(newMax);
+    const newCardMax = maxPlayersForMaxCards(newMax, jokerCount);
     const cap = Math.min(MAX_PLAYERS, newCardMax, maxPlayersSetting);
     if (roomState.players.length > cap) {
       addToast(`Can't set max cards to ${newMax} with ${roomState.players.length} players`);
@@ -382,6 +384,33 @@ export function LobbyPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Jokers (Wild) setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Jokers (Wild)
+              </p>
+              <div className="flex gap-1.5">
+                {JOKER_COUNT_OPTIONS.map(n => (
+                  <button
+                    key={n}
+                    onClick={() => { play('uiSoft'); updateSettings({ ...settings, jokerCount: n }); }}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      (settings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {(settings.jokerCount ?? 0) === 0
+                  ? 'Standard 52-card deck'
+                  : `${settings.jokerCount} wild joker${(settings.jokerCount ?? 0) > 1 ? 's' : ''} \u2014 can substitute for any card`}
+              </p>
             </div>
 
             {/* Bot Speed setting */}
@@ -628,6 +657,12 @@ export function LobbyPage() {
                 <p className="text-[var(--gold)] font-bold text-base">{(settings.lastChanceMode ?? 'classic') === 'classic' ? 'Yes' : 'No'}</p>
                 <p className="text-[var(--gold-dim)]">True in LCR</p>
               </div>
+              {(settings.jokerCount ?? 0) > 0 && (
+                <div>
+                  <p className="text-[var(--gold)] font-bold text-base">{settings.jokerCount}</p>
+                  <p className="text-[var(--gold-dim)]">Jokers</p>
+                </div>
+              )}
               {maxPlayersSetting === 2 && (
                 <div>
                   <p className="text-[var(--gold)] font-bold text-base">Bo{settings.bestOf ?? DEFAULT_BEST_OF}</p>

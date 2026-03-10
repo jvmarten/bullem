@@ -217,7 +217,7 @@ export class RoomManager {
   }
 
   effectiveMaxPlayers(room: Room): number {
-    const cardBased = maxPlayersForMaxCards(room.settings.maxCards);
+    const cardBased = maxPlayersForMaxCards(room.settings.maxCards, room.settings.jokerCount ?? 0);
     const userCap = room.settings.maxPlayers ?? MAX_PLAYERS;
     return Math.min(MAX_PLAYERS, cardBased, userCap);
   }

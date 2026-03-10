@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { RoundPhase, handToString } from '@bull-em/shared';
+import { RoundPhase, handToString, getDeckSize } from '@bull-em/shared';
 import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { HandDisplay } from '../components/HandDisplay.js';
@@ -68,6 +68,7 @@ export function LocalGamePage() {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, isPaused, togglePause, error, clearError,
+    gameSettings,
   } = useGameContext();
   useErrorToast(error, clearError);
   const { play } = useSound();
@@ -140,11 +141,12 @@ export function LocalGamePage() {
     lastResultRef.current = roundResult;
   }, [roundResult, playerId, gameState, addToast]);
 
+  const localDeckSize = getDeckSize(gameSettings?.jokerCount ?? 0);
   const cardStats = useMemo(() => {
     if (!gameState) return { total: 0, pct: 0 };
     const total = gameState.players.filter(p => !p.isEliminated).reduce((sum, p) => sum + p.cardCount, 0);
-    return { total, pct: Math.round((total / 52) * 100) };
-  }, [gameState]);
+    return { total, pct: Math.round((total / localDeckSize) * 100) };
+  }, [gameState, localDeckSize]);
 
   const cardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -322,8 +324,8 @@ export function LocalGamePage() {
           Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
         </span>
       )}
-      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of 52 cards in play`}>
-        {cardStats.total}/52 ({cardStats.pct}%)
+      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${localDeckSize} cards in play`}>
+        {cardStats.total}/{localDeckSize} ({cardStats.pct}%)
       </span>
     </>
   );

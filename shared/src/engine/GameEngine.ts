@@ -25,7 +25,7 @@ export type TurnResult =
  * in socket handlers; the client wraps it in LocalGameContext for offline play.
  */
 export class GameEngine {
-  private deck = new Deck();
+  private deck: Deck;
   private players: ServerPlayer[];
   private settings: GameSettings;
   private roundNumber = 0;
@@ -58,6 +58,7 @@ export class GameEngine {
   constructor(players: ServerPlayer[], settings: GameSettings = DEFAULT_GAME_SETTINGS) {
     this.players = players;
     this.settings = { ...settings };
+    this.deck = new Deck(settings.jokerCount ?? 0);
     const playerStats: Record<PlayerId, PlayerGameStats> = {};
     for (const p of players) {
       playerStats[p.id] = {
