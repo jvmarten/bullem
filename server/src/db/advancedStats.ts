@@ -1,4 +1,4 @@
-import { query } from './index.js';
+import { readQuery } from './index.js';
 import logger from '../logger.js';
 import type {
   AdvancedStatsResponse,
@@ -113,7 +113,7 @@ export async function getAdvancedStats(userId: string): Promise<AdvancedStatsRes
 async function getHandBreakdown(userId: string): Promise<HandTypeBreakdown[] | null> {
   // Read all game_players rows and aggregate handBreakdown in JS.
   // This is more reliable than complex JSONB queries for optional nested arrays.
-  const result = await query<HandBreakdownRow>(
+  const result = await readQuery<HandBreakdownRow>(
     `SELECT stats FROM game_players WHERE user_id = $1`,
     [userId],
   );
@@ -149,7 +149,7 @@ async function getHandBreakdown(userId: string): Promise<HandTypeBreakdown[] | n
 // ── Rating history ──────────────────────────────────────────────────────
 
 async function getRatingHistory(userId: string): Promise<RatingHistoryEntry[] | null> {
-  const result = await query<RatingHistoryRow>(
+  const result = await readQuery<RatingHistoryRow>(
     `SELECT game_id, mode, rating_before::text, rating_after::text, created_at
      FROM rating_history
      WHERE user_id = $1
@@ -173,7 +173,7 @@ async function getRatingHistory(userId: string): Promise<RatingHistoryEntry[] | 
 // ── Performance by player count ─────────────────────────────────────────
 
 async function getPerformanceByPlayerCount(userId: string): Promise<PerformanceByPlayerCount[] | null> {
-  const result = await query<PerformanceRow>(
+  const result = await readQuery<PerformanceRow>(
     `SELECT
        g.player_count::text,
        COUNT(*)::text AS games_played,
@@ -205,7 +205,7 @@ async function getPerformanceByPlayerCount(userId: string): Promise<PerformanceB
 // ── Today's session ─────────────────────────────────────────────────────
 
 async function getTodaySession(userId: string): Promise<TodaySession | null> {
-  const result = await query<TodayRow>(
+  const result = await readQuery<TodayRow>(
     `SELECT
        COUNT(*)::text AS games_played,
        COUNT(*) FILTER (WHERE gp.finish_position = 1)::text AS wins,
@@ -228,7 +228,7 @@ async function getTodaySession(userId: string): Promise<TodaySession | null> {
   const correctBulls = parseInt(row.total_correct_bulls, 10);
 
   // Net rating change for today
-  const ratingResult = await query<TodayRatingRow>(
+  const ratingResult = await readQuery<TodayRatingRow>(
     `SELECT COALESCE(SUM(rating_after - rating_before), 0)::text AS net_change
      FROM rating_history
      WHERE user_id = $1
@@ -254,7 +254,7 @@ async function getOpponentRecords(userId: string): Promise<OpponentRecord[] | nu
   // Find top 10 most-played opponents with W-L records.
   // A "game together" is when both the user and the opponent are in game_players
   // for the same game_id. A "win" is when the user finished in position 1.
-  const result = await query<OpponentRow>(
+  const result = await readQuery<OpponentRow>(
     `SELECT
        opp.user_id AS opponent_id,
        MAX(opp.player_name) AS opponent_name,
@@ -306,7 +306,7 @@ interface BluffEventRow {
  * showing when during a game the player bluffs most.
  */
 async function getBluffHeatMap(userId: string): Promise<BluffHeatMapEntry[] | null> {
-  const result = await query<BluffEventRow>(
+  const result = await readQuery<BluffEventRow>(
     `SELECT
        (properties->>'roundNumber')::text AS round_number,
        event_type,
@@ -376,7 +376,7 @@ interface GameInfoRow {
  */
 async function getWinProbabilityTimeline(userId: string): Promise<WinProbabilityEntry[] | null> {
   // Get the player's 10 most recent games with round snapshots
-  const gamesResult = await query<GameInfoRow>(
+  const gamesResult = await readQuery<GameInfoRow>(
     `SELECT gp.game_id, gp.finish_position, g.ended_at
      FROM game_players gp
      JOIN games g ON g.id = gp.game_id
@@ -392,7 +392,7 @@ async function getWinProbabilityTimeline(userId: string): Promise<WinProbability
   const gameInfoMap = new Map(gamesResult.rows.map(r => [r.game_id, r]));
 
   // Fetch round snapshots for these games
-  const roundsResult = await query<RoundSnapshotRow>(
+  const roundsResult = await readQuery<RoundSnapshotRow>(
     `SELECT game_id, round_number, snapshot
      FROM rounds
      WHERE game_id = ANY($1)
@@ -405,7 +405,7 @@ async function getWinProbabilityTimeline(userId: string): Promise<WinProbability
   // We need to figure out which player ID this user was in each game.
   // Look at game_players to get the player_name, then match to snapshot players.
   interface PlayerIdRow { game_id: string; player_name: string }
-  const playerIdResult = await query<PlayerIdRow>(
+  const playerIdResult = await readQuery<PlayerIdRow>(
     `SELECT game_id, player_name FROM game_players WHERE user_id = $1 AND game_id = ANY($2)`,
     [userId, gameIds],
   );
@@ -492,7 +492,7 @@ interface RivalryGameRow {
  * Includes recent form, streaks, and average game duration.
  */
 async function getRivalryRecords(userId: string): Promise<RivalryRecord[] | null> {
-  const result = await query<RivalryRow>(
+  const result = await readQuery<RivalryRow>(
     `SELECT
        opp.user_id AS opponent_id,
        MAX(opp.player_name) AS opponent_name,
@@ -520,7 +520,7 @@ async function getRivalryRecords(userId: string): Promise<RivalryRecord[] | null
   const opponentIds = result.rows.map(r => r.opponent_id);
 
   // Get recent games against these opponents for form/streak calculation
-  const recentResult = await query<RivalryGameRow>(
+  const recentResult = await readQuery<RivalryGameRow>(
     `SELECT
        me.game_id,
        opp.user_id AS opponent_id,
@@ -607,7 +607,7 @@ interface CareerRatingRow {
  */
 async function getCareerTrajectory(userId: string): Promise<CareerTrajectoryPoint[] | null> {
   // Get weekly game stats
-  const statsResult = await query<CareerWeekRow>(
+  const statsResult = await readQuery<CareerWeekRow>(
     `SELECT
        DATE_TRUNC('week', g.ended_at)::text AS week_start,
        COUNT(*)::text AS games_played,
@@ -627,7 +627,7 @@ async function getCareerTrajectory(userId: string): Promise<CareerTrajectoryPoin
   if (!statsResult) return null;
 
   // Get weekly ending rating (last rating_after per week)
-  const ratingResult = await query<CareerRatingRow>(
+  const ratingResult = await readQuery<CareerRatingRow>(
     `SELECT DISTINCT ON (DATE_TRUNC('week', created_at))
        DATE_TRUNC('week', created_at)::text AS week_start,
        rating_after::text AS last_rating

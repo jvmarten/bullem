@@ -3,7 +3,7 @@ import type { QueryResult } from 'pg';
 
 // Mock dependencies before importing
 vi.mock('./index.js', () => ({
-  query: vi.fn(),
+  readQuery: vi.fn(),
 }));
 
 vi.mock('../logger.js', () => ({
@@ -11,9 +11,9 @@ vi.mock('../logger.js', () => ({
 }));
 
 import { getAdvancedStats } from './advancedStats.js';
-import { query } from './index.js';
+import { readQuery } from './index.js';
 
-const mockQuery = vi.mocked(query);
+const mockQuery = vi.mocked(readQuery);
 
 /** Helper to build a pg-like QueryResult. */
 function makeResult<T>(rows: T[]): QueryResult<T> {

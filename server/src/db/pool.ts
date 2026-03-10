@@ -11,6 +11,7 @@ const MAX_DELAY_MS = 30_000;
 export type DbStatus = 'ok' | 'degraded' | 'unavailable';
 
 let pool: pg.Pool | null = null;
+let readPool: pg.Pool | null = null;
 let dbStatus: DbStatus = 'unavailable';
 
 /**
@@ -78,9 +79,6 @@ if (process.env.DATABASE_URL) {
     //   4MB but explicitly setting it guards against config drift).
     statement_timeout: 30_000,
     idle_in_transaction_session_timeout: 60_000,
-    // TODO(scale): When adding read replicas, create a separate read-only pool
-    // pointing to the replica connection string. Route SELECT queries there to
-    // reduce load on the primary (e.g. leaderboard queries, game history reads).
   });
 
   pool.on('error', (err) => {
@@ -100,6 +98,34 @@ if (process.env.DATABASE_URL) {
   });
 
   logger.info('PostgreSQL pool created');
+
+  // Read replica pool for SELECT-heavy queries (leaderboard, stats).
+  // Falls back to the primary pool when READ_DATABASE_URL is not set.
+  const readConnectionString = process.env.READ_DATABASE_URL || process.env.DATABASE_URL;
+  if (readConnectionString && readConnectionString !== process.env.DATABASE_URL) {
+    readPool = new Pool({
+      connectionString: readConnectionString,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+      statement_timeout: 30_000,
+      idle_in_transaction_session_timeout: 60_000,
+    });
+
+    readPool.on('error', (err) => {
+      logger.error({ err }, 'Unexpected read-replica pool error');
+    });
+
+    readPool.on('connect', () => {
+      logger.debug('New read-replica client connected');
+    });
+
+    logger.info('PostgreSQL read-replica pool created');
+  } else {
+    // No separate replica — readPool reuses the primary pool
+    readPool = pool;
+    logger.info('No READ_DATABASE_URL set — read queries will use the primary pool');
+  }
 } else {
   logger.warn(
     'DATABASE_URL not set — PostgreSQL is unavailable. ' +
@@ -107,8 +133,13 @@ if (process.env.DATABASE_URL) {
   );
 }
 
-/** Close the pool gracefully. Safe to call even if pool is null. */
+/** Close all pools gracefully. Safe to call even if pools are null. */
 async function closePool(): Promise<void> {
+  // Close read pool first (if it's a separate pool, not the same reference)
+  if (readPool && readPool !== pool) {
+    await readPool.end();
+    logger.info('PostgreSQL read-replica pool closed');
+  }
   if (pool) {
     await pool.end();
     dbStatus = 'unavailable';
@@ -123,6 +154,11 @@ async function closePool(): Promise<void> {
 async function connectWithRetry(): Promise<void> {
   if (!pool) return;
   await verifyConnection(pool);
+  // Verify read replica separately if it's a distinct pool
+  if (readPool && readPool !== pool) {
+    logger.info('Verifying read-replica connection…');
+    await verifyConnection(readPool);
+  }
 }
 
 /** Get the current database connection status. */
@@ -130,4 +166,4 @@ function getDbStatus(): DbStatus {
   return dbStatus;
 }
 
-export { pool, closePool, connectWithRetry, getDbStatus };
+export { pool, readPool, closePool, connectWithRetry, getDbStatus };
