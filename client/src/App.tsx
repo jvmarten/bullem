@@ -34,6 +34,7 @@ const ReplaysPage = lazy(() => import('./pages/ReplaysPage.js').then(m => ({ def
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage.js').then(m => ({ default: m.LeaderboardPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
 const DeckDrawPage = lazy(() => import('./pages/DeckDrawPage.js').then(m => ({ default: m.DeckDrawPage })));
+const FiveDrawPage = lazy(() => import('./pages/FiveDrawPage.js').then(m => ({ default: m.FiveDrawPage })));
 
 // Auth pages
 const LoginPage = lazy(() => import('./pages/LoginPage.js').then(m => ({ default: m.LoginPage })));
@@ -138,6 +139,7 @@ export default function App() {
           <Route path="/leaderboard" element={<SuspenseRoute label="leaderboard"><LeaderboardPage /></SuspenseRoute>} />
           <Route path="/draw" element={<SuspenseRoute label="deck draw"><DeckDrawPage /></SuspenseRoute>} />
           <Route path="/deck-draw" element={<Navigate to="/draw" replace />} />
+          <Route path="/five-draw" element={<SuspenseRoute label="5 draw"><FiveDrawPage /></SuspenseRoute>} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>

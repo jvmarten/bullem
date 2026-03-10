@@ -794,6 +794,54 @@ app.post('/api/deck-draw/sync', requireAuth, async (req, res) => {
   }
 });
 
+// ── 5 Draw minigame endpoints ────────────────────────────────────────────
+import { FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_WIN_MULTIPLIER } from '@bull-em/shared';
+
+/** POST /api/five-draw/result — persist 5 Draw result to user's shared balance. */
+app.post('/api/five-draw/result', requireAuth, async (req, res) => {
+  try {
+    const { wager, won, payout } = req.body as { wager?: number; won?: boolean; payout?: number };
+
+    if (typeof wager !== 'number' || !Number.isInteger(wager) ||
+        wager < FIVE_DRAW_MIN_WAGER || wager > FIVE_DRAW_MAX_WAGER) {
+      res.status(400).json({ error: 'Invalid wager' });
+      return;
+    }
+    if (typeof won !== 'boolean') {
+      res.status(400).json({ error: 'Invalid won flag' });
+      return;
+    }
+    // Validate payout matches expected value to prevent client manipulation
+    const expectedPayout = won ? wager * FIVE_DRAW_WIN_MULTIPLIER : 0;
+    if (typeof payout !== 'number' || payout !== expectedPayout) {
+      res.status(400).json({ error: 'Invalid payout' });
+      return;
+    }
+
+    // Atomically deduct wager first (prevents TOCTOU)
+    const postDeductBalance = await atomicDeductBalance(req.user!.userId, wager);
+    if (postDeductBalance === null) {
+      res.status(400).json({ error: 'Insufficient balance' });
+      return;
+    }
+
+    // Add winnings back if won
+    if (won) {
+      const stats = await getDeckDrawStats(req.user!.userId);
+      if (stats) {
+        stats.balance = postDeductBalance + payout;
+        await updateDeckDrawStats(req.user!.userId, stats);
+      }
+    }
+
+    const finalStats = await getDeckDrawStats(req.user!.userId);
+    res.json({ balance: finalStats?.balance ?? postDeductBalance + (won ? payout : 0) });
+  } catch (err) {
+    logger.error({ err }, 'Failed to persist 5 Draw result');
+    res.status(500).json({ error: 'Failed to persist result' });
+  }
+});
+
 // ── Friends API routes ──────────────────────────────────────────────────
 import { getFriendsForUser, getIncomingRequestCount } from './db/friends.js';
 
