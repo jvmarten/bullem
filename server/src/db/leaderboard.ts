@@ -244,6 +244,7 @@ async function getUserRank(
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
        u.photo_url,
+       u.is_bot,
        ${rating} AS rating,
        r.games_played,
        (SELECT COUNT(*) + 1
@@ -281,6 +282,7 @@ async function getUserRank(
     rating: ratingNum,
     gamesPlayed: parseInt(row.games_played, 10),
     tier: getRankTier(ratingNum),
+    isBot: row.is_bot,
   };
 }
 
@@ -317,6 +319,7 @@ export async function getLeaderboardNearby(
        COALESCE(u.display_name, u.username) AS display_name,
        u.avatar,
        u.photo_url,
+       u.is_bot,
        ${rating} AS rating,
        r.games_played,
        ROW_NUMBER() OVER (ORDER BY ${rating} DESC, r.games_played DESC) AS rank
@@ -344,6 +347,7 @@ export async function getLeaderboardNearby(
       rating: ratingNum,
       gamesPlayed: parseInt(row.games_played, 10),
       tier: getRankTier(ratingNum),
+      isBot: row.is_bot,
     };
   });
 

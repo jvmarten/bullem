@@ -169,10 +169,9 @@ if (rateLimitRedis) {
 
 registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
 
-// Restore rooms from Redis before accepting connections, then start cleanup.
-// Uses an async IIFE — server starts listening immediately but rooms are
-// restored in the background. This is safe because Socket.io buffers events
-// until handlers are registered, and the restore typically completes in <100ms.
+// Initialize database, restore state, then start the HTTP server.
+// The server does NOT listen until DB initialization (migrations, CFR bot seeding)
+// completes — this prevents serving stale/empty leaderboards during startup.
 (async () => {
   // Verify database connectivity with retries before running migrations.
   // If the DB is unreachable after all retries, the app continues in degraded
@@ -201,6 +200,13 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
     } catch (err) {
       logger.error({ err }, 'Failed to load push subscriptions — push will still work for new subscribers');
     }
+
+    // Clear any stale leaderboard cache from a previous run.
+    // This ensures freshly-seeded CFR bots appear on the very first request.
+    try {
+      const { clearLeaderboardCache } = await import('./db/leaderboard.js');
+      clearLeaderboardCache();
+    } catch { /* leaderboard module may not be loaded yet */ }
   }
 
   if (redisStore) {
@@ -247,6 +253,14 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   } else {
     logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
   }
+
+  // Start the HTTP server AFTER all initialization is complete.
+  // This ensures the leaderboard, profiles, and other DB-backed endpoints
+  // serve correct data from the very first request (no race with DB init).
+  const PORT = process.env.PORT ?? 3001;
+  httpServer.listen(PORT, () => {
+    logger.info({ port: PORT }, `Bull 'Em server running on port ${PORT}`);
+  });
 })();
 
 // Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies.
@@ -473,7 +487,11 @@ app.get('/api/users/:userId/profile', async (req, res) => {
       'SELECT id, username, display_name, avatar, photo_url, created_at, is_bot, bot_profile FROM users WHERE id = $1',
       [userId],
     );
-    if (!userResult || userResult.rows.length === 0) {
+    if (!userResult) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    if (userResult.rows.length === 0) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
@@ -543,6 +561,12 @@ app.get('/api/u/:username', async (req, res) => {
     );
     if (botResult && botResult.rows.length > 0) {
       res.json({ userId: botResult.rows[0]!.id });
+      return;
+    }
+    // If both queries returned null (pool unavailable), report 503 not 404.
+    // This prevents "Player not found" errors during startup before DB is ready.
+    if (!result && !botResult) {
+      res.status(503).json({ error: 'Database unavailable' });
       return;
     }
     res.status(404).json({ error: 'User not found' });
@@ -970,7 +994,6 @@ function shutdown(): void {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-const PORT = process.env.PORT ?? 3001;
-httpServer.listen(PORT, () => {
-  logger.info({ port: PORT }, `Bull 'Em server running on port ${PORT}`);
-});
+// httpServer.listen() is called inside the async startup IIFE above,
+// AFTER database initialization completes. This prevents serving
+// stale/empty leaderboards during the startup window.

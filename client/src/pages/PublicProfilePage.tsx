@@ -185,7 +185,13 @@ export function PublicProfilePage() {
       // Resolve username to userId
       const resolveRes = await fetch(`${API_BASE}/api/u/${encodeURIComponent(username)}`);
       if (!resolveRes.ok) {
-        setError(resolveRes.status === 404 ? 'Player not found' : 'Failed to load profile');
+        if (resolveRes.status === 503) {
+          setError('Server is starting up, please try again in a moment');
+        } else if (resolveRes.status === 404) {
+          setError('Player not found');
+        } else {
+          setError('Failed to load profile');
+        }
         return;
       }
       const { userId } = await resolveRes.json() as { userId: string };
