@@ -308,11 +308,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     // Set a synthetic deadline so the TileMeter can show a countdown
     // on the bot's tile while it "thinks". Cleared when the bot acts.
     // Use the room's turn timer as the visual duration so the countdown
-    // pace is consistent across all turns. Fall back to actual delay.
+    // pace is consistent across all turns. When no timer is configured,
+    // use a fixed 5s visual pace (roughly matching the max bot delay) so
+    // the meter always animates at the same speed.
     const timerSeconds = gameSettingsRef.current.turnTimer;
     const visualDurationMs = timerSeconds && timerSeconds > 0
       ? timerSeconds * 1000
-      : delay;
+      : 5000;
     engine.setTurnDeadline(Date.now() + delay, visualDurationMs);
 
     botTimerRef.current = setTimeout(() => {
