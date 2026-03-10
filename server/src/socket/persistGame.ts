@@ -12,6 +12,8 @@ import { persistGameResult } from '../db/games.js';
 import type { GameRecord } from '../db/games.js';
 import { persistReplayRounds } from '../db/replays.js';
 import { updateRatingsAfterGame, getRating } from '../db/ratings.js';
+import { persistRankedMatch } from '../db/rankedMatches.js';
+import type { RankedMatchPlayerData } from '../db/rankedMatches.js';
 import { track } from '../analytics/track.js';
 import logger from '../logger.js';
 
@@ -112,8 +114,9 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
         });
       }
 
-      // Update ranked ratings if this was a ranked game with authenticated players.
-      // Chained after persistGameResult so we have the gameId for rating_history FK.
+      // Update ranked ratings and persist ranked match record if this was a
+      // ranked game with authenticated players. Chained after persistGameResult
+      // so we have the gameId for rating_history and ranked_matches FKs.
       if (room.settings.ranked && room.settings.rankedMode) {
         const rankedMode: RankedMode = room.settings.rankedMode;
         const rankedPlayers = record.players
@@ -129,9 +132,71 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
           // Each human's opponents = totalPlayers - 1; botFraction = bots / opponents
           const botFraction = totalPlayers > 1 ? botCount / (totalPlayers - 1) : 0;
 
-          updateRatingsAfterGame(rankedMode, rankedPlayers, gameId, botFraction).catch(() => {
-            // Error already logged inside updateRatingsAfterGame
-          });
+          // Snapshot ratings before the update so we can store before/after in ranked_match_players
+          const ratingsBefore = new Map<string, { elo?: number; mu?: number; sigma?: number }>();
+          Promise.all(
+            rankedPlayers.map(async (p) => {
+              const rating = await getRating(p.userId, rankedMode);
+              if (rating) {
+                if (rating.mode === 'heads_up') {
+                  ratingsBefore.set(p.userId, { elo: rating.elo });
+                } else {
+                  ratingsBefore.set(p.userId, { mu: rating.mu, sigma: rating.sigma });
+                }
+              }
+            }),
+          )
+            .then(() => updateRatingsAfterGame(rankedMode, rankedPlayers, gameId, botFraction))
+            .then(async () => {
+              // Read post-update ratings for the "after" snapshot
+              const ratingsAfter = new Map<string, { elo?: number; mu?: number; sigma?: number }>();
+              await Promise.all(
+                rankedPlayers.map(async (p) => {
+                  const rating = await getRating(p.userId, rankedMode);
+                  if (rating) {
+                    if (rating.mode === 'heads_up') {
+                      ratingsAfter.set(p.userId, { elo: rating.elo });
+                    } else {
+                      ratingsAfter.set(p.userId, { mu: rating.mu, sigma: rating.sigma });
+                    }
+                  }
+                }),
+              );
+
+              // Build player data for all players (including bots)
+              const matchPlayers: RankedMatchPlayerData[] = record.players.map(p => {
+                const isBot = !rankedPlayers.some(rp => rp.userId === p.userId);
+                const userId = p.userId ?? p.playerId;
+                const before = p.userId ? ratingsBefore.get(p.userId) : undefined;
+                const after = p.userId ? ratingsAfter.get(p.userId) : undefined;
+                return {
+                  userId,
+                  displayName: p.playerName,
+                  finishPosition: p.finishPosition,
+                  isBot,
+                  eloBefore: before?.elo,
+                  eloAfter: after?.elo,
+                  muBefore: before?.mu,
+                  sigmaBefore: before?.sigma,
+                  muAfter: after?.mu,
+                  sigmaAfter: after?.sigma,
+                };
+              });
+
+              await persistRankedMatch({
+                gameId,
+                mode: rankedMode,
+                playerCount: record.players.length,
+                humanPlayerCount: humanPlayers,
+                fromMatchmaking: false, // TODO(scale): wire up when matchmaking is implemented
+                settings: record.settings,
+                startedAt: record.startedAt,
+                players: matchPlayers,
+              });
+            })
+            .catch(() => {
+              // Errors already logged inside updateRatingsAfterGame / persistRankedMatch
+            });
         }
       }
     })
