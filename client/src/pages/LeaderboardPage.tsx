@@ -308,7 +308,7 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
 
   return (
     <button
-      onClick={() => navigate(`/profile/${entry.userId}`)}
+      onClick={() => navigate(`/u/${encodeURIComponent(entry.username)}`)}
       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/5 w-full text-left cursor-pointer bg-transparent border-none active:scale-[0.99] min-h-[44px]"
       style={{
         borderBottom: '1px solid rgba(212,168,67,0.06)',

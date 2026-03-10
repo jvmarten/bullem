@@ -278,7 +278,7 @@ export function ResultsPage() {
               <span className="text-[var(--gold-dim)] text-xs">|</span>
               <button
                 onClick={async () => {
-                  const replayUrl = `${window.location.origin}/replay?id=${encodeURIComponent(lastReplay.id)}`;
+                  const replayUrl = `${window.location.origin}/replay/${encodeURIComponent(lastReplay.id)}`;
                   if (navigator.share) {
                     try {
                       await navigator.share({ title: "Bull 'Em — Watch my match!", url: replayUrl });

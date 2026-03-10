@@ -61,6 +61,7 @@ export function registerLobbyHandlers(
     const avatar = sanitizeAvatar(data.avatar);
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
+      username: socket.data.username,
       avatar,
       photoUrl: socket.data.photoUrl as string | undefined,
     });
@@ -149,6 +150,7 @@ export function registerLobbyHandlers(
     const avatar = sanitizeAvatar(data.avatar);
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
+      username: socket.data.username,
       avatar,
       photoUrl: socket.data.photoUrl as string | undefined,
     });

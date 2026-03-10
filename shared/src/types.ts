@@ -62,6 +62,8 @@ export interface Player {
   isAdmin?: boolean;
   /** Authenticated user ID — present for logged-in players, absent for guests/bots. */
   userId?: string;
+  /** Authenticated username — present for logged-in players, absent for guests. */
+  username?: string;
   /** User-chosen avatar template. Null/undefined for guests or players without an avatar. */
   avatar?: AvatarId | null;
   /** Custom profile photo URL (base64 data URL). Takes priority over emoji avatar when present. */
@@ -624,6 +626,7 @@ export interface TodaySession {
 export interface OpponentRecord {
   opponentId: string;
   opponentName: string;
+  opponentUsername: string;
   opponentAvatar: AvatarId | null;
   /** Opponent's profile photo URL — takes priority over emoji avatar. */
   opponentPhotoUrl?: string | null;

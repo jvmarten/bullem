@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { handToString, TurnAction } from '@bull-em/shared';
 import type { GameReplay, TurnEntry, HandCall, PlayerId, RoundResult, SpectatorPlayerCards } from '@bull-em/shared';
 import { ReplayEngine, loadReplay } from '@bull-em/shared';
@@ -67,6 +67,7 @@ function ResolutionPanel({ result, players }: { result: RoundResult; players: { 
 
 export function ReplayPage() {
   const navigate = useNavigate();
+  const { gameId: gameIdParam } = useParams<{ gameId: string }>();
   const [searchParams] = useSearchParams();
   const { lastReplay } = useGameContext();
   const { addToast } = useToast();
@@ -78,7 +79,7 @@ export function ReplayPage() {
 
   // Load replay from context (just finished game), API (by game ID), or localStorage fallback
   useEffect(() => {
-    const replayId = searchParams.get('id');
+    const replayId = gameIdParam ?? null;
 
     if (!replayId) {
       // No ID param — use the in-memory replay from the game that just ended
@@ -113,7 +114,7 @@ export function ReplayPage() {
       });
 
     return () => { cancelled = true; };
-  }, [searchParams, lastReplay]);
+  }, [gameIdParam, lastReplay]);
 
   const engine = useMemo(() => {
     if (!replay) return null;
@@ -165,8 +166,7 @@ export function ReplayPage() {
   /** Build a shareable URL pointing to the current replay position. */
   const buildShareUrl = useCallback((): string => {
     if (!replay || !engine) return window.location.href;
-    const url = new URL(window.location.origin + '/replay');
-    url.searchParams.set('id', replay.id);
+    const url = new URL(window.location.origin + `/replay/${encodeURIComponent(replay.id)}`);
     const ri = engine.currentRoundIndex;
     const ti = engine.currentTurnIndex;
     if (ri > 0 || ti > 0) {

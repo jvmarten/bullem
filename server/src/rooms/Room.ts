@@ -59,7 +59,7 @@ export class Room {
     return this.players.get(this.hostId)?.name ?? '???';
   }
 
-  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; avatar?: AvatarId | null; photoUrl?: string | null }): { player: ServerPlayer; reconnectToken: string } {
+  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; username?: string; avatar?: AvatarId | null; photoUrl?: string | null }): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,
       name,
@@ -69,6 +69,7 @@ export class Room {
       isHost: this.players.size === 0,
       cards: [],
       userId: opts?.userId,
+      username: opts?.username,
       avatar: opts?.avatar,
       photoUrl: opts?.photoUrl,
     };
