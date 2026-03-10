@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const SHOW_ACTIONS_DELAY_MS = 12_000;
+const SHOW_HINT_DELAY_MS = 3_000;
+const SHOW_ACTIONS_DELAY_MS = 6_000;
 
 /** Full-screen overlay shown when the player's own socket connection drops.
  *  Displays a spinner, reconnect attempt count, and — after a delay —
@@ -8,6 +9,7 @@ const SHOW_ACTIONS_DELAY_MS = 12_000;
 export function ReconnectOverlay() {
   const [dots, setDots] = useState('');
   const [attempts, setAttempts] = useState(0);
+  const [showHint, setShowHint] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const mountTime = useRef(Date.now());
 
@@ -18,6 +20,9 @@ export function ReconnectOverlay() {
       const elapsed = Date.now() - mountTime.current;
       setAttempts(Math.floor(elapsed / 2000));
 
+      if (elapsed >= SHOW_HINT_DELAY_MS) {
+        setShowHint(true);
+      }
       if (elapsed >= SHOW_ACTIONS_DELAY_MS) {
         setShowActions(true);
       }
@@ -27,6 +32,10 @@ export function ReconnectOverlay() {
 
   const handleRefresh = useCallback(() => {
     window.location.reload();
+  }, []);
+
+  const handleGoBack = useCallback(() => {
+    window.location.href = '/';
   }, []);
 
   return (
@@ -39,7 +48,9 @@ export function ReconnectOverlay() {
         <p className="reconnect-subtext">
           {showActions
             ? 'Auto-reconnect is taking longer than expected'
-            : 'Please wait while we restore your connection'}
+            : showHint
+              ? 'Check your internet connection'
+              : 'Please wait while we restore your connection'}
         </p>
         {attempts > 0 && (
           <p className="reconnect-attempts">
@@ -48,15 +59,19 @@ export function ReconnectOverlay() {
         )}
         {showActions && (
           <div className="reconnect-actions animate-fade-in">
-            <p className="reconnect-hint">
-              Check your internet connection
-            </p>
             <button
               type="button"
               className="reconnect-refresh-btn"
               onClick={handleRefresh}
             >
               Refresh Page
+            </button>
+            <button
+              type="button"
+              className="reconnect-back-btn"
+              onClick={handleGoBack}
+            >
+              Go Home
             </button>
           </div>
         )}

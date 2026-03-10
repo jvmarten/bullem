@@ -182,7 +182,10 @@ export function GamePage() {
     if (playerId) {
       rejoinAttemptedRef.current = true;
       // Safety timeout: if game state never arrives, redirect home
-      const timeout = setTimeout(() => navigate('/'), 15000);
+      const timeout = setTimeout(() => {
+        addToast('Game not found or already ended');
+        navigate('/');
+      }, 15000);
       return () => clearTimeout(timeout);
     }
 
@@ -197,6 +200,7 @@ export function GamePage() {
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true;
+        addToast('Game not found or already ended');
         navigate('/');
       }
     }, 8000);
@@ -207,10 +211,11 @@ export function GamePage() {
         if (!settled) {
           settled = true;
           clearTimeout(timeout);
+          addToast('Game not found or already ended');
           navigate('/');
         }
       });
-  }, [gameState, roomCode, joinRoom, navigate, playerId]);
+  }, [gameState, roomCode, joinRoom, navigate, playerId, addToast]);
 
   useEffect(() => {
     if (!gameState && roomState?.gamePhase === 'lobby' && roomCode) {
