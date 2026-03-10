@@ -44,13 +44,8 @@ export function usePushNotifications() {
       });
   }, [isSupported]);
 
-  // Register service worker on mount
-  useEffect(() => {
-    if (!isSupported) return;
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Service worker registration failed — push will be unsupported
-    });
-  }, [isSupported]);
+  // Service worker registration is handled in main.tsx (PWA plugin).
+  // Push notifications piggyback on the same SW — no separate registration needed.
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!isSupported) return false;

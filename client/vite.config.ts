@@ -1,6 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 function devBullLogo(): Plugin {
   return {
@@ -32,7 +33,25 @@ function devBullLogo(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), devBullLogo()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    devBullLogo(),
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectRegister: false, // We register manually in main.tsx
+      manifest: false, // We already have site.webmanifest in public/
+      injectManifest: {
+        // Precache built JS/CSS chunks and static assets from public/
+        globPatterns: ['**/*.{js,css,html,png,jpg,svg,ico,woff2}'],
+      },
+      devOptions: {
+        enabled: false, // Service worker is production-only; dev uses devBullLogo plugin
+      },
+    }),
+  ],
   server: {
     port: 5173,
     host: true,
