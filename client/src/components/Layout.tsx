@@ -95,8 +95,12 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
     // In an active game or local session, confirm before leaving
     const inActiveGame = /^\/(game|local|results)/.test(location.pathname);
     if (inActiveGame) {
-      const ok = window.confirm('Leave current game/session and return home?');
-      if (!ok) return;
+      // Spectators can leave without confirmation — they have no spot to lose
+      const isSpectator = ctx?.gameState ? !ctx.gameState.players.some(p => p.id === ctx.playerId) : false;
+      if (!isSpectator) {
+        const ok = window.confirm('Leave current game/session and return home?');
+        if (!ok) return;
+      }
       ctx?.leaveRoom?.();
       navigate('/');
       return;
