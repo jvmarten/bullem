@@ -5,7 +5,7 @@
  * with the full action set (Call/Raise, Bull/True, Last Chance Raise/Pass).
  * Uses GameEngine directly — same mechanics as local/online games.
  *
- * Card dealing uses the Deck Draw visual style (shuffle → deal → reveal).
+ * Player cards dealt instantly; dealer cards revealed slowly on resolution.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,7 +13,6 @@ import { Layout } from '../components/Layout.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { ActionButtons } from '../components/ActionButtons.js';
 import { CallHistory } from '../components/CallHistory.js';
-import { RevealOverlay } from '../components/RevealOverlay.js';
 import { useSound } from '../hooks/useSound.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
@@ -63,10 +62,7 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-/** Dealing animation sub-phase. */
-type DealAnimPhase = 'idle' | 'shuffling' | 'dealing' | 'revealing';
-
-type GamePhaseLocal = 'wager' | 'dealing' | 'playing' | 'result';
+type GamePhaseLocal = 'wager' | 'dealing' | 'playing' | 'resolving' | 'result';
 
 // ── Card Components ─────────────────────────────────────────────────────
 
@@ -100,67 +96,7 @@ function FaceUpCard({ card, size = 42 }: { card: Card; size?: number }) {
   );
 }
 
-/** A row of 5 cards with dealing and flip animations. */
-function AnimatedCardRow({
-  cards,
-  dealtCount,
-  revealedCount,
-  label,
-}: {
-  cards: Card[];
-  dealtCount: number;
-  revealedCount: number;
-  label: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">{label}</span>
-      <div className="relative flex justify-center items-center" style={{ height: '62px', width: '240px' }}>
-        {Array.from({ length: 5 }, (_, i) => {
-          const card = cards[i];
-          const centered = i - 2;
-          const dealX = centered * 46;
-          const cardDealt = i < dealtCount;
-          const cardRevealed = i < revealedCount;
-
-          const x = cardDealt ? dealX : i * 0.5;
-          const y = cardDealt ? 0 : -i * 1.2;
-          const angle = cardDealt ? 0 : (i - 2) * 1.5;
-
-          return (
-            <div
-              key={i}
-              className="absolute"
-              style={{
-                transform: `translate(${x}px, ${y}px) rotate(${angle}deg)`,
-                transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                zIndex: i,
-                perspective: '600px',
-                opacity: cardDealt ? 1 : 0,
-              }}
-            >
-              <div
-                style={{
-                  transformStyle: 'preserve-3d',
-                  transform: `rotateY(${cardRevealed ? 180 : 0}deg)`,
-                  transition: i === 4 ? 'transform 1.1s ease-out' : i === 3 ? 'transform 0.8s ease-out' : 'transform 0.6s ease-out',
-                  width: '42px', height: '58px', position: 'relative',
-                }}
-              >
-                <div className="deck-card-back" style={{ position: 'absolute', top: 0, left: 0, backfaceVisibility: 'hidden' }} />
-                <div style={{ position: 'absolute', top: 0, left: 0, backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
-                  {card && <FaceUpCard card={card} />}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** A static row of 5 face-up cards (used during gameplay after animation completes). */
+/** A static row of 5 face-up cards. */
 function StaticCardRow({ cards, label }: { cards: Card[]; label: string }) {
   return (
     <div className="flex flex-col items-center gap-1">
@@ -188,6 +124,46 @@ function FaceDownRow({ label, count = 5 }: { label: string; count?: number }) {
   );
 }
 
+/** A row of dealer cards that flip from face-down to face-up one at a time. */
+function DealerRevealRow({ cards, revealedCount, label }: { cards: Card[]; revealedCount: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[10px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">{label}</span>
+      <div className="flex gap-1 justify-center">
+        {cards.map((card, i) => {
+          const isRevealed = i < revealedCount;
+          return (
+            <div
+              key={i}
+              style={{ perspective: '600px', width: '42px', height: '58px' }}
+            >
+              <div
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: `rotateY(${isRevealed ? 180 : 0}deg)`,
+                  transition: i === 4
+                    ? 'transform 1.1s ease-out'
+                    : i === 3
+                      ? 'transform 0.9s ease-out'
+                      : 'transform 0.6s ease-out',
+                  width: '42px', height: '58px', position: 'relative',
+                }}
+              >
+                {/* Back face */}
+                <div className="deck-card-back" style={{ position: 'absolute', top: 0, left: 0, width: '42px', height: '58px', backfaceVisibility: 'hidden' }} />
+                {/* Front face */}
+                <div style={{ position: 'absolute', top: 0, left: 0, backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                  <FaceUpCard card={card} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ──────────────────────────────────────────────────────
 
 export function FiveDrawPage() {
@@ -207,12 +183,9 @@ export function FiveDrawPage() {
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [gameWinner, setGameWinner] = useState<'player' | 'dealer' | null>(null);
 
-  // === Deal animation ===
-  const [dealAnimPhase, setDealAnimPhase] = useState<DealAnimPhase>('idle');
-  const [playerDealtCount, setPlayerDealtCount] = useState(0);
-  const [playerRevealCount, setPlayerRevealCount] = useState(0);
-  const [dealerDealtCount, setDealerDealtCount] = useState(0);
-  const [shuffleOrder, setShuffleOrder] = useState([0, 1, 2, 3, 4]);
+  // === Dealer reveal animation (resolution phase) ===
+  const [dealerCards, setDealerCards] = useState<Card[]>([]);
+  const [dealerRevealCount, setDealerRevealCount] = useState(0);
 
   // === Hand selector ===
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
@@ -224,7 +197,6 @@ export function FiveDrawPage() {
   const playersRef = useRef<ServerPlayer[]>([]);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const shuffleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const handleTurnResultRef = useRef<(result: TurnResult) => void>(() => {});
   const wagerRef = useRef(wager);
 
@@ -256,28 +228,7 @@ export function FiveDrawPage() {
   useEffect(() => () => {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     clearAnimTimers();
-    if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current);
   }, [clearAnimTimers]);
-
-  // Shuffle riffle animation
-  useEffect(() => {
-    if (dealAnimPhase !== 'shuffling') {
-      setShuffleOrder([0, 1, 2, 3, 4]);
-      if (shuffleIntervalRef.current) { clearInterval(shuffleIntervalRef.current); shuffleIntervalRef.current = null; }
-      return;
-    }
-    const shuffle = (arr: number[]): number[] => {
-      const result = [...arr];
-      for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        const temp = result[i]!; result[i] = result[j]!; result[j] = temp;
-      }
-      return result;
-    };
-    setShuffleOrder(prev => shuffle(prev));
-    shuffleIntervalRef.current = setInterval(() => setShuffleOrder(prev => shuffle(prev)), 700);
-    return () => { if (shuffleIntervalRef.current) clearInterval(shuffleIntervalRef.current); };
-  }, [dealAnimPhase]);
 
   // === Derived state ===
   const isMyTurn = gameState ? gameState.currentPlayerId === PLAYER_ID : false;
@@ -360,6 +311,36 @@ export function FiveDrawPage() {
     setPhase('result');
   }, [user]);
 
+  // === Start dealer card reveal sequence ===
+  const startDealerReveal = useCallback((result: RoundResult, winner: 'player' | 'dealer' | null) => {
+    const dealer = playersRef.current.find(p => p.id === DEALER_ID);
+    if (dealer) setDealerCards(dealer.cards);
+    setDealerRevealCount(0);
+    setPhase('resolving');
+
+    clearAnimTimers();
+
+    // Reveal dealer cards one by one with escalating delays (like deck draw)
+    const revealDelays = [0, 500, 1000, 1700, 2800];
+    for (let i = 0; i < 5; i++) {
+      scheduleAnim(() => {
+        play('cardReveal');
+        setDealerRevealCount(i + 1);
+      }, revealDelays[i]!);
+    }
+
+    // After all cards revealed, show result
+    const totalRevealTime = revealDelays[4]! + 1500;
+    scheduleAnim(() => {
+      if (winner) {
+        setRoundResult(null);
+        finalizeGame(winner);
+      } else {
+        setPhase('playing');
+      }
+    }, totalRevealTime);
+  }, [clearAnimTimers, scheduleAnim, play, finalizeGame]);
+
   // === Handle turn results ===
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
@@ -379,6 +360,7 @@ export function FiveDrawPage() {
         engine.setTurnDeadline(null);
         setGameState(engine.getClientState(PLAYER_ID));
         setRoundResult(result.result);
+        startDealerReveal(result.result, null);
         break;
       case 'game_over': {
         engine.setTurnDeadline(null);
@@ -387,13 +369,14 @@ export function FiveDrawPage() {
         if (result.finalRoundResult) {
           setGameState(engine.getClientState(PLAYER_ID));
           setRoundResult(result.finalRoundResult);
+          startDealerReveal(result.finalRoundResult, winner);
         } else {
           finalizeGame(winner);
         }
         break;
       }
     }
-  }, [broadcastState, scheduleBotTurn, addToast, finalizeGame]);
+  }, [broadcastState, scheduleBotTurn, addToast, finalizeGame, startDealerReveal]);
 
   handleTurnResultRef.current = handleTurnResult;
 
@@ -426,51 +409,17 @@ export function FiveDrawPage() {
     setHandSelectorOpen(false);
     setPendingHand(null);
     setPendingValid(false);
-    setPlayerDealtCount(0);
-    setPlayerRevealCount(0);
-    setDealerDealtCount(0);
+    setDealerCards([]);
+    setDealerRevealCount(0);
 
-    // Start dealing animation
-    setPhase('dealing');
-    setDealAnimPhase('shuffling');
-    play('deckShuffle');
+    // Skip dealing animation — go straight to playing with cards visible
+    setPhase('playing');
+    broadcastState();
+    play('cardDeal');
 
-    clearAnimTimers();
-
-    // Phase 1: Shuffle (800ms)
-    // Phase 2: Deal dealer cards face-down
-    const dealStart = 800;
-    for (let i = 0; i < 5; i++) {
-      scheduleAnim(() => setDealerDealtCount(i + 1), dealStart + i * 120);
-    }
-
-    // Phase 3: Deal player cards face-down
-    const playerDealStart = dealStart + 5 * 120 + 200;
-    scheduleAnim(() => setDealAnimPhase('dealing'), playerDealStart);
-    for (let i = 0; i < 5; i++) {
-      scheduleAnim(() => setPlayerDealtCount(i + 1), playerDealStart + i * 120);
-    }
-
-    // Phase 4: Reveal player cards
-    const revealStart = playerDealStart + 5 * 120 + 300;
-    scheduleAnim(() => setDealAnimPhase('revealing'), revealStart);
-    const revealDelays = [0, 400, 800, 1400, 2400];
-    for (let i = 0; i < 5; i++) {
-      scheduleAnim(() => {
-        play('cardReveal');
-        setPlayerRevealCount(i + 1);
-      }, revealStart + revealDelays[i]!);
-    }
-
-    // Phase 5: Transition to playing
-    const playStart = revealStart + revealDelays[4]! + 1200;
-    scheduleAnim(() => {
-      setDealAnimPhase('idle');
-      setPhase('playing');
-      broadcastState();
-      scheduleBotTurn();
-    }, playStart);
-  }, [canWager, wager, user, addToast, broadcastState, scheduleBotTurn, play, clearAnimTimers, scheduleAnim]);
+    // Brief delay before bot can act (so player sees the initial state)
+    setTimeout(() => scheduleBotTurn(), 600);
+  }, [canWager, wager, user, addToast, broadcastState, scheduleBotTurn, play]);
 
   // === Player actions ===
   const callHand = useCallback((hand: HandCall) => {
@@ -541,19 +490,14 @@ export function FiveDrawPage() {
   // Close hand selector when turn changes
   useEffect(() => { setHandSelectorOpen(false); }, [isMyTurn, gameState?.roundPhase]);
 
-  // Dismiss round result
-  const handleDismissResult = useCallback(() => {
-    setRoundResult(null);
-    if (gameWinner) finalizeGame(gameWinner);
-  }, [gameWinner, finalizeGame]);
-
   // Play again
   const playAgain = useCallback(() => {
     setPhase('wager');
     setGameState(null);
     setRoundResult(null);
     setGameWinner(null);
-    setDealAnimPhase('idle');
+    setDealerCards([]);
+    setDealerRevealCount(0);
     engineRef.current = null;
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     clearAnimTimers();
@@ -664,70 +608,58 @@ export function FiveDrawPage() {
     );
   }
 
-  // --- Dealing Phase (card animations) ---
-  if (phase === 'dealing') {
-    const playerCards = engineRef.current?.getClientState(PLAYER_ID).myCards ?? [];
+  // --- Resolving Phase (dealer cards revealed slowly) ---
+  if (phase === 'resolving' && gameState) {
+    const lastCall = roundResult ? handToString(roundResult.calledHand) : '';
+    const callerName = roundResult
+      ? gameState.players.find(p => p.id === roundResult.callerId)?.name ?? '?'
+      : '';
+
+    // Determine result text once all cards are revealed
+    const allRevealed = dealerRevealCount >= 5;
 
     return (
       <Layout>
-        <div className="flex flex-col items-center gap-4 pt-4 max-w-md mx-auto">
+        <div className="flex flex-col items-center gap-3 pt-2 max-w-md mx-auto pb-4">
           {/* Balance bar */}
-          <div className="glass rounded-xl px-6 py-2 text-center w-full">
+          <div className="glass rounded-xl px-4 py-1.5 w-full">
             <div className="flex justify-between items-center">
               <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)]">5 Draw</span>
-              <span className="text-sm font-bold text-[var(--gold)]">Wager: {formatNumber(wager)}</span>
+              <span className="text-xs font-bold text-[var(--gold)]">Wager: {formatNumber(wager)}</span>
               <span className="text-xs text-[var(--gold-dim)]">Bal: {formatNumber(balance)}</span>
             </div>
           </div>
 
-          {/* Shuffle animation */}
-          {dealAnimPhase === 'shuffling' && (
-            <div className="relative flex justify-center items-center" style={{ height: '80px', width: '240px' }}>
-              {Array.from({ length: 5 }, (_, i) => {
-                const pos = shuffleOrder[i]!;
-                const riffleDir = i % 2 === 0 ? -1 : 1;
-                return (
-                  <div
-                    key={`shuffle-${i}`}
-                    className="absolute"
-                    style={{
-                      transform: `translate(${pos * 0.5}px, ${-pos * 1.2}px) rotate(${(pos - 2) * 1.5}deg)`,
-                      transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
-                      zIndex: pos,
-                    }}
-                  >
-                    <div className="deck-shuffle-anim" style={{ '--shuffle-dir': riffleDir, animationDelay: `${i * 0.08}s` } as React.CSSProperties}>
-                      <div className="deck-card-back" />
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Dealer's cards — revealing slowly */}
+          <DealerRevealRow cards={dealerCards} revealedCount={dealerRevealCount} label="Dealer" />
+
+          {/* Last call display */}
+          {roundResult && (
+            <div className="glass-raised py-2 px-4 w-full text-center animate-fade-in">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]">
+                {callerName} called
+              </span>
+              <p className="font-display font-bold text-[var(--gold)] text-lg">{lastCall}</p>
             </div>
           )}
 
-          {/* Dealing cards */}
-          {dealAnimPhase !== 'shuffling' && (
-            <>
-              {/* Dealer's cards - dealt face down */}
-              <AnimatedCardRow cards={[]} dealtCount={dealerDealtCount} revealedCount={0} label="Dealer" />
-
-              <div className="text-center" style={{ minHeight: '24px' }}>
-                {dealAnimPhase === 'dealing' && (
-                  <span className="text-xs text-[var(--gold-dim)] animate-pulse">Dealing...</span>
-                )}
-                {dealAnimPhase === 'revealing' && (
-                  <span className="text-xs text-[var(--gold-dim)]">Your cards</span>
-                )}
-              </div>
-
-              {/* Player's cards - dealt then revealed */}
-              <AnimatedCardRow cards={playerCards} dealtCount={playerDealtCount} revealedCount={playerRevealCount} label="You" />
-            </>
+          {/* Result verdict — shown after all cards revealed */}
+          {allRevealed && roundResult && (
+            <div className={`py-3 px-4 rounded-xl border-2 w-full text-center animate-scale-in ${
+              roundResult.handExists
+                ? 'border-[var(--info)] bg-[var(--info-bg)]'
+                : 'border-[var(--danger)] bg-[var(--danger-bg)]'
+            }`}>
+              <p className={`font-display text-2xl font-bold ${
+                roundResult.handExists ? 'text-[var(--info)]' : 'text-[var(--danger)]'
+              }`}>
+                {roundResult.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
+              </p>
+            </div>
           )}
 
-          {dealAnimPhase === 'shuffling' && (
-            <span className="text-xs text-[var(--gold-dim)] animate-pulse">Shuffling...</span>
-          )}
+          {/* Player's cards */}
+          <StaticCardRow cards={gameState.myCards} label="You" />
         </div>
       </Layout>
     );
@@ -771,7 +703,7 @@ export function FiveDrawPage() {
             </div>
           )}
 
-          {/* Dealer thinking indicator (no tile, just text) */}
+          {/* Dealer thinking indicator */}
           {isDealerTurn && (
             <div className="text-center py-1">
               <span className="text-xs text-[var(--gold-dim)] animate-pulse">Dealer is thinking...</span>
@@ -841,17 +773,6 @@ export function FiveDrawPage() {
             </div>
           )}
         </div>
-
-        {/* Round result overlay */}
-        {roundResult && (
-          <RevealOverlay
-            result={roundResult}
-            players={gameState.players}
-            myPlayerId={PLAYER_ID}
-            onDismiss={handleDismissResult}
-            autoCountdown={false}
-          />
-        )}
       </Layout>
     );
   }
