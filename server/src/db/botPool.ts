@@ -147,6 +147,9 @@ const CFR_BOT_UUIDS: Record<string, string> = {
 /**
  * Seed missing CFR bot accounts and their default ratings.
  * Mirrors migration 018 steps 3-4 so the pool is correct on next fetch.
+ *
+ * Uses RETURNING id to get the actual UUID (which may differ from the hardcoded
+ * one if ON CONFLICT kept an existing row), then seeds ratings with that UUID.
  */
 async function seedMissingCFRBots(): Promise<void> {
   for (const bot of CFR_BOTS) {
@@ -154,25 +157,29 @@ async function seedMissingCFRBots(): Promise<void> {
     if (!uuid) continue;
 
     try {
-      await query(
+      // Upsert user and get the ACTUAL id (may differ from hardcoded uuid)
+      const userResult = await query<{ id: string }>(
         `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
          VALUES ($1, $2, $3, 'bot', true, $4)
          ON CONFLICT (username) DO UPDATE
-           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name`,
+           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name
+         RETURNING id`,
         [uuid, bot.key, bot.name, bot.key],
       );
 
-      // Seed default ratings for both modes
+      const actualId = userResult?.rows[0]?.id ?? uuid;
+
+      // Seed default ratings using the ACTUAL user id
       for (const m of ['heads_up', 'multiplayer'] as const) {
         await query(
           `INSERT INTO ratings (user_id, mode, elo, mu, sigma, games_played, peak_rating)
            VALUES ($1, $2, 1200, 25, 8.333, 0, 1200)
            ON CONFLICT (user_id, mode) DO NOTHING`,
-          [uuid, m],
+          [actualId, m],
         );
       }
 
-      logger.info({ botKey: bot.key, userId: uuid }, 'Seeded CFR bot account');
+      logger.info({ botKey: bot.key, userId: actualId }, 'Seeded CFR bot account');
     } catch (err) {
       logger.error({ err, botKey: bot.key }, 'Failed to seed CFR bot account');
     }
@@ -207,49 +214,113 @@ async function seedMissingCFRBotRatings(userIds: string[]): Promise<void> {
  * Unlike the reactive self-heal in getRankedBotPool (which only runs during
  * matchmaking), this runs once at boot to ensure CFR bots are visible on the
  * leaderboard and their profiles are resolvable from the very first request.
+ *
+ * Key design: always queries the ACTUAL user UUID from the database when
+ * seeding ratings, rather than relying on hardcoded UUIDs. This handles the
+ * edge case where ON CONFLICT (username) kept an existing row with a different
+ * UUID than the hardcoded one.
  */
 export async function ensureCFRBotAccounts(): Promise<void> {
   try {
-    // Check which CFR bots are missing from the users table
-    const existingResult = await query<{ username: string }>(
-      `SELECT username FROM users WHERE is_bot = true AND bot_profile LIKE 'cfr_%'`,
-    );
-    const existingUsernames = new Set(existingResult?.rows.map(r => r.username) ?? []);
-
     let seededUsers = 0;
     let seededRatings = 0;
 
+    // Step 1: Ensure all CFR bot user rows exist.
     for (const bot of CFR_BOTS) {
       const uuid = CFR_BOT_UUIDS[bot.key];
       if (!uuid) continue;
 
-      // Ensure user row exists
-      if (!existingUsernames.has(bot.key)) {
-        await query(
-          `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
-           VALUES ($1, $2, $3, 'bot', true, $4)
-           ON CONFLICT (username) DO UPDATE
-             SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name`,
-          [uuid, bot.key, bot.name, bot.key],
-        );
+      const result = await query<{ id: string }>(
+        `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
+         VALUES ($1, $2, $3, 'bot', true, $4)
+         ON CONFLICT (username) DO UPDATE
+           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name
+         RETURNING id`,
+        [uuid, bot.key, bot.name, bot.key],
+      );
+      if (!result) {
+        logger.error({ botKey: bot.key }, 'CFR bot user upsert returned null — DB may be unavailable');
+        continue;
+      }
+      if (result.rows.length > 0) {
+        const actualId = result.rows[0]!.id;
+        if (actualId !== uuid) {
+          logger.warn(
+            { botKey: bot.key, expectedUuid: uuid, actualUuid: actualId },
+            'CFR bot user has unexpected UUID (ON CONFLICT kept existing row)',
+          );
+        }
         seededUsers++;
       }
+    }
 
-      // Ensure rating rows exist for both modes
+    // Step 2: Query actual UUIDs for all CFR bots and seed missing ratings.
+    // Always use the REAL user_id from the database — never the hardcoded UUID
+    // for ratings, since the actual UUID may differ if ON CONFLICT fired.
+    const cfrUsersResult = await query<{ id: string; username: string }>(
+      `SELECT id, username FROM users WHERE is_bot = true AND bot_profile LIKE 'cfr_%'`,
+    );
+
+    if (!cfrUsersResult || cfrUsersResult.rows.length === 0) {
+      logger.error('No CFR bot users found in DB after upsert — seeding failed silently');
+      return;
+    }
+
+    for (const row of cfrUsersResult.rows) {
       for (const m of ['heads_up', 'multiplayer'] as const) {
         const inserted = await query<{ user_id: string }>(
           `INSERT INTO ratings (user_id, mode, elo, mu, sigma, games_played, peak_rating)
            VALUES ($1, $2, 1200, 25, 8.333, 0, 1200)
            ON CONFLICT (user_id, mode) DO NOTHING
            RETURNING user_id`,
-          [uuid, m],
+          [row.id, m],
         );
+        if (!inserted) {
+          logger.error({ botUsername: row.username, userId: row.id, mode: m }, 'CFR bot ratings insert returned null');
+        }
         if (inserted && inserted.rows.length > 0) seededRatings++;
       }
     }
 
+    // Step 3: Verify the final state — CFR bots must have BOTH user AND rating rows
+    // for them to appear on the leaderboard (which uses INNER JOIN ratings).
+    const verifyResult = await query<{ username: string; modes: string }>(
+      `SELECT u.username, COUNT(r.mode)::text AS modes
+       FROM users u
+       LEFT JOIN ratings r ON r.user_id = u.id
+       WHERE u.is_bot = true AND u.bot_profile LIKE 'cfr_%'
+       GROUP BY u.id, u.username`,
+    );
+
+    if (verifyResult) {
+      const missing: string[] = [];
+      for (const row of verifyResult.rows) {
+        const modeCount = parseInt(row.modes, 10);
+        if (modeCount < 2) {
+          missing.push(`${row.username} (${modeCount}/2 rating modes)`);
+        }
+      }
+      if (missing.length > 0) {
+        logger.error(
+          { missingRatings: missing },
+          'CFR bots still missing ratings after seeding — leaderboard will not show them',
+        );
+      }
+      if (verifyResult.rows.length < CFR_BOTS.length) {
+        logger.error(
+          { found: verifyResult.rows.length, expected: CFR_BOTS.length },
+          'Not all CFR bot users exist in DB after seeding',
+        );
+      }
+    }
+
     if (seededUsers > 0 || seededRatings > 0) {
-      logger.info({ seededUsers, seededRatings }, 'Startup: seeded missing CFR bot accounts/ratings');
+      logger.info({ seededUsers, seededRatings }, 'Startup: seeded CFR bot accounts/ratings');
+      // Clear the leaderboard cache so freshly-seeded bots appear immediately
+      try {
+        const { clearLeaderboardCache } = await import('./leaderboard.js');
+        clearLeaderboardCache();
+      } catch { /* leaderboard module may not be loaded yet */ }
     } else {
       logger.debug('Startup: all CFR bot accounts and ratings verified');
     }
