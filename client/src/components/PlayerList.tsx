@@ -241,11 +241,17 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   onPlayerClick?: (player: Player) => void;
   turnDeadline?: number | null;
 }) {
-  // Show timer meter on the current player's tile when it's not me.
+  // Show the animated timer border on the current player's tile whenever
+  // a turn deadline is active.  Previously excluded the local player
+  // (`!isMe`) under the assumption that TurnIndicator is sufficient, but
+  // the TileMeter border serves a different purpose: it visually highlights
+  // *which* tile is active.  In local games and solo-vs-bots online games
+  // the human is the only player with a turn timer, so excluding `isMe`
+  // meant the border never appeared at all.
   // Allow 3s grace period so the meter still shows when the deadline
   // arrives slightly before the next turn starts or the state was
   // deferred behind a round-result overlay.
-  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
+  const showMeter = isCurrent && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
 
   // DEBUG: log showMeter evaluation for every card that has turnDeadline or is current
   if (isCurrent || turnDeadline != null) {
