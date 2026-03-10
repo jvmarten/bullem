@@ -94,11 +94,26 @@ export async function getRankedBotPool(
   }
 
   // Self-heal: if CFR bots are missing from the DB (e.g. migration 018 partially
-  // failed), seed them now so they appear in the pool on the next fetch.
+  // failed), inject them into the result immediately from code definitions AND
+  // seed them in the DB for future fetches.
   const hasCFR = entries.some(e => e.botProfile.startsWith('cfr_'));
   if (!hasCFR && usersResult.rows.length > 0) {
-    logger.warn('No CFR bots found in database — seeding them now');
-    void seedMissingCFRBots(mode).catch(() => {/* logged inside */});
+    logger.warn('No CFR bots found in database — injecting from code definitions and seeding DB');
+    for (const bot of CFR_BOTS) {
+      const uuid = CFR_BOT_UUIDS[bot.key];
+      if (!uuid) continue;
+      entries.push({
+        userId: uuid,
+        username: bot.key,
+        displayName: bot.name,
+        botProfile: bot.key,
+        profileConfig: bot.config,
+        profileDefinition: bot,
+        rating: 1200,
+      });
+    }
+    // Seed in background so future fetches find them in the DB
+    void seedMissingCFRBots().catch(() => {/* logged inside */});
   }
 
   return entries;
@@ -121,7 +136,7 @@ const CFR_BOT_UUIDS: Record<string, string> = {
  * Seed missing CFR bot accounts and their default ratings.
  * Mirrors migration 018 steps 3-4 so the pool is correct on next fetch.
  */
-async function seedMissingCFRBots(mode: 'heads_up' | 'multiplayer'): Promise<void> {
+async function seedMissingCFRBots(): Promise<void> {
   for (const bot of CFR_BOTS) {
     const uuid = CFR_BOT_UUIDS[bot.key];
     if (!uuid) continue;
