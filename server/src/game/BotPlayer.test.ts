@@ -216,15 +216,17 @@ describe('BotPlayer', () => {
         currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
         lastCallerId: 'p1',
       });
-      // Bot mostly calls bull when it can't legitimately raise, but may occasionally bluff
-      let bullCount = 0;
+      // Bot calls bull or bluff-raises when it can't legitimately raise.
+      // With evolved parameters (high riskTolerance, low bullThreshold), the bot
+      // is aggressive — it may bluff-raise frequently. Either action is correct.
+      let bullOrRaiseCount = 0;
       const runs = 100;
       for (let i = 0; i < runs; i++) {
         const action = BotPlayer.decideAction(state, 'bot1', cards, BotDifficulty.NORMAL);
-        if (action.action === 'bull') bullCount++;
+        if (action.action === 'bull' || action.action === 'call') bullOrRaiseCount++;
       }
-      // Expect mostly bull (>50%)
-      expect(bullCount).toBeGreaterThan(runs * 0.50);
+      // Expect all actions to be bull or raise (not true, not pass)
+      expect(bullOrRaiseCount).toBe(runs);
     });
 
     it('calls bull, true, or raises in bull phase', () => {

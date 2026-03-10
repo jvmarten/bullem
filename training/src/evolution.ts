@@ -12,7 +12,7 @@
  */
 
 import { BotDifficulty } from '@bull-em/shared';
-import type { BotProfileConfig } from '@bull-em/shared';
+import type { BotProfileConfig, LastChanceMode, JokerCount } from '@bull-em/shared';
 import { BOT_PROFILES, DEFAULT_BOT_PROFILE_CONFIG } from '@bull-em/shared';
 import { createBotPlayers, runGame } from './gameLoop.js';
 import type { BotConfig, GameResult } from './types.js';
@@ -39,6 +39,18 @@ export interface IndividualResult {
   winRate: number;
 }
 
+/** A specific game configuration scenario for multi-scenario training. */
+export interface GameScenario {
+  /** Number of players per game in this scenario. */
+  players: number;
+  /** Number of jokers in the deck. */
+  jokerCount: JokerCount;
+  /** Last chance raise rules. */
+  lastChanceMode: LastChanceMode;
+  /** Relative weight of this scenario in blended fitness (normalized automatically). */
+  weight: number;
+}
+
 /** Configuration for the evolutionary optimization run. */
 export interface EvolutionConfig {
   /** Number of generations to run. */
@@ -47,7 +59,7 @@ export interface EvolutionConfig {
   populationSize: number;
   /** Number of games per matchup in round-robin. */
   gamesPerMatchup: number;
-  /** Number of players per game (default 2 for cleanest signal). */
+  /** Number of players per game (default 2 for cleanest signal). Used when scenarios is empty. */
   playersPerGame: number;
   /** Max cards before elimination. */
   maxCards: number;
@@ -69,6 +81,9 @@ export interface EvolutionConfig {
   profileWeight: number;
   /** Enable fitness sharing for diversity preservation (default: true). */
   fitnessSharing: boolean;
+  /** Game scenarios to train across. Empty = single scenario from playersPerGame/maxCards.
+   *  When provided, each generation evaluates individuals across ALL scenarios. */
+  scenarios: GameScenario[];
 }
 
 /** Summary of a single generation's results. */
@@ -265,18 +280,20 @@ export function seedPopulation(size: number): Individual[] {
 // ── Tournament ─────────────────────────────────────────────────────────
 
 /**
- * Run a round-robin tournament where every individual plays against every
- * other individual. For >2 player games, individuals are grouped into
- * tables of `playersPerGame`.
+ * Run a round-robin tournament for a single game configuration.
+ * For 2-player: every pair plays gamesPerMatchup games.
+ * For multi-player: individuals are grouped into random tables.
  *
- * Returns results sorted by win rate (best first).
+ * Returns per-individual win/game counts (not sorted).
  */
-export function runTournament(
+function runTournamentForScenario(
   population: Individual[],
   gamesPerMatchup: number,
   playersPerGame: number,
   maxCards: number,
-): IndividualResult[] {
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
+): { wins: Map<string, number>; games: Map<string, number> } {
   const wins: Map<string, number> = new Map();
   const games: Map<string, number> = new Map();
 
@@ -285,7 +302,7 @@ export function runTournament(
     games.set(ind.id, 0);
   }
 
-  const settings = { maxCards, turnTimer: 0 };
+  const settings = { maxCards, turnTimer: 0, jokerCount, lastChanceMode };
 
   if (playersPerGame === 2) {
     // 1v1 round-robin: every pair plays gamesPerMatchup games
@@ -310,11 +327,9 @@ export function runTournament(
     }
   } else {
     // Multi-player: group individuals into random tables
-    // Each individual plays approximately the same number of games
     const totalMatchups = Math.ceil((population.length * gamesPerMatchup) / playersPerGame);
 
     for (let m = 0; m < totalMatchups; m++) {
-      // Pick random group of playersPerGame individuals
       const shuffled = [...population].sort(() => Math.random() - 0.5);
       const group = shuffled.slice(0, playersPerGame);
 
@@ -334,17 +349,73 @@ export function runTournament(
     }
   }
 
-  // Build results sorted by win rate
-  const results: IndividualResult[] = population.map(ind => {
-    const w = wins.get(ind.id) ?? 0;
-    const g = games.get(ind.id) ?? 0;
-    return {
-      individual: ind,
-      wins: w,
-      games: g,
-      winRate: g > 0 ? w / g : 0,
-    };
-  });
+  return { wins, games };
+}
+
+/**
+ * Run a tournament across one or more game scenarios. Each scenario can have
+ * different player counts, joker counts, and last-chance-raise rules.
+ * Win rates across scenarios are blended by scenario weight.
+ *
+ * Returns results sorted by blended win rate (best first).
+ */
+export function runTournament(
+  population: Individual[],
+  gamesPerMatchup: number,
+  playersPerGame: number,
+  maxCards: number,
+  scenarios?: GameScenario[],
+): IndividualResult[] {
+  // If no scenarios, create a single default scenario
+  const effectiveScenarios: GameScenario[] = (scenarios && scenarios.length > 0)
+    ? scenarios
+    : [{ players: playersPerGame, jokerCount: 0, lastChanceMode: 'classic', weight: 1 }];
+
+  // Normalize scenario weights
+  const totalWeight = effectiveScenarios.reduce((s, sc) => s + sc.weight, 0);
+
+  // Accumulate weighted win rates per individual
+  const blendedRates: Map<string, number> = new Map();
+  const totalGamesPlayed: Map<string, number> = new Map();
+  const totalWins: Map<string, number> = new Map();
+
+  for (const ind of population) {
+    blendedRates.set(ind.id, 0);
+    totalGamesPlayed.set(ind.id, 0);
+    totalWins.set(ind.id, 0);
+  }
+
+  // Scale games per matchup inversely with number of scenarios to keep total runtime stable
+  const gamesPerScenario = Math.max(2, Math.round(gamesPerMatchup / effectiveScenarios.length));
+
+  for (const scenario of effectiveScenarios) {
+    const normalizedWeight = scenario.weight / totalWeight;
+    const { wins, games } = runTournamentForScenario(
+      population,
+      gamesPerScenario,
+      scenario.players,
+      maxCards,
+      scenario.jokerCount,
+      scenario.lastChanceMode,
+    );
+
+    for (const ind of population) {
+      const w = wins.get(ind.id) ?? 0;
+      const g = games.get(ind.id) ?? 0;
+      const winRate = g > 0 ? w / g : 0;
+      blendedRates.set(ind.id, (blendedRates.get(ind.id) ?? 0) + normalizedWeight * winRate);
+      totalGamesPlayed.set(ind.id, (totalGamesPlayed.get(ind.id) ?? 0) + g);
+      totalWins.set(ind.id, (totalWins.get(ind.id) ?? 0) + w);
+    }
+  }
+
+  // Build results sorted by blended win rate
+  const results: IndividualResult[] = population.map(ind => ({
+    individual: ind,
+    wins: totalWins.get(ind.id) ?? 0,
+    games: totalGamesPlayed.get(ind.id) ?? 0,
+    winRate: blendedRates.get(ind.id) ?? 0,
+  }));
 
   results.sort((a, b) => b.winRate - a.winRate);
   return results;
@@ -606,6 +677,7 @@ function buildExportData(
     gamesPerMatchup: config.gamesPerMatchup,
     playersPerGame: config.playersPerGame,
     maxCards: config.maxCards,
+    scenarios: config.scenarios.length > 0 ? config.scenarios : undefined,
     bestPopWinRate: overallBestPopWinRate,
     // Canonical field name — evaluateEvolved.ts reads this as `bestWinRate`
     bestWinRate: overallBest.winRate,
@@ -645,7 +717,10 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
     eliteCount,
     profileWeight,
     fitnessSharing,
+    scenarios,
   } = config;
+
+  const hasScenarios = scenarios.length > 0;
 
   console.log(`\n${'═'.repeat(55)}`);
   console.log("  Bull 'Em Evolutionary Parameter Optimization");
@@ -653,7 +728,14 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
   console.log(`  Population size:    ${populationSize}`);
   console.log(`  Generations:        ${generations}`);
   console.log(`  Games per matchup:  ${gamesPerMatchup}`);
-  console.log(`  Players per game:   ${playersPerGame}`);
+  if (hasScenarios) {
+    console.log(`  Scenarios:          ${scenarios.length}`);
+    for (const sc of scenarios) {
+      console.log(`    ${sc.players}P / ${sc.jokerCount}J / ${sc.lastChanceMode} (weight: ${sc.weight})`);
+    }
+  } else {
+    console.log(`  Players per game:   ${playersPerGame}`);
+  }
   console.log(`  Max cards:          ${maxCards}`);
   console.log(`  Survival rate:      ${(survivalRate * 100).toFixed(0)}%`);
   console.log(`  Mutation strength:  ${mutationStrength}`);
@@ -701,8 +783,11 @@ export function evolve(config: EvolutionConfig): EvolutionResult {
   for (let gen = 1; gen <= generations; gen++) {
     const genStart = performance.now();
 
-    // Run population tournament
-    const popResults = runTournament(population, gamesPerMatchup, playersPerGame, maxCards);
+    // Run population tournament (with multi-scenario support)
+    const popResults = runTournament(
+      population, gamesPerMatchup, playersPerGame, maxCards,
+      hasScenarios ? scenarios : undefined,
+    );
 
     // Count games this generation
     const genGames = popResults.reduce((sum, r) => sum + r.games, 0) / playersPerGame;

@@ -130,19 +130,20 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('uses exact V4 universal evolved champion values as baseline', () => {
-      // DEFAULT is the V4 universal evolved champion — all personalities derive from this.
+    it('uses exact V2 multi-scenario evolved champion values as baseline', () => {
+      // DEFAULT is the V2 multi-scenario evolved champion — all personalities derive from this.
+      // Trained across 12 game scenarios: 2P-6P, 0-2 jokers, classic/strict last-chance.
       // After each evolution run, update DEFAULT to the new champion's values.
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.50);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.25);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.35);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.80);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.94);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.10);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.85);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(0.50);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.50);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.12);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.37);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.00);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(1.00);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.84);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.78);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.13);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.77);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.40);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.62);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.10);
     });
   });
 
