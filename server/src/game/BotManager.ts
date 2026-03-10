@@ -198,7 +198,8 @@ export class BotManager {
 
       // Set a synthetic deadline so clients can show a TileMeter countdown
       // on the bot's tile while it "thinks". Cleared when the bot acts.
-      room.game.setTurnDeadline(Date.now() + delay + graceMs);
+      const botDurationMs = delay + graceMs;
+      room.game.setTurnDeadline(Date.now() + botDurationMs, botDurationMs);
 
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
@@ -249,8 +250,9 @@ export class BotManager {
     }
 
     const totalMs = timerSeconds * 1000 + graceMs;
+    const fullDurationMs = timerSeconds * 1000;
     const deadline = Date.now() + totalMs;
-    room.game.setTurnDeadline(deadline);
+    room.game.setTurnDeadline(deadline, fullDurationMs);
 
     const gen = generation ?? (this.roomTimerGeneration.get(room.roomCode) ?? 0);
     const timer = setTimeout(() => {

@@ -163,6 +163,9 @@ export interface ClientGameState {
   roundResult?: RoundResult | null;
   /** Unix timestamp (ms) when the current turn expires. Null if no timer. */
   turnDeadline?: number | null;
+  /** Full intended turn duration in ms. Used by TileMeter so the countdown
+   *  speed is consistent regardless of when the component mounts. */
+  turnDurationMs?: number | null;
   /** All active players' cards — only sent to eliminated players acting as spectators. */
   spectatorCards?: SpectatorPlayerCards[];
   /** Series info for best-of matches. Null for single games. */

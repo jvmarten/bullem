@@ -400,6 +400,7 @@ export function LocalGamePage() {
                 collapsible
                 onPlayerClick={handlePlayerClick}
                 turnDeadline={gameState.turnDeadline}
+                turnDurationMs={gameState.turnDurationMs}
               />
             </div>
             {/* Call history in sidebar — landscape only */}

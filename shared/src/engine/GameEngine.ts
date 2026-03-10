@@ -44,6 +44,7 @@ export class GameEngine {
   private lastChanceUsed = false;
   private gameStats: GameStats;
   private _turnDeadline: number | null = null;
+  private _turnDurationMs: number | null = null;
   /** Round snapshots collected for game replay. Populated at each round resolution. */
   private _roundSnapshots: RoundSnapshot[] = [];
   /** Cards dealt at the start of the current round — captured before any actions. */
@@ -86,8 +87,9 @@ export class GameEngine {
     return this.roundPhase;
   }
 
-  setTurnDeadline(deadline: number | null): void {
+  setTurnDeadline(deadline: number | null, durationMs?: number | null): void {
     this._turnDeadline = deadline;
+    this._turnDurationMs = durationMs ?? null;
   }
 
   /** Deal cards and begin a new round. Call once at game start. Use startNextRound() for subsequent rounds. */
@@ -354,6 +356,7 @@ export class GameEngine {
       startingPlayerId: this._startingPlayerId,
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
+      turnDurationMs: this._turnDurationMs,
     };
 
     // Spectators (eliminated players) can see all active players' cards

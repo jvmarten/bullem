@@ -26,6 +26,8 @@ interface Props {
   onPlayerClick?: (player: Player) => void;
   /** Turn deadline timestamp — used to show subtle timer on current player's tile */
   turnDeadline?: number | null;
+  /** Full intended turn duration in ms — keeps TileMeter countdown speed consistent */
+  turnDurationMs?: number | null;
 }
 
 /* Full-border timer meter that wraps around the entire player tile.
@@ -46,7 +48,7 @@ function roundedRectPerimeter(w: number, h: number, r: number): number {
   return 2 * (w - 2 * cr) + 2 * (h - 2 * cr) + 2 * Math.PI * cr;
 }
 
-const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: number }) {
+const TileMeter = memo(function TileMeter({ turnDeadline, turnDurationMs }: { turnDeadline: number; turnDurationMs?: number | null }) {
   const rectRef = useRef<SVGRectElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const perimRef = useRef<number>(0);
@@ -102,7 +104,12 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
 
   useEffect(() => {
     const now = Date.now();
-    const total = Math.max(0, turnDeadline - now);
+    // Use the authoritative duration when available so the countdown speed
+    // is consistent regardless of when this component mounts. Fall back to
+    // remaining time if turnDurationMs is not provided (backwards compat).
+    const total = turnDurationMs != null && turnDurationMs > 0
+      ? turnDurationMs
+      : Math.max(0, turnDeadline - now);
 
     // Ensure perim is computed (handles mount before layout is ready)
     if (!perimRef.current) syncSize();
@@ -140,7 +147,7 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline, syncSize]);
+  }, [turnDeadline, turnDurationMs, syncSize]);
 
   return (
     <svg
@@ -216,7 +223,7 @@ function buildLastActionMap(history?: TurnEntry[]): Map<PlayerId, string> {
 // Memoized to skip re-renders when only other players' state changed.
 // Receives `lastAction` as a primitive string instead of the full turnHistory
 // array, so memo comparison works effectively.
-const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo, onPlayerClick, turnDeadline }: {
+const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, roundNumber, lastAction, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, reactions, rankInfo, onPlayerClick, turnDeadline, turnDurationMs }: {
   p: Player; i: number; isCurrent: boolean; isMe: boolean; maxCards: number;
   roundNumber?: number; lastAction: string | null;
   showRemoveBot?: boolean; onRemoveBot?: (botId: string) => void;
@@ -225,6 +232,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   rankInfo?: { rating: number; tier: RankTier };
   onPlayerClick?: (player: Player) => void;
   turnDeadline?: number | null;
+  turnDurationMs?: number | null;
 }) {
   // Show timer meter on the current player's tile when it's not me.
   // The user's own turn timer is shown in the TurnIndicator banner;
@@ -333,7 +341,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
         </div>
       )}
       {/* Subtle opponent turn timer meter — key forces fresh mount on every turn */}
-      {showMeter && <TileMeter key={turnDeadline} turnDeadline={turnDeadline!} />}
+      {showMeter && <TileMeter key={turnDeadline} turnDeadline={turnDeadline!} turnDurationMs={turnDurationMs} />}
     </div>
   );
 });
@@ -342,7 +350,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 // every game state broadcast (timer ticks, other players' actions), but the
 // PlayerList props are often the same. Without memo, buildLastActionMap and
 // the collapsed-view player lookup run on every parent render.
-export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings, onPlayerClick, turnDeadline }: Props) {
+export const PlayerList = memo(function PlayerList({ players, currentPlayerId, myPlayerId, maxCards = 5, showRemoveBot, onRemoveBot, showKickPlayer, onKickPlayer, roundNumber, turnHistory, collapsible, reactions, playerRatings, onPlayerClick, turnDeadline, turnDurationMs }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   // Build the last-action map once per render instead of scanning history
   // per-player. Memoized on history length since a new entry = new length.
@@ -398,6 +406,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               rankInfo={playerRatings?.get(currentPlayer.id)}
               onPlayerClick={onPlayerClick}
               turnDeadline={turnDeadline}
+              turnDurationMs={turnDurationMs}
             />
           )}
           {nextPlayer && nextPlayer.id !== currentPlayerId && (
@@ -414,6 +423,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
               rankInfo={playerRatings?.get(nextPlayer.id)}
               onPlayerClick={onPlayerClick}
               turnDeadline={turnDeadline}
+              turnDurationMs={turnDurationMs}
             />
           )}
         </div>
@@ -455,6 +465,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
             rankInfo={playerRatings?.get(p.id)}
             onPlayerClick={onPlayerClick}
             turnDeadline={p.id === currentPlayerId ? turnDeadline : undefined}
+            turnDurationMs={p.id === currentPlayerId ? turnDurationMs : undefined}
           />
         ))}
       </div>

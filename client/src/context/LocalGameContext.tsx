@@ -307,7 +307,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
     // Set a synthetic deadline so the TileMeter can show a countdown
     // on the bot's tile while it "thinks". Cleared when the bot acts.
-    engine.setTurnDeadline(Date.now() + delay);
+    engine.setTurnDeadline(Date.now() + delay, delay);
 
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
@@ -354,8 +354,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       ? remainingMs
       : timerSeconds * 1000;
 
+    const fullDurationMs = timerSeconds * 1000;
     const deadline = Date.now() + ms;
-    engine.setTurnDeadline(deadline);
+    engine.setTurnDeadline(deadline, fullDurationMs);
 
     turnTimerRef.current = setTimeout(() => {
       turnTimerRef.current = null;
