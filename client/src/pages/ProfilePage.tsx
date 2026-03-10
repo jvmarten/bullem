@@ -147,7 +147,8 @@ export function ProfilePage() {
   const [usernameError, setUsernameError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stats, setStats] = useState<PlayerStatsResponse | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
+  // Start as true so skeletons render on first paint (no flash when data arrives)
+  const [statsLoading, setStatsLoading] = useState(true);
   const [statsLoaded, setStatsLoaded] = useState(false);
   const [statsError, setStatsError] = useState(false);
   const [ratings, setRatings] = useState<UserRatings | null>(null);

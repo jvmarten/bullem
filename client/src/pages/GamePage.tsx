@@ -388,12 +388,18 @@ export function GamePage() {
 
   // ── Early return: loading state (all hooks called above) ──────────────
   if (!gameState) {
+    // Show progressive status so users know the system is working, not stuck
+    const loadingMessage = !hasConnected
+      ? 'Connecting to server\u2026'
+      : !roomState
+        ? 'Joining room\u2026'
+        : 'Waiting for game state\u2026';
     return (
       <Layout>
         <div className="flex items-center justify-center pt-16">
           <div className="text-center space-y-3">
             <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-[var(--gold-dim)]">Loading game&hellip;</p>
+            <p className="text-[var(--gold-dim)]">{loadingMessage}</p>
           </div>
         </div>
       </Layout>
