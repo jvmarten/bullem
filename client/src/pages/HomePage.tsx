@@ -854,6 +854,12 @@ export function HomePage() {
             >
               Deck Draw
             </Link>
+            <Link
+              to="/five-draw"
+              className="w-full btn-gold py-4 text-lg text-center block"
+            >
+              5 Draw
+            </Link>
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
