@@ -350,7 +350,7 @@ export function PublicProfilePage() {
                 fontFamily: 'monospace',
               }}
             >
-              {challenging ? zalgoify('Preparing...', 2) : zalgoify('Challenge (Bo3)', 2)}
+              {challenging ? zalgoify('Preparing...', 2) : zalgoify('Challenge', 2)}
             </button>
           </div>
 
@@ -514,7 +514,7 @@ export function PublicProfilePage() {
                   cursor: challenging ? 'not-allowed' : 'pointer',
                 }}
               >
-                {challenging ? 'Setting up...' : 'Challenge (Bo3)'}
+                {challenging ? 'Setting up...' : 'Challenge'}
               </button>
             </>
           )}
