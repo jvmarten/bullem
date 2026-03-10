@@ -1160,11 +1160,11 @@ export function HomePage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.3.8</h3>
-            <p className="text-sm text-[var(--gold-dim)]">Released March 9, 2026</p>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 10, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Shortened tutorial to 5-step Quick Start + Advanced Rules</li>
-              <li>Hand selector filters out invalid rank options</li>
-              <li>Smarter bot bluffing and decision-making</li>
+              <li>Rating changes shown per player in ranked match results</li>
+              <li>Player avatars now display lifetime stats and ratings</li>
+              <li>Challenge bots directly from their profile pages</li>
             </ul>
           </div>
         </div>
