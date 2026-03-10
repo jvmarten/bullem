@@ -288,7 +288,11 @@ export function HomePage() {
   });
   const location = useLocation();
   const [mode, setMode] = useState<'menu' | 'online' | 'join' | 'browse'>(
-    () => (location.state as { mode?: string } | null)?.mode === 'online' ? 'online' : 'menu',
+    () => {
+      const stateMode = (location.state as { mode?: string } | null)?.mode;
+      if (stateMode === 'online' || stateMode === 'browse') return stateMode;
+      return 'menu';
+    },
   );
   const [roomCode, setRoomCode] = useState('');
   const { addToast } = useToast();
@@ -507,6 +511,8 @@ export function HomePage() {
   const handleSpectate = async (code: string) => {
     try {
       await spectateGame(code);
+      // Save current mode so browser back returns to browse list
+      window.history.replaceState({ ...window.history.state, usr: { mode: 'browse' } }, '');
       navigate(`/game/${code}`);
     } catch (e) {
       addToast(friendlyError(e instanceof Error ? e.message : 'Failed to spectate'));
@@ -517,6 +523,8 @@ export function HomePage() {
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
     try {
       const code = await watchRandomGame();
+      // Save current mode so browser back returns to browse list
+      window.history.replaceState({ ...window.history.state, usr: { mode: 'browse' } }, '');
       navigate(`/game/${code}`);
     } catch (e) {
       addToast(friendlyError(e instanceof Error ? e.message : 'No live games to watch'));
