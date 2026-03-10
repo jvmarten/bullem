@@ -540,7 +540,7 @@ const CFR_FLAVOR_TEXT: BotFlavorText = {
 export const CFR_BOTS: readonly BotProfileDefinition[] = CFR_BOT_NAMES.map(({ key, name, avatar }) => ({
   key,
   name,
-  personality: 'Trained via 500K iterations of CFR self-play. No heuristics — pure game theory.',
+  personality: '',
   avatar,
   config: DEFAULT_BOT_PROFILE_CONFIG, // Not used — CFR bypasses heuristic logic
   flavorText: CFR_FLAVOR_TEXT,

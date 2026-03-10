@@ -509,11 +509,13 @@ export function PublicProfilePage() {
           {profile.isBot && botInfo && (
             <>
               <p className="text-xs text-[var(--gold-dim)] mt-1">
-                Level {botInfo.level} Bot{botInfo.personalityKey.startsWith('cfr_') ? ' — CFR Strategy' : ''}
+                Level {botInfo.level} Bot
               </p>
-              <p className="text-[10px] text-[var(--gold-dim)] mt-0.5 max-w-[280px] mx-auto">
-                {botInfo.personality}
-              </p>
+              {botInfo.personality && (
+                <p className="text-[10px] text-[var(--gold-dim)] mt-0.5 max-w-[280px] mx-auto">
+                  {botInfo.personality}
+                </p>
+              )}
               <button
                 onClick={handleChallenge}
                 disabled={challenging}
