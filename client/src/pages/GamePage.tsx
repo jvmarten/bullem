@@ -518,6 +518,7 @@ export function GamePage() {
                 reactions={reactions}
                 onPlayerClick={handlePlayerClick}
                 turnDeadline={gameState.turnDeadline}
+                turnDurationMs={gameState.turnDurationMs}
               />
             </div>
             {/* Call history in sidebar — landscape only */}
