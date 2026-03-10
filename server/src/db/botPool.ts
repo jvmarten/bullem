@@ -93,9 +93,8 @@ export async function getRankedBotPool(
     });
   }
 
-  // Self-heal: if CFR bots are missing from the DB (e.g. migration 018 partially
-  // failed), inject them into the result immediately from code definitions AND
-  // seed them in the DB for future fetches.
+  // Self-heal: if CFR bots are entirely missing from the DB (e.g. migration 018
+  // didn't run), inject them into the result and seed both users + ratings.
   const hasCFR = entries.some(e => e.botProfile.startsWith('cfr_'));
   if (!hasCFR && usersResult.rows.length > 0) {
     logger.warn('No CFR bots found in database — injecting from code definitions and seeding DB');
@@ -114,6 +113,19 @@ export async function getRankedBotPool(
     }
     // Seed in background so future fetches find them in the DB
     void seedMissingCFRBots().catch(() => {/* logged inside */});
+  } else if (hasCFR) {
+    // Self-heal: CFR bot user rows exist but may be missing rating entries
+    // (e.g. migration 018 step 3 succeeded but step 4 failed). Without ratings,
+    // CFR bots won't appear on the leaderboard (INNER JOIN ratings).
+    const cfrEntries = entries.filter(e => e.botProfile.startsWith('cfr_'));
+    const cfrMissingRatings = cfrEntries.filter(e => !ratingMap.has(e.userId));
+    if (cfrMissingRatings.length > 0) {
+      logger.warn(
+        { count: cfrMissingRatings.length },
+        'CFR bots found in users table but missing ratings — seeding default ratings',
+      );
+      void seedMissingCFRBotRatings(cfrMissingRatings.map(e => e.userId)).catch(() => {/* logged inside */});
+    }
   }
 
   return entries;
@@ -163,6 +175,29 @@ async function seedMissingCFRBots(): Promise<void> {
       logger.info({ botKey: bot.key, userId: uuid }, 'Seeded CFR bot account');
     } catch (err) {
       logger.error({ err, botKey: bot.key }, 'Failed to seed CFR bot account');
+    }
+  }
+}
+
+/**
+ * Seed default rating entries for CFR bots that exist in the users table
+ * but are missing from the ratings table. This fixes the leaderboard
+ * (which uses INNER JOIN ratings) not showing CFR bots.
+ */
+async function seedMissingCFRBotRatings(userIds: string[]): Promise<void> {
+  for (const userId of userIds) {
+    try {
+      for (const m of ['heads_up', 'multiplayer'] as const) {
+        await query(
+          `INSERT INTO ratings (user_id, mode, elo, mu, sigma, games_played, peak_rating)
+           VALUES ($1, $2, 1200, 25, 8.333, 0, 1200)
+           ON CONFLICT (user_id, mode) DO NOTHING`,
+          [userId, m],
+        );
+      }
+      logger.info({ userId }, 'Seeded missing CFR bot ratings');
+    } catch (err) {
+      logger.error({ err, userId }, 'Failed to seed CFR bot ratings');
     }
   }
 }
