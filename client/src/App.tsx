@@ -53,20 +53,25 @@ function OnlineLayout() {
   );
 }
 
+/** Wraps a lazy-loaded route element with a Suspense boundary showing a named loading state. */
+function SuspenseRoute({ label, children }: { label: string; children: React.ReactNode }) {
+  return <Suspense fallback={<RouteLoadingFallback label={label} />}>{children}</Suspense>;
+}
+
 function LocalLayout() {
   return (
-    <Suspense fallback={<RouteLoadingFallback />}>
+    <Suspense fallback={<RouteLoadingFallback label="game" />}>
       <LazyLocalGameProvider><Outlet /></LazyLocalGameProvider>
     </Suspense>
   );
 }
 
-function RouteLoadingFallback() {
+function RouteLoadingFallback({ label }: { label?: string } = {}) {
   return (
     <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
       <div className="text-center space-y-3">
         <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-[var(--gold-dim)]">Loading&hellip;</p>
+        <p className="text-[var(--gold-dim)]">Loading {label ?? 'page'}&hellip;</p>
       </div>
     </div>
   );
@@ -121,42 +126,40 @@ export default function App() {
     <BrowserRouter>
       <ToastContainer />
       <ScrollToTop />
-      <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
-          <Route path="/rules" element={<HowToPlayPage />} />
-          <Route path="/tutorial" element={<TutorialPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/friends" element={<FriendsPage />} />
-          <Route path="/replays" element={<ReplaysPage />} />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
-          <Route path="/draw" element={<DeckDrawPage />} />
+          <Route path="/rules" element={<SuspenseRoute label="rules"><HowToPlayPage /></SuspenseRoute>} />
+          <Route path="/tutorial" element={<SuspenseRoute label="tutorial"><TutorialPage /></SuspenseRoute>} />
+          <Route path="/login" element={<SuspenseRoute label="login"><LoginPage /></SuspenseRoute>} />
+          <Route path="/profile" element={<SuspenseRoute label="profile"><ProfilePage /></SuspenseRoute>} />
+          <Route path="/forgot-password" element={<SuspenseRoute label="page"><ForgotPasswordPage /></SuspenseRoute>} />
+          <Route path="/reset-password" element={<SuspenseRoute label="page"><ResetPasswordPage /></SuspenseRoute>} />
+          <Route path="/friends" element={<SuspenseRoute label="friends"><FriendsPage /></SuspenseRoute>} />
+          <Route path="/replays" element={<SuspenseRoute label="replays"><ReplaysPage /></SuspenseRoute>} />
+          <Route path="/leaderboard" element={<SuspenseRoute label="leaderboard"><LeaderboardPage /></SuspenseRoute>} />
+          <Route path="/draw" element={<SuspenseRoute label="deck draw"><DeckDrawPage /></SuspenseRoute>} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
-            <Route path="/u/:username" element={<PublicProfilePage />} />
+            <Route path="/u/:username" element={<SuspenseRoute label="profile"><PublicProfilePage /></SuspenseRoute>} />
             <Route path="/" element={<HomePage />} />
-            <Route path="/host" element={<HostPage />} />
-            <Route path="/room/:roomCode" element={<LobbyPage />} />
-            <Route path="/game/:roomCode" element={<GamePage />} />
-            <Route path="/results/:roomCode" element={<ResultsPage />} />
-            <Route path="/replay/:gameId?" element={<ReplayPage />} />
+            <Route path="/host" element={<SuspenseRoute label="lobby"><HostPage /></SuspenseRoute>} />
+            <Route path="/room/:roomCode" element={<SuspenseRoute label="lobby"><LobbyPage /></SuspenseRoute>} />
+            <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GamePage /></SuspenseRoute>} />
+            <Route path="/results/:roomCode" element={<SuspenseRoute label="results"><ResultsPage /></SuspenseRoute>} />
+            <Route path="/replay/:gameId?" element={<SuspenseRoute label="replay"><ReplayPage /></SuspenseRoute>} />
           </Route>
 
           {/* Local (offline) bot game routes */}
           <Route element={<LocalLayout />}>
-            <Route path="/local" element={<LocalLobbyPage />} />
-            <Route path="/local/game" element={<LocalGamePage />} />
-            <Route path="/local/results" element={<LocalResultsPage />} />
-            <Route path="/local/replay" element={<ReplayPage />} />
+            <Route path="/local" element={<SuspenseRoute label="lobby"><LocalLobbyPage /></SuspenseRoute>} />
+            <Route path="/local/game" element={<SuspenseRoute label="game"><LocalGamePage /></SuspenseRoute>} />
+            <Route path="/local/results" element={<SuspenseRoute label="results"><LocalResultsPage /></SuspenseRoute>} />
+            <Route path="/local/replay" element={<SuspenseRoute label="replay"><ReplayPage /></SuspenseRoute>} />
           </Route>
 
           {/* Catch-all: show 404 page for unknown URLs */}
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="*" element={<SuspenseRoute label="page"><NotFoundPage /></SuspenseRoute>} />
         </Routes>
-      </Suspense>
     </BrowserRouter>
     </FriendsProvider>
     </ToastProvider>
