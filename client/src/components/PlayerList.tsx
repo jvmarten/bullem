@@ -51,9 +51,6 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
   const svgRef = useRef<SVGSVGElement>(null);
   const perimRef = useRef<number>(0);
 
-  // DEBUG: log mount
-  console.log('[TileMeter] MOUNTED, turnDeadline =', turnDeadline, 'remaining =', turnDeadline - Date.now(), 'ms');
-
   /** Measure the SVG element itself and sync viewBox + rect dimensions.
    *  We measure the SVG (not the parent) so the viewBox matches the actual
    *  viewport — the SVG fills the parent's padding box via position:absolute
@@ -62,16 +59,7 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     const svg = svgRef.current;
     if (!svg) return;
     const { width, height } = svg.getBoundingClientRect();
-    console.log('[TileMeter] syncSize: SVG getBoundingClientRect =', { width, height });
-    if (width <= 0 || height <= 0) {
-      // Fallback: try parent dimensions
-      const parent = svg.parentElement;
-      if (parent) {
-        const parentRect = parent.getBoundingClientRect();
-        console.log('[TileMeter] syncSize: SVG has zero dims, parent getBoundingClientRect =', { width: parentRect.width, height: parentRect.height });
-      }
-      return;
-    }
+    if (width <= 0 || height <= 0) return;
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const rect = rectRef.current;
     if (rect) {
@@ -82,7 +70,6 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
       rect.setAttribute('width', String(rw));
       rect.setAttribute('height', String(rh));
       perimRef.current = roundedRectPerimeter(rw, rh, RECT_RX);
-      console.log('[TileMeter] syncSize: perim =', perimRef.current, 'rect =', { rw, rh });
     }
   }, []);
 
@@ -97,13 +84,11 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
     const parent = svg.parentElement;
     if (!parent) return;
 
-    console.log('[TileMeter] useLayoutEffect running');
     syncSize();
 
     // If dimensions aren't available yet (rare — e.g. mid-transition mount),
     // retry on the next animation frame when layout is guaranteed complete.
     if (!perimRef.current) {
-      console.log('[TileMeter] useLayoutEffect: perim is 0, scheduling rAF retry');
       const raf = requestAnimationFrame(syncSize);
       const ro = new ResizeObserver(syncSize);
       ro.observe(parent);
@@ -241,22 +226,13 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   onPlayerClick?: (player: Player) => void;
   turnDeadline?: number | null;
 }) {
-  // Show the animated timer border on the current player's tile whenever
-  // a turn deadline is active.  Previously excluded the local player
-  // (`!isMe`) under the assumption that TurnIndicator is sufficient, but
-  // the TileMeter border serves a different purpose: it visually highlights
-  // *which* tile is active.  In local games and solo-vs-bots online games
-  // the human is the only player with a turn timer, so excluding `isMe`
-  // meant the border never appeared at all.
+  // Show timer meter on the current player's tile when it's not me.
+  // The user's own turn timer is shown in the TurnIndicator banner;
+  // TileMeter is for watching OTHER players' countdowns.
   // Allow 3s grace period so the meter still shows when the deadline
   // arrives slightly before the next turn starts or the state was
   // deferred behind a round-result overlay.
-  const showMeter = isCurrent && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
-
-  // DEBUG: log showMeter evaluation for every card that has turnDeadline or is current
-  if (isCurrent || turnDeadline != null) {
-    console.log(`[PlayerCard] ${p.name} (${p.id.slice(0, 8)}): isCurrent=${isCurrent} isMe=${isMe} eliminated=${p.isEliminated} turnDeadline=${turnDeadline} showMeter=${showMeter}`);
-  }
+  const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
 
   return (
     <div
