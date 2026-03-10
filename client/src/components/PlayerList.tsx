@@ -51,14 +51,27 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
   const svgRef = useRef<SVGSVGElement>(null);
   const perimRef = useRef<number>(0);
 
-  /** Measure parent tile and sync SVG viewBox + rect dimensions. */
+  // DEBUG: log mount
+  console.log('[TileMeter] MOUNTED, turnDeadline =', turnDeadline, 'remaining =', turnDeadline - Date.now(), 'ms');
+
+  /** Measure the SVG element itself and sync viewBox + rect dimensions.
+   *  We measure the SVG (not the parent) so the viewBox matches the actual
+   *  viewport — the SVG fills the parent's padding box via position:absolute
+   *  + inset:0, and getBoundingClientRect on the SVG returns that exact size. */
   const syncSize = useCallback(() => {
     const svg = svgRef.current;
     if (!svg) return;
-    const parent = svg.parentElement;
-    if (!parent) return;
-    const { width, height } = parent.getBoundingClientRect();
-    if (width <= 0 || height <= 0) return;
+    const { width, height } = svg.getBoundingClientRect();
+    console.log('[TileMeter] syncSize: SVG getBoundingClientRect =', { width, height });
+    if (width <= 0 || height <= 0) {
+      // Fallback: try parent dimensions
+      const parent = svg.parentElement;
+      if (parent) {
+        const parentRect = parent.getBoundingClientRect();
+        console.log('[TileMeter] syncSize: SVG has zero dims, parent getBoundingClientRect =', { width: parentRect.width, height: parentRect.height });
+      }
+      return;
+    }
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const rect = rectRef.current;
     if (rect) {
@@ -69,25 +82,29 @@ const TileMeter = memo(function TileMeter({ turnDeadline }: { turnDeadline: numb
       rect.setAttribute('width', String(rw));
       rect.setAttribute('height', String(rh));
       perimRef.current = roundedRectPerimeter(rw, rh, RECT_RX);
+      console.log('[TileMeter] syncSize: perim =', perimRef.current, 'rect =', { rw, rh });
     }
   }, []);
 
-  // Resize the SVG viewBox to match the parent tile dimensions.
+  // Resize the SVG viewBox to match the tile dimensions.
   // useLayoutEffect ensures dimensions are set before paint so the
-  // border is visible on the very first frame.
+  // border is visible on the very first frame.  We observe the parent
+  // (the tile div) because the SVG itself won't fire ResizeObserver
+  // entries — its size is derived from the parent via CSS.
   useLayoutEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const parent = svg.parentElement;
     if (!parent) return;
 
+    console.log('[TileMeter] useLayoutEffect running');
     syncSize();
 
-    // If the parent has zero dimensions (rare — e.g. mid-transition mount),
+    // If dimensions aren't available yet (rare — e.g. mid-transition mount),
     // retry on the next animation frame when layout is guaranteed complete.
     if (!perimRef.current) {
+      console.log('[TileMeter] useLayoutEffect: perim is 0, scheduling rAF retry');
       const raf = requestAnimationFrame(syncSize);
-      // Cleanup below disconnects the observer; also cancel the raf.
       const ro = new ResizeObserver(syncSize);
       ro.observe(parent);
       return () => { cancelAnimationFrame(raf); ro.disconnect(); };
@@ -229,6 +246,11 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
   // arrives slightly before the next turn starts or the state was
   // deferred behind a round-result overlay.
   const showMeter = isCurrent && !isMe && !p.isEliminated && turnDeadline != null && turnDeadline > Date.now() - 3000;
+
+  // DEBUG: log showMeter evaluation for every card that has turnDeadline or is current
+  if (isCurrent || turnDeadline != null) {
+    console.log(`[PlayerCard] ${p.name} (${p.id.slice(0, 8)}): isCurrent=${isCurrent} isMe=${isMe} eliminated=${p.isEliminated} turnDeadline=${turnDeadline} showMeter=${showMeter}`);
+  }
 
   return (
     <div
