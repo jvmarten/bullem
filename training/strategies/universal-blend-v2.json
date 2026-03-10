@@ -1,0 +1,19 @@
+{
+  "config": {
+    "bluffFrequency": 0.50,
+    "bullThreshold": 0.30,
+    "riskTolerance": 0.30,
+    "aggressionBias": 0.80,
+    "lastChanceBluffRate": 0.95,
+    "openingBluffRate": 0.08,
+    "bullPhaseRaiseRate": 0.75,
+    "trustMultiplier": 0.35,
+    "bluffPlausibilityGate": 0.52,
+    "noiseBand": 0.10
+  },
+  "generations": 0,
+  "bestWinRate": 0,
+  "bestPopWinRate": 0,
+  "hallOfFame": [],
+  "note": "Refined blend: combined 2P R2 (9/9 beaten) + Universal v1 (51.9% WR). Lower trust, higher lastChance, moderate bullPhaseRaise"
+}
