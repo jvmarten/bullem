@@ -40,8 +40,14 @@ export function clearLeaderboardCache(): void {
   cache.clear();
 }
 
-/** Minimum number of ranked games required to appear on the leaderboard. */
+/** Minimum number of ranked games required for humans to appear on the leaderboard. */
 const MIN_GAMES = 5;
+
+/**
+ * SQL fragment: bots always qualify (they play continuously via background games),
+ * humans must reach MIN_GAMES to filter out lucky-streak noise.
+ */
+const MIN_GAMES_FILTER = `AND (u.is_bot = true OR r.games_played >= ${MIN_GAMES})`;
 
 // ── Leaderboard queries ─────────────────────────────────────────────────
 
@@ -152,7 +158,7 @@ export async function getLeaderboard(
      FROM ratings r
      JOIN users u ON u.id = r.user_id
      WHERE r.mode = $1
-       AND r.games_played >= ${MIN_GAMES}
+       ${MIN_GAMES_FILTER}
        ${periodWhere}
        ${playerTypeWhere}
      ORDER BY ${rating} DESC, r.games_played DESC
@@ -168,7 +174,7 @@ export async function getLeaderboard(
      FROM ratings r
      JOIN users u ON u.id = r.user_id
      WHERE r.mode = $1
-       AND r.games_played >= ${MIN_GAMES}
+       ${MIN_GAMES_FILTER}
        ${periodWhere}
        ${playerTypeWhere}`,
     [mode],
@@ -244,7 +250,7 @@ async function getUserRank(
         FROM ratings r2
         JOIN users u2 ON u2.id = r2.user_id
         WHERE r2.mode = $1
-          AND r2.games_played >= ${MIN_GAMES}
+          AND (u2.is_bot = true OR r2.games_played >= ${MIN_GAMES})
           ${periodWhere}
           AND (u2.is_bot = false OR u2.bot_profile ~ ${VALID_BOT_PROFILE_PATTERN})
           AND (${rating.replace(/r\./g, 'r2.')} > ${rating}
@@ -254,7 +260,7 @@ async function getUserRank(
      JOIN users u ON u.id = r.user_id
      WHERE r.user_id = $2
        AND r.mode = $1
-       AND r.games_played >= ${MIN_GAMES}
+       ${MIN_GAMES_FILTER}
        ${botFilter}
        ${periodWhere}`,
     [mode, userId],
@@ -317,7 +323,7 @@ export async function getLeaderboardNearby(
      FROM ratings r
      JOIN users u ON u.id = r.user_id
      WHERE r.mode = $1
-       AND r.games_played >= ${MIN_GAMES}
+       ${MIN_GAMES_FILTER}
        ${botFilter}
      ORDER BY ${rating} DESC, r.games_played DESC
      LIMIT $2 OFFSET $3`,
