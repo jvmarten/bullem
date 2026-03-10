@@ -120,11 +120,11 @@ export default function App() {
       <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
-          <Route path="/how-to-play" element={<HowToPlayPage />} />
+          <Route path="/rules" element={<HowToPlayPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/profile/:userId" element={<PublicProfilePage />} />
+          <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/replays" element={<ReplaysPage />} />
@@ -138,7 +138,7 @@ export default function App() {
             <Route path="/room/:roomCode" element={<LobbyPage />} />
             <Route path="/game/:roomCode" element={<GamePage />} />
             <Route path="/results/:roomCode" element={<ResultsPage />} />
-            <Route path="/replay" element={<ReplayPage />} />
+            <Route path="/replay/:gameId?" element={<ReplayPage />} />
           </Route>
 
           {/* Local (offline) bot game routes */}

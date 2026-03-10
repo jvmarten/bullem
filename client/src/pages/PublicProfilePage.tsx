@@ -131,7 +131,7 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
   const is1v1 = game.playerCount === 2;
   return (
     <button
-      onClick={() => navigate(`/replay?id=${encodeURIComponent(game.id)}`)}
+      onClick={() => navigate(`/replay/${encodeURIComponent(game.id)}`)}
       className="glass px-4 py-3 flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -164,7 +164,7 @@ interface ProfileData extends PublicProfile {
 }
 
 export function PublicProfilePage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { createRoom, addBot, updateSettings, startGame } = useGameContext();
@@ -177,9 +177,17 @@ export function PublicProfilePage() {
   const [adminViewNormal, setAdminViewNormal] = useState(false);
 
   const fetchProfile = useCallback(async () => {
-    if (!userId) return;
+    if (!username) return;
     setLoading(true);
     try {
+      // Resolve username to userId
+      const resolveRes = await fetch(`${API_BASE}/api/u/${encodeURIComponent(username)}`);
+      if (!resolveRes.ok) {
+        setError(resolveRes.status === 404 ? 'Player not found' : 'Failed to load profile');
+        return;
+      }
+      const { userId } = await resolveRes.json() as { userId: string };
+
       const res = await fetch(`${API_BASE}/api/users/${userId}/profile`);
       if (!res.ok) {
         setError(res.status === 404 ? 'Player not found' : 'Failed to load profile');
@@ -200,7 +208,7 @@ export function PublicProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [username]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
@@ -654,7 +662,7 @@ export function PublicProfilePage() {
         )}
 
         {/* Advanced Stats — admin only */}
-        {isAdmin && userId && <AdvancedStats userId={userId} />}
+        {isAdmin && profile.id && <AdvancedStats userId={profile.id} />}
 
         {/* Bot flavor text */}
         {profile.isBot && botProfile && (

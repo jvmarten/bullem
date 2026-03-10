@@ -107,7 +107,7 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
   const is1v1 = game.playerCount === 2;
   return (
     <button
-      onClick={() => navigate(`/replay?id=${encodeURIComponent(game.id)}`)}
+      onClick={() => navigate(`/replay/${encodeURIComponent(game.id)}`)}
       className="glass px-4 py-3 flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
     >
       <div className="flex items-center gap-3 min-w-0">

@@ -401,6 +401,7 @@ export function getDevAdvancedStats(userId: string): AdvancedStatsResponse {
     opponents.push({
       opponentId: uuidFromSeed(`seed-player-${name}`),
       opponentName: name,
+      opponentUsername: name.toLowerCase().replace(/\s+/g, '_'),
       opponentAvatar: pick(AVATARS),
       gamesPlayed: gp,
       wins: w,

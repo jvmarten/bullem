@@ -872,6 +872,7 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isHost: p.isHost,
     isBot: p.isBot,
     userId: p.userId,
+    username: p.username,
     avatar: p.avatar,
   };
 }

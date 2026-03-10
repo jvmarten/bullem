@@ -63,7 +63,7 @@ export function ReplaysPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleShare = useCallback(async (replayId: string) => {
-    const url = `${window.location.origin}/replay?id=${encodeURIComponent(replayId)}`;
+    const url = `${window.location.origin}/replay/${encodeURIComponent(replayId)}`;
     try {
       await navigator.clipboard.writeText(url);
       addToast('Replay link copied!', 'success');
@@ -109,7 +109,7 @@ export function ReplaysPage() {
   }, []);
 
   const handleWatch = useCallback((id: string) => {
-    navigate(`/replay?id=${encodeURIComponent(id)}`);
+    navigate(`/replay/${encodeURIComponent(id)}`);
   }, [navigate]);
 
   return (

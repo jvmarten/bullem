@@ -807,7 +807,7 @@ export function HomePage() {
               Deck Draw
             </Link>
             <Link
-              to="/how-to-play"
+              to="/rules"
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center block"
             >
               Rules

@@ -259,7 +259,7 @@ function OpponentRecordsSection({ records }: { records: OpponentRecord[] }) {
         {records.map(r => (
           <button
             key={r.opponentId}
-            onClick={() => navigate(`/profile/${r.opponentId}`)}
+            onClick={() => navigate(`/u/${encodeURIComponent(r.opponentUsername)}`)}
             className="glass px-4 py-2.5 flex items-center gap-3 w-full text-left cursor-pointer bg-transparent border-none transition-colors hover:bg-white/5 active:scale-[0.98] min-h-[44px]"
           >
             <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-sm shrink-0 overflow-hidden">

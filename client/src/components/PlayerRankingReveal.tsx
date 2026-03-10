@@ -137,13 +137,13 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
 
               {/* Player avatar + name (clickable if player has a profile) */}
               <button
-                className={`flex items-center gap-3 min-w-0 ${entry.player.userId ? 'cursor-pointer hover:opacity-80 active:scale-95 transition-all' : 'cursor-default'}`}
+                className={`flex items-center gap-3 min-w-0 ${entry.player.username ? 'cursor-pointer hover:opacity-80 active:scale-95 transition-all' : 'cursor-default'}`}
                 onClick={() => {
-                  if (entry.player.userId) {
-                    navigate(`/profile/${entry.player.userId}`);
+                  if (entry.player.username) {
+                    navigate(`/u/${encodeURIComponent(entry.player.username)}`);
                   }
                 }}
-                disabled={!entry.player.userId}
+                disabled={!entry.player.username}
                 type="button"
               >
                 <div

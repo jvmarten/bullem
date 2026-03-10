@@ -509,6 +509,29 @@ app.get('/api/users/:userId/profile', async (req, res) => {
   }
 });
 
+/** GET /api/u/:username — resolve username to userId for client-side routing. */
+app.get('/api/u/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    if (!username || username.length > 30) {
+      res.status(400).json({ error: 'Invalid username' });
+      return;
+    }
+    const result = await query<{ id: string }>(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
+      [username],
+    );
+    if (!result || result.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({ userId: result.rows[0]!.id });
+  } catch (err) {
+    logger.error({ err }, 'Failed to resolve username');
+    res.status(500).json({ error: 'Failed to resolve username' });
+  }
+});
+
 // Rating routes
 import { getUserRatings as fetchUserRatings } from './db/ratings.js';
 
