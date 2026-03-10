@@ -157,12 +157,18 @@ async function seedMissingCFRBots(): Promise<void> {
     if (!uuid) continue;
 
     try {
-      // Upsert user and get the ACTUAL id (may differ from hardcoded uuid)
+      // Use ON CONFLICT (id) to handle UUID collisions (e.g., evolved bots
+      // that occupied these UUIDs before CFR bots were introduced). This
+      // converts ANY existing row at this UUID into the correct CFR bot,
+      // preserving accumulated ratings and game history.
       const userResult = await query<{ id: string }>(
         `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
          VALUES ($1, $2, $3, 'bot', true, $4)
-         ON CONFLICT (username) DO UPDATE
-           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name
+         ON CONFLICT (id) DO UPDATE
+           SET username = EXCLUDED.username,
+               display_name = EXCLUDED.display_name,
+               is_bot = true,
+               bot_profile = EXCLUDED.bot_profile
          RETURNING id`,
         [uuid, bot.key, bot.name, bot.key],
       );
@@ -226,15 +232,29 @@ export async function ensureCFRBotAccounts(): Promise<void> {
     let seededRatings = 0;
 
     // Step 1: Ensure all CFR bot user rows exist.
+    // Uses ON CONFLICT (id) to handle UUID collisions where a different bot
+    // (e.g., old "Evolved" personality) occupies the target UUID. This converts
+    // the existing row in-place, preserving accumulated ratings and game history.
     for (const bot of CFR_BOTS) {
       const uuid = CFR_BOT_UUIDS[bot.key];
       if (!uuid) continue;
 
+      // First, delete any stale rows with this CFR username at a DIFFERENT UUID.
+      // This handles the edge case where a partial previous fix created CFR bot
+      // user rows at random UUIDs (not the deterministic b10x ones).
+      await query(
+        `DELETE FROM users WHERE username = $1 AND id != $2`,
+        [bot.key, uuid],
+      );
+
       const result = await query<{ id: string }>(
         `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
          VALUES ($1, $2, $3, 'bot', true, $4)
-         ON CONFLICT (username) DO UPDATE
-           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name
+         ON CONFLICT (id) DO UPDATE
+           SET username = EXCLUDED.username,
+               display_name = EXCLUDED.display_name,
+               is_bot = true,
+               bot_profile = EXCLUDED.bot_profile
          RETURNING id`,
         [uuid, bot.key, bot.name, bot.key],
       );
@@ -243,13 +263,6 @@ export async function ensureCFRBotAccounts(): Promise<void> {
         continue;
       }
       if (result.rows.length > 0) {
-        const actualId = result.rows[0]!.id;
-        if (actualId !== uuid) {
-          logger.warn(
-            { botKey: bot.key, expectedUuid: uuid, actualUuid: actualId },
-            'CFR bot user has unexpected UUID (ON CONFLICT kept existing row)',
-          );
-        }
         seededUsers++;
       }
     }
