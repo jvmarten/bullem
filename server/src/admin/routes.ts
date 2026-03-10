@@ -393,5 +393,64 @@ export function createAdminRouter(
     }
   });
 
+  // ── POST /admin/backfill-photos ─────────────────────────────────────
+  // One-time migration: reads existing base64 data-URL photos from the DB,
+  // resizes to 256×256 WebP, uploads to Tigris, writes the URL back, and
+  // clears the old base64 data. Safe to run multiple times (skips non-data URLs).
+  router.post('/backfill-photos', async (_req, res) => {
+    const { default: sharp } = await import('sharp');
+    const { uploadImage } = await import('../storage/tigris.js');
+
+    try {
+      const result = await query<{ id: string; photo_url: string }>(
+        "SELECT id, photo_url FROM users WHERE photo_url IS NOT NULL AND photo_url LIKE 'data:%'",
+      );
+
+      if (!result || result.rows.length === 0) {
+        res.json({ migrated: 0, message: 'No base64 photos to migrate' });
+        return;
+      }
+
+      let migrated = 0;
+      const errors: Array<{ userId: string; error: string }> = [];
+
+      for (const row of result.rows) {
+        try {
+          const match = /^data:image\/(?:jpeg|png|webp);base64,/.exec(row.photo_url);
+          if (!match) {
+            errors.push({ userId: row.id, error: 'Unrecognized data URL format' });
+            continue;
+          }
+
+          const base64Data = row.photo_url.slice(match[0].length);
+          const rawBuffer = Buffer.from(base64Data, 'base64');
+
+          const webpBuffer = await sharp(rawBuffer)
+            .resize(256, 256, { fit: 'cover' })
+            .webp({ quality: 80 })
+            .toBuffer();
+
+          const timestamp = Date.now();
+          const key = `avatars/${row.id}-${timestamp}.webp`;
+          const photoUrl = await uploadImage(key, webpBuffer, 'image/webp');
+
+          await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photoUrl, row.id]);
+          migrated++;
+
+          logger.info({ userId: row.id, key }, 'Backfilled photo to Tigris');
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push({ userId: row.id, error: msg });
+          logger.error({ err, userId: row.id }, 'Failed to backfill photo');
+        }
+      }
+
+      res.json({ migrated, errors: errors.length > 0 ? errors : undefined });
+    } catch (err) {
+      logger.error({ err }, 'Admin: failed to backfill photos');
+      res.status(500).json({ error: 'Failed to backfill photos' });
+    }
+  });
+
   return router;
 }

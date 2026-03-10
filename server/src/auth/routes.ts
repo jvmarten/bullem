@@ -414,13 +414,19 @@ router.patch('/avatar', requireAuth, async (req, res) => {
 
 // ── POST /auth/upload-photo ──────────────────────────────────────────
 // Allows admin users to upload a profile photo from their device.
-// Accepts JSON { photo: "<base64 data URL>" } and stores it in photo_url.
-// TODO(scale): Migrate to S3/R2 object storage when photo count or payload size warrants it.
+// Accepts JSON { photo: "<base64 data URL>" }, resizes to 256×256 WebP,
+// uploads to Tigris object storage, and stores the public URL in the DB.
+
+import sharp from 'sharp';
+import { uploadImage, deleteImage, keyFromUrl } from '../storage/tigris.js';
 
 /** Max allowed photo payload size: 2 MB base64 (~1.5 MB raw image). */
 const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const DATA_URL_REGEX = /^data:(image\/(?:jpeg|png|webp));base64,/;
+
+/** Avatar dimensions after resize. */
+const AVATAR_SIZE = 256;
 
 router.post('/upload-photo', requireAuth, async (req, res) => {
   try {
@@ -434,8 +440,17 @@ router.post('/upload-photo', requireAuth, async (req, res) => {
 
     const { photo } = req.body as { photo?: string | null };
 
-    // Allow null to clear photo
+    // Allow null to clear photo — also delete the old image from Tigris
     if (photo === null || photo === undefined || photo === '') {
+      const existing = await query<{ photo_url: string | null }>(
+        'SELECT photo_url FROM users WHERE id = $1',
+        [userId],
+      );
+      const oldUrl = existing?.rows[0]?.photo_url;
+      if (oldUrl) {
+        const oldKey = keyFromUrl(oldUrl);
+        if (oldKey) await deleteImage(oldKey);
+      }
       await query('UPDATE users SET photo_url = NULL WHERE id = $1', [userId]);
       res.json({ ok: true, photoUrl: null });
       return;
@@ -461,10 +476,37 @@ router.post('/upload-photo', requireAuth, async (req, res) => {
       return;
     }
 
-    await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photo, userId]);
+    // Decode base64 to buffer
+    const base64Data = photo.slice(match[0].length);
+    const rawBuffer = Buffer.from(base64Data, 'base64');
 
-    logger.info({ userId }, 'Admin uploaded profile photo');
-    res.json({ ok: true, photoUrl: photo });
+    // Resize to 256×256 WebP
+    const webpBuffer = await sharp(rawBuffer)
+      .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    // Upload to Tigris — use a unique key to bust caches on re-upload
+    const timestamp = Date.now();
+    const key = `avatars/${userId}-${timestamp}.webp`;
+
+    // Delete old image if replacing
+    const existing = await query<{ photo_url: string | null }>(
+      'SELECT photo_url FROM users WHERE id = $1',
+      [userId],
+    );
+    const oldUrl = existing?.rows[0]?.photo_url;
+    if (oldUrl) {
+      const oldKey = keyFromUrl(oldUrl);
+      if (oldKey) await deleteImage(oldKey);
+    }
+
+    const photoUrl = await uploadImage(key, webpBuffer, 'image/webp');
+
+    await query('UPDATE users SET photo_url = $1 WHERE id = $2', [photoUrl, userId]);
+
+    logger.info({ userId, key }, 'Admin uploaded profile photo to Tigris');
+    res.json({ ok: true, photoUrl });
   } catch (err) {
     logger.error({ err }, 'Failed to upload photo');
     res.status(500).json({ error: 'Failed to upload photo' });

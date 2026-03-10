@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
     "@bull-em/shared": "*",
     "@sentry/node": "^10.42.0",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -22,6 +23,7 @@
     "pg": "^8.13.0",
     "pino": "^10.3.1",
     "resend": "^6.9.3",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.0",
     "web-push": "^3.6.7"
   },
