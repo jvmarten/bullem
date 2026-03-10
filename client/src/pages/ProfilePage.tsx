@@ -535,11 +535,11 @@ export function ProfilePage() {
         {deckDrawBalance !== null && (
           <div className="w-full glass px-4 py-3 mb-6 flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">Deck Draw Balance</p>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">Deck Draw Minigame</p>
               <p className="text-xl font-bold text-[var(--gold)]">{deckDrawBalance.toLocaleString()}</p>
             </div>
             <Link
-              to="/deck-draw"
+              to="/draw"
               className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Play &rarr;
