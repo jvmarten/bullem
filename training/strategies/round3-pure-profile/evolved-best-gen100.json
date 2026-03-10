@@ -1,0 +1,28 @@
+{
+  "exportedAt": "2026-03-10T11:59:58.700Z",
+  "interrupted": false,
+  "generations": 100,
+  "targetGenerations": 100,
+  "populationSize": 30,
+  "gamesPerMatchup": 100,
+  "playersPerGame": 2,
+  "maxCards": 5,
+  "bestPopWinRate": 0.5144827586206897,
+  "bestWinRate": 0.5955555555555555,
+  "totalGames": 5700900,
+  "durationMs": 1271944.508192,
+  "config": {
+    "bluffFrequency": 0.0003393302846887228,
+    "aggressionBias": 0.6604813499755713,
+    "bluffPlausibilityGate": 0.6051098247703623,
+    "bullThreshold": 0.14222195727150355,
+    "trustMultiplier": 0.5849299031976039,
+    "noiseBand": 0.19620001378563923,
+    "riskTolerance": 0.254757028602386,
+    "lastChanceBluffRate": 0.6737123411773376,
+    "bullPhaseRaiseRate": 0.7609651755995286,
+    "openingBluffRate": 0.513865111405081
+  },
+  "origin": "mutant-of-child-1747",
+  "bestProfileWinRate": 0.5177777777777778
+}

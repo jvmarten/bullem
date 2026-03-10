@@ -1,0 +1,457 @@
+{
+  "exportedAt": "2026-03-10T10:23:02.768Z",
+  "interrupted": false,
+  "generations": 120,
+  "targetGenerations": 120,
+  "populationSize": 40,
+  "gamesPerMatchup": 80,
+  "playersPerGame": 4,
+  "maxCards": 5,
+  "bestPopWinRate": 0.43373493975903615,
+  "bestWinRate": 0.4714452476572958,
+  "totalGames": 6423520,
+  "durationMs": 1561326.566729,
+  "config": {
+    "bluffFrequency": 1.3683677155974783,
+    "aggressionBias": 0.9275118826062767,
+    "bluffPlausibilityGate": 0.5484135439575705,
+    "bullThreshold": 0.09991853485417398,
+    "trustMultiplier": 1.0210675207319857,
+    "noiseBand": 0.09399688799252554,
+    "riskTolerance": 0.1927221656551526,
+    "lastChanceBluffRate": 0,
+    "bullPhaseRaiseRate": 0.7849948953763345,
+    "openingBluffRate": 0.24826263192150064
+  },
+  "origin": "mutant-of-child-947",
+  "bestBenchWinRate": 0.485,
+  "hofSize": 25,
+  "bestProfileWinRate": 0.475,
+  "hallOfFame": [
+    {
+      "id": "hof-4791",
+      "config": {
+        "bluffFrequency": 1.6595689537248777,
+        "aggressionBias": 0.9827263808893079,
+        "bluffPlausibilityGate": 0.7391390250786218,
+        "bullThreshold": 0.03596055666122049,
+        "trustMultiplier": 0.8418219758709117,
+        "noiseBand": 0.05409646428215184,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.17132212351698187,
+        "bullPhaseRaiseRate": 0.7894748889522356,
+        "openingBluffRate": 0.8508559435434504
+      },
+      "origin": "mutant-of-child-4713",
+      "generation": 112
+    },
+    {
+      "id": "hof-4792",
+      "config": {
+        "bluffFrequency": 1.8025204873419585,
+        "aggressionBias": 0.9293168509317253,
+        "bluffPlausibilityGate": 0.6515418126228568,
+        "bullThreshold": 0,
+        "trustMultiplier": 0.8740169365271034,
+        "noiseBand": 0.09125059747888739,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.1484922849094734,
+        "bullPhaseRaiseRate": 0.6475397769086875,
+        "openingBluffRate": 0.8690319401689814
+      },
+      "origin": "mutant-of-child-4713",
+      "generation": 112
+    },
+    {
+      "id": "hof-4793",
+      "config": {
+        "bluffFrequency": 1.6970040221471794,
+        "aggressionBias": 0.9666297579068657,
+        "bluffPlausibilityGate": 0.7586989360846375,
+        "bullThreshold": 0.13641397282395157,
+        "trustMultiplier": 0.8082727704889082,
+        "noiseBand": 0.060371684802638964,
+        "riskTolerance": 0.35200270053254334,
+        "lastChanceBluffRate": 0,
+        "bullPhaseRaiseRate": 0.9452396205754487,
+        "openingBluffRate": 0.5887634960164507
+      },
+      "origin": "mutant-of-cross-4711",
+      "generation": 112
+    },
+    {
+      "id": "hof-4834",
+      "config": {
+        "bluffFrequency": 1.5529307000110026,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.7839756668228266,
+        "bullThreshold": 0.02068508691720012,
+        "trustMultiplier": 0.9001096396141464,
+        "noiseBand": 0.0901885868371662,
+        "riskTolerance": 0.19231419890022175,
+        "lastChanceBluffRate": 0.17128062030260505,
+        "bullPhaseRaiseRate": 1,
+        "openingBluffRate": 0.812967187386791
+      },
+      "origin": "cross-child-4770-child-4780",
+      "generation": 113
+    },
+    {
+      "id": "hof-4835",
+      "config": {
+        "bluffFrequency": 1.567193336877993,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.5847779708147183,
+        "bullThreshold": 0.1362192636270272,
+        "trustMultiplier": 0.7656650564568429,
+        "noiseBand": 0.05920800147207682,
+        "riskTolerance": 0.17742968137191278,
+        "lastChanceBluffRate": 0.07884956199070907,
+        "bullPhaseRaiseRate": 0.9759722149639167,
+        "openingBluffRate": 0.4977320067018203
+      },
+      "origin": "mutant-of-child-4760",
+      "generation": 113
+    },
+    {
+      "id": "hof-4876",
+      "config": {
+        "bluffFrequency": 1.7226745689752823,
+        "aggressionBias": 0.8019561468922712,
+        "bluffPlausibilityGate": 0.4034267122231615,
+        "bullThreshold": 0,
+        "trustMultiplier": 0.8353075214874415,
+        "noiseBand": 0.07884958239120363,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.047265460699048654,
+        "bullPhaseRaiseRate": 0.8558309940424492,
+        "openingBluffRate": 0.8280858097291323
+      },
+      "origin": "mutant-of-cross-4825",
+      "generation": 114
+    },
+    {
+      "id": "hof-4877",
+      "config": {
+        "bluffFrequency": 1.9043559875504594,
+        "aggressionBias": 0.9818933483607406,
+        "bluffPlausibilityGate": 0.4044565718344354,
+        "bullThreshold": 0.03338273195655114,
+        "trustMultiplier": 0.8204204219378547,
+        "noiseBand": 0.05126038677984503,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.1628443032952184,
+        "bullPhaseRaiseRate": 0.7784818740142952,
+        "openingBluffRate": 0.8508559435434504
+      },
+      "origin": "cross-child-4805-elite-4794",
+      "generation": 114
+    },
+    {
+      "id": "hof-4878",
+      "config": {
+        "bluffFrequency": 1.765961409338207,
+        "aggressionBias": 0.9684166331840917,
+        "bluffPlausibilityGate": 0.3707437686660048,
+        "bullThreshold": 0.008263872433368145,
+        "trustMultiplier": 1.151932736838857,
+        "noiseBand": 0.1096974355095132,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.14151296014743864,
+        "bullPhaseRaiseRate": 0.797613164143772,
+        "openingBluffRate": 0.5575806405485796
+      },
+      "origin": "cross-cross-4807-child-4809",
+      "generation": 114
+    },
+    {
+      "id": "hof-4919",
+      "config": {
+        "bluffFrequency": 1.5967971020493268,
+        "aggressionBias": 0.8451701444701716,
+        "bluffPlausibilityGate": 0.7586989360846375,
+        "bullThreshold": 0.2303339875086302,
+        "trustMultiplier": 1.2084399942254098,
+        "noiseBand": 0.060371684802638964,
+        "riskTolerance": 0.2305796700231778,
+        "lastChanceBluffRate": 0.044708588181807354,
+        "bullPhaseRaiseRate": 0.8475826585916922,
+        "openingBluffRate": 0.6173831304993588
+      },
+      "origin": "mutant-of-child-4872",
+      "generation": 115
+    },
+    {
+      "id": "hof-4920",
+      "config": {
+        "bluffFrequency": 1.6380865534262143,
+        "aggressionBias": 0.9685978330744124,
+        "bluffPlausibilityGate": 0.3261435174379425,
+        "bullThreshold": 0.003733178577769322,
+        "trustMultiplier": 0.8418219758709117,
+        "noiseBand": 0.05261618000223054,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.18840535844689169,
+        "bullPhaseRaiseRate": 0.7688299082458573,
+        "openingBluffRate": 0.6861985997893324
+      },
+      "origin": "cross-elite-4836-child-4861",
+      "generation": 115
+    },
+    {
+      "id": "hof-4921",
+      "config": {
+        "bluffFrequency": 1.7788514433074998,
+        "aggressionBias": 0.8019561468922712,
+        "bluffPlausibilityGate": 0.30824365400115844,
+        "bullThreshold": 0.04096604174016318,
+        "trustMultiplier": 0.8324384458500749,
+        "noiseBand": 0.08494491262189631,
+        "riskTolerance": 0.0034898316964675534,
+        "lastChanceBluffRate": 0.10311866502140875,
+        "bullPhaseRaiseRate": 0.8558309940424492,
+        "openingBluffRate": 0.7555485345380358
+      },
+      "origin": "mutant-of-child-4853",
+      "generation": 115
+    },
+    {
+      "id": "hof-4962",
+      "config": {
+        "bluffFrequency": 1.4505925006358407,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.9396225643321025,
+        "bullThreshold": 0.010556528319720648,
+        "trustMultiplier": 0.6390421389252718,
+        "noiseBand": 0.08633417464703201,
+        "riskTolerance": 0.4349796657914615,
+        "lastChanceBluffRate": 0.03471512072691271,
+        "bullPhaseRaiseRate": 0.7969310536551306,
+        "openingBluffRate": 0.7247353576652076
+      },
+      "origin": "cross-cross-4898-child-4888",
+      "generation": 116
+    },
+    {
+      "id": "hof-4963",
+      "config": {
+        "bluffFrequency": 1.3711371455804784,
+        "aggressionBias": 0.6589933436739089,
+        "bluffPlausibilityGate": 0.6166439780537737,
+        "bullThreshold": 0,
+        "trustMultiplier": 0.6390421389252718,
+        "noiseBand": 0.07431036671249264,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.08337631562358572,
+        "bullPhaseRaiseRate": 0.7842941606468449,
+        "openingBluffRate": 0.9067069421934882
+      },
+      "origin": "mutant-of-child-4888",
+      "generation": 116
+    },
+    {
+      "id": "hof-4964",
+      "config": {
+        "bluffFrequency": 2,
+        "aggressionBias": 0.9027059852826357,
+        "bluffPlausibilityGate": 0.9389468488782002,
+        "bullThreshold": 0,
+        "trustMultiplier": 1.1277789623411554,
+        "noiseBand": 0.08203704987196014,
+        "riskTolerance": 0.2838373735761016,
+        "lastChanceBluffRate": 0.07845385833060081,
+        "bullPhaseRaiseRate": 0.9969510709067585,
+        "openingBluffRate": 0.7057510338180907
+      },
+      "origin": "mutant-of-child-4895",
+      "generation": 116
+    },
+    {
+      "id": "hof-5005",
+      "config": {
+        "bluffFrequency": 1.6197875017392285,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.29614978163271544,
+        "bullThreshold": 0,
+        "trustMultiplier": 0.7795704987222121,
+        "noiseBand": 0.08778198652809692,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.17637233236811353,
+        "bullPhaseRaiseRate": 0.8920956087073032,
+        "openingBluffRate": 0.7891700360685714
+      },
+      "origin": "mutant-of-cross-4932",
+      "generation": 117
+    },
+    {
+      "id": "hof-5006",
+      "config": {
+        "bluffFrequency": 1.637119923821836,
+        "aggressionBias": 0.8843611969096407,
+        "bluffPlausibilityGate": 0.49882149282342003,
+        "bullThreshold": 0.2031571156224115,
+        "trustMultiplier": 0.9932348346780489,
+        "noiseBand": 0.08284506422272196,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.21117499524456237,
+        "bullPhaseRaiseRate": 0.8461646123649142,
+        "openingBluffRate": 0.8019759679239258
+      },
+      "origin": "mutant-of-child-4951",
+      "generation": 117
+    },
+    {
+      "id": "hof-5007",
+      "config": {
+        "bluffFrequency": 1.3340010957770072,
+        "aggressionBias": 0.9320566644153817,
+        "bluffPlausibilityGate": 0.4998594664060415,
+        "bullThreshold": 0.32534558859281554,
+        "trustMultiplier": 1.3199714318789613,
+        "noiseBand": 0.11187506906174433,
+        "riskTolerance": 0.04571989539119218,
+        "lastChanceBluffRate": 0.19332272892925884,
+        "bullPhaseRaiseRate": 0.9580599418236179,
+        "openingBluffRate": 0.5925051939978457
+      },
+      "origin": "mutant-of-child-4940",
+      "generation": 117
+    },
+    {
+      "id": "hof-5048",
+      "config": {
+        "bluffFrequency": 1.4453945231785938,
+        "aggressionBias": 0.7549763053321148,
+        "bluffPlausibilityGate": 0.8945246216550603,
+        "bullThreshold": 0,
+        "trustMultiplier": 1.1529823465418447,
+        "noiseBand": 0.09860462210257062,
+        "riskTolerance": 0.17585798351656284,
+        "lastChanceBluffRate": 0.149158017812577,
+        "bullPhaseRaiseRate": 0.8917769989151445,
+        "openingBluffRate": 0.9392873980658517
+      },
+      "origin": "mutant-of-child-4972",
+      "generation": 118
+    },
+    {
+      "id": "hof-5049",
+      "config": {
+        "bluffFrequency": 1.79546304437945,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.5615180497636425,
+        "bullThreshold": 0.03465804788261546,
+        "trustMultiplier": 1.1253200469103197,
+        "noiseBand": 0.07963815591650407,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.15120703682580783,
+        "bullPhaseRaiseRate": 0.8969201701444123,
+        "openingBluffRate": 1
+      },
+      "origin": "mutant-of-child-4992",
+      "generation": 118
+    },
+    {
+      "id": "hof-5050",
+      "config": {
+        "bluffFrequency": 1.6076381331444352,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.3831546094449808,
+        "bullThreshold": 0.09907372002621029,
+        "trustMultiplier": 0.6034202193033827,
+        "noiseBand": 0.07121277231598004,
+        "riskTolerance": 0.4349796657914615,
+        "lastChanceBluffRate": 0.06641156592318313,
+        "bullPhaseRaiseRate": 0.7969310536551306,
+        "openingBluffRate": 0.7247353576652076
+      },
+      "origin": "cross-elite-4965-child-4982",
+      "generation": 118
+    },
+    {
+      "id": "hof-5091",
+      "config": {
+        "bluffFrequency": 1.662666777799615,
+        "aggressionBias": 0.9314667620745611,
+        "bluffPlausibilityGate": 0.4320437114560491,
+        "bullThreshold": 0.023311218179972944,
+        "trustMultiplier": 1.2381989377030123,
+        "noiseBand": 0.09635124034046019,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.06339448782702396,
+        "bullPhaseRaiseRate": 1,
+        "openingBluffRate": 0.9627844107765519
+      },
+      "origin": "cross-child-5040-child-5013",
+      "generation": 119
+    },
+    {
+      "id": "hof-5092",
+      "config": {
+        "bluffFrequency": 1.5151994856376538,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.4571885396701229,
+        "bullThreshold": 0.04469760921477584,
+        "trustMultiplier": 1.0735752741125142,
+        "noiseBand": 0.08984370841505623,
+        "riskTolerance": 0.014373939310736876,
+        "lastChanceBluffRate": 0.11141474719558742,
+        "bullPhaseRaiseRate": 0.9763912523768398,
+        "openingBluffRate": 0.9776391064557509
+      },
+      "origin": "cross-child-5016-child-5033",
+      "generation": 119
+    },
+    {
+      "id": "hof-5133",
+      "config": {
+        "bluffFrequency": 1.7345404920544236,
+        "aggressionBias": 1,
+        "bluffPlausibilityGate": 0.3975090780309893,
+        "bullThreshold": 0.06330962756772253,
+        "trustMultiplier": 1.3397871746441012,
+        "noiseBand": 0.0943220356279443,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.23313601410731571,
+        "bullPhaseRaiseRate": 0.9274899880466749,
+        "openingBluffRate": 0.8235981730417217
+      },
+      "origin": "mutant-of-child-5068",
+      "generation": 120
+    },
+    {
+      "id": "hof-5134",
+      "config": {
+        "bluffFrequency": 1.764364107754809,
+        "aggressionBias": 0.9755827724507994,
+        "bluffPlausibilityGate": 0.9636340285689012,
+        "bullThreshold": 0,
+        "trustMultiplier": 1.3191305470258556,
+        "noiseBand": 0.08946913974724258,
+        "riskTolerance": 0.2752909778481418,
+        "lastChanceBluffRate": 0.17927458923177408,
+        "bullPhaseRaiseRate": 0.8583043275955811,
+        "openingBluffRate": 0.6481212808275636
+      },
+      "origin": "mutant-of-child-5062",
+      "generation": 120
+    },
+    {
+      "id": "hof-5135",
+      "config": {
+        "bluffFrequency": 1.351802986736199,
+        "aggressionBias": 0.8614169002759131,
+        "bluffPlausibilityGate": 0.31245560781245885,
+        "bullThreshold": 0.08037167645384535,
+        "trustMultiplier": 0.8772501730050357,
+        "noiseBand": 0.07817682046546356,
+        "riskTolerance": 0,
+        "lastChanceBluffRate": 0.15964735292298798,
+        "bullPhaseRaiseRate": 0.744651078788922,
+        "openingBluffRate": 0.5737707761769701
+      },
+      "origin": "mutant-of-child-5058",
+      "generation": 120
+    }
+  ]
+}
