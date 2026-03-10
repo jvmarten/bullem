@@ -9,9 +9,12 @@
  * Usage:
  *   npm run evolve -w training
  *   npm run evolve -w training -- --generations 100 --population 30 --games-per-matchup 50
+ *   npm run evolve -w training -- --mixed-scenarios   # train across all player counts, jokers, rules
  */
 
 import { evolve } from './evolution.js';
+import type { GameScenario } from './evolution.js';
+import type { LastChanceMode, JokerCount } from '@bull-em/shared';
 
 function parseArgs(argv: string[]): {
   generations: number;
@@ -28,6 +31,7 @@ function parseArgs(argv: string[]): {
   eliteCount: number;
   profileWeight: number;
   fitnessSharing: boolean;
+  scenarios: GameScenario[];
 } {
   const args = argv.slice(2);
   let generations = 50;
@@ -44,6 +48,7 @@ function parseArgs(argv: string[]): {
   let eliteCount = 2;
   let profileWeight = 0.2;
   let fitnessSharing = true;
+  let scenarios: GameScenario[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -157,6 +162,51 @@ function parseArgs(argv: string[]): {
       case '--no-fitness-sharing':
         fitnessSharing = false;
         break;
+      case '--mixed-scenarios':
+        // Pre-built scenario mix covering all player counts, joker configs, and rules.
+        // Weights emphasize heads-up and standard (no jokers) as the most common configs,
+        // but still give meaningful weight to multi-player and joker variants.
+        scenarios = [
+          // Standard deck (no jokers), classic last-chance — most common
+          { players: 2, jokerCount: 0, lastChanceMode: 'classic', weight: 3 },
+          { players: 3, jokerCount: 0, lastChanceMode: 'classic', weight: 2 },
+          { players: 4, jokerCount: 0, lastChanceMode: 'classic', weight: 2 },
+          { players: 6, jokerCount: 0, lastChanceMode: 'classic', weight: 1.5 },
+          // Standard deck, strict last-chance
+          { players: 2, jokerCount: 0, lastChanceMode: 'strict', weight: 1.5 },
+          { players: 4, jokerCount: 0, lastChanceMode: 'strict', weight: 1 },
+          // 1 joker, classic
+          { players: 2, jokerCount: 1, lastChanceMode: 'classic', weight: 1 },
+          { players: 4, jokerCount: 1, lastChanceMode: 'classic', weight: 0.75 },
+          // 2 jokers, classic
+          { players: 2, jokerCount: 2, lastChanceMode: 'classic', weight: 1 },
+          { players: 4, jokerCount: 2, lastChanceMode: 'classic', weight: 0.75 },
+          // Jokers + strict
+          { players: 2, jokerCount: 1, lastChanceMode: 'strict', weight: 0.5 },
+          { players: 2, jokerCount: 2, lastChanceMode: 'strict', weight: 0.5 },
+        ];
+        break;
+      case '--scenario': {
+        // Custom scenario: --scenario <players>:<jokers>:<mode>:<weight>
+        // e.g. --scenario 2:0:classic:2 --scenario 4:1:strict:1
+        const parts = (next ?? '').split(':');
+        if (parts.length !== 4) {
+          console.error('Error: --scenario format is <players>:<jokers>:<mode>:<weight>');
+          process.exit(1);
+        }
+        const [pStr, jStr, mode, wStr] = parts;
+        const p = parseInt(pStr!, 10);
+        const j = parseInt(jStr!, 10) as JokerCount;
+        const w = parseFloat(wStr!);
+        if (isNaN(p) || p < 2 || p > 12 || ![0, 1, 2].includes(j) ||
+            !['classic', 'strict'].includes(mode!) || isNaN(w) || w <= 0) {
+          console.error('Error: --scenario format is <players(2-12)>:<jokers(0|1|2)>:<classic|strict>:<weight>');
+          process.exit(1);
+        }
+        scenarios.push({ players: p, jokerCount: j, lastChanceMode: mode as LastChanceMode, weight: w });
+        i++;
+        break;
+      }
       case '--help':
       case '-h':
         console.log(`
@@ -184,13 +234,16 @@ Options:
   --elite-count <n>           Number of top individuals preserved each gen (default: 2)
   --profile-weight <f>        Weight of bot profile benchmark in fitness, 0-1 (default: 0.2)
   --no-fitness-sharing        Disable fitness sharing for diversity preservation
+  --mixed-scenarios           Train across all player counts, joker configs, and rule variants
+  --scenario <spec>           Add a custom scenario (format: players:jokers:mode:weight)
   --help, -h                  Show this help message
 
 Examples:
   npm run evolve -w training -- --generations 100 --population 30 --games-per-matchup 50
   npm run evolve -w training -- -g 20 -n 10 --games-per-matchup 20
   npm run evolve -w training -- --players 4 --mutation-strength 0.2
-  npm run evolve -w training -- --elite-count 3 --profile-weight 0.3
+  npm run evolve -w training -- --mixed-scenarios -g 100 -n 40 --games-per-matchup 120
+  npm run evolve -w training -- --scenario 2:0:classic:3 --scenario 4:2:strict:1
 `);
         process.exit(0);
         break;
@@ -204,6 +257,7 @@ Examples:
     generations, populationSize, gamesPerMatchup, playersPerGame,
     maxCards, survivalRate, mutationStrength, mutationRate, outputDir,
     hofSize, hofWeight, eliteCount, profileWeight, fitnessSharing,
+    scenarios,
   };
 }
 
@@ -224,4 +278,5 @@ evolve({
   eliteCount: opts.eliteCount,
   profileWeight: opts.profileWeight,
   fitnessSharing: opts.fitnessSharing,
+  scenarios: opts.scenarios,
 });
