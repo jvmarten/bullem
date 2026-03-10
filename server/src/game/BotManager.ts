@@ -196,6 +196,10 @@ export class BotManager {
         ? this.computeBullDelay(speedMultiplier)
         : this.computeBotDelay(room, speedMultiplier);
 
+      // Set a synthetic deadline so clients can show a TileMeter countdown
+      // on the bot's tile while it "thinks". Cleared when the bot acts.
+      room.game.setTurnDeadline(Date.now() + delay + graceMs);
+
       const timer = setTimeout(() => {
         this.pendingTimers.delete(timer);
         this.roomTurnTimers.delete(room.roomCode);

@@ -305,6 +305,10 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       ? Math.round((BOT_BULL_DELAY_MIN + Math.floor(Math.random() * (BOT_BULL_DELAY_MAX - BOT_BULL_DELAY_MIN))) * speedMultiplier)
       : computeBotDelay();
 
+    // Set a synthetic deadline so the TileMeter can show a countdown
+    // on the bot's tile while it "thinks". Cleared when the bot acts.
+    engine.setTurnDeadline(Date.now() + delay);
+
     botTimerRef.current = setTimeout(() => {
       executeBotTurn(currentId);
     }, delay);
@@ -591,7 +595,9 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     restoredRef.current = false;
     scheduleBotTurn();
     scheduleHumanTimer();
-  }, [scheduleBotTurn, scheduleHumanTimer]);
+    // Broadcast so any deadline set by scheduleBotTurn is reflected in UI
+    broadcastState();
+  }, [scheduleBotTurn, scheduleHumanTimer, broadcastState]);
 
   // --- Context API methods ---
 
