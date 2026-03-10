@@ -100,6 +100,7 @@ function createMockRoomManager() {
     getRoomForSocket: vi.fn(() => undefined),
     assignSocketToRoom: vi.fn(),
     assignPlayerToRoom: vi.fn(),
+    removeSocketMapping: vi.fn(),
     persistRoom: vi.fn(),
     effectiveMaxPlayers: vi.fn(() => 12),
     _rooms: rooms,
@@ -229,11 +230,27 @@ describe('MatchmakingQueue', () => {
       expect(error).toContain('Already in matchmaking');
     });
 
-    it('rejects player already in a room', async () => {
-      mockRoomManager.getRoomForSocket.mockReturnValueOnce({} as never);
+    it('rejects player already in an active game', async () => {
+      mockRoomManager.getRoomForSocket.mockReturnValueOnce({ gamePhase: GamePhase.PLAYING } as never);
       const socket = createMockSocket('s1', 'user-1', 'Alice');
       const error = await queue.joinQueue(socket as never, 'heads_up');
       expect(error).toContain('Already in a game');
+    });
+
+    it('allows re-queuing from a finished game (GAME_OVER)', async () => {
+      mockRoomManager.getRoomForSocket.mockReturnValueOnce({ gamePhase: GamePhase.GAME_OVER } as never);
+      const socket = createMockSocket('s1', 'user-1', 'Alice');
+      const error = await queue.joinQueue(socket as never, 'heads_up');
+      expect(error).toBeNull();
+      expect(mockRoomManager.removeSocketMapping).toHaveBeenCalledWith('s1');
+    });
+
+    it('allows re-queuing from a finished game (FINISHED)', async () => {
+      mockRoomManager.getRoomForSocket.mockReturnValueOnce({ gamePhase: GamePhase.FINISHED } as never);
+      const socket = createMockSocket('s1', 'user-1', 'Alice');
+      const error = await queue.joinQueue(socket as never, 'heads_up');
+      expect(error).toBeNull();
+      expect(mockRoomManager.removeSocketMapping).toHaveBeenCalledWith('s1');
     });
 
     it('adds entry to the correct Redis sorted set', async () => {
