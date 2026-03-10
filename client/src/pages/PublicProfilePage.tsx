@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
-import { BOT_PROFILE_MAP, BOT_AVATAR_MAP, IMPOSSIBLE_BOT, openSkillDisplayRating } from '@bull-em/shared';
+import { BOT_PROFILE_MAP, BOT_AVATAR_MAP, IMPOSSIBLE_BOT, openSkillDisplayRating, RANKED_SETTINGS, RANKED_BEST_OF } from '@bull-em/shared';
 import type { PlayerStatsResponse, UserRatings, PublicProfile, GameHistoryEntry } from '@bull-em/shared';
 import { RankBadge } from '../components/RankBadge.js';
 import { avatarDisplay } from './ProfilePage.js';
@@ -227,12 +227,13 @@ export function PublicProfilePage() {
       const playerName = currentUser?.username ?? currentUser?.displayName ?? 'Player';
       const avatar = currentUser?.avatar ?? null;
       const roomCode = await createRoom(playerName, avatar);
-      // Configure for 1v1 Bo3 non-ranked
+      // Use ranked defaults (settings, not mode) for 1v1 challenge
       updateSettings({
-        maxCards: 5,
-        turnTimer: 60,
+        maxCards: RANKED_SETTINGS.maxCards,
+        turnTimer: RANKED_SETTINGS.turnTimer,
+        lastChanceMode: RANKED_SETTINGS.lastChanceMode,
         maxPlayers: 2,
-        bestOf: 3,
+        bestOf: RANKED_BEST_OF,
       });
       // Add the specific bot by name
       await addBot(profile.displayName);
