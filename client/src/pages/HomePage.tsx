@@ -839,21 +839,21 @@ export function HomePage() {
 
         {mode === 'offline' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
-            <Link
-              to="/tutorial"
-              className="w-full btn-info py-4 text-lg text-center block"
-            >
-              Tutorial
-            </Link>
-            <Link
-              to="/draw"
-              className="w-full btn-purple py-4 text-lg text-center block"
-            >
-              Deck Draw
-            </Link>
             <button onClick={() => { play('uiSoft'); handlePlayLocal(); }} className="w-full btn-gold py-4 text-lg">
               Play vs Bots
             </button>
+            <Link
+              to="/draw"
+              className="w-full btn-gold py-4 text-lg text-center block"
+            >
+              Deck Draw
+            </Link>
+            <Link
+              to="/tutorial"
+              className="w-full btn-gold py-4 text-lg text-center block"
+            >
+              Tutorial
+            </Link>
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
