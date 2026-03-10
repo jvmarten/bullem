@@ -1,35 +1,42 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+/**
+ * 5 Draw Minigame — 1v1 Bull 'Em against the Dealer.
+ *
+ * Both players get dealt 5 cards. One round of standard Bull 'Em is played
+ * with the full action set (Call/Raise, Bull/True, Last Chance Raise/Pass).
+ * Uses GameEngine directly — same mechanics as local/online games.
+ */
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
+import { HandDisplay } from '../components/HandDisplay.js';
 import { HandSelector } from '../components/HandSelector.js';
-import { useSound } from '../hooks/useSound.js';
+import { ActionButtons } from '../components/ActionButtons.js';
+import { TurnIndicator } from '../components/TurnIndicator.js';
+import { CallHistory } from '../components/CallHistory.js';
+import { RevealOverlay } from '../components/RevealOverlay.js';
+import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import {
-  HandType, handToString, isHigherHand, getMinimumRaise,
-  dealFiveDrawCards, getDealerAction, resolveFiveDraw,
-  FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_DEFAULT_WAGER,
-  FIVE_DRAW_WIN_MULTIPLIER,
+  RoundPhase, BotDifficulty, GameEngine, BotPlayer, getMinimumRaise, handToString,
+  FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_DEFAULT_WAGER, FIVE_DRAW_WIN_MULTIPLIER,
   DECK_DRAW_STARTING_BALANCE,
-  type Card, type HandCall, type Suit, type Rank,
-  type FiveDrawTurnEntry, type FiveDrawResult, type FiveDrawParticipant,
+  type HandCall, type ServerPlayer, type ClientGameState, type RoundResult, type PlayerId,
 } from '@bull-em/shared';
+import type { TurnResult } from '@bull-em/shared';
 
 const STORAGE_KEY = 'bull-em-five-draw-balance';
+const PLAYER_ID = 'player';
+const DEALER_ID = 'dealer';
 
-const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
-
-function getSuitColor(suit: Suit): string {
-  return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
-}
-
-function formatNumber(n: number): string {
-  return n.toLocaleString();
-}
+/** Bot delay for the dealer (ms). Quick pace for a minigame. */
+const DEALER_DELAY_MIN = 1200;
+const DEALER_DELAY_MAX = 2500;
+/** Faster delay for bull/true phase responses. */
+const DEALER_BULL_DELAY_MIN = 800;
+const DEALER_BULL_DELAY_MAX = 1600;
 
 const WAGER_PRESETS = [1, 5, 10, 50, 100];
-
-type GamePhase = 'wager' | 'dealing' | 'playing' | 'dealer_thinking' | 'resolving' | 'result';
 
 function loadGuestBalance(): number {
   try {
@@ -48,173 +55,45 @@ function saveGuestBalance(balance: number): void {
   } catch { /* ignore */ }
 }
 
-/** Render a single playing card (face up or face down). */
-function CardView({
-  card,
-  faceUp,
-  highlighted,
-  dimmed,
-  size = 'normal',
-}: {
-  card?: Card;
-  faceUp: boolean;
-  highlighted?: boolean;
-  dimmed?: boolean;
-  size?: 'normal' | 'small';
-}) {
-  const w = size === 'small' ? 36 : 42;
-  const h = size === 'small' ? 50 : 58;
-  const fontSize = size === 'small' ? '9px' : '11px';
-  const suitSize = size === 'small' ? '16px' : '20px';
-
-  if (!faceUp || !card) {
-    return <div className="deck-card-back" style={{ width: `${w}px`, height: `${h}px` }} />;
-  }
-
-  return (
-    <div
-      style={{
-        width: `${w}px`,
-        height: `${h}px`,
-        background: '#f5f0e8',
-        border: highlighted ? '1.5px solid var(--gold)' : '1.5px solid #d9d0c0',
-        borderRadius: '5px',
-        boxShadow: highlighted
-          ? '0 4px 12px rgba(212, 168, 67, 0.5), 0 0 8px rgba(212, 168, 67, 0.3)'
-          : '0 2px 6px rgba(0,0,0,0.3)',
-        opacity: dimmed ? 0.45 : 1,
-        display: 'flex',
-        flexDirection: 'column' as const,
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative' as const,
-        transition: 'border 0.3s, box-shadow 0.3s, opacity 0.4s',
-      }}
-    >
-      <span style={{
-        fontSize, fontWeight: 700,
-        color: getSuitColor(card.suit),
-        position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
-      }}>
-        {card.rank}
-      </span>
-      <span style={{ fontSize: suitSize, color: getSuitColor(card.suit), lineHeight: 1 }}>
-        {SUIT_SYMBOLS[card.suit]}
-      </span>
-      <span style={{
-        fontSize, fontWeight: 700,
-        color: getSuitColor(card.suit),
-        position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
-        transform: 'rotate(180deg)',
-      }}>
-        {card.rank}
-      </span>
-    </div>
-  );
+function formatNumber(n: number): string {
+  return n.toLocaleString();
 }
 
-/** Render a row of 5 cards. */
-function CardRow({
-  cards,
-  faceUp,
-  label,
-  revealedCount,
-}: {
-  cards: Card[];
-  faceUp: boolean;
-  label: string;
-  revealedCount?: number;
-}) {
-  const count = revealedCount ?? (faceUp ? 5 : 0);
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-xs text-[var(--gold-dim)] uppercase tracking-wider">{label}</span>
-      <div className="flex gap-1">
-        {cards.map((card, i) => (
-          <div
-            key={i}
-            style={{
-              perspective: '600px',
-            }}
-          >
-            <div
-              style={{
-                transformStyle: 'preserve-3d',
-                transform: `rotateY(${i < count ? 180 : 0}deg)`,
-                transition: 'transform 0.6s ease-out',
-                width: '42px',
-                height: '58px',
-                position: 'relative',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  backfaceVisibility: 'hidden',
-                }}
-              >
-                <CardView card={card} faceUp={false} />
-              </div>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  backfaceVisibility: 'hidden',
-                  transform: 'rotateY(180deg)',
-                }}
-              >
-                <CardView card={card} faceUp={true} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+type GamePhaseLocal = 'wager' | 'playing' | 'result';
 
 export function FiveDrawPage() {
   const { play } = useSound();
   const { user } = useAuth();
   const { addToast } = useToast();
 
+  // === Balance ===
   const [balance, setBalance] = useState(() => loadGuestBalance());
   const [wager, setWager] = useState(FIVE_DRAW_DEFAULT_WAGER);
   const [showCustomWager, setShowCustomWager] = useState(false);
   const [customWagerInput, setCustomWagerInput] = useState('');
-  const [phase, setPhase] = useState<GamePhase>('wager');
 
-  // Game state
-  const [playerCards, setPlayerCards] = useState<Card[]>([]);
-  const [dealerCards, setDealerCards] = useState<Card[]>([]);
-  const [turnHistory, setTurnHistory] = useState<FiveDrawTurnEntry[]>([]);
-  const [currentHand, setCurrentHand] = useState<HandCall | null>(null);
-  const [whoseTurn, setWhoseTurn] = useState<FiveDrawParticipant>('player');
-  const [result, setResult] = useState<FiveDrawResult | null>(null);
+  // === Game state ===
+  const [phase, setPhase] = useState<GamePhaseLocal>('wager');
+  const [gameState, setGameState] = useState<ClientGameState | null>(null);
+  const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
+  const [gameWinner, setGameWinner] = useState<'player' | 'dealer' | null>(null);
 
-  // Animation state
-  const [playerDealtCount, setPlayerDealtCount] = useState(0);
-  const [dealerDealtCount, setDealerDealtCount] = useState(0);
-  const [playerRevealCount, setPlayerRevealCount] = useState(0);
-  const [dealerRevealCount, setDealerRevealCount] = useState(0);
+  // === Hand selector ===
+  const [handSelectorOpen, setHandSelectorOpen] = useState(false);
+  const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
+  const [pendingValid, setPendingValid] = useState(false);
 
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // === Refs ===
+  const engineRef = useRef<GameEngine | null>(null);
+  const playersRef = useRef<ServerPlayer[]>([]);
+  const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTurnResultRef = useRef<(result: TurnResult) => void>(() => {});
+  const wagerRef = useRef(wager);
+  const balanceRef = useRef(balance);
 
-  const clearTimers = useCallback(() => {
-    for (const t of timersRef.current) clearTimeout(t);
-    timersRef.current = [];
-  }, []);
-
-  useEffect(() => () => clearTimers(), [clearTimers]);
-
-  const schedule = useCallback((fn: () => void, delay: number) => {
-    const t = setTimeout(fn, delay);
-    timersRef.current.push(t);
-    return t;
-  }, []);
+  // Keep refs in sync
+  useEffect(() => { wagerRef.current = wager; }, [wager]);
+  useEffect(() => { balanceRef.current = balance; }, [balance]);
 
   // Load balance from server if logged in
   useEffect(() => {
@@ -232,205 +111,344 @@ export function FiveDrawPage() {
     return () => controller.abort();
   }, [user]);
 
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+  }, []);
+
+  // Sound effects for game events (turn changes, bull/true calls, etc.)
+  useGameSounds(gameState, roundResult, gameWinner === 'player' ? PLAYER_ID : gameWinner === 'dealer' ? DEALER_ID : null, PLAYER_ID);
+
+  // === Derived state ===
+  const isMyTurn = gameState ? gameState.currentPlayerId === PLAYER_ID : false;
+  const isLastChanceCaller = gameState
+    ? gameState.roundPhase === RoundPhase.LAST_CHANCE && gameState.lastCallerId === PLAYER_ID
+    : false;
+  const canCallHand = isMyTurn && gameState !== null && (
+    gameState.roundPhase === RoundPhase.CALLING
+    || gameState.roundPhase === RoundPhase.BULL_PHASE
+  );
+  const canRaise = canCallHand || isLastChanceCaller;
   const canWager = balance >= wager && wager >= FIVE_DRAW_MIN_WAGER;
 
-  /** Start a new game: deal cards and begin playing. */
+  const cardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!gameState) return counts;
+    for (const p of gameState.players) counts[p.id] = p.cardCount;
+    return counts;
+  }, [gameState]);
+
+  // === Broadcast engine state to React ===
+  const broadcastState = useCallback(() => {
+    if (!engineRef.current) return;
+    setGameState(engineRef.current.getClientState(PLAYER_ID));
+  }, []);
+
+  // === Bot turn scheduling ===
+  const scheduleBotTurn = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.currentPlayerId !== DEALER_ID) return;
+
+    // Faster response in bull/last chance phase
+    const rp = engine.currentRoundPhase;
+    const inBullPhase = rp === RoundPhase.BULL_PHASE || rp === RoundPhase.LAST_CHANCE;
+    const min = inBullPhase ? DEALER_BULL_DELAY_MIN : DEALER_DELAY_MIN;
+    const max = inBullPhase ? DEALER_BULL_DELAY_MAX : DEALER_DELAY_MAX;
+    const delay = min + Math.floor(Math.random() * (max - min));
+
+    botTimerRef.current = setTimeout(() => {
+      executeBotTurn();
+    }, delay);
+  }, []);
+
+  const executeBotTurn = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || engine.currentPlayerId !== DEALER_ID) return;
+
+    const dealer = playersRef.current.find(p => p.id === DEALER_ID);
+    if (!dealer) return;
+
+    const state = engine.getClientState(DEALER_ID);
+    const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.NORMAL);
+
+    let result: TurnResult;
+    switch (decision.action) {
+      case 'call':
+        result = engine.handleCall(DEALER_ID, decision.hand);
+        break;
+      case 'bull':
+        result = engine.handleBull(DEALER_ID);
+        break;
+      case 'true':
+        result = engine.handleTrue(DEALER_ID);
+        break;
+      case 'lastChanceRaise':
+        result = engine.handleLastChanceRaise(DEALER_ID, decision.hand);
+        break;
+      case 'lastChancePass':
+        result = engine.handleLastChancePass(DEALER_ID);
+        break;
+    }
+
+    // Fallback if bot made invalid move
+    if (result.type === 'error') {
+      result = engine.handleBull(DEALER_ID);
+      if (result.type === 'error') {
+        result = engine.handleLastChancePass(DEALER_ID);
+      }
+    }
+
+    if (result.type !== 'error') {
+      handleTurnResultRef.current(result);
+    }
+  }, []);
+
+  // === Finalize game — update balance ===
+  const finalizeGame = useCallback((winner: 'player' | 'dealer') => {
+    const w = wagerRef.current;
+    const playerWon = winner === 'player';
+    const payout = playerWon ? w * FIVE_DRAW_WIN_MULTIPLIER : 0;
+    const netGain = payout - w;
+
+    setBalance(prev => {
+      const newBal = prev + netGain;
+      if (!user) saveGuestBalance(newBal);
+      return newBal;
+    });
+    setPhase('result');
+  }, [user]);
+
+  // === Handle turn results ===
+  const handleTurnResult = useCallback((result: TurnResult) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    switch (result.type) {
+      case 'error':
+        addToast(result.message);
+        break;
+
+      case 'continue':
+      case 'last_chance':
+        engine.setTurnDeadline(null);
+        broadcastState();
+        scheduleBotTurn();
+        break;
+
+      case 'resolve':
+        engine.setTurnDeadline(null);
+        setGameState(engine.getClientState(PLAYER_ID));
+        setRoundResult(result.result);
+        break;
+
+      case 'game_over': {
+        engine.setTurnDeadline(null);
+        const winner = result.winnerId === PLAYER_ID ? 'player' as const : 'dealer' as const;
+        setGameWinner(winner);
+        if (result.finalRoundResult) {
+          setGameState(engine.getClientState(PLAYER_ID));
+          setRoundResult(result.finalRoundResult);
+        } else {
+          finalizeGame(winner);
+        }
+        break;
+      }
+    }
+  }, [broadcastState, scheduleBotTurn, addToast, finalizeGame]);
+
+  // Keep ref in sync
+  handleTurnResultRef.current = handleTurnResult;
+
+  // === Start a new game ===
   const startGame = useCallback(() => {
     if (!canWager) {
       addToast('Insufficient balance');
       return;
     }
 
-    clearTimers();
+    // Deduct wager immediately
+    setBalance(prev => {
+      const newBal = prev - wager;
+      if (!user) saveGuestBalance(newBal);
+      return newBal;
+    });
 
-    // Deduct wager
-    const newBalance = balance - wager;
-    setBalance(newBalance);
-    if (!user) saveGuestBalance(newBalance);
+    // Create players — both start with 5 cards, maxCards=5 means one loss = elimination
+    const humanPlayer: ServerPlayer = {
+      id: PLAYER_ID,
+      name: 'You',
+      cardCount: 5,
+      isConnected: true,
+      isEliminated: false,
+      isHost: true,
+      isBot: false,
+      cards: [],
+    };
+    const dealerPlayer: ServerPlayer = {
+      id: DEALER_ID,
+      name: 'Dealer',
+      cardCount: 5,
+      isConnected: true,
+      isEliminated: false,
+      isHost: false,
+      isBot: true,
+      cards: [],
+    };
 
-    // Deal cards
-    const { playerCards: pc, dealerCards: dc } = dealFiveDrawCards();
-    setPlayerCards(pc);
-    setDealerCards(dc);
-    setTurnHistory([]);
-    setCurrentHand(null);
-    setWhoseTurn('player');
-    setResult(null);
-    setPlayerDealtCount(0);
-    setDealerDealtCount(0);
-    setPlayerRevealCount(0);
-    setDealerRevealCount(0);
+    // Randomly decide who goes first
+    const players = Math.random() < 0.5
+      ? [humanPlayer, dealerPlayer]
+      : [dealerPlayer, humanPlayer];
 
-    // Dealing animation
-    setPhase('dealing');
+    playersRef.current = players;
+
+    const engine = new GameEngine(players, { maxCards: 5, turnTimer: 0 });
+    engineRef.current = engine;
+    engine.startRound();
+
+    setPhase('playing');
+    setRoundResult(null);
+    setGameWinner(null);
+    setHandSelectorOpen(false);
+    setPendingHand(null);
+    setPendingValid(false);
+
+    broadcastState();
+    scheduleBotTurn();
     play('deckShuffle');
+  }, [canWager, wager, user, addToast, broadcastState, scheduleBotTurn, play]);
 
-    // Deal player cards face down, then reveal
-    for (let i = 0; i < 5; i++) {
-      schedule(() => setPlayerDealtCount(i + 1), 600 + i * 120);
+  // === Player actions ===
+  const callHand = useCallback((hand: HandCall) => {
+    if (!engineRef.current) return;
+    const result = engineRef.current.handleCall(PLAYER_ID, hand);
+    handleTurnResult(result);
+  }, [handleTurnResult]);
+
+  const callBull = useCallback(() => {
+    if (!engineRef.current) return;
+    const result = engineRef.current.handleBull(PLAYER_ID);
+    handleTurnResult(result);
+  }, [handleTurnResult]);
+
+  const callTrue = useCallback(() => {
+    if (!engineRef.current) return;
+    play('uiClick');
+    const result = engineRef.current.handleTrue(PLAYER_ID);
+    handleTurnResult(result);
+  }, [handleTurnResult, play]);
+
+  const lastChanceRaise = useCallback((hand: HandCall) => {
+    if (!engineRef.current) return;
+    const result = engineRef.current.handleLastChanceRaise(PLAYER_ID, hand);
+    handleTurnResult(result);
+  }, [handleTurnResult]);
+
+  const lastChancePass = useCallback(() => {
+    if (!engineRef.current) return;
+    play('uiClick');
+    const result = engineRef.current.handleLastChancePass(PLAYER_ID);
+    handleTurnResult(result);
+  }, [handleTurnResult, play]);
+
+  // === Hand selector callbacks ===
+  const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
+    setPendingHand(hand);
+    setPendingValid(valid);
+  }, []);
+
+  const handleHandSubmit = useCallback(() => {
+    if (!pendingHand || !pendingValid) return;
+    if (isLastChanceCaller) {
+      lastChanceRaise(pendingHand);
+    } else {
+      callHand(pendingHand);
     }
-    // Deal dealer cards face down
-    for (let i = 0; i < 5; i++) {
-      schedule(() => setDealerDealtCount(i + 1), 600 + 5 * 120 + i * 120);
+    setHandSelectorOpen(false);
+  }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
+
+  const handleQuickRaise = useCallback(() => {
+    const current = gameState?.currentHand;
+    if (!current) return;
+    const minRaise = getMinimumRaise(current);
+    if (!minRaise) return;
+    if (isLastChanceCaller) {
+      lastChanceRaise(minRaise);
+    } else {
+      callHand(minRaise);
     }
+    setHandSelectorOpen(false);
+  }, [gameState?.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
 
-    // Reveal player cards
-    const revealStart = 600 + 10 * 120 + 300;
-    for (let i = 0; i < 5; i++) {
-      schedule(() => {
-        play('cardReveal');
-        setPlayerRevealCount(i + 1);
-      }, revealStart + i * 200);
+  const handleActionExpand = useCallback(() => {
+    setHandSelectorOpen(false);
+  }, []);
+
+  // Close hand selector on tap outside
+  useEffect(() => {
+    if (!handSelectorOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]')) return;
+      setHandSelectorOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [handSelectorOpen]);
+
+  // Close hand selector when turn changes
+  useEffect(() => {
+    setHandSelectorOpen(false);
+  }, [isMyTurn, gameState?.roundPhase]);
+
+  // === Dismiss round result ===
+  const handleDismissResult = useCallback(() => {
+    setRoundResult(null);
+    if (gameWinner) {
+      finalizeGame(gameWinner);
     }
+  }, [gameWinner, finalizeGame]);
 
-    // Transition to playing phase
-    schedule(() => {
-      setPhase('playing');
-    }, revealStart + 5 * 200 + 300);
-  }, [canWager, balance, wager, user, clearTimers, play, schedule, addToast]);
-
-  /** Player makes a call. */
-  const handlePlayerCall = useCallback((hand: HandCall) => {
-    if (phase !== 'playing' || whoseTurn !== 'player') return;
-
-    // Validate the call is higher than current
-    if (currentHand && !isHigherHand(hand, currentHand)) {
-      addToast('Must call a higher hand');
-      return;
-    }
-
-    play('callMade');
-
-    const entry: FiveDrawTurnEntry = { participant: 'player', action: 'call', hand };
-    const newHistory = [...turnHistory, entry];
-    setTurnHistory(newHistory);
-    setCurrentHand(hand);
-    setWhoseTurn('dealer');
-    setPhase('dealer_thinking');
-
-    // Dealer responds after a short delay
-    schedule(() => {
-      const dealerResponse = getDealerAction(dealerCards, hand, newHistory);
-      const finalHistory = [...newHistory, dealerResponse];
-      setTurnHistory(finalHistory);
-
-      if (dealerResponse.action === 'pass') {
-        // Dealer passes — resolve
-        play('bullCalled');
-        resolveGame(playerCards, dealerCards, finalHistory);
-      } else {
-        // Dealer raises
-        play('callMade');
-        setCurrentHand(dealerResponse.hand!);
-        setWhoseTurn('player');
-        setPhase('playing');
-      }
-    }, 1500 + Math.random() * 1000); // 1.5-2.5s thinking time
-  }, [phase, whoseTurn, currentHand, turnHistory, dealerCards, playerCards, play, schedule, addToast]);
-
-  /** Player passes (doesn't raise). */
-  const handlePlayerPass = useCallback(() => {
-    if (phase !== 'playing' || whoseTurn !== 'player') return;
-    if (!currentHand) {
-      addToast('You must make the opening call');
-      return;
-    }
-
-    play('bullCalled');
-
-    const entry: FiveDrawTurnEntry = { participant: 'player', action: 'pass' };
-    const newHistory = [...turnHistory, entry];
-    setTurnHistory(newHistory);
-    resolveGame(playerCards, dealerCards, newHistory);
-  }, [phase, whoseTurn, currentHand, turnHistory, playerCards, dealerCards, play, addToast]);
-
-  /** Resolve the game and show results. */
-  const resolveGame = useCallback((pc: Card[], dc: Card[], history: FiveDrawTurnEntry[]) => {
-    setPhase('resolving');
-
-    const gameResult = resolveFiveDraw(pc, dc, history, wager);
-    setResult(gameResult);
-
-    // Reveal dealer cards
-    for (let i = 0; i < 5; i++) {
-      schedule(() => {
-        play('cardReveal');
-        setDealerRevealCount(i + 1);
-      }, 500 + i * 400);
-    }
-
-    // Show result
-    schedule(() => {
-      // Update balance
-      const winnings = gameResult.payout;
-      setBalance(prev => {
-        const newBal = prev + winnings;
-        if (!user) saveGuestBalance(newBal);
-
-        // Persist to server if logged in
-        if (user) {
-          const netChange = winnings - wager;
-          fetch('/api/five-draw/result', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ wager, won: gameResult.winner === 'player', payout: winnings }),
-          }).catch(() => {});
-        }
-
-        return newBal;
-      });
-
-      setPhase('result');
-
-      if (gameResult.winner === 'player') {
-        play('roundWin');
-      } else {
-        play('bullCalled');
-      }
-    }, 500 + 5 * 400 + 800);
-  }, [wager, user, play, schedule]);
-
-  /** Reset to wager screen for a new game. */
+  // === Play again ===
   const playAgain = useCallback(() => {
-    clearTimers();
     setPhase('wager');
-    setPlayerCards([]);
-    setDealerCards([]);
-    setTurnHistory([]);
-    setCurrentHand(null);
-    setResult(null);
-    setPlayerDealtCount(0);
-    setDealerDealtCount(0);
-    setPlayerRevealCount(0);
-    setDealerRevealCount(0);
-  }, [clearTimers]);
+    setGameState(null);
+    setRoundResult(null);
+    setGameWinner(null);
+    engineRef.current = null;
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+  }, []);
 
-  // Check if player can raise
-  const canPlayerRaise = currentHand ? !!getMinimumRaise(currentHand) : true;
+  // === RENDER ===
 
-  return (
-    <Layout>
-      <div className="flex flex-col items-center gap-4 pt-4 max-w-md mx-auto pb-8">
-        <h1 className="text-2xl font-bold text-[var(--gold)]">5 Draw</h1>
-        <p className="text-sm text-[var(--gold-dim)] text-center -mt-3">
-          Call hands against the Dealer. Highest call gets checked.
-        </p>
+  // --- Wager Phase ---
+  if (phase === 'wager') {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center gap-6 pt-4 max-w-md mx-auto">
+          <h1 className="text-2xl font-bold text-[var(--gold)]">5 Draw</h1>
+          <p className="text-sm text-[var(--gold-dim)] text-center -mt-4">
+            1v1 Bull &rsquo;Em against the Dealer. 5 cards each, winner takes all.
+          </p>
 
-        {/* Balance */}
-        <div className="glass rounded-xl px-6 py-2 text-center w-full">
-          <p className="text-xs uppercase tracking-widest text-[var(--gold-dim)]">Balance</p>
-          <p className="text-3xl font-bold text-[var(--gold)]">{formatNumber(balance)}</p>
-          {!user && (
-            <p className="text-[10px] text-[var(--gold-dim)] mt-1">
-              <Link to="/login" className="underline hover:text-[var(--gold)]">Sign in</Link> to save progress
-            </p>
-          )}
-        </div>
+          {/* Balance */}
+          <div className="glass rounded-xl px-6 py-3 text-center w-full">
+            <p className="text-xs uppercase tracking-widest text-[var(--gold-dim)]">Balance</p>
+            <p className="text-3xl font-bold text-[var(--gold)]">{formatNumber(balance)}</p>
+            {!user && (
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1">
+                <Link to="/login" className="underline hover:text-[var(--gold)]">Sign in</Link> to save progress
+              </p>
+            )}
+          </div>
 
-        {/* Wager Selection */}
-        {phase === 'wager' && (
-          <div className="w-full space-y-3 animate-fade-in">
+          {/* Wager controls */}
+          <div className="w-full space-y-3">
             <div className="flex items-center gap-2">
               <label className="text-xs text-[var(--gold-dim)] whitespace-nowrap">Wager:</label>
               <div className="flex gap-1 flex-wrap flex-1">
@@ -496,197 +514,222 @@ export function FiveDrawPage() {
               </div>
             )}
 
-            {/* Rules summary */}
-            <div className="glass rounded-xl px-4 py-3 w-full">
-              <h2 className="text-xs uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">How It Works</h2>
-              <ul className="text-xs text-[var(--gold-light)] space-y-1 list-disc list-inside">
-                <li>You and the Dealer each get 5 cards</li>
-                <li>Take turns calling poker hands (raise or pass)</li>
-                <li>When someone passes, the last call is checked against all 10 cards</li>
-                <li>If the hand exists, the caller wins. If not, the passer wins</li>
-                <li>Winner gets {FIVE_DRAW_WIN_MULTIPLIER}x the wager</li>
-              </ul>
-            </div>
-
+            {/* Deal button */}
             <button
-              onClick={() => { play('uiSoft'); startGame(); }}
+              onClick={() => { play('uiClick'); startGame(); }}
               disabled={!canWager}
-              className="w-full btn-gold py-3 text-base disabled:opacity-50"
+              className="btn-gold w-full py-3 text-base font-bold disabled:opacity-50"
             >
               Deal ({formatNumber(wager)})
             </button>
+
+            <p className="text-xs text-center text-[var(--gold-dim)]">
+              Win: {FIVE_DRAW_WIN_MULTIPLIER}x wager
+            </p>
           </div>
-        )}
 
-        {/* Dealing animation */}
-        {phase === 'dealing' && (
-          <div className="w-full space-y-4 animate-fade-in">
-            <CardRow cards={dealerCards} faceUp={false} label="Dealer" revealedCount={0} />
-            <div className="text-center">
-              <span className="text-xs text-[var(--gold-dim)] animate-pulse">Dealing...</span>
-            </div>
-            <CardRow cards={playerCards} faceUp={true} label="You" revealedCount={playerRevealCount} />
+          {/* Rules */}
+          <div className="glass rounded-xl px-4 py-3 w-full">
+            <h2 className="text-xs uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">How It Works</h2>
+            <ul className="text-xs text-[var(--gold-light)] space-y-1 list-disc list-inside">
+              <li>You and the Dealer each get 5 cards</li>
+              <li>Take turns calling poker hands — same rules as Bull &rsquo;Em</li>
+              <li>Call Bull if you think the hand doesn&rsquo;t exist in the combined 10 cards</li>
+              <li>Loser gets eliminated, winner takes {FIVE_DRAW_WIN_MULTIPLIER}x the wager</li>
+            </ul>
           </div>
-        )}
 
-        {/* Active gameplay */}
-        {(phase === 'playing' || phase === 'dealer_thinking') && (
-          <div className="w-full space-y-4 animate-fade-in">
-            {/* Dealer's cards (face down) */}
-            <CardRow cards={dealerCards} faceUp={false} label="Dealer" revealedCount={0} />
+          {/* Back link */}
+          <Link
+            to="/"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-8"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
 
-            {/* Current call display */}
-            <div className="glass rounded-xl px-4 py-3 text-center">
-              {currentHand ? (
-                <>
-                  <p className="text-xs text-[var(--gold-dim)]">Current Call</p>
-                  <p className="text-lg font-semibold text-[var(--gold)]">
-                    {handToString(currentHand)}
-                  </p>
-                  <p className="text-xs text-[var(--gold-dim)] mt-1">
-                    Called by {turnHistory[turnHistory.length - 1]?.participant === 'dealer' ? 'Dealer' :
-                      [...turnHistory].reverse().find(e => e.action === 'call')?.participant === 'player' ? 'You' : 'Dealer'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-[var(--gold-dim)]">Make the opening call</p>
-              )}
-            </div>
-
-            {/* Turn history */}
-            {turnHistory.length > 0 && (
-              <div className="glass rounded-xl px-4 py-2">
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {turnHistory.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className={entry.participant === 'player' ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}>
-                        {entry.participant === 'player' ? 'You' : 'Dealer'}
-                      </span>
-                      <span className="text-[var(--gold-dim)]">
-                        {entry.action === 'call' ? `called ${handToString(entry.hand!)}` : 'passed'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Player action area */}
-            {phase === 'playing' && whoseTurn === 'player' && (
-              <div className="space-y-3">
-                <p className="text-sm text-center text-[var(--gold)]">Your turn</p>
-                <HandSelector
-                  currentHand={currentHand}
-                  onSubmit={handlePlayerCall}
-                  submitLabel={currentHand ? 'Raise' : 'Call'}
-                  showSubmit={true}
+  // --- Playing Phase ---
+  if (phase === 'playing' && gameState) {
+    return (
+      <Layout
+        headerLeftExtra={
+          <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
+            5 Draw &middot; Wager: {formatNumber(wager)}
+          </span>
+        }
+        headerRightExtra={
+          <span className="text-[var(--gold)] font-mono text-xs">
+            Bal: {formatNumber(balance)}
+          </span>
+        }
+      >
+        <div className="game-layout">
+          <div className="game-content">
+            <div className="game-main">
+              {/* Turn indicator */}
+              <div data-tooltip="turn-indicator">
+                <TurnIndicator
+                  currentPlayerId={gameState.currentPlayerId}
+                  roundPhase={gameState.roundPhase}
+                  players={gameState.players}
+                  myPlayerId={PLAYER_ID}
+                  hasCurrentHand={gameState.currentHand !== null}
                 />
-                {currentHand && (
-                  <button
-                    onClick={handlePlayerPass}
-                    className="w-full btn-ghost py-2 text-sm"
-                  >
-                    Pass
-                  </button>
-                )}
               </div>
-            )}
 
-            {/* Dealer thinking indicator */}
-            {phase === 'dealer_thinking' && (
-              <div className="text-center py-4">
-                <span className="text-sm text-[var(--gold-dim)] animate-pulse">Dealer is thinking...</span>
-              </div>
-            )}
-
-            {/* Player's cards */}
-            <CardRow cards={playerCards} faceUp={true} label="You" revealedCount={5} />
-          </div>
-        )}
-
-        {/* Resolving phase - revealing dealer cards */}
-        {phase === 'resolving' && (
-          <div className="w-full space-y-4 animate-fade-in">
-            <CardRow cards={dealerCards} faceUp={true} label="Dealer" revealedCount={dealerRevealCount} />
-            <div className="text-center">
-              <span className="text-sm text-[var(--gold-dim)] animate-pulse">Revealing cards...</span>
-            </div>
-            <CardRow cards={playerCards} faceUp={true} label="You" revealedCount={5} />
-          </div>
-        )}
-
-        {/* Result screen */}
-        {phase === 'result' && result && (
-          <div className="w-full space-y-4 animate-fade-in">
-            {/* Both hands revealed */}
-            <CardRow cards={dealerCards} faceUp={true} label="Dealer" revealedCount={5} />
-
-            {/* Result announcement */}
-            <div className="glass rounded-xl px-4 py-4 text-center">
-              <p className="text-xs text-[var(--gold-dim)] mb-1">Last Call</p>
-              <p className="text-lg font-semibold text-[var(--gold)]">
-                {handToString(result.lastCall)}
-              </p>
-              <p className="text-xs text-[var(--gold-dim)] mt-1">
-                by {result.lastCaller === 'player' ? 'You' : 'Dealer'}
-              </p>
-              <div className="mt-3">
-                <p className={`text-sm font-semibold ${result.handExists ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.handExists ? 'Hand exists!' : 'Hand does not exist!'}
-                </p>
-                <p className={`text-2xl font-bold mt-1 ${result.winner === 'player' ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.winner === 'player' ? 'You Win!' : 'Dealer Wins'}
-                </p>
-                {result.winner === 'player' ? (
-                  <p className="text-lg font-bold text-green-400 mt-1">
-                    +{formatNumber(result.payout)}
-                  </p>
-                ) : (
-                  <p className="text-sm text-red-400 mt-1">
-                    -{formatNumber(result.wager)}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Turn history */}
-            <div className="glass rounded-xl px-4 py-2">
-              <h3 className="text-xs uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">Round History</h3>
-              <div className="space-y-1">
-                {result.turnHistory.map((entry, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={entry.participant === 'player' ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}>
-                      {entry.participant === 'player' ? 'You' : 'Dealer'}
-                    </span>
-                    <span className="text-[var(--gold-dim)]">
-                      {entry.action === 'call' ? `called ${handToString(entry.hand!)}` : 'passed'}
+              {/* Current call display */}
+              {gameState.currentHand && (
+                <div className="glass-raised py-1.5 animate-slide-up flex items-baseline" style={{ padding: '0.375rem clamp(0.5rem, 2.9vw, 0.75rem)' }}>
+                  <div className="w-1/4 min-w-0 shrink-0">
+                    <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                      Current Call
                     </span>
                   </div>
-                ))}
+                  <div className="flex-1 min-w-0 text-center">
+                    <span className="font-display font-bold text-[var(--gold)] current-call-hand">
+                      {handToString(gameState.currentHand)}
+                    </span>
+                  </div>
+                  <div className="w-1/4 min-w-0 shrink-0 text-right">
+                    {gameState.lastCallerId && (
+                      <span className="text-[9px] text-[var(--gold-dim)] opacity-70 truncate block">
+                        {gameState.players.find(p => p.id === gameState.lastCallerId)?.name ?? '?'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* My cards */}
+              <div data-tooltip="my-cards">
+                <HandDisplay cards={gameState.myCards} large />
               </div>
+
+              {/* Call history */}
+              <div data-tooltip="call-history">
+                <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
+              </div>
+
+              {/* Action buttons — below cards */}
+              <div className="flex justify-between items-start relative" data-tooltip="action-area">
+                <ActionButtons
+                  roundPhase={gameState.roundPhase}
+                  isMyTurn={isMyTurn}
+                  hasCurrentHand={gameState.currentHand !== null}
+                  isLastChanceCaller={isLastChanceCaller}
+                  onBull={callBull}
+                  onTrue={callTrue}
+                  onLastChancePass={lastChancePass}
+                  onExpand={handleActionExpand}
+                />
+                {canRaise && !handSelectorOpen && (
+                  <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
+                    <button
+                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
+                      className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary"
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                  </div>
+                )}
+                {canRaise && handSelectorOpen && gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
+                  <button
+                    onClick={handleQuickRaise}
+                    className="btn-amber action-btn-base font-bold action-btn-minraise absolute left-1/2 -translate-x-1/2 top-0 z-10"
+                    title="Auto-raise to the minimum valid hand"
+                  >
+                    min<br />raise
+                  </button>
+                )}
+                {canRaise && handSelectorOpen && (
+                  <div className="flex flex-col items-center ml-auto">
+                    <button
+                      onClick={handleHandSubmit}
+                      disabled={!pendingValid}
+                      className={`btn-gold action-btn-base font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
+                    >
+                      {gameState.currentHand ? 'Raise' : 'Call'}
+                    </button>
+                    <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Hand selector — below action buttons (below the hand) */}
+              {canRaise && handSelectorOpen && (
+                <div className="-mt-2" data-tooltip="hand-selector">
+                  <HandSelector
+                    currentHand={gameState.currentHand}
+                    onSubmit={handleHandSubmit}
+                    onHandChange={handleHandChange}
+                    showSubmit={false}
+                  />
+                </div>
+              )}
             </div>
+          </div>
 
-            <CardRow cards={playerCards} faceUp={true} label="You" revealedCount={5} />
+          {/* Round result overlay */}
+          {roundResult && (
+            <RevealOverlay
+              result={roundResult}
+              players={gameState.players}
+              myPlayerId={PLAYER_ID}
+              onDismiss={handleDismissResult}
+              autoCountdown={false}
+            />
+          )}
+        </div>
+      </Layout>
+    );
+  }
 
+  // --- Result Phase ---
+  if (phase === 'result') {
+    const playerWon = gameWinner === 'player';
+
+    return (
+      <Layout>
+        <div className="flex flex-col items-center gap-6 pt-8 max-w-md mx-auto">
+          <h1 className={`text-3xl font-bold ${playerWon ? 'text-green-400' : 'text-red-400'}`}>
+            {playerWon ? 'You Win!' : 'Dealer Wins'}
+          </h1>
+
+          <div className="glass rounded-xl px-6 py-4 text-center w-full">
+            {playerWon ? (
+              <p className="text-2xl font-bold text-green-400">+{formatNumber(wager)}</p>
+            ) : (
+              <p className="text-2xl font-bold text-red-400">-{formatNumber(wager)}</p>
+            )}
+            <p className="text-xs text-[var(--gold-dim)] mt-1">
+              Balance: {formatNumber(balance)}
+            </p>
+          </div>
+
+          <div className="flex gap-3 w-full">
             <button
-              onClick={() => { play('uiSoft'); playAgain(); }}
-              className="w-full btn-gold py-3 text-base"
+              onClick={() => { play('uiClick'); playAgain(); }}
+              className="btn-gold flex-1 py-3 text-base font-bold"
             >
               Play Again
             </button>
+            <Link
+              to="/"
+              className="btn-ghost flex-1 py-3 text-base font-bold text-center"
+            >
+              Home
+            </Link>
           </div>
-        )}
+        </div>
+      </Layout>
+    );
+  }
 
-        {/* Back link */}
-        <Link
-          to="/"
-          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
-        >
-          Back to Home
-        </Link>
-      </div>
-    </Layout>
-  );
+  // Fallback
+  return null;
 }
 
 export default FiveDrawPage;
