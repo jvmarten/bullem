@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { playerColor } from '../utils/cardUtils.js';
 import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { useSound } from '../hooks/useSound.js';
-import type { Player, PlayerId, GameStats } from '@bull-em/shared';
+import type { Player, PlayerId, GameStats, RatingChange } from '@bull-em/shared';
 
 interface RankedPlayer {
   player: Player;
@@ -16,6 +16,7 @@ interface Props {
   winnerId: PlayerId | null;
   stats: GameStats;
   onRevealComplete: () => void;
+  ratingChanges?: Record<PlayerId, RatingChange> | null;
 }
 
 /**
@@ -62,7 +63,7 @@ const REVEAL_INTERVAL = 700;
 /** Extra delay before the winner (1st place) reveal. */
 const WINNER_EXTRA_DELAY = 400;
 
-export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete }: Props) {
+export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete, ratingChanges }: Props) {
   const ranking = buildRanking(players, winnerId, stats);
   // Reveal order: last place first, winner last
   const revealOrder = [...ranking].reverse();
@@ -157,9 +158,31 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
                 </span>
               </button>
 
+              {/* Rating change (ranked games only) */}
+              {(() => {
+                const rc = ratingChanges?.[entry.player.id];
+                if (!rc) return null;
+                const isGain = rc.delta >= 0;
+                const sign = isGain ? '+' : '\u2212';
+                const color = isGain ? 'var(--safe)' : 'var(--danger)';
+                return (
+                  <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-xs text-[var(--gold-dim)]">
+                      {Math.round(rc.after)}
+                    </span>
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color }}
+                    >
+                      {sign}{Math.round(Math.abs(rc.delta))}
+                    </span>
+                  </div>
+                );
+              })()}
+
               {/* Winner crown */}
               {isWinner && (
-                <span className="ml-auto text-lg animate-pulse-glow" title="Winner">
+                <span className={`text-lg animate-pulse-glow flex-shrink-0 ${ratingChanges?.[entry.player.id] ? '' : 'ml-auto'}`} title="Winner">
                   &#x1F451;
                 </span>
               )}

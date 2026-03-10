@@ -10,38 +10,7 @@ import { RankBadge } from '../components/RankBadge.js';
 import { playerColor } from '../utils/cardUtils.js';
 import { PlayerAvatarContent } from '../components/PlayerAvatar.js';
 import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
-import type { RatingChange, RankedMode } from '@bull-em/shared';
-
-function RatingChangeDisplay({ change }: { change: RatingChange }) {
-  const isGain = change.delta >= 0;
-  const sign = isGain ? '+' : '\u2212';
-  const color = isGain ? 'var(--safe)' : 'var(--danger)';
-  const modeLabel = change.mode === 'heads_up' ? '1v1 Rating' : 'Multiplayer Rating';
-
-  return (
-    <div className="glass px-6 py-4 text-center animate-rating-slide-up" style={{ animationDelay: '0.3s' }}>
-      <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-        {modeLabel}
-      </p>
-      <div className="flex items-center justify-center gap-3">
-        <span className="text-sm text-[var(--gold-dim)]">
-          {Math.round(change.before)}
-        </span>
-        <span className="text-[var(--gold-dim)]">&rarr;</span>
-        <span className="text-lg font-bold text-[var(--gold)] flex items-center gap-1">
-          {Math.round(change.after)}
-          <RankBadge rating={change.after} size="md" />
-        </span>
-      </div>
-      <p
-        className="text-lg font-bold mt-1 animate-rating-slide-up"
-        style={{ color, animationDelay: '0.6s' }}
-      >
-        {sign}{Math.round(Math.abs(change.delta))}
-      </p>
-    </div>
-  );
-}
+import type { RankedMode } from '@bull-em/shared';
 
 export function ResultsPage() {
   const navigate = useNavigate();
@@ -177,11 +146,6 @@ export function ResultsPage() {
           </p>
         </div>
 
-        {/* Rating change for ranked games */}
-        {playerId && ratingChanges && ratingChanges[playerId] && (
-          <RatingChangeDisplay change={ratingChanges[playerId]} />
-        )}
-
         {/* Animated ranking reveal */}
         {gameStats && gameState && gameState.players.length > 1 && (
           <PlayerRankingReveal
@@ -189,6 +153,7 @@ export function ResultsPage() {
             winnerId={winnerId}
             stats={gameStats}
             onRevealComplete={handleRankingComplete}
+            ratingChanges={ratingChanges}
           />
         )}
 
