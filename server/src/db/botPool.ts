@@ -1,5 +1,5 @@
 import { query } from './index.js';
-import { BOT_PROFILE_MAP, IMPOSSIBLE_BOT } from '@bull-em/shared';
+import { BOT_PROFILE_MAP, IMPOSSIBLE_BOT, CFR_BOTS } from '@bull-em/shared';
 import type { BotProfileConfig, BotProfileDefinition } from '@bull-em/shared';
 import logger from '../logger.js';
 
@@ -93,7 +93,63 @@ export async function getRankedBotPool(
     });
   }
 
+  // Self-heal: if CFR bots are missing from the DB (e.g. migration 018 partially
+  // failed), seed them now so they appear in the pool on the next fetch.
+  const hasCFR = entries.some(e => e.botProfile.startsWith('cfr_'));
+  if (!hasCFR && usersResult.rows.length > 0) {
+    logger.warn('No CFR bots found in database — seeding them now');
+    void seedMissingCFRBots(mode).catch(() => {/* logged inside */});
+  }
+
   return entries;
+}
+
+/** Deterministic UUIDs for CFR bots (same as migration 018). */
+const CFR_BOT_UUIDS: Record<string, string> = {
+  cfr_viper:    '00000000-0000-4000-b101-000000000000',
+  cfr_ghost:    '00000000-0000-4000-b102-000000000000',
+  cfr_reaper:   '00000000-0000-4000-b103-000000000000',
+  cfr_specter:  '00000000-0000-4000-b104-000000000000',
+  cfr_raptor:   '00000000-0000-4000-b105-000000000000',
+  cfr_havoc:    '00000000-0000-4000-b106-000000000000',
+  cfr_phantom:  '00000000-0000-4000-b107-000000000000',
+  cfr_sentinel: '00000000-0000-4000-b108-000000000000',
+  cfr_vanguard: '00000000-0000-4000-b109-000000000000',
+};
+
+/**
+ * Seed missing CFR bot accounts and their default ratings.
+ * Mirrors migration 018 steps 3-4 so the pool is correct on next fetch.
+ */
+async function seedMissingCFRBots(mode: 'heads_up' | 'multiplayer'): Promise<void> {
+  for (const bot of CFR_BOTS) {
+    const uuid = CFR_BOT_UUIDS[bot.key];
+    if (!uuid) continue;
+
+    try {
+      await query(
+        `INSERT INTO users (id, username, display_name, auth_provider, is_bot, bot_profile)
+         VALUES ($1, $2, $3, 'bot', true, $4)
+         ON CONFLICT (username) DO UPDATE
+           SET is_bot = true, bot_profile = EXCLUDED.bot_profile, display_name = EXCLUDED.display_name`,
+        [uuid, bot.key, bot.name, bot.key],
+      );
+
+      // Seed default ratings for both modes
+      for (const m of ['heads_up', 'multiplayer'] as const) {
+        await query(
+          `INSERT INTO ratings (user_id, mode, elo, mu, sigma, games_played, peak_rating)
+           VALUES ($1, $2, 1200, 25, 8.333, 0, 1200)
+           ON CONFLICT (user_id, mode) DO NOTHING`,
+          [uuid, m],
+        );
+      }
+
+      logger.info({ botKey: bot.key, userId: uuid }, 'Seeded CFR bot account');
+    } catch (err) {
+      logger.error({ err, botKey: bot.key }, 'Failed to seed CFR bot account');
+    }
+  }
 }
 
 /**

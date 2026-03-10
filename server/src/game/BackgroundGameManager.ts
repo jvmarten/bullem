@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES, CFR_BOTS, RANKED_SETTINGS, RANKED_BEST_OF } from '@bull-em/shared';
+import { GamePhase, BotPlayer, BotSpeed, BOT_PROFILES, RANKED_SETTINGS, RANKED_BEST_OF } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RankedMode, PlayerId, BestOf } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from './BotManager.js';
@@ -25,22 +25,12 @@ const RESTART_DELAY_MS = 8_000;
 /** Stagger game creation to avoid a thundering herd on startup (ms per slot). */
 const STAGGER_DELAY_MS = 500;
 
-/**
- * Number of heads-up / multiplayer slots that MUST include at least one
- * CFR bot. Ensures CFR bots are always visible in the lobby and
- * accumulate rated games for the leaderboard.
- */
-const CFR_GUARANTEED_HEADS_UP = 3;
-const CFR_GUARANTEED_MULTIPLAYER = 3;
-
 /** Tracks the state of a single background game slot. */
 interface GameSlot {
   roomCode: string | null;
   watchInterval: ReturnType<typeof setInterval> | null;
   restartTimer: ReturnType<typeof setTimeout> | null;
   mode: RankedMode;
-  /** When true, at least one bot in this slot must be a CFR bot. */
-  requireCFR: boolean;
 }
 
 /**
@@ -64,12 +54,9 @@ export class BackgroundGameManager {
   start(): void {
     this.stopped = false;
 
-    // Initialize heads-up slots (first N are CFR-guaranteed)
+    // Initialize heads-up slots
     for (let i = 0; i < HEADS_UP_SLOTS; i++) {
-      const slot: GameSlot = {
-        roomCode: null, watchInterval: null, restartTimer: null,
-        mode: 'heads_up', requireCFR: i < CFR_GUARANTEED_HEADS_UP,
-      };
+      const slot: GameSlot = { roomCode: null, watchInterval: null, restartTimer: null, mode: 'heads_up' };
       this.slots.push(slot);
       const delay = i * STAGGER_DELAY_MS;
       const timer = setTimeout(() => {
@@ -78,12 +65,9 @@ export class BackgroundGameManager {
       timer.unref();
     }
 
-    // Initialize multiplayer slots (first N are CFR-guaranteed, staggered after heads-up)
+    // Initialize multiplayer slots (staggered after heads-up)
     for (let i = 0; i < MULTIPLAYER_SLOTS; i++) {
-      const slot: GameSlot = {
-        roomCode: null, watchInterval: null, restartTimer: null,
-        mode: 'multiplayer', requireCFR: i < CFR_GUARANTEED_MULTIPLAYER,
-      };
+      const slot: GameSlot = { roomCode: null, watchInterval: null, restartTimer: null, mode: 'multiplayer' };
       this.slots.push(slot);
       const delay = (HEADS_UP_SLOTS + i) * STAGGER_DELAY_MS;
       const timer = setTimeout(() => {
@@ -162,19 +146,8 @@ export class BackgroundGameManager {
     // (oracle_lvl10 is already excluded from the pool by getRankedBotPool)
     const botPool = await this.fetchBotPool(rankedMode);
     const usedBotUserIds = new Set<string>();
-    const usedNames = new Set<string>();
 
-    // If this slot requires a CFR bot, add one first
-    if (slot.requireCFR) {
-      const added = this.addCFRBot(room, botPool, usedBotUserIds, usedNames);
-      if (!added) {
-        logger.warn({ roomCode: room.roomCode, rankedMode }, 'Failed to add CFR bot to guaranteed slot — no CFR bots available');
-      }
-    }
-
-    // Fill remaining slots with random bots from the pool
-    const currentCount = room.playerCount;
-    for (let i = currentCount; i < botCount; i++) {
+    for (let i = 0; i < botCount; i++) {
       if (botPool.length > 0) {
         // Pick a random bot from the pool for variety (not closest-rated)
         const available = botPool.filter(b => !usedBotUserIds.has(b.userId));
@@ -225,42 +198,6 @@ export class BackgroundGameManager {
 
     // Watch for game over to auto-restart this slot
     this.watchForGameOver(slot);
-  }
-
-  /**
-   * Add a CFR bot to the room. Tries the ranked pool first (for leaderboard
-   * tracking), falls back to code-level CFR_BOTS definitions if the pool
-   * doesn't contain any CFR bots (e.g. migration not applied).
-   */
-  private addCFRBot(
-    room: ReturnType<RoomManager['createRoom']>,
-    botPool: RankedBotEntry[],
-    usedBotUserIds: Set<string>,
-    usedNames: Set<string>,
-  ): boolean {
-    // Try ranked CFR bots from the pool first (tracked on leaderboard)
-    const cfrPool = botPool.filter(
-      b => b.botProfile.startsWith('cfr_') && !usedBotUserIds.has(b.userId),
-    );
-    if (cfrPool.length > 0) {
-      const bot = cfrPool[Math.floor(Math.random() * cfrPool.length)]!;
-      this.botManager.addRankedBot(room, bot.userId, bot.displayName, bot.profileConfig);
-      usedBotUserIds.add(bot.userId);
-      usedNames.add(bot.displayName);
-      return true;
-    }
-
-    // Fallback: add a CFR bot from code definitions (anonymous, not rated,
-    // but at least visible in-game and using CFR strategy)
-    const available = CFR_BOTS.filter(b => !usedNames.has(b.name));
-    if (available.length > 0) {
-      const profile = available[Math.floor(Math.random() * available.length)]!;
-      this.botManager.addBot(room, profile.name);
-      usedNames.add(profile.name);
-      return true;
-    }
-
-    return false;
   }
 
   /** Fetch ranked bot pool, gracefully falling back to empty on DB errors. */
