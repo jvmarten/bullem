@@ -692,7 +692,26 @@ export function GamePage() {
       {/* Emoji, stats, and chat rendered OUTSIDE game-layout so they are not affected
           by the .spectating CSS filter which breaks position:fixed children. */}
       {emojiEnabled && (
-        <EmojiReactionBar onReaction={sendReaction} />
+        <>
+          <EmojiReactionBar onReaction={sendReaction} />
+          {/* Spectator reactions that don't match any player tile (spectators use socket.id
+              as playerId which has no corresponding PlayerCard) — render as floating emojis
+              near the emoji bar so the sender gets visual feedback. */}
+          {(() => {
+            const playerIds = new Set(gameState?.players.map(p => p.id) ?? []);
+            const orphans = reactions.filter(r => !playerIds.has(r.playerId));
+            if (orphans.length === 0) return null;
+            return (
+              <div className="fixed bottom-16 left-4 z-40 pointer-events-none flex gap-1">
+                {orphans.map(r => (
+                  <span key={`${r.playerId}-${r.timestamp}`} className="emoji-bubble">
+                    {r.emoji}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
+        </>
       )}
       {(isEliminated || isSpectator) && (
         <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none">
