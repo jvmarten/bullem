@@ -355,8 +355,8 @@ export function LocalGamePage() {
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
             </span>
-            <span className="text-[var(--gold-dim)] font-mono" title={`${cardStats.total} of 52 cards in play`}>
-              {cardStats.total}/52 ({cardStats.pct}%)
+            <span className="text-[var(--gold-dim)] font-mono" title={`${cardStats.total} of ${localDeckSize} cards in play`}>
+              {cardStats.total}/{localDeckSize} ({cardStats.pct}%)
             </span>
           </div>
           <div className="flex items-center gap-3">
