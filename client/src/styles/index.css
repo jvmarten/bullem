@@ -2243,9 +2243,9 @@ body {
 /* Center content inside the table: action buttons flanking the current call */
 .rt-table-center {
   display: grid;
-  grid-template-columns: 9rem 1fr 9rem;
+  grid-template-columns: minmax(6rem, 9rem) 1fr minmax(6rem, 9rem);
   align-items: center;
-  gap: 3rem;
+  gap: clamp(1rem, 4vw, 3rem);
   max-width: 80%;
   width: 80%;
   text-align: center;
@@ -2701,6 +2701,11 @@ body {
     max-width: 130px;
   }
 
+  .rt-table-center {
+    grid-template-columns: minmax(5rem, 7rem) 1fr minmax(5rem, 7rem);
+    gap: clamp(0.5rem, 2vw, 1.5rem);
+  }
+
   .rt-current-call {
     padding: 0.2rem 0.625rem;
   }
@@ -2712,6 +2717,7 @@ body {
 
   .rt-current-call--lg {
     padding: 0.3rem 0.875rem;
+    min-width: 9rem;
   }
 
   .rt-current-call--lg .rt-current-call-hand {
