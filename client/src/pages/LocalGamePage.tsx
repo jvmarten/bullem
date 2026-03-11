@@ -26,7 +26,7 @@ import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { QuickDrawHint } from '../components/QuickDrawHint.js';
-import { useUISettings } from '../components/VolumeControl.js';
+import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
@@ -453,6 +453,7 @@ export function LocalGamePage() {
           <div className="flex items-center gap-3">
             {pauseButton}
             {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
+            <VolumeControl />
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -460,7 +461,6 @@ export function LocalGamePage() {
             >
               Leave
             </button>
-            <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
           </div>
         </div>
 
