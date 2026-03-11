@@ -1723,7 +1723,17 @@ body {
     opacity: 1;
   }
 
-  /* Reclaim header space for game layouts when header is hidden */
+  /* Reclaim header space for game layouts when header is hidden.
+     Also expand <main> to full width — mx-auto on the flex child prevents
+     cross-axis stretching, collapsing width to content (≈0 for rt-layout
+     whose children are all position:absolute). */
+  .landscape-header-hidden .layout-main {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   .landscape-header-hidden .game-layout {
     height: 100dvh;
   }
