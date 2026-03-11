@@ -941,6 +941,29 @@ export class BotPlayer {
       pRaw + truthBoost - positionAdj - escalationAdj + chainBonus - ceilingBullBias + opponentDesperationAdj,
     ));
 
+    // Self-evidence override: if the bot's own cards prove the called hand exists,
+    // calling bull is guaranteed to lose. Always raise instead.
+    if (this.canSelfVerifyHand(currentHand, botCards)) {
+      // Try legitimate raise first, then bluff raise — never call bull
+      if (higher) {
+        this.recordSelfAction(scope, botId, false);
+        return { action: 'call', hand: higher };
+      }
+      const bluffRaise = this.findBestPlausibleRaise(currentHand, botCards, totalCards, this.BLUFF_TARGET_SELECTION);
+      if (bluffRaise) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: bluffRaise };
+      }
+      // Last resort: find any raise at all (even poor bluff) to avoid guaranteed-wrong bull
+      const anyRaise = this.findBestPlausibleRaise(currentHand, botCards, totalCards, 1.0);
+      if (anyRaise) {
+        this.recordSelfAction(scope, botId, true);
+        return { action: 'call', hand: anyRaise };
+      }
+      // At ceiling (e.g., royal flush) with no raise possible — bull is the only option
+      // but this is extremely rare since self-verifying a royal flush requires holding all 5 cards
+    }
+
     // Impossibility override: if raw probability is near zero, the hand is mathematically
     // impossible or near-impossible given what we can see. Always call bull regardless of
     // desperation state — no truthfulness boost can override card-count impossibility
@@ -1240,6 +1263,12 @@ export class BotPlayer {
     // No amount of truthfulness boosting can overcome mathematical impossibility.
     if (pRaw < 0.005) {
       return { action: 'bull' };
+    }
+
+    // Self-evidence override: if the bot's own cards prove the hand exists,
+    // calling bull is guaranteed to lose. Always call true in bull phase.
+    if (this.canSelfVerifyHand(currentHand, botCards)) {
+      return { action: 'true' };
     }
 
     // Truthfulness prior with desperation-aware trust and profile multiplier.
@@ -2287,6 +2316,77 @@ export class BotPlayer {
    */
   static estimatePlausibility(hand: HandCall, ownCards: Card[], totalCards: number): number {
     return this.estimatePlausibilityHard(hand, ownCards, totalCards);
+  }
+
+  // ─── SELF-VERIFICATION ─────────────────────────────────────────────
+
+  /**
+   * Check if the bot's own cards definitively prove the called hand exists.
+   *
+   * Since the called hand is evaluated against ALL players' combined cards,
+   * if the bot's own cards alone satisfy the hand, the hand is 100% real.
+   * A bot should NEVER call bull on a hand it can self-verify.
+   */
+  static canSelfVerifyHand(hand: HandCall, ownCards: Card[]): boolean {
+    switch (hand.type) {
+      case HandType.HIGH_CARD: {
+        return ownCards.some(c => c.rank === hand.rank);
+      }
+      case HandType.PAIR: {
+        return ownCards.filter(c => c.rank === hand.rank).length >= 2;
+      }
+      case HandType.TWO_PAIR: {
+        const h = hand as { highRank: Rank; lowRank: Rank };
+        return (
+          ownCards.filter(c => c.rank === h.highRank).length >= 2 &&
+          ownCards.filter(c => c.rank === h.lowRank).length >= 2
+        );
+      }
+      case HandType.FLUSH: {
+        const suit = (hand as { suit: Suit }).suit;
+        return ownCards.filter(c => c.suit === suit).length >= 5;
+      }
+      case HandType.THREE_OF_A_KIND: {
+        return ownCards.filter(c => c.rank === hand.rank).length >= 3;
+      }
+      case HandType.STRAIGHT: {
+        const highRank = (hand as { highRank: Rank }).highRank;
+        const highVal = RANK_VALUES[highRank];
+        for (let v = highVal - 4; v <= highVal; v++) {
+          const actualV = v < 2 ? 14 : v;
+          const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+          if (!rank || !ownCards.some(c => c.rank === rank)) return false;
+        }
+        return true;
+      }
+      case HandType.FULL_HOUSE: {
+        const fh = hand as { threeRank: Rank; twoRank: Rank };
+        return (
+          ownCards.filter(c => c.rank === fh.threeRank).length >= 3 &&
+          ownCards.filter(c => c.rank === fh.twoRank).length >= 2
+        );
+      }
+      case HandType.FOUR_OF_A_KIND: {
+        return ownCards.filter(c => c.rank === hand.rank).length >= 4;
+      }
+      case HandType.STRAIGHT_FLUSH: {
+        const sf = hand as { suit: Suit; highRank: Rank };
+        const sfHighVal = RANK_VALUES[sf.highRank];
+        for (let v = sfHighVal - 4; v <= sfHighVal; v++) {
+          const actualV = v < 2 ? 14 : v;
+          const rank = ALL_RANKS.find(r => RANK_VALUES[r] === actualV);
+          if (!rank || !ownCards.some(c => c.rank === rank && c.suit === sf.suit)) return false;
+        }
+        return true;
+      }
+      case HandType.ROYAL_FLUSH: {
+        const rfSuit = (hand as { suit: Suit }).suit;
+        const royalRanks: Rank[] = ['10', 'J', 'Q', 'K', 'A'];
+        return royalRanks.every(rank => ownCards.some(c => c.rank === rank && c.suit === rfSuit));
+      }
+      default:
+        return false;
+    }
   }
 
   // ─── PLAUSIBILITY ──────────────────────────────────────────────────
