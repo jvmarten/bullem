@@ -501,6 +501,21 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
           style={{ top: mySeatPos.top, left: mySeatPos.left }}
           data-tooltip="my-cards"
         >
+          {/* Quick Draw suggestions — positioned above the cards */}
+          {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
+            <div className="rt-quick-draw-above">
+              <QuickDrawHint visible={canRaise} />
+            </div>
+          )}
+          {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
+            <div className="rt-quick-draw-above">
+              <QuickDrawChips
+                suggestions={quickDrawSuggestions}
+                onSelect={onQuickDrawSelect}
+                onDismiss={onQuickDrawDismiss}
+              />
+            </div>
+          )}
           {!isEliminated && !isSpectator && (
             <HandDisplay cards={myCards} large onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined} />
           )}
@@ -545,22 +560,8 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         />
       )}
 
-      {/* Bottom controls strip — hand selector + quick draw only */}
+      {/* Bottom controls strip — hand selector + spectator view */}
       <div className="rt-controls">
-        {/* Quick Draw hint */}
-        {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
-          <QuickDrawHint visible={canRaise} />
-        )}
-
-        {/* Quick Draw chips */}
-        {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
-          <QuickDrawChips
-            suggestions={quickDrawSuggestions}
-            onSelect={onQuickDrawSelect}
-            onDismiss={onQuickDrawDismiss}
-          />
-        )}
-
         {/* Spectator view */}
         {(isEliminated || isSpectator) && spectatorCards && (
           <SpectatorView spectatorCards={spectatorCards} currentPlayerId={currentPlayerId} />
