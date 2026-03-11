@@ -44,6 +44,9 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.js').th
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.js').then(m => ({ default: m.ResetPasswordPage })));
 const FriendsPage = lazy(() => import('./pages/FriendsPage.js').then(m => ({ default: m.FriendsPage })));
 
+// Dev tools — admin-only iteration pages
+const RoundtableDevPage = lazy(() => import('./pages/RoundtableDevPage.js').then(m => ({ default: m.RoundtableDevPage })));
+
 function OnlineLayout() {
   return (
     <GameProvider>
@@ -140,6 +143,7 @@ export default function App() {
           <Route path="/draw" element={<SuspenseRoute label="deck draw"><DeckDrawPage /></SuspenseRoute>} />
           <Route path="/deck-draw" element={<Navigate to="/draw" replace />} />
           <Route path="/five-draw" element={<SuspenseRoute label="5 draw"><FiveDrawPage /></SuspenseRoute>} />
+          <Route path="/dev/roundtable" element={<SuspenseRoute label="roundtable"><RoundtableDevPage /></SuspenseRoute>} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
