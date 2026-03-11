@@ -6,7 +6,7 @@ import { HandDisplay } from '../components/HandDisplay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
-import { CallHistory } from '../components/CallHistory.js';
+import { CallHistory, CallHistoryToggleButton } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { GameTooltips } from '../components/GameTooltips.js';
@@ -86,6 +86,7 @@ export function LocalGamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   // All useRef hooks — unconditional
@@ -333,6 +334,11 @@ export function LocalGamePage() {
       <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${localDeckSize} cards in play`}>
         {cardStats.total}/{localDeckSize} ({cardStats.pct}%)
       </span>
+      <CallHistoryToggleButton
+        count={gameState.turnHistory.length}
+        isOpen={callHistoryOpen}
+        onToggle={() => setCallHistoryOpen(v => !v)}
+      />
     </>
   );
 
@@ -386,6 +392,7 @@ export function LocalGamePage() {
             quickDrawOpen={quickDrawOpen}
             quickDrawEnabled={quickDrawEnabled}
             quickDrawSuggestions={quickDrawSuggestions}
+            callHistoryVisible={callHistoryOpen}
             onBull={callBull}
             onTrue={callTrue}
             onLastChancePass={lastChancePass}

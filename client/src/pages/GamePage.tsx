@@ -6,7 +6,7 @@ import { HandDisplay } from '../components/HandDisplay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { ActionButtons } from '../components/ActionButtons.js';
 import { TurnIndicator } from '../components/TurnIndicator.js';
-import { CallHistory } from '../components/CallHistory.js';
+import { CallHistory, CallHistoryToggleButton } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
 import { ShareButton } from '../components/ShareButton.js';
@@ -141,6 +141,7 @@ export function GamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated && !isSpectator : false;
   const isAtMaxCards = !isEliminated && !isSpectator && myPlayer && gameState
@@ -432,6 +433,11 @@ export function GamePage() {
       <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${deckSize} cards in play`}>
         {cardStats.total}/{deckSize} ({cardStats.pct}%)
       </span>
+      <CallHistoryToggleButton
+        count={gameState.turnHistory.length}
+        isOpen={callHistoryOpen}
+        onToggle={() => setCallHistoryOpen(v => !v)}
+      />
     </>
   );
 
@@ -494,6 +500,7 @@ export function GamePage() {
             quickDrawOpen={quickDrawOpen}
             quickDrawEnabled={quickDrawEnabled}
             quickDrawSuggestions={quickDrawSuggestions}
+            callHistoryVisible={callHistoryOpen}
             disconnectDeadlines={disconnectDeadlines}
             onBull={callBull}
             onTrue={callTrue}
