@@ -108,7 +108,6 @@ const RoundtableSeat = memo(function RoundtableSeat({
   playerCount,
   isCurrent,
   isMe,
-  maxCards,
   lastAction,
   isLatestCaller,
 }: {
@@ -117,13 +116,11 @@ const RoundtableSeat = memo(function RoundtableSeat({
   playerCount: number;
   isCurrent: boolean;
   isMe: boolean;
-  maxCards: number;
   lastAction: TurnEntry | null;
   isLatestCaller: boolean;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
-  const atMax = player.cardCount >= maxCards && !player.isEliminated;
   const action = lastAction ? formatSeatAction(lastAction) : null;
 
   return (
@@ -146,16 +143,11 @@ const RoundtableSeat = memo(function RoundtableSeat({
         </div>
       </div>
 
-      {/* Name + card count below */}
+      {/* Name below */}
       <div className="rt-seat-text rt-seat-text--center">
         <div className={`rt-name ${isMe ? 'rt-name--me' : ''}`}>
           {player.name}
         </div>
-        {!player.isEliminated && (
-          <div className={`rt-card-count ${atMax ? 'rt-card-count--max' : ''}`}>
-            {player.cardCount}/{maxCards}
-          </div>
-        )}
         {player.isEliminated && (
           <div className="rt-eliminated-badge">OUT</div>
         )}
@@ -257,10 +249,25 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     <div className="rt-layout">
       {/* Table area with oval and player seats */}
       <div className="rt-table-area">
-        {/* Oval table surface */}
+        {/* Poker table surface */}
         <div className="rt-table">
-          {/* Center content: current call only (no turn indicator) */}
+          {/* Center content: action buttons flanking the current call */}
           <div className="rt-table-center">
+            {!isEliminated && !isSpectator && (
+              <div className="rt-center-left" data-tooltip="action-area">
+                <ActionButtons
+                  roundPhase={roundPhase}
+                  isMyTurn={isMyTurn}
+                  hasCurrentHand={currentHand !== null}
+                  isLastChanceCaller={isLastChanceCaller}
+                  onBull={onBull}
+                  onTrue={onTrue}
+                  onLastChancePass={onLastChancePass}
+                  onExpand={onActionExpand}
+                />
+              </div>
+            )}
+
             {currentHand && (
               <div className="rt-current-call animate-slide-up">
                 <span className="rt-current-call-label">Current Call</span>
@@ -269,6 +276,41 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                 </span>
                 {callerName && (
                   <span className="rt-current-call-caller">by {callerName}</span>
+                )}
+              </div>
+            )}
+
+            {!isEliminated && !isSpectator && (
+              <div className="rt-center-right">
+                {canRaise && !handSelectorOpen && (
+                  <button
+                    onClick={onOpenHandSelector}
+                    className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
+                    data-kbd="C"
+                  >
+                    {currentHand ? 'Raise' : 'Call'}
+                  </button>
+                )}
+                {canRaise && handSelectorOpen && currentHand && (
+                  <button
+                    onClick={onQuickRaise}
+                    className="btn-amber action-btn-base font-bold action-btn-minraise"
+                    title="Auto-raise to the minimum valid hand"
+                  >
+                    min<br />raise
+                  </button>
+                )}
+                {canRaise && handSelectorOpen && (
+                  <div className="flex flex-col items-center">
+                    <button
+                      onClick={onHandSubmit}
+                      disabled={!pendingValid}
+                      className={`btn-gold action-btn-base font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
+                    >
+                      {currentHand ? 'Raise' : 'Call'}
+                    </button>
+                    <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                  </div>
                 )}
               </div>
             )}
@@ -284,7 +326,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             playerCount={playerCount}
             isCurrent={player.id === currentPlayerId}
             isMe={false}
-            maxCards={maxCards}
             lastAction={lastActions[player.id] ?? null}
             isLatestCaller={player.id === latestCallerId}
           />
@@ -333,7 +374,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         disconnectDeadlines={disconnectDeadlines ?? new Map()}
       />
 
-      {/* Bottom controls strip */}
+      {/* Bottom controls strip — hand selector + quick draw only */}
       <div className="rt-controls">
         {/* Quick Draw hint */}
         {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
@@ -352,54 +393,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         {/* Spectator view */}
         {(isEliminated || isSpectator) && spectatorCards && (
           <SpectatorView spectatorCards={spectatorCards} currentPlayerId={currentPlayerId} />
-        )}
-
-        {/* Action row */}
-        {!isEliminated && !isSpectator && (
-          <div className="rt-actions" data-tooltip="action-area">
-            <ActionButtons
-              roundPhase={roundPhase}
-              isMyTurn={isMyTurn}
-              hasCurrentHand={currentHand !== null}
-              isLastChanceCaller={isLastChanceCaller}
-              onBull={onBull}
-              onTrue={onTrue}
-              onLastChancePass={onLastChancePass}
-              onExpand={onActionExpand}
-            />
-            {canRaise && !handSelectorOpen && (
-              <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
-                <button
-                  onClick={onOpenHandSelector}
-                  className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
-                  data-kbd="C"
-                >
-                  {currentHand ? 'Raise' : 'Call'}
-                </button>
-              </div>
-            )}
-            {canRaise && handSelectorOpen && currentHand && (
-              <button
-                onClick={onQuickRaise}
-                className="btn-amber action-btn-base font-bold action-btn-minraise"
-                title="Auto-raise to the minimum valid hand"
-              >
-                min<br />raise
-              </button>
-            )}
-            {canRaise && handSelectorOpen && (
-              <div className="flex flex-col items-center ml-auto">
-                <button
-                  onClick={onHandSubmit}
-                  disabled={!pendingValid}
-                  className={`btn-gold action-btn-base font-bold action-btn-primary ${pendingValid ? 'hs-call-pulse' : ''}`}
-                >
-                  {currentHand ? 'Raise' : 'Call'}
-                </button>
-                <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
-              </div>
-            )}
-          </div>
         )}
 
         {/* Hand selector */}
