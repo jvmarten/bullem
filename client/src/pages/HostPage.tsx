@@ -26,7 +26,7 @@ export function HostPage() {
     const t = saved?.turnTimer;
     return t != null && (ONLINE_TURN_TIMER_OPTIONS as readonly number[]).includes(t) ? t : 30;
   });
-  const [allowSpectators, setAllowSpectators] = useState(saved?.allowSpectators ?? false);
+  const [allowSpectators, setAllowSpectators] = useState(saved?.allowSpectators ?? true);
   const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(saved?.spectatorsCanSeeCards ?? false);
   const [botSpeed, setBotSpeed] = useState<BotSpeed>((saved?.botSpeed as BotSpeed) ?? BotSpeed.NORMAL);
   const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>((saved?.lastChanceMode as LastChanceMode) ?? 'classic');
