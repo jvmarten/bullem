@@ -2550,6 +2550,7 @@ body {
   bottom: 0;
   max-height: none;
   justify-content: flex-start;
+  overflow: hidden;
 }
 
 /* Action buttons row in roundtable (now centered in table) */
