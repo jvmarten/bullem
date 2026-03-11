@@ -117,9 +117,14 @@ export function LocalLobbyPage() {
     }, 'local');
   }, [gameSettings]);
 
-  // Quick Play: auto-start the game once bots have been added
+  // Quick Play: auto-start the game once bots have been added.
+  // Guard on initializedRef to avoid firing against stale restored state —
+  // leaveRoom() clears playersRef synchronously but roomState updates are
+  // batched, so the effect would see the old roomState with players while
+  // playersRef is already empty, causing a "Need at least 2 players" error.
   useEffect(() => {
     if (!isQuickPlay || quickPlayStartedRef.current) return;
+    if (!initializedRef.current) return;
     if (!roomState || roomState.players.length < 2) return;
     quickPlayStartedRef.current = true;
     gameStartedRef.current = true;
