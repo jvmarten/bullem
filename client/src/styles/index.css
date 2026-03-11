@@ -1684,26 +1684,14 @@ body {
   .game-header-overlay-left {
     margin-right: auto;
     font-size: 0.75rem;
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
-  }
-  .game-header-overlay-left:hover {
     opacity: 1;
   }
   .game-header-overlay-right {
     font-size: 0.75rem;
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
-  }
-  .game-header-overlay-right:hover {
     opacity: 1;
   }
   .game-header-overlay-volume {
     margin-left: 0.5rem;
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
-  }
-  .game-header-overlay-volume:hover {
     opacity: 1;
   }
 
@@ -2226,10 +2214,10 @@ body {
 /* Poker table surface — stadium/racetrack shape like a real poker table */
 .rt-table {
   position: absolute;
-  top: 10%;
+  top: 12%;
   left: 12%;
   width: 76%;
-  height: 66%;
+  height: 64%;
   background: radial-gradient(ellipse, var(--felt-light) 0%, var(--felt) 70%, var(--felt-dark) 100%);
   border: 3px solid var(--felt-border);
   border-radius: 42% / 50%;
@@ -2564,16 +2552,21 @@ body {
   gap: 0.25rem;
 }
 
-/* Hand selector in roundtable — compact */
+/* Hand selector in roundtable — compact, pulled up closer to preview */
 .rt-hand-selector {
-  margin-top: -0.25rem;
+  margin-top: -0.5rem;
+}
+
+.rt-hand-selector .wheel-picker-mask {
+  /* Reduce visible height to bring highlighter closer to the preview hand */
+  max-height: 180px;
 }
 
 /* ── Narrow landscape refinements for roundtable ───── */
 @media (orientation: landscape) and (max-height: 500px) {
   .rt-table {
-    top: 8%;
-    height: 68%;
+    top: 10%;
+    height: 66%;
   }
 
   .rt-avatar {

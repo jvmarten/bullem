@@ -427,7 +427,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
       </div>
 
       {/* Middle: Card preview */}
-      <div className="flex justify-center flex-wrap gap-0.5 py-1 mb-3 min-h-[56px] items-center">
+      <div className="flex justify-center flex-wrap gap-0.5 py-1 mb-1 min-h-[56px] items-center">
         {hand && previewCards.map((card, i) => {
           const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
           return (
