@@ -13,6 +13,7 @@ import { SpectatorView } from './SpectatorView.js';
 import { QuickDrawChips } from './QuickDrawChips.js';
 import { QuickDrawHint } from './QuickDrawHint.js';
 import { DisconnectBanner } from './DisconnectBanner.js';
+import { RoundtableDealingOverlay } from './RoundtableDealingOverlay.js';
 import { useSound } from '../hooks/useSound.js';
 import type { QuickDrawSuggestion } from '@bull-em/shared';
 
@@ -369,7 +370,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
  */
 export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: RoundtableGameLayoutProps) {
   const {
-    players, currentPlayerId, myPlayerId, maxCards,
+    players, currentPlayerId, myPlayerId, maxCards, roundNumber,
     roundPhase, currentHand, lastCallerId, myCards, turnHistory,
     turnDeadline, turnDurationMs,
     spectatorCards,
@@ -382,6 +383,26 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
   } = props;
+
+  // ── Dealing animation: show when roundNumber changes ──
+  const prevRoundRef = useRef(roundNumber);
+  const [showDealing, setShowDealing] = useState(false);
+
+  useEffect(() => {
+    // On the very first render, don't show dealing (player is joining mid-round)
+    if (prevRoundRef.current !== roundNumber && prevRoundRef.current !== 0) {
+      setShowDealing(true);
+      // Auto-hide after animation completes (safety net — overlay also self-removes)
+      const maxCards = Math.max(...players.filter(p => !p.isEliminated).map(p => p.cardCount), 0);
+      const totalPlayers = players.filter(p => !p.isEliminated).length;
+      const totalCards = maxCards * totalPlayers;
+      const timeout = totalCards * 180 + 350 + 300 + 400; // deal + fly + fade + buffer
+      const t = setTimeout(() => setShowDealing(false), timeout);
+      prevRoundRef.current = roundNumber;
+      return () => clearTimeout(t);
+    }
+    prevRoundRef.current = roundNumber;
+  }, [roundNumber, players]);
 
   // Auto-open the hand selector when it becomes our turn in roundtable mode.
   // This replaces the turn indicator — the selector opening IS the turn signal.
@@ -505,6 +526,17 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             )}
           </div>
         </div>
+
+        {/* Dealing animation overlay — shows deck + flying cards at round start */}
+        {showDealing && (
+          <RoundtableDealingOverlay
+            players={players}
+            myPlayerId={myPlayerId}
+            myCards={myCards}
+            playerCount={playerCount}
+            orderedPlayers={orderedPlayers}
+          />
+        )}
 
         {/* Opponent seats — skip seat 0 (local player), render from seat 1 onwards */}
         {orderedPlayers.slice(1, playerCount).map((player, i) => (

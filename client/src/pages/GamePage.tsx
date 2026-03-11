@@ -37,6 +37,7 @@ import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
+import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
 
 function SeriesBanner({ seriesInfo, players, playerId }: {
   seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
@@ -143,6 +144,8 @@ export function GamePage() {
   const [tappedCard, setTappedCard] = useState<Card | null>(null);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  // Landscape reveal animation: 'cinematic' = card-by-card animation, 'results' = standard overlay
+  const [revealPhase, setRevealPhase] = useState<'cinematic' | 'results'>('cinematic');
   const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated && !isSpectator : false;
   const isAtMaxCards = !isEliminated && !isSpectator && myPlayer && gameState
     ? myPlayer.cardCount >= gameState.maxCards
@@ -247,6 +250,11 @@ export function GamePage() {
     lastResultRef.current = roundResult;
   }, [roundResult, playerId, gameState, addToast]);
 
+  // Reset reveal phase to cinematic when new round result arrives
+  useEffect(() => {
+    if (roundResult) setRevealPhase('cinematic');
+  }, [roundResult]);
+
   const deckSize = getDeckSize(roomState?.settings?.jokerCount ?? 0);
   const cardStats = useMemo(() => {
     if (!gameState) return { total: 0, pct: 0 };
@@ -260,6 +268,15 @@ export function GamePage() {
     for (const p of gameState.players) counts[p.id] = p.cardCount;
     return counts;
   }, [gameState]);
+
+  // Ordered players for landscape reveal overlay (same logic as RoundtableGameLayout)
+  const orderedPlayersForReveal = useMemo(() => {
+    if (!gameState) return [];
+    const ps = gameState.players;
+    const myIdx = ps.findIndex(p => p.id === playerId);
+    if (myIdx <= 0) return ps;
+    return [...ps.slice(myIdx), ...ps.slice(0, myIdx)];
+  }, [gameState, playerId]);
 
   const handlePlayerClick = useCallback((player: Player) => {
     // All players (human, bot, guest) → show in-game overlay with stats
@@ -509,7 +526,17 @@ export function GamePage() {
           {roundTransition && !roundResult && (
             <TransitionOverlay deadline={roundTransitionDeadline} />
           )}
-          {roundResult && (
+          {roundResult && revealPhase === 'cinematic' && (
+            <RoundtableRevealOverlay
+              result={roundResult}
+              players={gameState.players}
+              myPlayerId={playerId ?? undefined}
+              orderedPlayers={orderedPlayersForReveal}
+              playerCount={Math.min(gameState.players.length, 12)}
+              onComplete={() => setRevealPhase('results')}
+            />
+          )}
+          {roundResult && revealPhase === 'results' && (
             <RevealOverlay
               result={roundResult}
               players={gameState.players}
