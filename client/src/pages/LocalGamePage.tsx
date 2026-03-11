@@ -510,7 +510,7 @@ export function LocalGamePage() {
             {gameState.currentHand && (
               <div className="glass-raised py-1.5 animate-slide-up flex items-baseline" style={{ padding: '0.375rem clamp(0.5rem, 2.9vw, 0.75rem)' }}>
                 <div className="w-1/4 min-w-0 shrink-0">
-                  <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold whitespace-nowrap">
                     Current Call
                   </span>
                 </div>
