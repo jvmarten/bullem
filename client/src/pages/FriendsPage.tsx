@@ -202,7 +202,7 @@ export function FriendsPage() {
 
   return (
     <div className="felt-bg text-[#e8e0d4]">
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-fade-in layout-main">
+      <div className="w-full max-w-lg mx-auto px-4 py-6 space-y-4 animate-fade-in layout-main">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
