@@ -11,9 +11,9 @@ import logger from '../logger.js';
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 /** Number of concurrent 1v1 (heads-up) background games. */
-const HEADS_UP_SLOTS = 9;
+const HEADS_UP_SLOTS = 3;
 /** Number of concurrent multiplayer background games. */
-const MULTIPLAYER_SLOTS = 9;
+const MULTIPLAYER_SLOTS = 3;
 
 /** Min/max bot count for multiplayer background games (inclusive). */
 const MIN_MULTI_BOTS = 3;
@@ -34,7 +34,7 @@ interface GameSlot {
 }
 
 /**
- * Maintains 18 always-running bot-only games (9 heads-up, 9 multiplayer) so
+ * Maintains 6 always-running bot-only games (3 heads-up, 3 multiplayer) so
  * there's always a variety of matches to spectate in the lobby. When a game
  * finishes, its slot auto-restarts after a brief delay. Every background match
  * is ranked so bot ratings feed into the leaderboard.
