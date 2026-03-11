@@ -2296,7 +2296,7 @@ body {
 .rt-current-call-hand {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 1rem;
   color: var(--gold);
   line-height: 1.2;
 }
@@ -2462,12 +2462,12 @@ body {
 
 /* ── Action chip — last action shown near the seat ───────── */
 .rt-action-chip {
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 8px;
   white-space: nowrap;
-  max-width: 100px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
@@ -2478,9 +2478,9 @@ body {
 
 /* Highlighted action chip for the last caller */
 .rt-action-chip--latest {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   padding: 3px 10px;
-  max-width: 140px;
+  max-width: 160px;
   transform: scale(1.1);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
 }
@@ -2666,15 +2666,15 @@ body {
   }
 
   .rt-action-chip {
-    font-size: 0.5rem;
+    font-size: 0.6rem;
     padding: 1px 6px;
-    max-width: 80px;
+    max-width: 100px;
   }
 
   .rt-action-chip--latest {
-    font-size: 0.6rem;
+    font-size: 0.75rem;
     padding: 2px 8px;
-    max-width: 110px;
+    max-width: 130px;
   }
 
   .rt-current-call {
@@ -2682,7 +2682,7 @@ body {
   }
 
   .rt-current-call-hand {
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
 
   .rt-call-history {
@@ -2725,15 +2725,15 @@ body {
 }
 
 .rt-table-area--crowded .rt-action-chip {
-  font-size: 0.5rem;
+  font-size: 0.6rem;
   padding: 1px 6px;
-  max-width: 80px;
+  max-width: 100px;
 }
 
 .rt-table-area--crowded .rt-action-chip--latest {
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   padding: 2px 8px;
-  max-width: 110px;
+  max-width: 130px;
 }
 
 /* ── Wider desktop: larger seats and table ─────────── */
@@ -2763,17 +2763,17 @@ body {
   }
 
   .rt-action-chip {
-    font-size: 0.7rem;
-    max-width: 130px;
+    font-size: 0.85rem;
+    max-width: 150px;
   }
 
   .rt-action-chip--latest {
-    font-size: 0.85rem;
-    max-width: 160px;
+    font-size: 1rem;
+    max-width: 180px;
   }
 
   .rt-current-call-hand {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
 
   .rt-call-history {
