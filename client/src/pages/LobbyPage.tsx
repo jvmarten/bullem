@@ -30,6 +30,7 @@ export function LobbyPage() {
   const [joining, setJoining] = useState(false);
   const [joinName, setJoinName] = useState('');
   const [showLcrInfo, setShowLcrInfo] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const { impossibleBotEnabled: impossibleEnabled } = useUISettings();
   const joinAttemptedRef = useRef(false);
@@ -412,6 +413,63 @@ export function LobbyPage() {
               </div>
             </div>
 
+            {/* Bot Level Category setting */}
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Bot Level
+              </p>
+              <div className="flex gap-1.5">
+                {(['easy', 'normal', 'hard', 'mixed'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      play('uiSoft');
+                      updateSettings({ ...settings, botLevelCategory: cat });
+                      // Replace existing bots with bots from the new category
+                      const bots = roomState.players.filter(p => p.isBot);
+                      const usedNames = new Set(roomState.players.filter(p => !p.isBot).map(p => p.name));
+                      for (const bot of bots) {
+                        removeBot(bot.id);
+                      }
+                      for (let i = 0; i < bots.length; i++) {
+                        const picked = pickRandomBot(cat, usedNames);
+                        if (picked) {
+                          usedNames.add(picked.name);
+                          addBot(picked.name).catch(() => {});
+                        } else {
+                          addBot().catch(() => {});
+                        }
+                      }
+                    }}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
+                      (settings.botLevelCategory ?? 'mixed') === cat
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {(settings.botLevelCategory ?? 'mixed') === 'easy' ? 'Levels 1-3 — beginner bots' :
+                 (settings.botLevelCategory ?? 'mixed') === 'normal' ? 'Levels 4-6 — standard difficulty' :
+                 (settings.botLevelCategory ?? 'mixed') === 'hard' ? 'Levels 7-9 — expert bots' :
+                 'Levels 1-9 — all skill levels'}
+              </p>
+            </div>
+
+            {/* Advanced Settings toggle */}
+            <button
+              onClick={() => { play('uiSoft'); setShowAdvanced(v => !v); }}
+              className="w-full flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors font-semibold"
+            >
+              Advanced Settings
+              <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+
+            {showAdvanced && (
+            <>
             {/* Jokers (Wild) setting */}
             <div className="glass px-4 py-3">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -459,52 +517,6 @@ export function LobbyPage() {
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Bot Level Category setting */}
-            <div className="glass px-4 py-3">
-              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-                Bot Level
-              </p>
-              <div className="flex gap-1.5">
-                {(['easy', 'normal', 'hard', 'mixed'] as const).map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      play('uiSoft');
-                      updateSettings({ ...settings, botLevelCategory: cat });
-                      // Replace existing bots with bots from the new category
-                      const bots = roomState.players.filter(p => p.isBot);
-                      const usedNames = new Set(roomState.players.filter(p => !p.isBot).map(p => p.name));
-                      for (const bot of bots) {
-                        removeBot(bot.id);
-                      }
-                      for (let i = 0; i < bots.length; i++) {
-                        const picked = pickRandomBot(cat, usedNames);
-                        if (picked) {
-                          usedNames.add(picked.name);
-                          addBot(picked.name).catch(() => {});
-                        } else {
-                          addBot().catch(() => {});
-                        }
-                      }
-                    }}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors capitalize ${
-                      (settings.botLevelCategory ?? 'normal') === cat
-                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-                {(settings.botLevelCategory ?? 'normal') === 'easy' ? 'Levels 1-3 — beginner bots' :
-                 (settings.botLevelCategory ?? 'normal') === 'normal' ? 'Levels 4-6 — standard difficulty' :
-                 (settings.botLevelCategory ?? 'normal') === 'hard' ? 'Levels 7-9 — expert bots' :
-                 'Levels 1-9 — all skill levels'}
-              </p>
             </div>
 
             {/* Best-of Series setting — only for 1v1 (maxPlayers = 2) unranked */}
@@ -656,6 +668,8 @@ export function LobbyPage() {
                     : 'All-seeing bot — knows every card in play'}
                 </p>
               </div>
+            )}
+            </>
             )}
           </>
         )}
