@@ -292,7 +292,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                   </button>
                 )}
                 {canRaise && handSelectorOpen && (
-                  <div className="flex flex-col items-center">
+                  <div className="relative flex flex-col items-center">
                     <button
                       onClick={onHandSubmit}
                       disabled={!pendingValid}
@@ -300,7 +300,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                     >
                       {currentHand ? 'Raise' : 'Call'}
                     </button>
-                    <p className={`text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
+                    <p className={`absolute top-full text-[var(--danger)] mt-1 h-4 transition-opacity action-btn-hint ${pendingHand && !pendingValid ? 'opacity-100' : 'opacity-0'}`}>Must be higher</p>
                   </div>
                 )}
               </div>
