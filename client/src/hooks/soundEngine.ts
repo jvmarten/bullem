@@ -132,7 +132,18 @@ const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
   heartbeat:   [60, 80, 40],     // lub-dub pulse
 };
 
+// Cache the reduced-motion preference so we don't query it on every vibration call.
+// The listener keeps it in sync if the user changes the OS setting at runtime.
+let prefersReducedMotion = false;
+
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  prefersReducedMotion = mq.matches;
+  mq.addEventListener('change', (e) => { prefersReducedMotion = e.matches; });
+}
+
 function vibrate(pattern: number | number[]): void {
+  if (prefersReducedMotion) return;
   try {
     navigator.vibrate(pattern);
   } catch {

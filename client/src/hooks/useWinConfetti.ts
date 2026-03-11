@@ -9,6 +9,10 @@ export function useWinConfetti(isWinner: boolean): void {
   useEffect(() => {
     if (!isWinner) return;
 
+    // Respect prefers-reduced-motion — skip confetti entirely
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motionQuery.matches) return;
+
     // Gold-themed burst matching the Bull 'Em palette
     const colors = ['#FFD700', '#FFA500', '#FFEC8B', '#DAA520'];
 

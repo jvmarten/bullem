@@ -57,6 +57,18 @@ const mockAudioContext = {
 
 vi.stubGlobal('AudioContext', vi.fn(() => mockAudioContext));
 
+// Mock matchMedia for prefers-reduced-motion detection
+vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  onchange: null,
+  dispatchEvent: vi.fn(),
+})));
+
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
