@@ -83,7 +83,7 @@ export const ActionButtons = memo(function ActionButtons({
       );
     }
     return (
-      <div className="flex justify-start animate-slide-up-right action-btn-gap" data-action-buttons>
+      <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
         <button onClick={() => handleClick(onLastChancePass)} className="btn-safe action-btn-base font-bold action-btn-primary kbd-shortcut" data-kbd="P">
           Pass
         </button>
@@ -112,7 +112,7 @@ export const ActionButtons = memo(function ActionButtons({
   }
 
   return (
-    <div className="flex justify-start animate-slide-up-right action-btn-gap" data-action-buttons>
+    <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
       {showBull && (
         <button onClick={() => handleClick(onBull)} className={`btn-danger action-btn-base font-bold ${showTrue ? 'action-btn-secondary' : 'action-btn-primary'} kbd-shortcut`} data-kbd="B">
           BULL!
