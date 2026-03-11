@@ -5,7 +5,7 @@ import { ShareButton } from '../components/ShareButton.js';
 import { RoomQRCode } from '../components/RoomQRCode.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
-import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, BotDifficulty, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
+import { GamePhase, MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, maxPlayersForMaxCards, BotSpeed, BEST_OF_OPTIONS, DEFAULT_BEST_OF, pickRandomBot, IMPOSSIBLE_BOT, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
 import type { BestOf, BotLevelCategory } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -17,6 +17,17 @@ import { useSound } from '../hooks/useSound.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import { socket } from '../socket.js';
 import { useUISettings, saveMatchSettings } from '../components/VolumeControl.js';
+
+const BOT_LEVEL_DESCRIPTIONS: Record<BotLevelCategory, string> = {
+  easy: 'Levels 1-3 — beginner bots',
+  normal: 'Levels 4-6 — standard difficulty',
+  hard: 'Levels 7-9 — expert bots',
+  mixed: 'Levels 1-9 — all skill levels',
+};
+
+function botLevelDescription(category: BotLevelCategory): string {
+  return BOT_LEVEL_DESCRIPTIONS[category];
+}
 
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -452,10 +463,7 @@ export function LobbyPage() {
                 ))}
               </div>
               <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-                {(settings.botLevelCategory ?? 'mixed') === 'easy' ? 'Levels 1-3 — beginner bots' :
-                 (settings.botLevelCategory ?? 'mixed') === 'normal' ? 'Levels 4-6 — standard difficulty' :
-                 (settings.botLevelCategory ?? 'mixed') === 'hard' ? 'Levels 7-9 — expert bots' :
-                 'Levels 1-9 — all skill levels'}
+                {botLevelDescription(settings.botLevelCategory ?? 'mixed')}
               </p>
             </div>
 
@@ -632,7 +640,9 @@ export function LobbyPage() {
             </div>
 
             {/* The Oracle — toggle to add/remove the all-seeing impossible bot */}
-            {impossibleEnabled && (
+            {impossibleEnabled && (() => {
+              const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
+              return (
               <div className="glass px-4 py-3">
                 <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
                   The Oracle
@@ -642,33 +652,32 @@ export function LobbyPage() {
                   <button
                     onClick={() => {
                       play('uiSoft');
-                      const hasOracle = roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name);
-                      if (hasOracle) {
-                        const oracleBot = roomState.players.find(p => p.name === IMPOSSIBLE_BOT.name);
-                        if (oracleBot) removeBot(oracleBot.id);
+                      if (oracleBot) {
+                        removeBot(oracleBot.id);
                       } else {
                         addBot(IMPOSSIBLE_BOT.name).catch(e => addToast(e instanceof Error ? e.message : 'Failed to add bot'));
                       }
                     }}
-                    disabled={!roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) && roomState.players.length >= effectiveMaxPlayers}
+                    disabled={!oracleBot && roomState.players.length >= effectiveMaxPlayers}
                     className={`w-11 h-6 rounded-full transition-colors relative border ${
-                      roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                      oracleBot
                         ? 'bg-[var(--gold)] border-[var(--gold)]'
                         : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                     }`}
                   >
                     <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
-                      roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                      oracleBot ? 'translate-x-[23px]' : 'translate-x-[2px]'
                     }`} />
                   </button>
                 </label>
                 <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-                  {roomState.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                  {oracleBot
                     ? 'Sees all cards. Perfect play. Only one per match.'
                     : 'All-seeing bot — knows every card in play'}
                 </p>
               </div>
-            )}
+              );
+            })()}
             </>
             )}
           </>
