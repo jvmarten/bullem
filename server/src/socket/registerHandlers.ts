@@ -36,11 +36,11 @@ const GAME_ACTION_EVENTS = new Set([
 ]);
 
 function attachRateLimiter(
-  socket: { use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
+  socket: { id: string; use: (fn: (events: unknown[], next: (err?: Error) => void) => void) => void },
   getPlayerId: () => string | undefined,
   rateLimiter: RateLimiter,
 ): void {
-  const socketId = (socket as unknown as { id: string }).id;
+  const socketId = socket.id;
 
   socket.use((event, next) => {
     // Connection-level sliding window rate limit

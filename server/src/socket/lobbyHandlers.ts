@@ -49,6 +49,7 @@ export function registerLobbyHandlers(
   botManager: BotManager,
 ): void {
   socket.on('room:create', (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
@@ -97,6 +98,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:join', (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
     if (!name) return callback({ error: 'Invalid name (1-20 chars, letters/numbers/spaces)' });
@@ -132,9 +134,11 @@ export function registerLobbyHandlers(
       }
     }
 
-    // Check for reconnection — requires the secret reconnect token
-    if (data.playerId) {
-      const newToken = room.handleReconnect(socket.id, data.playerId, data.reconnectToken);
+    // Check for reconnection — requires the secret reconnect token.
+    // Type-check playerId and reconnectToken since they come from untrusted client data.
+    if (data.playerId && typeof data.playerId === 'string') {
+      const reconnectToken = typeof data.reconnectToken === 'string' ? data.reconnectToken : undefined;
+      const newToken = room.handleReconnect(socket.id, data.playerId, reconnectToken);
       if (newToken) {
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
         socket.join(room.roomCode);
@@ -288,14 +292,17 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:list', (callback) => {
+    if (typeof callback !== 'function') return;
     callback({ rooms: roomManager.getAvailableRooms() });
   });
 
   socket.on('room:listLive', (callback) => {
+    if (typeof callback !== 'function') return;
     callback({ games: roomManager.getLiveGames() });
   });
 
   socket.on('room:spectate', (data, callback) => {
+    if (typeof callback !== 'function') return;
     const roomCode = sanitizeRoomCode(data.roomCode);
     if (!roomCode) return callback({ error: 'Invalid room code' });
 
@@ -328,6 +335,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:watchRandom', (callback) => {
+    if (typeof callback !== 'function') return;
     const roomCode = roomManager.getRandomLiveGame();
     if (!roomCode) return callback({ error: 'No live games available' });
 
@@ -471,6 +479,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:addBot', (data, callback) => {
+    if (typeof callback !== 'function') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return callback({ error: 'No room found' });
 
@@ -505,6 +514,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:kickPlayer', (data, callback) => {
+    if (typeof callback !== 'function') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return callback({ error: 'No room found' });
 

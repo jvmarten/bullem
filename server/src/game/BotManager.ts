@@ -165,6 +165,7 @@ export class BotManager {
       if (player.isBot) {
         this.botProfileConfigs.delete(playerId);
         this.botUserIds.delete(playerId);
+        this.cfrBotIds.delete(playerId);
       }
     }
   }
