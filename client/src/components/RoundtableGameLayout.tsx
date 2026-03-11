@@ -248,7 +248,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   return (
     <div className="rt-layout">
       {/* Table area with oval and player seats */}
-      <div className="rt-table-area">
+      <div className={`rt-table-area ${playerCount >= 9 ? 'rt-table-area--crowded' : ''}`}>
         {/* Poker table surface */}
         <div className="rt-table">
           {/* Center content: action buttons flanking the current call */}
