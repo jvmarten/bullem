@@ -38,6 +38,7 @@ export function LocalLobbyPage() {
   // extra layer of protection against events that sneak past the disabled attr.
   const [interactionReady, setInteractionReady] = useState(false);
   const [showLcrInfo, setShowLcrInfo] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const handlePlayerClick = useCallback((player: Player) => {
     if (player.isBot) {
@@ -278,6 +279,7 @@ export function LocalLobbyPage() {
         </div>{/* end lobby-left */}
 
         <div className="lobby-right">
+        {/* Primary settings — always visible */}
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
@@ -307,28 +309,23 @@ export function LocalLobbyPage() {
         {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-              Jokers (Wild)
+              Turn Timer
             </p>
             <div className="flex gap-1.5">
-              {JOKER_COUNT_OPTIONS.map(n => (
+              {TURN_TIMER_OPTIONS.map(seconds => (
                 <button
-                  key={n}
-                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, jokerCount: n }); }}
+                  key={seconds}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, turnTimer: seconds }); }}
                   className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
-                    (gameSettings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
+                    (gameSettings.turnTimer ?? 0) === seconds
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
                   }`}
                 >
-                  {n}
+                  {seconds === 0 ? 'Off' : `${seconds}s`}
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              {(gameSettings.jokerCount ?? 0) === 0
-                ? 'Standard 52-card deck'
-                : `${gameSettings.jokerCount} wild joker${(gameSettings.jokerCount ?? 0) > 1 ? 's' : ''} \u2014 can substitute for any card`}
-            </p>
           </div>
         )}
 
@@ -379,48 +376,45 @@ export function LocalLobbyPage() {
           </div>
         )}
 
-        {/* The Oracle — toggle to add/remove the all-seeing impossible bot */}
-        {setGameSettings && gameSettings && impossibleEnabled && (
-          <div className="glass px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-              The Oracle
-            </p>
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm text-[var(--gold-dim)]">Add The Oracle (lvl 10)</span>
-              <button
-                onClick={() => {
-                  play('uiSoft');
-                  const hasOracle = roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name);
-                  if (hasOracle) {
-                    const oracleBot = roomState?.players.find(p => p.name === IMPOSSIBLE_BOT.name);
-                    if (oracleBot) removeBot(oracleBot.id);
-                    setBotDifficulty?.(BotDifficulty.HARD);
-                  } else {
-                    addBot(IMPOSSIBLE_BOT.name).catch(() => {});
-                    setBotDifficulty?.(BotDifficulty.IMPOSSIBLE);
-                  }
-                }}
-                disabled={!roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) && playerCount >= dynamicMaxPlayers}
-                className={`w-11 h-6 rounded-full transition-colors relative border ${
-                  roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
-                    ? 'bg-[var(--gold)] border-[var(--gold)]'
-                    : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
-                }`}
-              >
-                <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
-                  roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'translate-x-[23px]' : 'translate-x-[2px]'
-                }`} />
-              </button>
-            </label>
-            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              {roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
-                ? 'Sees all cards. Perfect play. Only one per match.'
-                : 'All-seeing bot — knows every card in play'}
-            </p>
-          </div>
+        {/* Advanced Settings toggle */}
+        {setGameSettings && gameSettings && (
+          <button
+            onClick={() => { play('uiSoft'); setShowAdvanced(v => !v); }}
+            className="w-full flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors font-semibold"
+          >
+            Advanced Settings
+            <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
+          </button>
         )}
 
-        {setGameSettings && gameSettings && (
+        {showAdvanced && setGameSettings && gameSettings && (
+          <>
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Jokers (Wild)
+            </p>
+            <div className="flex gap-1.5">
+              {JOKER_COUNT_OPTIONS.map(n => (
+                <button
+                  key={n}
+                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, jokerCount: n }); }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    (gameSettings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {(gameSettings.jokerCount ?? 0) === 0
+                ? 'Standard 52-card deck'
+                : `${gameSettings.jokerCount} wild joker${(gameSettings.jokerCount ?? 0) > 1 ? 's' : ''} \u2014 can substitute for any card`}
+            </p>
+          </div>
+
           <div className="glass px-4 py-3">
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
               Bot Speed
@@ -441,32 +435,7 @@ export function LocalLobbyPage() {
               ))}
             </div>
           </div>
-        )}
 
-        {setGameSettings && gameSettings && (
-          <div className="glass px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-              Turn Timer
-            </p>
-            <div className="flex gap-1.5">
-              {TURN_TIMER_OPTIONS.map(seconds => (
-                <button
-                  key={seconds}
-                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, turnTimer: seconds }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
-                    (gameSettings.turnTimer ?? 0) === seconds
-                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
-                  }`}
-                >
-                  {seconds === 0 ? 'Off' : `${seconds}s`}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {setGameSettings && gameSettings && (
           <div className="glass px-4 py-3">
             <div className="flex items-center gap-1.5 mb-2">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
@@ -507,35 +476,77 @@ export function LocalLobbyPage() {
                 : 'After LCR, next player must bull or raise — no true option'}
             </p>
           </div>
-        )}
 
-        {/* Match Format — only for 1v1 (2 players total) */}
-        {setGameSettings && gameSettings && playerCount === 2 && (
-          <div className="glass px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-              Match Format
-            </p>
-            <div className="flex gap-1.5">
-              {BEST_OF_OPTIONS.map(bo => (
+          {/* Match Format — only for 1v1 (2 players total) */}
+          {playerCount === 2 && (
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                Match Format
+              </p>
+              <div className="flex gap-1.5">
+                {BEST_OF_OPTIONS.map(bo => (
+                  <button
+                    key={bo}
+                    onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, bestOf: bo as BestOf }); }}
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      (gameSettings.bestOf ?? DEFAULT_BEST_OF) === bo
+                        ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                        : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                    }`}
+                  >
+                    {bo === 1 ? 'Bo1' : `Bo${bo}`}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {(gameSettings.bestOf ?? DEFAULT_BEST_OF) === 1
+                  ? 'Single game — winner takes all'
+                  : `Best of ${gameSettings.bestOf ?? DEFAULT_BEST_OF} — first to ${Math.ceil((gameSettings.bestOf ?? DEFAULT_BEST_OF) / 2)} wins`}
+              </p>
+            </div>
+          )}
+
+          {/* The Oracle — toggle to add/remove the all-seeing impossible bot */}
+          {impossibleEnabled && (
+            <div className="glass px-4 py-3">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+                The Oracle
+              </p>
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm text-[var(--gold-dim)]">Add The Oracle (lvl 10)</span>
                 <button
-                  key={bo}
-                  onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, bestOf: bo as BestOf }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
-                    (gameSettings.bestOf ?? DEFAULT_BEST_OF) === bo
-                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
-                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  onClick={() => {
+                    play('uiSoft');
+                    const hasOracle = roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name);
+                    if (hasOracle) {
+                      const oracleBot = roomState?.players.find(p => p.name === IMPOSSIBLE_BOT.name);
+                      if (oracleBot) removeBot(oracleBot.id);
+                      setBotDifficulty?.(BotDifficulty.HARD);
+                    } else {
+                      addBot(IMPOSSIBLE_BOT.name).catch(() => {});
+                      setBotDifficulty?.(BotDifficulty.IMPOSSIBLE);
+                    }
+                  }}
+                  disabled={!roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) && playerCount >= dynamicMaxPlayers}
+                  className={`w-11 h-6 rounded-full transition-colors relative border ${
+                    roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                      ? 'bg-[var(--gold)] border-[var(--gold)]'
+                      : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                   }`}
                 >
-                  {bo === 1 ? 'Bo1' : `Bo${bo}`}
+                  <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
+                    roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                  }`} />
                 </button>
-              ))}
+              </label>
+              <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+                {roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                  ? 'Sees all cards. Perfect play. Only one per match.'
+                  : 'All-seeing bot — knows every card in play'}
+              </p>
             </div>
-            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              {(gameSettings.bestOf ?? DEFAULT_BEST_OF) === 1
-                ? 'Single game — winner takes all'
-                : `Best of ${gameSettings.bestOf ?? DEFAULT_BEST_OF} — first to ${Math.ceil((gameSettings.bestOf ?? DEFAULT_BEST_OF) / 2)} wins`}
-            </p>
-          </div>
+          )}
+          </>
         )}
         </div>{/* end lobby-right */}
       </div>

@@ -30,9 +30,10 @@ export function HostPage() {
   const [spectatorsCanSeeCards, setSpectatorsCanSeeCards] = useState(saved?.spectatorsCanSeeCards ?? false);
   const [botSpeed, setBotSpeed] = useState<BotSpeed>((saved?.botSpeed as BotSpeed) ?? BotSpeed.NORMAL);
   const [lastChanceMode, setLastChanceMode] = useState<LastChanceMode>((saved?.lastChanceMode as LastChanceMode) ?? 'classic');
-  const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>((saved?.botLevelCategory as BotLevelCategory) ?? 'normal');
+  const [botLevelCategory, setBotLevelCategory] = useState<BotLevelCategory>((saved?.botLevelCategory as BotLevelCategory) ?? 'mixed');
   const [jokerCount, setJokerCount] = useState<JokerCount>((saved?.jokerCount as JokerCount) ?? DEFAULT_JOKER_COUNT);
   const [showLcrInfo, setShowLcrInfo] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const dynamicMaxPlayers = maxPlayersForMaxCards(maxCards, jokerCount);
@@ -78,9 +79,8 @@ export function HostPage() {
           <button onClick={() => { play('uiBack'); navigate('/'); }} className="w-full btn-ghost py-2">Back</button>
         </div>
 
-        <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold text-center host-settings-label">Optional Settings</p>
-
         <div className="host-left">
+        {/* Primary settings — always visible */}
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Max Cards</p>
           <div className="flex gap-1.5">{[1,2,3,4,5].map(n => (
@@ -104,12 +104,6 @@ export function HostPage() {
             <button key={n} onClick={() => { play('uiSoft'); setTurnTimer(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${turnTimer===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}s</button>
           ))}</div>
         </div>
-        <div className="glass px-4 py-3">
-          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Bot Speed</p>
-          <div className="flex gap-1.5">{([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
-            <button key={speed} onClick={() => { play('uiSoft'); setBotSpeed(speed); }} className={`flex-1 px-2 py-2 text-sm rounded capitalize ${botSpeed===speed ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{speed}</button>
-          ))}</div>
-        </div>
 
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Bot Level</p>
@@ -122,6 +116,34 @@ export function HostPage() {
              botLevelCategory === 'hard' ? 'Levels 7-9 — expert bots' :
              'Levels 1-9 — all skill levels'}
           </p>
+        </div>
+
+        {/* Advanced Settings toggle */}
+        <button
+          onClick={() => { play('uiSoft'); setShowAdvanced(v => !v); }}
+          className="w-full flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors font-semibold"
+        >
+          Advanced Settings
+          <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>&#9660;</span>
+        </button>
+
+        {showAdvanced && (
+        <>
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Jokers (Wild)</p>
+          <div className="flex gap-1.5">{JOKER_COUNT_OPTIONS.map(n => (
+            <button key={n} onClick={() => { play('uiSoft'); setJokerCount(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${jokerCount===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}</button>
+          ))}</div>
+          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+            {jokerCount === 0 ? 'Standard 52-card deck' : `${jokerCount} wild joker${jokerCount > 1 ? 's' : ''} — can substitute for any card`}
+          </p>
+        </div>
+
+        <div className="glass px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Bot Speed</p>
+          <div className="flex gap-1.5">{([BotSpeed.SLOW, BotSpeed.NORMAL, BotSpeed.FAST] as const).map(speed => (
+            <button key={speed} onClick={() => { play('uiSoft'); setBotSpeed(speed); }} className={`flex-1 px-2 py-2 text-sm rounded capitalize ${botSpeed===speed ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{speed}</button>
+          ))}</div>
         </div>
 
         <div className="glass px-4 py-3">
@@ -152,18 +174,7 @@ export function HostPage() {
               : 'After LCR, next player must bull or raise — no true option'}
           </p>
         </div>
-        <div className="glass px-4 py-3">
-          <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Jokers (Wild)</p>
-          <div className="flex gap-1.5">{JOKER_COUNT_OPTIONS.map(n => (
-            <button key={n} onClick={() => { play('uiSoft'); setJokerCount(n); }} className={`flex-1 px-2 py-2 text-sm rounded ${jokerCount===n ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold' : 'glass text-[var(--gold-dim)]'}`}>{n}</button>
-          ))}</div>
-          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-            {jokerCount === 0 ? 'Standard 52-card deck' : `${jokerCount} wild joker${jokerCount > 1 ? 's' : ''} — can substitute for any card`}
-          </p>
-        </div>
-        </div>{/* end host-left */}
 
-        <div className="host-right">
         <div className="glass px-4 py-3">
           <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">Spectators</p>
           <div className="space-y-2">
@@ -189,8 +200,9 @@ export function HostPage() {
             )}
           </div>
         </div>
-
-        </div>{/* end host-right */}
+        </>
+        )}
+        </div>{/* end host-left */}
       </div>
     </Layout>
   );
