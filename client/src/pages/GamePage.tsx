@@ -334,7 +334,7 @@ export function GamePage() {
     if (!handSelectorOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]') || target.closest('[data-tooltip="quick-draw"]')) return;
+      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="raise-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]') || target.closest('[data-tooltip="quick-draw"]')) return;
       setHandSelectorOpen(false);
     };
     document.addEventListener('mousedown', handleOutside);

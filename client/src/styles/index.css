@@ -2226,10 +2226,10 @@ body {
 /* Poker table surface — stadium/racetrack shape like a real poker table */
 .rt-table {
   position: absolute;
-  top: 6%;
+  top: 10%;
   left: 12%;
   width: 76%;
-  height: 74%;
+  height: 66%;
   background: radial-gradient(ellipse, var(--felt-light) 0%, var(--felt) 70%, var(--felt-dark) 100%);
   border: 3px solid var(--felt-border);
   border-radius: 42% / 50%;
@@ -2259,6 +2259,9 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
 }
 
 /* Right side of center — raise/call/submit buttons */
@@ -2267,6 +2270,9 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
 }
 
 /* Current call badge in the table center */
@@ -2280,6 +2286,7 @@ body {
   border: 1px solid rgba(212, 168, 67, 0.25);
   border-radius: 0.5rem;
   padding: 0.25rem 0.75rem;
+  flex-shrink: 0;
 }
 
 .rt-current-call-label {
@@ -2433,8 +2440,8 @@ body {
 }
 
 .rt-card-back {
-  width: 38px;
-  height: 52px;
+  width: 44px;
+  height: 60px;
   background: linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%);
   border-radius: 3px;
   border: 1px solid #d44;
@@ -2502,7 +2509,7 @@ body {
 
 /* Seat 0 — local player's face-up cards at the bottom-center seat */
 .rt-seat--me-cards {
-  transform: translate(-50%, -60%);
+  transform: translate(-50%, -70%);
   z-index: 3;
 }
 
@@ -2565,8 +2572,8 @@ body {
 /* ── Narrow landscape refinements for roundtable ───── */
 @media (orientation: landscape) and (max-height: 500px) {
   .rt-table {
-    top: 3%;
-    height: 78%;
+    top: 8%;
+    height: 68%;
   }
 
   .rt-avatar {
@@ -2585,8 +2592,8 @@ body {
   }
 
   .rt-card-back {
-    width: 30px;
-    height: 42px;
+    width: 38px;
+    height: 52px;
   }
 
   .rt-avatar--overlap {
@@ -2645,8 +2652,8 @@ body {
   }
 
   .rt-card-back {
-    width: 44px;
-    height: 60px;
+    width: 50px;
+    height: 68px;
   }
 
   .rt-action-chip {

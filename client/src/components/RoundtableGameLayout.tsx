@@ -281,7 +281,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             )}
 
             {!isEliminated && !isSpectator && (
-              <div className="rt-center-right">
+              <div className="rt-center-right" data-tooltip="raise-area">
                 {canRaise && !handSelectorOpen && (
                   <button
                     onClick={onOpenHandSelector}
