@@ -47,6 +47,9 @@ interface RoundtableGameLayoutProps {
   quickDrawEnabled: boolean;
   quickDrawSuggestions: QuickDrawSuggestion[];
 
+  // Call history visibility (controlled from header toggle in landscape)
+  callHistoryVisible: boolean;
+
   // Disconnect deadlines
   disconnectDeadlines?: DisconnectDeadlines;
 
@@ -183,6 +186,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     isMyTurn, isEliminated, isSpectator, isLastChanceCaller, canRaise,
     handSelectorOpen, pendingValid, pendingHand,
     quickDrawOpen, quickDrawEnabled, quickDrawSuggestions,
+    callHistoryVisible,
     disconnectDeadlines,
     onBull, onTrue, onLastChancePass, onActionExpand,
     onOpenHandSelector, onHandSubmit, onHandChange, onQuickRaise,
@@ -349,10 +353,12 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         </div>
       </div>
 
-      {/* Call history — compact panel on the left */}
-      <div className="rt-call-history" data-tooltip="call-history">
-        <CallHistory history={turnHistory} cardCounts={cardCounts} />
-      </div>
+      {/* Call history — compact panel on the left (toggle button is in the header overlay) */}
+      {callHistoryVisible && (
+        <div className="rt-call-history" data-tooltip="call-history">
+          <CallHistory history={turnHistory} cardCounts={cardCounts} forceVisible />
+        </div>
+      )}
 
       {/* Disconnect banners */}
       <DisconnectBanner
