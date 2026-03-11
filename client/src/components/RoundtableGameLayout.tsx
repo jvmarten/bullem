@@ -207,7 +207,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   }, [players, myPlayerId]);
 
   // Use total player count for seat positions (keep stable layout)
-  const playerCount = Math.min(orderedPlayers.length, 9);
+  const playerCount = Math.min(orderedPlayers.length, 12);
 
   const cardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -291,15 +291,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                     {currentHand ? 'Raise' : 'Call'}
                   </button>
                 )}
-                {canRaise && handSelectorOpen && currentHand && (
-                  <button
-                    onClick={onQuickRaise}
-                    className="btn-amber action-btn-base font-bold action-btn-minraise"
-                    title="Auto-raise to the minimum valid hand"
-                  >
-                    min<br />raise
-                  </button>
-                )}
                 {canRaise && handSelectorOpen && (
                   <div className="flex flex-col items-center">
                     <button
@@ -352,11 +343,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
               </div>
               <div className="rt-seat-text">
                 <div className="rt-name rt-name--me">{myPlayer.name}</div>
-                {!myPlayer.isEliminated && (
-                  <div className={`rt-card-count ${myAtMax ? 'rt-card-count--max' : ''}`}>
-                    {myPlayer.cardCount}/{maxCards}
-                  </div>
-                )}
               </div>
             </div>
           )}
