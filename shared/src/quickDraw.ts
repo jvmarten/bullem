@@ -120,16 +120,50 @@ function compareHands(a: HandCall, b: HandCall): number {
   return aRank - bRank;
 }
 
+/** Check if a hand call involves a specific card's rank or suit. */
+function handInvolvesCard(hand: HandCall, card: Card): boolean {
+  switch (hand.type) {
+    case HandType.HIGH_CARD:
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      return hand.rank === card.rank;
+    case HandType.TWO_PAIR:
+      return hand.highRank === card.rank || hand.lowRank === card.rank;
+    case HandType.FLUSH:
+      return hand.suit === card.suit;
+    case HandType.STRAIGHT: {
+      const highVal = RANK_VALUES[hand.highRank];
+      const cardVal = RANK_VALUES[card.rank];
+      return cardVal >= highVal - 4 && cardVal <= highVal;
+    }
+    case HandType.FULL_HOUSE:
+      return hand.threeRank === card.rank || hand.twoRank === card.rank;
+    case HandType.STRAIGHT_FLUSH: {
+      if (hand.suit !== card.suit) return false;
+      const sfHighVal = RANK_VALUES[hand.highRank];
+      const sfCardVal = RANK_VALUES[card.rank];
+      return sfCardVal >= sfHighVal - 4 && sfCardVal <= sfHighVal;
+    }
+    case HandType.ROYAL_FLUSH:
+      return hand.suit === card.suit && RANK_VALUES[card.rank] >= RANK_VALUES['10'];
+  }
+}
+
 /**
  * Generate Quick Draw suggestions based on the player's actual cards and the current call.
  *
  * Returns exactly 3 suggestions sorted weakest to strongest (left to right), except in
  * rare late-game situations where fewer than 3 valid higher hands exist.
  * Every returned suggestion is guaranteed to pass `isHigherHand()` against `currentHand`.
+ *
+ * When `focusCard` is provided, suggestions are biased toward hands that involve
+ * the focused card's rank or suit, while still considering all cards for analysis.
  */
 export function getQuickDrawSuggestions(
   myCards: Card[],
   currentHand: HandCall | null,
+  focusCard?: Card,
 ): QuickDrawSuggestion[] {
   if (myCards.length === 0) return [];
 
@@ -159,6 +193,49 @@ export function getQuickDrawSuggestions(
   // If 3 or fewer unique hands, return all (sorted weakest to strongest)
   if (deduped.length <= 3) {
     return deduped.map(c => ({ hand: c.hand, label: handToString(c.hand), tier: c.tier }));
+  }
+
+  // When a focus card is provided, prefer hands involving that card
+  if (focusCard) {
+    const relevant = deduped.filter(c => handInvolvesCard(c.hand, focusCard));
+    const other = deduped.filter(c => !handInvolvesCard(c.hand, focusCard));
+
+    if (relevant.length >= 3) {
+      // Enough relevant hands — pick weakest, middle, strongest from relevant set
+      const first = relevant[0]!;
+      const last = relevant[relevant.length - 1]!;
+      const mid = relevant[Math.floor(relevant.length / 2)]!;
+      return [
+        { hand: first.hand, label: handToString(first.hand), tier: 'safe' as const },
+        { hand: mid.hand, label: handToString(mid.hand), tier: 'ambitious' as const },
+        { hand: last.hand, label: handToString(last.hand), tier: 'bold' as const },
+      ];
+    }
+
+    if (relevant.length > 0) {
+      // Mix relevant + other to fill 3 slots, preferring relevant hands
+      const picks: typeof deduped = [...relevant];
+      for (const c of other) {
+        if (picks.length >= 3) break;
+        picks.push(c);
+      }
+      picks.sort((a, b) => compareHands(a.hand, b.hand));
+
+      const first = picks[0]!;
+      const last = picks[picks.length - 1]!;
+      const mid = picks.length >= 3 ? picks[Math.floor(picks.length / 2)]! : last;
+      const result: QuickDrawSuggestion[] = [
+        { hand: first.hand, label: handToString(first.hand), tier: 'safe' as const },
+      ];
+      if (mid !== first && mid !== last) {
+        result.push({ hand: mid.hand, label: handToString(mid.hand), tier: 'ambitious' as const });
+      }
+      if (last !== first) {
+        result.push({ hand: last.hand, label: handToString(last.hand), tier: 'bold' as const });
+      }
+      return result;
+    }
+    // No relevant hands — fall through to default selection
   }
 
   // Pick 3 well-distributed options: weakest, middle, strongest

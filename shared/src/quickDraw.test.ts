@@ -127,4 +127,64 @@ describe('getQuickDrawSuggestions', () => {
     const suggestions = getQuickDrawSuggestions(cards, null);
     expect(suggestions.length).toBe(3);
   });
+
+  describe('focusCard parameter', () => {
+    it('biases suggestions toward hands involving the focused card rank', () => {
+      const cards = [card('7', 'hearts'), card('7', 'clubs'), card('K', 'spades'), card('K', 'diamonds'), card('Q', 'hearts')];
+      const focusOn7 = getQuickDrawSuggestions(cards, null, card('7', 'hearts'));
+      const focusOnK = getQuickDrawSuggestions(cards, null, card('K', 'spades'));
+
+      // Focusing on 7 should produce different suggestions than focusing on K
+      const labels7 = focusOn7.map(s => s.label);
+      const labelsK = focusOnK.map(s => s.label);
+      // At least one suggestion should differ
+      expect(labels7).not.toEqual(labelsK);
+
+      // Focusing on 7 should prefer hands with 7s
+      const has7Hand = focusOn7.some(s => {
+        const h = s.hand;
+        return ('rank' in h && h.rank === '7') || ('highRank' in h && h.highRank === '7') || ('lowRank' in h && h.lowRank === '7');
+      });
+      expect(has7Hand).toBe(true);
+    });
+
+    it('biases suggestions toward hands involving the focused card suit', () => {
+      const cards = [card('3', 'spades'), card('8', 'spades'), card('J', 'hearts'), card('Q', 'diamonds')];
+      const focusSpade = getQuickDrawSuggestions(cards, null, card('3', 'spades'));
+
+      // Should include a spades flush suggestion
+      const hasFlush = focusSpade.some(s =>
+        s.hand.type === HandType.FLUSH && (s.hand as { suit: string }).suit === 'spades'
+      );
+      expect(hasFlush).toBe(true);
+    });
+
+    it('still returns valid suggestions when focusCard has no relevant hands', () => {
+      const cards = [card('2', 'hearts'), card('5', 'clubs'), card('9', 'diamonds')];
+      const suggestions = getQuickDrawSuggestions(cards, null, card('2', 'hearts'));
+      expect(suggestions.length).toBeGreaterThan(0);
+      // All should still be valid
+      for (const s of suggestions) {
+        if (s.hand.type !== HandType.HIGH_CARD) {
+          expect(isHigherHand(s.hand, { type: HandType.HIGH_CARD, rank: '2' })).toBe(true);
+        }
+      }
+    });
+
+    it('works the same as no focusCard when focusCard is undefined', () => {
+      const cards = [card('J', 'hearts'), card('J', 'spades')];
+      const withoutFocus = getQuickDrawSuggestions(cards, null);
+      const withUndefined = getQuickDrawSuggestions(cards, null, undefined);
+      expect(withoutFocus).toEqual(withUndefined);
+    });
+
+    it('all suggestions pass isHigherHand against currentHand when focusCard is set', () => {
+      const cards = [card('7', 'hearts'), card('7', 'clubs'), card('K', 'spades')];
+      const currentHand: HandCall = { type: HandType.PAIR, rank: '5' };
+      const suggestions = getQuickDrawSuggestions(cards, currentHand, card('7', 'hearts'));
+      for (const s of suggestions) {
+        expect(isHigherHand(s.hand, currentHand)).toBe(true);
+      }
+    });
+  });
 });
