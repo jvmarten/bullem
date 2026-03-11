@@ -1,7 +1,6 @@
-import { memo, useMemo, useEffect, useRef } from 'react';
-import { handToString, TurnAction } from '@bull-em/shared';
+import { memo, useMemo, useEffect, useRef, useCallback, useState } from 'react';
+import { handToString, TurnAction, RoundPhase } from '@bull-em/shared';
 import type { Player, PlayerId, HandCall, TurnEntry, Card, SpectatorPlayerCards } from '@bull-em/shared';
-import type { RoundPhase } from '@bull-em/shared';
 import type { DisconnectDeadlines } from '../context/GameContext.js';
 import { getSeatPosition } from '../utils/roundtablePositions.js';
 import { playerColor } from '../utils/cardUtils.js';
@@ -14,6 +13,7 @@ import { SpectatorView } from './SpectatorView.js';
 import { QuickDrawChips } from './QuickDrawChips.js';
 import { QuickDrawHint } from './QuickDrawHint.js';
 import { DisconnectBanner } from './DisconnectBanner.js';
+import { useSound } from '../hooks/useSound.js';
 import type { QuickDrawSuggestion } from '@bull-em/shared';
 
 interface RoundtableGameLayoutProps {
@@ -81,6 +81,165 @@ function formatSeatAction(entry: TurnEntry): { text: string; type: 'call' | 'bul
   }
 }
 
+/** SVG circle timer ring around an opponent's avatar in landscape mode.
+ *  Mirrors TileMeter's behavior but uses a circle instead of a rounded rect.
+ *  Updated at 10fps via direct DOM manipulation. */
+const AvatarTimerRing = memo(function AvatarTimerRing({
+  turnDeadline,
+  turnDurationMs,
+}: {
+  turnDeadline: number;
+  turnDurationMs?: number | null;
+}) {
+  const circleRef = useRef<SVGCircleElement>(null);
+
+  useEffect(() => {
+    const total = turnDurationMs != null && turnDurationMs > 0
+      ? turnDurationMs
+      : Math.max(0, turnDeadline - Date.now());
+
+    if (total <= 0) return;
+
+    // Circle circumference: 2 * PI * r. Using r=19 for a 42px viewBox (center 21, radius 19)
+    const circumference = 2 * Math.PI * 19;
+
+    if (circleRef.current) {
+      circleRef.current.style.strokeDasharray = `${circumference} ${circumference}`;
+      circleRef.current.style.strokeDashoffset = '0';
+      circleRef.current.style.stroke = 'var(--gold-dim)';
+    }
+
+    const mountTime = Date.now();
+
+    const update = () => {
+      if (!circleRef.current) return;
+      const elapsed = Date.now() - mountTime;
+      const pct = Math.max(0, 1 - elapsed / total);
+      const offset = circumference * (1 - pct);
+      circleRef.current.style.strokeDasharray = `${circumference} ${circumference}`;
+      circleRef.current.style.strokeDashoffset = String(offset);
+      circleRef.current.style.stroke = pct <= 0.3 ? 'var(--danger)' : 'var(--gold-dim)';
+    };
+
+    update();
+    const interval = setInterval(update, 100);
+    return () => clearInterval(interval);
+  }, [turnDeadline, turnDurationMs]);
+
+  return (
+    <svg className="rt-avatar-timer-ring" viewBox="0 0 42 42" aria-hidden="true">
+      <circle
+        ref={circleRef}
+        cx="21"
+        cy="21"
+        r="19"
+        fill="none"
+        strokeWidth="2.5"
+        stroke="var(--gold-dim)"
+        strokeLinecap="round"
+        transform="rotate(-90 21 21)"
+      />
+    </svg>
+  );
+});
+
+/** Vertical turn timer bar for the player's own turn in landscape mode.
+ *  Runs top-to-bottom on the right edge of the screen, with sound effects
+ *  and screen edge glow matching the portrait TurnIndicator. */
+const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
+  turnDeadline,
+  turnDurationMs,
+  roundPhase,
+  hasCurrentHand,
+}: {
+  turnDeadline: number;
+  turnDurationMs?: number | null;
+  roundPhase: RoundPhase;
+  hasCurrentHand: boolean;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  const lastTickRef = useRef<number | null>(null);
+  const [tickPulse, setTickPulse] = useState(false);
+  const { play } = useSound();
+
+  const isLastChance = roundPhase === RoundPhase.LAST_CHANCE;
+
+  useEffect(() => {
+    const total = turnDurationMs != null && turnDurationMs > 0
+      ? turnDurationMs
+      : Math.max(0, turnDeadline - Date.now());
+
+    lastTickRef.current = null;
+
+    if (barRef.current) {
+      barRef.current.style.height = '100%';
+    }
+    if (glowRef.current) {
+      glowRef.current.style.opacity = '0';
+    }
+
+    if (total <= 0) return;
+
+    const mountTime = Date.now();
+
+    const update = () => {
+      const elapsed = Date.now() - mountTime;
+      const remainingMs = Math.max(0, total - elapsed);
+      const pct = remainingMs / total;
+      const secs = Math.ceil(remainingMs / 1000);
+
+      if (barRef.current) {
+        barRef.current.style.height = `${pct * 100}%`;
+        barRef.current.style.background = pct <= 0.3 ? 'var(--danger)' : 'var(--info)';
+      }
+
+      // Screen edge glow — ramps from 0 to 1 over last 5 seconds
+      if (glowRef.current) {
+        const secsRemaining = remainingMs / 1000;
+        if (secsRemaining <= 5 && secsRemaining > 0) {
+          const intensity = 1 - (secsRemaining / 5);
+          glowRef.current.style.opacity = String(intensity);
+        } else {
+          glowRef.current.style.opacity = '0';
+        }
+      }
+
+      // Play tick + heartbeat each second during last 5 seconds
+      if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
+        lastTickRef.current = secs;
+        play('timerTick');
+        play('heartbeat');
+        setTickPulse(true);
+        setTimeout(() => setTickPulse(false), 300);
+      }
+    };
+
+    update();
+    const interval = setInterval(update, 100);
+    return () => clearInterval(interval);
+  }, [turnDeadline, turnDurationMs, play]);
+
+  return (
+    <>
+      {/* Screen edge glow overlay — same as portrait TurnIndicator */}
+      <div
+        ref={glowRef}
+        className="screen-edge-glow"
+        style={{ opacity: 0 }}
+        aria-hidden="true"
+      />
+      {/* Vertical bar on right edge */}
+      <div className={`rt-turn-timer-track ${isLastChance ? 'rt-turn-timer-track--last-chance' : ''} ${tickPulse ? 'animate-timer-tick' : ''}`}>
+        <div
+          ref={barRef}
+          className="rt-turn-timer-bar"
+        />
+      </div>
+    </>
+  );
+});
+
 /** Mini card-back fan for opponent seats — shows face-down cards matching their card count. */
 const SeatCardBacks = memo(function SeatCardBacks({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -111,6 +270,8 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isMe,
   lastAction,
   isLatestCaller,
+  turnDeadline,
+  turnDurationMs,
 }: {
   player: Player;
   seatIndex: number;
@@ -119,6 +280,8 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isMe: boolean;
   lastAction: TurnEntry | null;
   isLatestCaller: boolean;
+  turnDeadline?: number | null;
+  turnDurationMs?: number | null;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
@@ -141,6 +304,9 @@ const RoundtableSeat = memo(function RoundtableSeat({
             photoUrl={player.photoUrl}
             isBot={player.isBot}
           />
+          {isCurrent && turnDeadline && !player.isEliminated && (
+            <AvatarTimerRing turnDeadline={turnDeadline} turnDurationMs={turnDurationMs} />
+          )}
         </div>
       </div>
 
@@ -172,7 +338,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
  * - Oval table background with opponent seats around it
  * - Seat 0 (bottom center) shows the local player's cards instead of an avatar
  * - Center of table: current call display
- * - No turn indicator — the hand selector auto-opens to signal your turn
+ * - Turn timers: ring around opponent avatars, vertical bar on right edge for own turn
  * - Action buttons + hand selector overlay the bottom area
  * - Call history: compact panel on the left edge
  */
@@ -180,6 +346,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   const {
     players, currentPlayerId, myPlayerId, maxCards,
     roundPhase, currentHand, lastCallerId, myCards, turnHistory,
+    turnDeadline, turnDurationMs,
     spectatorCards,
     isMyTurn, isEliminated, isSpectator, isLastChanceCaller, canRaise,
     handSelectorOpen, pendingValid, pendingHand,
@@ -320,6 +487,8 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             isMe={false}
             lastAction={lastActions[player.id] ?? null}
             isLatestCaller={player.id === latestCallerId}
+            turnDeadline={player.id === currentPlayerId ? turnDeadline : null}
+            turnDurationMs={turnDurationMs}
           />
         ))}
 
@@ -362,6 +531,16 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         players={players}
         disconnectDeadlines={disconnectDeadlines ?? new Map()}
       />
+
+      {/* Player's own turn timer — vertical bar on right edge */}
+      {isMyTurn && turnDeadline && !isEliminated && !isSpectator && roundPhase !== RoundPhase.RESOLVING && (
+        <LandscapeTurnTimer
+          turnDeadline={turnDeadline}
+          turnDurationMs={turnDurationMs ?? undefined}
+          roundPhase={roundPhase}
+          hasCurrentHand={currentHand !== null}
+        />
+      )}
 
       {/* Bottom controls strip — hand selector + quick draw only */}
       <div className="rt-controls">
