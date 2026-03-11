@@ -455,7 +455,7 @@ export function GamePage() {
       >
         Leave
       </button>
-      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">ONLINE</span>
+      <span className="font-mono tracking-wider text-[var(--gold-dim)] text-xs">{gameState.ranked ? 'RANKED' : 'ONLINE'}</span>
     </>
   );
 
@@ -561,7 +561,7 @@ export function GamePage() {
             >
               Leave
             </button>
-            <span className="font-mono tracking-wider text-[var(--gold-dim)]">ONLINE</span>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">{gameState.ranked ? 'RANKED' : 'ONLINE'}</span>
           </div>
         </div>
 
