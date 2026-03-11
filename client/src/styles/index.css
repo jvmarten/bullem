@@ -2515,6 +2515,18 @@ body {
   z-index: 3;
 }
 
+/* Quick Draw suggestions — positioned above the player's cards at seat 0 */
+.rt-quick-draw-above {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 90vw;
+  z-index: 6;
+  padding-bottom: 0.25rem;
+}
+
 /* Call history — scrollable panel on the left edge */
 .rt-call-history {
   position: absolute;
