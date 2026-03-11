@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout.js';
 import { PlayerList } from '../components/PlayerList.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
-import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, MIN_MAX_CARDS, DECK_SIZE, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, BotDifficulty, MAX_CARDS, maxPlayersForMaxCards, TURN_TIMER_OPTIONS, BotSpeed, pickRandomBot, IMPOSSIBLE_BOT, BEST_OF_OPTIONS, DEFAULT_BEST_OF, JOKER_COUNT_OPTIONS, DEFAULT_JOKER_COUNT } from '@bull-em/shared';
 import type { BotLevelCategory, BestOf, JokerCount } from '@bull-em/shared';
 import type { Player } from '@bull-em/shared';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -13,6 +13,17 @@ import { useSound } from '../hooks/useSound.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
 import { useUISettings, loadMatchSettings, saveMatchSettings } from '../components/VolumeControl.js';
 import { isFirstGame } from '../utils/tutorialProgress.js';
+
+const BOT_LEVEL_DESCRIPTIONS: Record<BotLevelCategory, string> = {
+  easy: 'Levels 1-3 — beginner bots',
+  normal: 'Levels 4-6 — standard difficulty',
+  hard: 'Levels 7-9 — expert bots',
+  mixed: 'Levels 1-9 — all skill levels',
+};
+
+function botLevelDescription(category: BotLevelCategory): string {
+  return BOT_LEVEL_DESCRIPTIONS[category];
+}
 
 export function LocalLobbyPage() {
   const navigate = useNavigate();
@@ -368,10 +379,7 @@ export function LocalLobbyPage() {
               ))}
             </div>
             <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              {(gameSettings.botLevelCategory ?? 'mixed') === 'easy' ? 'Levels 1-3 — beginner bots' :
-               (gameSettings.botLevelCategory ?? 'mixed') === 'normal' ? 'Levels 4-6 — standard difficulty' :
-               (gameSettings.botLevelCategory ?? 'mixed') === 'hard' ? 'Levels 7-9 — expert bots' :
-               'Levels 1-9 — all skill levels'}
+              {botLevelDescription(gameSettings.botLevelCategory ?? 'mixed')}
             </p>
           </div>
         )}
@@ -507,7 +515,9 @@ export function LocalLobbyPage() {
           )}
 
           {/* The Oracle — toggle to add/remove the all-seeing impossible bot */}
-          {impossibleEnabled && (
+          {impossibleEnabled && (() => {
+            const oracleBot = roomState?.players.find(p => p.name === IMPOSSIBLE_BOT.name);
+            return (
             <div className="glass px-4 py-3">
               <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
                 The Oracle
@@ -517,35 +527,34 @@ export function LocalLobbyPage() {
                 <button
                   onClick={() => {
                     play('uiSoft');
-                    const hasOracle = roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name);
-                    if (hasOracle) {
-                      const oracleBot = roomState?.players.find(p => p.name === IMPOSSIBLE_BOT.name);
-                      if (oracleBot) removeBot(oracleBot.id);
+                    if (oracleBot) {
+                      removeBot(oracleBot.id);
                       setBotDifficulty?.(BotDifficulty.HARD);
                     } else {
                       addBot(IMPOSSIBLE_BOT.name).catch(() => {});
                       setBotDifficulty?.(BotDifficulty.IMPOSSIBLE);
                     }
                   }}
-                  disabled={!roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) && playerCount >= dynamicMaxPlayers}
+                  disabled={!oracleBot && playerCount >= dynamicMaxPlayers}
                   className={`w-11 h-6 rounded-full transition-colors relative border ${
-                    roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                    oracleBot
                       ? 'bg-[var(--gold)] border-[var(--gold)]'
                       : 'bg-[rgba(255,255,255,0.1)] border-[rgba(255,255,255,0.3)]'
                   }`}
                 >
                   <span className={`absolute left-0 top-[3px] w-[18px] h-[18px] rounded-full transition-transform bg-white shadow-sm ${
-                    roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name) ? 'translate-x-[23px]' : 'translate-x-[2px]'
+                    oracleBot ? 'translate-x-[23px]' : 'translate-x-[2px]'
                   }`} />
                 </button>
               </label>
               <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-                {roomState?.players.some(p => p.name === IMPOSSIBLE_BOT.name)
+                {oracleBot
                   ? 'Sees all cards. Perfect play. Only one per match.'
                   : 'All-seeing bot — knows every card in play'}
               </p>
             </div>
-          )}
+            );
+          })()}
           </>
         )}
         </div>{/* end lobby-right */}

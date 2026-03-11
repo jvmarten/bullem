@@ -38,39 +38,15 @@ import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
+import { SeriesBanner } from '../components/SeriesBanner.js';
 
-function SeriesBanner({ seriesInfo, players, playerId }: {
-  seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
-  players: { id: string; name: string }[];
-  playerId: string | null;
-}) {
-  const playerIds = Object.keys(seriesInfo.wins);
-  const getLabel = (pid: string) => {
-    if (pid === playerId) return 'You';
-    return players.find(p => p.id === pid)?.name ?? '?';
-  };
+/** Tooltip areas that should suppress "tap outside to close" for the hand selector */
+const HAND_SELECTOR_AREAS = ['hand-selector', 'action-area', 'raise-area', 'my-cards', 'call-history', 'quick-draw'] as const;
+/** Tooltip areas that should suppress "tap outside to close" for quick draw */
+const QUICK_DRAW_AREAS = ['quick-draw', 'my-cards', 'action-area'] as const;
 
-  return (
-    <div
-      className="glass flex items-center justify-center gap-3 py-1 px-3 text-xs"
-      style={{ borderBottom: '1px solid rgba(212,168,67,0.15)' }}
-    >
-      <span className="text-[var(--gold-dim)] uppercase tracking-widest font-semibold text-[10px]">
-        Bo{seriesInfo.bestOf}
-      </span>
-      <span className="text-[var(--gold-dim)]">|</span>
-      <span className="text-[var(--gold-dim)]">Set {seriesInfo.currentSet}</span>
-      <span className="text-[var(--gold-dim)]">|</span>
-      {playerIds.map((pid, i) => (
-        <span key={pid} className="text-[var(--gold)]">
-          {i > 0 && <span className="text-[var(--gold-dim)] mx-1">-</span>}
-          <span className={pid === playerId ? 'font-bold' : ''}>{getLabel(pid)}</span>
-          {' '}
-          <span className="font-mono font-bold">{seriesInfo.wins[pid] ?? 0}</span>
-        </span>
-      ))}
-    </div>
-  );
+function isInsideTooltipArea(target: HTMLElement, areas: readonly string[]): boolean {
+  return areas.some(area => target.closest(`[data-tooltip="${area}"]`) !== null);
 }
 
 function TransitionOverlay({ deadline }: { deadline: number | null }) {
@@ -338,7 +314,7 @@ export function GamePage() {
     if (!handSelectorOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-tooltip="hand-selector"]') || target.closest('[data-tooltip="action-area"]') || target.closest('[data-tooltip="raise-area"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="call-history"]') || target.closest('[data-tooltip="quick-draw"]')) return;
+      if (isInsideTooltipArea(target, HAND_SELECTOR_AREAS)) return;
       setHandSelectorOpen(false);
     };
     document.addEventListener('mousedown', handleOutside);
@@ -354,7 +330,7 @@ export function GamePage() {
     if (!quickDrawOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="action-area"]')) return;
+      if (isInsideTooltipArea(target, QUICK_DRAW_AREAS)) return;
       setQuickDrawOpen(false);
       setTappedCard(null);
     };
@@ -587,7 +563,7 @@ export function GamePage() {
 
         {/* Series banner — shows best-of info, set number, and series score */}
         {seriesInfo && seriesInfo.bestOf > 1 && (
-          <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} />
+          <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} className="glass" />
         )}
 
         {/* Floating spectator pill — unobtrusive indicator at top of screen.
