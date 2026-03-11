@@ -71,8 +71,13 @@ function serializeEntry(entry: QueueEntry): string {
   return JSON.stringify(entry);
 }
 
-function deserializeEntry(raw: string): QueueEntry {
-  return JSON.parse(raw) as QueueEntry;
+function deserializeEntry(raw: string): QueueEntry | null {
+  try {
+    return JSON.parse(raw) as QueueEntry;
+  } catch {
+    logger.warn({ raw }, 'matchmaking: failed to deserialize queue entry');
+    return null;
+  }
 }
 
 /**
@@ -225,7 +230,7 @@ export class MatchmakingQueue {
       const members = await this.redis.zrange(queueKey(mode), 0, -1);
       for (const raw of members) {
         const entry = deserializeEntry(raw);
-        if (entry.userId === userId) {
+        if (entry?.userId === userId) {
           await this.redis.zrem(queueKey(mode), raw);
           break;
         }
@@ -283,7 +288,8 @@ export class MatchmakingQueue {
     // Parse entries with their ratings
     const entries: QueueEntry[] = [];
     for (let i = 0; i < members.length; i += 2) {
-      entries.push(deserializeEntry(members[i]!));
+      const entry = deserializeEntry(members[i]!);
+      if (entry) entries.push(entry);
     }
     // entries are sorted by rating (ascending) since Redis ZRANGE is ascending
 
@@ -343,7 +349,8 @@ export class MatchmakingQueue {
     // Parse entries
     const entries: QueueEntry[] = [];
     for (let i = 0; i < members.length; i += 2) {
-      entries.push(deserializeEntry(members[i]!));
+      const entry = deserializeEntry(members[i]!);
+      if (entry) entries.push(entry);
     }
 
     if (entries.length < MATCHMAKING_MULTIPLAYER_MIN) {
@@ -438,7 +445,7 @@ export class MatchmakingQueue {
       const members = await this.redis.zrange(redisKey, 0, -1);
       for (const raw of members) {
         const parsed = deserializeEntry(raw);
-        if (parsed.userId === entry.userId) {
+        if (parsed?.userId === entry.userId) {
           await this.redis.zrem(redisKey, raw);
           break;
         }
@@ -519,7 +526,7 @@ export class MatchmakingQueue {
     const members = await this.redis.zrange(redisKey, 0, -1);
     for (const raw of members) {
       const parsed = deserializeEntry(raw);
-      if (parsed.userId === player.userId) {
+      if (parsed?.userId === player.userId) {
         await this.redis.zrem(redisKey, raw);
         break;
       }
@@ -603,7 +610,7 @@ export class MatchmakingQueue {
       const members = await this.redis.zrange(redisKey, 0, -1);
       for (const raw of members) {
         const parsed = deserializeEntry(raw);
-        if (parsed.userId === entry.userId) {
+        if (parsed?.userId === entry.userId) {
           await this.redis.zrem(redisKey, raw);
           break;
         }
@@ -771,7 +778,7 @@ export class MatchmakingQueue {
     const members = await this.redis.zrange(key, 0, -1);
     if (members.length === 0) return;
 
-    const entries = members.map(deserializeEntry);
+    const entries = members.map(deserializeEntry).filter((e): e is QueueEntry => e !== null);
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]!;

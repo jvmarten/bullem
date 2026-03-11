@@ -14,7 +14,7 @@ import type { MatchmakingQueue } from '../matchmaking/MatchmakingQueue.js';
 import type { InMemoryMatchmakingQueue } from '../dev/InMemoryMatchmakingQueue.js';
 import { broadcastRoomState, broadcastGameState, broadcastPlayerNames } from './broadcast.js';
 import { beginRoundResultPhase, checkRoundContinueComplete, handleSetOver } from './roundTransition.js';
-import { createChildLogger } from '../logger.js';
+import logger, { createChildLogger } from '../logger.js';
 import { runWithCorrelation, generateCorrelationId } from '../correlationContext.js';
 import { socketEventsTotal, socketErrorsTotal, rateLimitRejectsTotal } from '../metrics.js';
 import type { RateLimiter } from '../rateLimit.js';
@@ -66,12 +66,12 @@ function attachRateLimiter(
             return;
           }
           next();
-        }).catch(() => next()); // On error, allow the action (fail-open)
+        }).catch((err: unknown) => { logger.warn({ err }, 'rate limiter cooldown check failed (fail-open)'); next(); });
         return;
       }
 
       next();
-    }).catch(() => next()); // On error, allow the event (fail-open)
+    }).catch((err: unknown) => { logger.warn({ err }, 'rate limiter window check failed (fail-open)'); next(); });
   });
 }
 

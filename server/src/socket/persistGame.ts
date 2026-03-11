@@ -194,8 +194,8 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
                 players: matchPlayers,
               });
             })
-            .catch(() => {
-              // Errors already logged inside updateRatingsAfterGame / persistRankedMatch
+            .catch((err: unknown) => {
+              logger.error({ err, gameId }, 'Failed to update ratings or persist ranked match');
             });
         }
       }
