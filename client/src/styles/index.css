@@ -3269,37 +3269,36 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Reduced Motion — disable dealing/reveal animations
+   Reduced Motion — accessibility for motion-sensitive users
+   Disables or simplifies all CSS animations and transitions.
    ═══════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
-  .rt-flying-card,
-  .rt-reveal-card--flipping,
-  .rt-reveal-card--hand-glow,
-  .rt-reveal-card--dimmed,
-  .rt-dealing-deck {
-    animation: none !important;
-    transition: none !important;
+  /* Global: kill all animations and non-essential transitions */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
+
+  /* Card dealing / reveal overlays — hide entirely */
+  .rt-dealing-overlay,
+  .rt-reveal-overlay .rt-reveal-card--flipping {
+    display: none;
+  }
+
+  /* Flying cards — snap to final position */
   .rt-flying-card {
     left: var(--fly-end-x, 50%) !important;
     top: var(--fly-end-y, 50%) !important;
     opacity: 0 !important;
   }
-  .rt-flying-card--landed {
-    animation: none !important;
-  }
+
+  /* Reveal cards — show face immediately without flip */
   .rt-reveal-card-flipper {
     transform: rotateY(0deg) !important;
-    transition: none !important;
-    animation: none !important;
-  }
-  .rt-dealing-overlay,
-  .rt-reveal-overlay .rt-reveal-card--flipping {
-    display: none;
-  }
-  /* Just show the result immediately */
-  .rt-reveal-result {
-    animation: none !important;
   }
 }
