@@ -1299,6 +1299,7 @@ body {
   border: 1.5px solid #d44;
   border-radius: 5px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  position: relative;
 }
 .deck-card-back::after {
   content: '';

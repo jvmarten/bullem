@@ -280,6 +280,13 @@ export function FiveDrawPage() {
     const state = engine.getClientState(DEALER_ID);
     const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.NORMAL);
 
+    // Play appropriate sound for dealer action
+    switch (decision.action) {
+      case 'call': case 'lastChanceRaise': play('callMade'); break;
+      case 'bull': play('bullCalled'); break;
+      case 'true': play('trueCalled'); break;
+    }
+
     let result: TurnResult;
     switch (decision.action) {
       case 'call': result = engine.handleCall(DEALER_ID, decision.hand); break;
@@ -294,7 +301,7 @@ export function FiveDrawPage() {
       if (result.type === 'error') result = engine.handleLastChancePass(DEALER_ID);
     }
     if (result.type !== 'error') handleTurnResultRef.current(result);
-  }, []);
+  }, [play]);
 
   // === Finalize game ===
   const finalizeGame = useCallback((winner: 'player' | 'dealer') => {
@@ -424,24 +431,27 @@ export function FiveDrawPage() {
   // === Player actions ===
   const callHand = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
+    play('callMade');
     handleTurnResult(engineRef.current.handleCall(PLAYER_ID, hand));
-  }, [handleTurnResult]);
+  }, [handleTurnResult, play]);
 
   const callBull = useCallback(() => {
     if (!engineRef.current) return;
+    play('bullCalled');
     handleTurnResult(engineRef.current.handleBull(PLAYER_ID));
-  }, [handleTurnResult]);
+  }, [handleTurnResult, play]);
 
   const callTrue = useCallback(() => {
     if (!engineRef.current) return;
-    play('uiClick');
+    play('trueCalled');
     handleTurnResult(engineRef.current.handleTrue(PLAYER_ID));
   }, [handleTurnResult, play]);
 
   const lastChanceRaise = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
+    play('callMade');
     handleTurnResult(engineRef.current.handleLastChanceRaise(PLAYER_ID, hand));
-  }, [handleTurnResult]);
+  }, [handleTurnResult, play]);
 
   const lastChancePass = useCallback(() => {
     if (!engineRef.current) return;
