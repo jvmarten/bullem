@@ -2244,6 +2244,9 @@ body {
   gap: 1.5rem;
   max-width: 80%;
   text-align: center;
+  position: relative;
+  z-index: 10;
+  transform: translateY(12px);
 }
 
 /* Left side of center — bull/true/pass buttons */
@@ -2252,8 +2255,8 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 0 0 auto;
-  min-width: 7.5rem;
+  flex: 0 0 9rem;
+  width: 9rem;
   justify-content: center;
 }
 
@@ -2263,8 +2266,8 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 0 0 auto;
-  min-width: 7.5rem;
+  flex: 0 0 9rem;
+  width: 9rem;
   justify-content: center;
 }
 
@@ -2311,7 +2314,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 0px;
   z-index: 2;
   transition: opacity 0.3s ease;
 }
@@ -2348,7 +2351,7 @@ body {
 }
 
 .rt-avatar--overlap {
-  margin-top: -14px;
+  margin-top: -32px;
   z-index: 1;
 }
 
@@ -2622,7 +2625,7 @@ body {
   }
 
   .rt-avatar--overlap {
-    margin-top: -12px;
+    margin-top: -26px;
   }
 
   .rt-action-chip {
@@ -2676,7 +2679,7 @@ body {
 }
 
 .rt-table-area--crowded .rt-avatar--overlap {
-  margin-top: -10px;
+  margin-top: -24px;
 }
 
 .rt-table-area--crowded .rt-name {
@@ -2705,7 +2708,7 @@ body {
   }
 
   .rt-avatar--overlap {
-    margin-top: -18px;
+    margin-top: -36px;
   }
 
   .rt-name {
