@@ -111,14 +111,66 @@ function StaticCardRow({ cards, label }: { cards: Card[]; label: string }) {
 }
 
 /** A row of 5 face-down cards. */
-function FaceDownRow({ label, count = 5 }: { label: string; count?: number }) {
+function FaceDownRow({ label, count = 5, dealtCount }: { label: string; count?: number; dealtCount?: number }) {
+  const showAll = dealtCount === undefined;
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-[10px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">{label}</span>
       <div className="flex gap-1 justify-center">
         {Array.from({ length: count }, (_, i) => (
-          <div key={i} className="deck-card-back" style={{ width: '42px', height: '58px' }} />
+          <div
+            key={i}
+            className="deck-card-back"
+            style={{
+              width: '42px', height: '58px',
+              opacity: showAll || i < (dealtCount ?? 0) ? 1 : 0,
+              transform: showAll || i < (dealtCount ?? 0) ? 'scale(1)' : 'scale(0.8) translateY(-10px)',
+              transition: 'opacity 0.25s ease-out, transform 0.25s ease-out',
+            }}
+          />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** Player cards that deal face-down then flip face-up with uniform timing. */
+function PlayerDealRevealRow({ cards, dealtCount, revealedCount, label }: { cards: Card[]; dealtCount: number; revealedCount: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[10px] text-[var(--gold-dim)] uppercase tracking-wider font-semibold">{label}</span>
+      <div className="flex gap-1 justify-center">
+        {cards.map((card, i) => {
+          const isDealt = i < dealtCount;
+          const isRevealed = i < revealedCount;
+          return (
+            <div
+              key={i}
+              style={{
+                perspective: '600px', width: '42px', height: '58px',
+                opacity: isDealt ? 1 : 0,
+                transform: isDealt ? 'scale(1)' : 'scale(0.8) translateY(-10px)',
+                transition: 'opacity 0.25s ease-out, transform 0.25s ease-out',
+              }}
+            >
+              <div
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: `rotateY(${isRevealed ? 180 : 0}deg)`,
+                  transition: 'transform 0.6s ease-out',
+                  width: '42px', height: '58px', position: 'relative',
+                }}
+              >
+                {/* Back face */}
+                <div className="deck-card-back" style={{ position: 'absolute', top: 0, left: 0, width: '42px', height: '58px', backfaceVisibility: 'hidden' }} />
+                {/* Front face */}
+                <div style={{ position: 'absolute', top: 0, left: 0, backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                  <FaceUpCard card={card} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -182,6 +234,10 @@ export function FiveDrawPage() {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [gameWinner, setGameWinner] = useState<'player' | 'dealer' | null>(null);
+
+  // === Deal-in animation (start of game) ===
+  const [dealDealtCount, setDealDealtCount] = useState(0);
+  const [dealRevealedCount, setDealRevealedCount] = useState(0);
 
   // === Dealer reveal animation (resolution phase) ===
   const [dealerCards, setDealerCards] = useState<Card[]>([]);
@@ -418,14 +474,39 @@ export function FiveDrawPage() {
     setPendingValid(false);
     setDealerCards([]);
     setDealerRevealCount(0);
+    setDealDealtCount(0);
+    setDealRevealedCount(0);
 
-    // Skip dealing animation — go straight to playing with cards visible
-    setPhase('playing');
+    // Deal-in animation: cards deal face-down then flip face-up
+    setPhase('dealing');
     broadcastState();
+    clearAnimTimers();
 
-    // Brief delay before bot can act (so player sees the initial state)
-    setTimeout(() => scheduleBotTurn(), 600);
-  }, [canWager, wager, user, addToast, broadcastState, scheduleBotTurn, play]);
+    // Deal cards one by one face-down (150ms apart)
+    for (let i = 0; i < 5; i++) {
+      scheduleAnim(() => {
+        play('cardDeal');
+        setDealDealtCount(i + 1);
+      }, i * 150);
+    }
+
+    // After all dealt, reveal player cards face-up with uniform timing (500ms apart)
+    const dealDone = 5 * 150 + 200;
+    const revealDelays = [0, 500, 1000, 1500, 2000];
+    for (let i = 0; i < 5; i++) {
+      scheduleAnim(() => {
+        play('cardReveal');
+        setDealRevealedCount(i + 1);
+      }, dealDone + revealDelays[i]!);
+    }
+
+    // Transition to playing after all cards revealed
+    const totalDealTime = dealDone + revealDelays[4]! + 800;
+    scheduleAnim(() => {
+      setPhase('playing');
+      scheduleBotTurn();
+    }, totalDealTime);
+  }, [canWager, wager, user, addToast, broadcastState, scheduleBotTurn, play, clearAnimTimers, scheduleAnim]);
 
   // === Player actions ===
   const callHand = useCallback((hand: HandCall) => {
@@ -507,6 +588,8 @@ export function FiveDrawPage() {
     setGameWinner(null);
     setDealerCards([]);
     setDealerRevealCount(0);
+    setDealDealtCount(0);
+    setDealRevealedCount(0);
     engineRef.current = null;
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     clearAnimTimers();
@@ -612,6 +695,30 @@ export function FiveDrawPage() {
           <Link to="/" className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-8">
             Back to Home
           </Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  // --- Dealing Phase (cards deal face-down then flip face-up) ---
+  if (phase === 'dealing' && gameState) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center gap-3 pt-2 max-w-md mx-auto pb-4">
+          {/* Balance bar */}
+          <div className="glass rounded-xl px-4 py-1.5 w-full">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)]">5 Draw</span>
+              <span className="text-xs font-bold text-[var(--gold)]">Wager: {formatNumber(wager)}</span>
+              <span className="text-xs text-[var(--gold-dim)]">Bal: {formatNumber(balance)}</span>
+            </div>
+          </div>
+
+          {/* Dealer's cards (deal face-down) */}
+          <FaceDownRow label="Dealer" dealtCount={dealDealtCount} />
+
+          {/* Player's cards (deal face-down then flip face-up) */}
+          <PlayerDealRevealRow cards={gameState.myCards} dealtCount={dealDealtCount} revealedCount={dealRevealedCount} label="You" />
         </div>
       </Layout>
     );
