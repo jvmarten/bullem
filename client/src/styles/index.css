@@ -2919,3 +2919,285 @@ body {
   white-space: nowrap;
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════════════════
+   Roundtable Dealing Animation
+   ═══════════════════════════════════════════════════════ */
+
+.rt-dealing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15; /* above table (z-10), below controls (z-45) */
+  pointer-events: none;
+}
+
+/* Deck in center of the table */
+.rt-dealing-deck {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 16;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.rt-dealing-deck--fade {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.85);
+}
+
+.rt-dealing-deck-stack {
+  position: relative;
+  width: 48px;
+  height: 64px;
+}
+.rt-dealing-deck-card {
+  position: absolute;
+  inset: 0;
+  width: 48px;
+  height: 64px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Flying card — animates from deck center to seat position */
+.rt-flying-card {
+  position: absolute;
+  z-index: 17;
+  animation: rt-card-fly var(--fly-duration, 350ms) cubic-bezier(0.22, 0.68, 0.35, 1.0) forwards;
+  /* Start at deck center */
+  left: var(--fly-start-x, 50%);
+  top: var(--fly-start-y, 44%);
+  transform: translate(-50%, -50%) scale(0.7);
+}
+.rt-flying-card--landed {
+  animation: none;
+  left: var(--fly-end-x, 50%);
+  top: var(--fly-end-y, 50%);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.rt-flying-card-face {
+  transform: scale(0.85);
+}
+.rt-flying-card-back {
+  width: 44px;
+  height: 60px;
+}
+
+@keyframes rt-card-fly {
+  0% {
+    left: var(--fly-start-x, 50%);
+    top: var(--fly-start-y, 44%);
+    transform: translate(-50%, -50%) scale(0.6) rotate(-8deg);
+    opacity: 1;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    left: var(--fly-end-x, 50%);
+    top: var(--fly-end-y, 50%);
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Roundtable Reveal Animation
+   ═══════════════════════════════════════════════════════ */
+
+.rt-reveal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  background: rgba(5, 20, 10, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.rt-reveal-header {
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  text-align: center;
+}
+.rt-reveal-hand-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--gold);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  padding: 0.375rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(212, 168, 67, 0.3);
+}
+
+/* Center glow where hand cards collect */
+.rt-reveal-center-glow {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(212, 168, 67, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 19;
+  animation: rt-glow-pulse 1.5s ease-in-out infinite;
+}
+@keyframes rt-glow-pulse {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* Individual reveal card */
+.rt-reveal-card {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* Card starting at its seat position */
+.rt-reveal-card--revealing {
+  left: var(--seat-x);
+  top: var(--seat-y);
+  transform: translate(-50%, -50%) scale(0.9);
+  animation: rt-card-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Card that is NOT part of the hand — burn effect */
+.rt-reveal-card--burned.rt-reveal-card--burn {
+  left: var(--seat-x);
+  top: var(--seat-y);
+  transform: translate(-50%, -50%);
+  animation: rt-card-burn var(--fly-duration, 400ms) ease-out forwards;
+}
+
+/* Card that IS part of the hand — fly to center */
+.rt-reveal-card--collected.rt-reveal-card--hand {
+  animation: rt-card-collect var(--fly-duration, 400ms) cubic-bezier(0.22, 0.68, 0.35, 1.0) forwards;
+  left: var(--seat-x);
+  top: var(--seat-y);
+}
+
+.rt-reveal-card-inner {
+  transform: scale(0.85);
+}
+
+@keyframes rt-card-appear {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5) rotateY(180deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.9) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes rt-card-burn {
+  0% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 1;
+    filter: brightness(1);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 1;
+    filter: brightness(1.3) saturate(0.5);
+    box-shadow: 0 0 12px rgba(220, 53, 69, 0.6);
+  }
+  100% {
+    transform: translate(-50%, -60%) scale(0.6);
+    opacity: 0;
+    filter: brightness(0.3) saturate(0);
+    box-shadow: 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+@keyframes rt-card-collect {
+  0% {
+    left: var(--seat-x);
+    top: var(--seat-y);
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    left: var(--center-x);
+    top: var(--center-y);
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 16px var(--gold-glow);
+  }
+}
+
+/* Result banner in center */
+.rt-reveal-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 22;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rt-reveal-result-text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  padding: 0.75rem 2rem;
+  border-radius: 0.75rem;
+  border: 2px solid;
+  backdrop-filter: blur(8px);
+}
+.rt-reveal-result--exists {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info);
+}
+.rt-reveal-result--fake {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.rt-reveal-continue {
+  padding: 0.5rem 2rem;
+  font-size: 0.9rem;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Reduced Motion — disable dealing/reveal animations
+   ═══════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-flying-card,
+  .rt-reveal-card--revealing,
+  .rt-reveal-card--burned,
+  .rt-reveal-card--collected,
+  .rt-reveal-center-glow,
+  .rt-dealing-deck {
+    animation: none !important;
+    transition: none !important;
+  }
+  .rt-flying-card {
+    left: var(--fly-end-x, 50%) !important;
+    top: var(--fly-end-y, 50%) !important;
+    opacity: 0 !important;
+  }
+  .rt-dealing-overlay,
+  .rt-reveal-overlay .rt-reveal-card {
+    display: none;
+  }
+  /* Just show the result immediately */
+  .rt-reveal-result {
+    animation: none !important;
+  }
+}
