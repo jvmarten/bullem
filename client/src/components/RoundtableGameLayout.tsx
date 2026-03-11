@@ -1,5 +1,5 @@
 import { memo, useMemo, useEffect, useRef } from 'react';
-import { handToString } from '@bull-em/shared';
+import { handToString, TurnAction } from '@bull-em/shared';
 import type { Player, PlayerId, HandCall, TurnEntry, Card, SpectatorPlayerCards } from '@bull-em/shared';
 import type { RoundPhase } from '@bull-em/shared';
 import type { DisconnectDeadlines } from '../context/GameContext.js';
@@ -65,7 +65,43 @@ interface RoundtableGameLayoutProps {
   onPlayerClick?: (player: Player) => void;
 }
 
-/** Player seat around the roundtable — shows avatar, name, card count, and turn highlight. */
+/** Format a TurnEntry action into a short display string. */
+function formatSeatAction(entry: TurnEntry): { text: string; type: 'call' | 'bull' | 'true' | 'pass' } {
+  switch (entry.action) {
+    case TurnAction.CALL:
+    case TurnAction.LAST_CHANCE_RAISE:
+      return { text: entry.hand ? handToString(entry.hand) : 'calls', type: 'call' };
+    case TurnAction.BULL:
+      return { text: 'BULL', type: 'bull' };
+    case TurnAction.TRUE:
+      return { text: 'TRUE', type: 'true' };
+    case TurnAction.LAST_CHANCE_PASS:
+      return { text: 'pass', type: 'pass' };
+  }
+}
+
+/** Mini card-back fan for opponent seats — shows face-down cards matching their card count. */
+const SeatCardBacks = memo(function SeatCardBacks({ count }: { count: number }) {
+  if (count <= 0) return null;
+  const cards = [];
+  for (let i = 0; i < count; i++) {
+    const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 8;
+    cards.push(
+      <div
+        key={i}
+        className="rt-card-back"
+        style={{
+          transform: `rotate(${angle}deg)`,
+          marginLeft: i > 0 ? '-6px' : undefined,
+          zIndex: i,
+        }}
+      />,
+    );
+  }
+  return <div className="rt-card-backs-fan">{cards}</div>;
+});
+
+/** Player seat around the roundtable — poker-style with card backs, avatar, name, and action chip. */
 const RoundtableSeat = memo(function RoundtableSeat({
   player,
   seatIndex,
@@ -73,6 +109,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isCurrent,
   isMe,
   maxCards,
+  lastAction,
 }: {
   player: Player;
   seatIndex: number;
@@ -80,36 +117,53 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isCurrent: boolean;
   isMe: boolean;
   maxCards: number;
+  lastAction: TurnEntry | null;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
   const atMax = player.cardCount >= maxCards && !player.isEliminated;
+  const action = lastAction ? formatSeatAction(lastAction) : null;
 
   return (
     <div
       className={`rt-seat ${isCurrent ? 'rt-seat--active' : ''} ${player.isEliminated ? 'rt-seat--eliminated' : ''}`}
       style={{ top: pos.top, left: pos.left }}
     >
-      {/* Avatar */}
-      <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''}`}>
-        <PlayerAvatarContent
-          name={player.name}
-          avatar={player.avatar}
-          photoUrl={player.photoUrl}
-          isBot={player.isBot}
-        />
-      </div>
-      {/* Name + card count */}
-      <div className={`rt-name ${isMe ? 'rt-name--me' : ''}`}>
-        {isMe ? 'You' : player.name}
-      </div>
+      {/* Card backs — shown above the seat info */}
       {!player.isEliminated && (
-        <div className={`rt-card-count ${atMax ? 'rt-card-count--max' : ''}`}>
-          {player.cardCount}{maxCards > 0 ? `/${maxCards}` : ''}
-        </div>
+        <SeatCardBacks count={player.cardCount} />
       )}
-      {player.isEliminated && (
-        <div className="rt-eliminated-badge">OUT</div>
+
+      {/* Avatar + name row */}
+      <div className="rt-seat-info">
+        <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''}`}>
+          <PlayerAvatarContent
+            name={player.name}
+            avatar={player.avatar}
+            photoUrl={player.photoUrl}
+            isBot={player.isBot}
+          />
+        </div>
+        <div className="rt-seat-text">
+          <div className={`rt-name ${isMe ? 'rt-name--me' : ''}`}>
+            {isMe ? 'You' : player.name}
+          </div>
+          {!player.isEliminated && (
+            <div className={`rt-card-count ${atMax ? 'rt-card-count--max' : ''}`}>
+              {player.cardCount}/{maxCards}
+            </div>
+          )}
+          {player.isEliminated && (
+            <div className="rt-eliminated-badge">OUT</div>
+          )}
+        </div>
+      </div>
+
+      {/* Last action chip — floats near the seat toward the table center */}
+      {action && !player.isEliminated && (
+        <div className={`rt-action-chip rt-action-chip--${action.type}`}>
+          {action.text}
+        </div>
       )}
     </div>
   );
@@ -167,12 +221,23 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     return counts;
   }, [players]);
 
+  // Compute last action per player from turn history
+  const lastActions = useMemo(() => {
+    const actions: Record<string, TurnEntry> = {};
+    for (const entry of turnHistory) {
+      actions[entry.playerId] = entry;
+    }
+    return actions;
+  }, [turnHistory]);
+
   const callerName = lastCallerId
     ? players.find(p => p.id === lastCallerId)?.name ?? '?'
     : null;
 
   // Seat 0 position for placing the player's own cards
   const mySeatPos = getSeatPosition(playerCount, 0);
+  const myPlayer = orderedPlayers[0];
+  const myAtMax = myPlayer ? myPlayer.cardCount >= maxCards && !myPlayer.isEliminated : false;
 
   return (
     <div className="rt-layout">
@@ -206,19 +271,40 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             isCurrent={player.id === currentPlayerId}
             isMe={false}
             maxCards={maxCards}
+            lastAction={lastActions[player.id] ?? null}
           />
         ))}
 
-        {/* Seat 0: local player's cards placed at the bottom-center seat position */}
-        {!isEliminated && !isSpectator && (
-          <div
-            className="rt-seat rt-seat--me-cards"
-            style={{ top: mySeatPos.top, left: mySeatPos.left }}
-            data-tooltip="my-cards"
-          >
+        {/* Seat 0: local player — face-up cards + name/info below */}
+        <div
+          className={`rt-seat rt-seat--me-cards ${myPlayer?.id === currentPlayerId ? 'rt-seat--active' : ''}`}
+          style={{ top: mySeatPos.top, left: mySeatPos.left }}
+          data-tooltip="my-cards"
+        >
+          {!isEliminated && !isSpectator && (
             <HandDisplay cards={myCards} large onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined} />
-          </div>
-        )}
+          )}
+          {myPlayer && (
+            <div className="rt-seat-info">
+              <div className={`rt-avatar ${playerColor(0)} rt-avatar--me`}>
+                <PlayerAvatarContent
+                  name={myPlayer.name}
+                  avatar={myPlayer.avatar}
+                  photoUrl={myPlayer.photoUrl}
+                  isBot={myPlayer.isBot}
+                />
+              </div>
+              <div className="rt-seat-text">
+                <div className="rt-name rt-name--me">You</div>
+                {!myPlayer.isEliminated && (
+                  <div className={`rt-card-count ${myAtMax ? 'rt-card-count--max' : ''}`}>
+                    {myPlayer.cardCount}/{maxCards}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Call history — compact panel on the left */}
