@@ -389,6 +389,38 @@ function computeSubRank(hand: HandCall): number {
 const MUTE_KEY = 'bull-em-muted';
 const VOLUME_KEY = 'bull-em-volume';
 const HAPTICS_KEY = 'bull-em-haptics';
+const SFX_VOLUME_KEY = 'bull-em-sfx-volume';
+const UI_VOLUME_KEY = 'bull-em-ui-volume';
+
+/** Sound categories for per-category volume control. */
+export type SoundCategory = 'sfx' | 'ui';
+
+/** Maps each sound to its category so the engine can apply the right volume multiplier. */
+const SOUND_CATEGORIES: Record<SoundName, SoundCategory> = {
+  cardDeal: 'sfx',
+  callMade: 'sfx',
+  bullCalled: 'sfx',
+  trueCalled: 'sfx',
+  roundWin: 'sfx',
+  roundLose: 'sfx',
+  eliminated: 'sfx',
+  gameOver: 'sfx',
+  yourTurn: 'sfx',
+  timerTick: 'sfx',
+  heartbeat: 'sfx',
+  deckShuffle: 'sfx',
+  cardReveal: 'sfx',
+  fanfare: 'sfx',
+  deckShuffleLoop: 'sfx',
+  victory: 'sfx',
+  uiHover: 'ui',
+  uiClick: 'ui',
+  uiSoft: 'ui',
+  uiBack: 'ui',
+  wheelTick: 'ui',
+  wheelTickLow: 'ui',
+  wheelSelect: 'ui',
+};
 
 export interface SoundController {
   play: (name: SoundName) => void;
@@ -403,6 +435,9 @@ export interface SoundController {
   toggleMute: () => void;
   volume: number;
   setVolume: (v: number) => void;
+  /** Per-category volume multiplier (0–1). Applied on top of master volume. */
+  categoryVolumes: Record<SoundCategory, number>;
+  setCategoryVolume: (category: SoundCategory, v: number) => void;
   hapticsEnabled: boolean;
   toggleHaptics: () => void;
 }
@@ -420,11 +455,34 @@ export function createSoundController(): SoundController {
   // Haptics default to enabled (null means user hasn't explicitly disabled)
   let hapticsEnabled = localStorage.getItem(HAPTICS_KEY) !== 'false';
 
+  // Per-category volume multipliers (default to 1 = full)
+  function parseCategoryVolume(key: string): number {
+    const v = parseFloat(localStorage.getItem(key) ?? '1');
+    return (isNaN(v) || v < 0 || v > 1) ? 1 : v;
+  }
+  // Mutable internal state — mutated by setCategoryVolume
+  let sfxVolume = parseCategoryVolume(SFX_VOLUME_KEY);
+  let uiVolume = parseCategoryVolume(UI_VOLUME_KEY);
+  // Frozen snapshot exposed via getter — replaced only when values change,
+  // so useSyncExternalStore gets a stable reference between mutations.
+  let categoryVolumesSnapshot: Readonly<Record<SoundCategory, number>> =
+    Object.freeze({ sfx: sfxVolume, ui: uiVolume });
+
+  function getCategoryVol(cat: SoundCategory): number {
+    return cat === 'sfx' ? sfxVolume : uiVolume;
+  }
+
+  /** Compute effective volume for a given sound: master * category multiplier. */
+  function effectiveVolume(name: SoundName): number {
+    return volume * getCategoryVol(SOUND_CATEGORIES[name]);
+  }
+
   const activeLoops = new Map<SoundName, ActiveLoop>();
 
   const controller: SoundController = {
     get muted() { return muted; },
     get volume() { return volume; },
+    get categoryVolumes() { return categoryVolumesSnapshot; },
     get hapticsEnabled() { return hapticsEnabled; },
 
     play(name: SoundName) {
@@ -436,18 +494,23 @@ export function createSoundController(): SoundController {
 
       if (muted) return;
 
+      const vol = effectiveVolume(name);
+
       const audioEntry = AUDIO_FILE_SOUNDS[name];
       if (audioEntry) {
-        playAudioBuffer(audioEntry.url, volume, audioEntry.gain, audioEntry.fadeOut, audioEntry.playbackRate);
+        playAudioBuffer(audioEntry.url, vol, audioEntry.gain, audioEntry.fadeOut, audioEntry.playbackRate);
         return;
       }
 
       const tones = SOUND_DEFS[name];
-      if (tones) playTones(tones, volume);
+      if (tones) playTones(tones, vol);
     },
 
     playHandPreview(hand: HandCall) {
       if (muted) return;
+
+      // Hand preview is a UI interaction sound
+      const vol = volume * uiVolume;
 
       const subRank = computeSubRank(hand);
       const freq = 400 + (hand.type * 100) + (subRank * 80);
@@ -462,7 +525,7 @@ export function createSoundController(): SoundController {
         tones.push({ frequency: 3000, duration: 0.03, type: 'sine', gain: 0.015, ramp: 0.025 });
       }
 
-      playTones(tones, volume);
+      playTones(tones, vol);
     },
 
     startLoop(name: SoundName) {
@@ -487,8 +550,8 @@ export function createSoundController(): SoundController {
         const gainNode = ctx.createGain();
         source.buffer = buf;
         source.loop = true;
-        const effectiveGain = volume * audioEntry.gain;
-        gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime);
+        const loopGain = effectiveVolume(name) * audioEntry.gain;
+        gainNode.gain.setValueAtTime(loopGain, ctx.currentTime);
         source.connect(gainNode);
         gainNode.connect(ctx.destination);
         source.start(0);
@@ -546,6 +609,15 @@ export function createSoundController(): SoundController {
     setVolume(v: number) {
       volume = Math.max(0, Math.min(1, v));
       localStorage.setItem(VOLUME_KEY, String(volume));
+    },
+
+    setCategoryVolume(category: SoundCategory, v: number) {
+      const clamped = Math.max(0, Math.min(1, v));
+      if (category === 'sfx') sfxVolume = clamped;
+      else uiVolume = clamped;
+      categoryVolumesSnapshot = Object.freeze({ sfx: sfxVolume, ui: uiVolume });
+      const key = category === 'sfx' ? SFX_VOLUME_KEY : UI_VOLUME_KEY;
+      localStorage.setItem(key, String(clamped));
     },
 
     toggleHaptics() {

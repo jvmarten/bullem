@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { TurnAction } from '@bull-em/shared';
 import type { ClientGameState, RoundResult, PlayerId, TurnEntry, HandCall } from '@bull-em/shared';
 import { createSoundController } from './soundEngine.js';
-import type { SoundName } from './soundEngine.js';
+import type { SoundName, SoundCategory } from './soundEngine.js';
 
 // Single shared instance so mute state is consistent
 const sound = createSoundController();
@@ -16,6 +16,7 @@ function subscribeSoundState(cb: () => void) {
 function getMuted() { return sound.muted; }
 function getVolume() { return sound.volume; }
 function getHapticsEnabled() { return sound.hapticsEnabled; }
+function getCategoryVolumes() { return sound.categoryVolumes; }
 
 function notifyListeners() {
   soundListeners.forEach(cb => cb());
@@ -25,6 +26,7 @@ export function useSound() {
   const muted = useSyncExternalStore(subscribeSoundState, getMuted);
   const volume = useSyncExternalStore(subscribeSoundState, getVolume);
   const hapticsEnabled = useSyncExternalStore(subscribeSoundState, getHapticsEnabled);
+  const categoryVolumes = useSyncExternalStore(subscribeSoundState, getCategoryVolumes);
 
   const play = useCallback((name: SoundName) => {
     sound.play(name);
@@ -41,6 +43,11 @@ export function useSound() {
 
   const setVolume = useCallback((v: number) => {
     sound.setVolume(v);
+    notifyListeners();
+  }, []);
+
+  const setCategoryVolume = useCallback((category: SoundCategory, v: number) => {
+    sound.setCategoryVolume(category, v);
     notifyListeners();
   }, []);
 
@@ -61,8 +68,10 @@ export function useSound() {
     notifyListeners();
   }, []);
 
-  return { play, playHandPreview, muted, toggleMute, volume, setVolume, startLoop, stopLoop, stopAllLoops, hapticsEnabled, toggleHaptics };
+  return { play, playHandPreview, muted, toggleMute, volume, setVolume, categoryVolumes, setCategoryVolume, startLoop, stopLoop, stopAllLoops, hapticsEnabled, toggleHaptics };
 }
+
+export type { SoundCategory } from './soundEngine.js';
 
 /**
  * Hook that watches game state changes and plays appropriate sounds.

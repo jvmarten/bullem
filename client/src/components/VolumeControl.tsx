@@ -111,7 +111,7 @@ export function useUISettings() {
 }
 
 export function VolumeControl() {
-  const { muted, toggleMute, volume, setVolume, hapticsEnabled, toggleHaptics } = useSound();
+  const { muted, toggleMute, volume, setVolume, categoryVolumes, setCategoryVolume, hapticsEnabled, toggleHaptics } = useSound();
   const chatOn = useSyncExternalStore(subscribeSettings, getChatEnabled);
   const emojiOn = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const quickDrawOn = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
@@ -147,6 +147,7 @@ export function VolumeControl() {
 
       {open && (
         <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in">
+          {/* Master volume */}
           <div className="flex items-center gap-2">
             {/* Speaker icon — tap to toggle mute */}
             <button
@@ -184,6 +185,36 @@ export function VolumeControl() {
               }}
               className="volume-slider flex-1"
             />
+          </div>
+
+          {/* Per-category volume sliders */}
+          <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20 flex flex-col gap-1.5">
+            {/* SFX volume */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold w-[28px] shrink-0">SFX</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={muted ? 0 : categoryVolumes.sfx}
+                onChange={(e) => setCategoryVolume('sfx', parseFloat(e.target.value))}
+                className="volume-slider flex-1"
+              />
+            </div>
+            {/* UI volume */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold w-[28px] shrink-0">UI</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={muted ? 0 : categoryVolumes.ui}
+                onChange={(e) => setCategoryVolume('ui', parseFloat(e.target.value))}
+                className="volume-slider flex-1"
+              />
+            </div>
           </div>
 
           {/* Haptics toggle */}
