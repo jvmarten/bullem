@@ -140,6 +140,7 @@ export function GamePage() {
   const [pendingHand, setPendingHand] = useState<HandCall | null>(null);
   const [pendingValid, setPendingValid] = useState(false);
   const [quickDrawOpen, setQuickDrawOpen] = useState(false);
+  const [tappedCard, setTappedCard] = useState<Card | null>(null);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const isMyTurn = gameState ? gameState.currentPlayerId === playerId && !isEliminated && !isSpectator : false;
@@ -267,18 +268,19 @@ export function GamePage() {
 
   const quickDrawSuggestions = useMemo(() => {
     if (!quickDrawOpen || !canRaise || !gameState) return [];
-    return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
-  }, [quickDrawOpen, canRaise, gameState]);
+    return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand, tappedCard ?? undefined);
+  }, [quickDrawOpen, canRaise, gameState, tappedCard]);
 
-  // Tapping own cards: toggle Quick Draw chips
-  const handleCardTap = useCallback((_card: Card) => {
+  // Tapping own cards: toggle Quick Draw chips (biased toward the tapped card)
+  const handleCardTap = useCallback((card: Card) => {
     if (!quickDrawEnabled || !canRaise || !gameState) return;
     play('uiClick');
-    const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand);
+    const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand, card);
     if (suggestions.length === 0) {
       setHandSelectorOpen(true);
     } else {
-      setQuickDrawOpen(prev => !prev);
+      setTappedCard(card);
+      setQuickDrawOpen(true);
     }
   }, [quickDrawEnabled, canRaise, play, gameState]);
 
@@ -291,6 +293,7 @@ export function GamePage() {
     }
     setHandSelectorOpen(false);
     setQuickDrawOpen(false);
+    setTappedCard(null);
   }, [isLastChanceCaller, lastChanceRaise, callHand]);
 
   const handleHandChange = useCallback((hand: HandCall | null, valid: boolean) => {
@@ -311,7 +314,7 @@ export function GamePage() {
   // Stable callback references so ActionButtons' React.memo isn't broken
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
   const openHandSelector = useCallback(() => { play('uiClick'); setHandSelectorOpen(true); }, [play]);
-  const handleQuickDrawDismiss = useCallback(() => setQuickDrawOpen(false), []);
+  const handleQuickDrawDismiss = useCallback(() => { setQuickDrawOpen(false); setTappedCard(null); }, []);
 
   // Close hand selector on tap outside
   useEffect(() => {
@@ -336,6 +339,7 @@ export function GamePage() {
       const target = e.target as HTMLElement;
       if (target.closest('[data-tooltip="quick-draw"]') || target.closest('[data-tooltip="my-cards"]') || target.closest('[data-tooltip="action-area"]')) return;
       setQuickDrawOpen(false);
+      setTappedCard(null);
     };
     document.addEventListener('mousedown', handleOutside);
     document.addEventListener('touchstart', handleOutside);
@@ -350,6 +354,7 @@ export function GamePage() {
   useEffect(() => {
     setHandSelectorOpen(false);
     setQuickDrawOpen(false);
+    setTappedCard(null);
   }, [isMyTurn, roundPhase]);
 
   // Keyboard shortcuts (B=bull, T=true, C=raise/call, Esc=close, Enter=submit, P=pass)
