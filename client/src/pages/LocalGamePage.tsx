@@ -28,6 +28,8 @@ import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { QuickDrawHint } from '../components/QuickDrawHint.js';
 import { useUISettings } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
+import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 
 function SeriesBanner({ seriesInfo, players, playerId }: {
   seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
@@ -77,6 +79,7 @@ export function LocalGamePage() {
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult);
+  const isLandscape = useIsLandscape();
 
   // All useState hooks — must be called unconditionally (before any early return)
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
@@ -221,6 +224,8 @@ export function LocalGamePage() {
   // inline arrow functions creating new references on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
   const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
+  const openHandSelector = useCallback(() => { play('uiClick'); setHandSelectorOpen(true); }, [play]);
+  const handleQuickDrawDismiss = useCallback(() => setQuickDrawOpen(false), []);
 
   // Close hand selector on tap outside — same pattern as ActionButtons
   useEffect(() => {
@@ -348,9 +353,95 @@ export function LocalGamePage() {
 
   return (
     <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
+      {/* ── Roundtable layout (landscape/desktop) ── */}
+      {isLandscape ? (
+        <div className={`${isEliminated && !winnerId ? 'spectating' : ''}`}>
+          {isEliminated && !winnerId && (
+            <div className="spectator-pill animate-fade-in">
+              Eliminated — Spectating
+            </div>
+          )}
+          <RoundtableGameLayout
+            players={gameState.players}
+            currentPlayerId={gameState.currentPlayerId}
+            myPlayerId={playerId}
+            maxCards={gameState.maxCards}
+            roundNumber={gameState.roundNumber}
+            roundPhase={gameState.roundPhase}
+            currentHand={gameState.currentHand}
+            lastCallerId={gameState.lastCallerId}
+            myCards={gameState.myCards}
+            turnHistory={gameState.turnHistory}
+            turnDeadline={gameState.turnDeadline}
+            turnDurationMs={gameState.turnDurationMs}
+            spectatorCards={gameState.spectatorCards}
+            isMyTurn={isMyTurn}
+            isEliminated={isEliminated}
+            isSpectator={false}
+            isLastChanceCaller={isLastChanceCaller}
+            canRaise={canRaise}
+            handSelectorOpen={handSelectorOpen}
+            pendingValid={pendingValid}
+            pendingHand={pendingHand}
+            quickDrawOpen={quickDrawOpen}
+            quickDrawEnabled={quickDrawEnabled}
+            quickDrawSuggestions={quickDrawSuggestions}
+            onBull={callBull}
+            onTrue={callTrue}
+            onLastChancePass={lastChancePass}
+            onActionExpand={handleActionExpand}
+            onOpenHandSelector={openHandSelector}
+            onHandSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            onQuickRaise={handleQuickRaise}
+            onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined}
+            onQuickDrawSelect={handleQuickDrawSelect}
+            onQuickDrawDismiss={handleQuickDrawDismiss}
+            onPlayerClick={handlePlayerClick}
+          />
+
+          {/* Overlays */}
+          <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
+          {isAtMaxCards && <div className="max-cards-warning-glow" aria-hidden="true" />}
+          {roundTransition && !roundResult && (
+            <div className="fixed inset-0 flex items-center justify-center z-50"
+                 style={{ background: 'var(--overlay)' }}>
+              <div className="text-center space-y-3 animate-fade-in">
+                <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-[var(--gold)] font-display text-lg font-semibold">
+                  Next round starting&hellip;
+                </p>
+              </div>
+            </div>
+          )}
+          {roundResult && (
+            <RevealOverlay
+              result={roundResult}
+              players={gameState.players}
+              myPlayerId={playerId ?? undefined}
+              onDismiss={clearRoundResult}
+              autoCountdown={false}
+            />
+          )}
+          {isPaused && !roundResult && (
+            <div className="fixed inset-0 flex items-center justify-center z-40"
+                 style={{ background: 'rgba(0, 0, 0, 0.6)' }}>
+              <div className="text-center space-y-4 animate-fade-in">
+                <p className="text-[var(--gold)] font-display text-2xl font-bold uppercase tracking-widest">
+                  Paused
+                </p>
+                <button onClick={togglePause} className="btn-gold px-6 py-2 text-sm font-semibold">
+                  Resume
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+      /* ── Portrait layout (existing) ── */
       <div className={`game-layout ${isEliminated && !winnerId ? 'spectating' : ''}`}>
-        {/* Top bar — portrait only (merged into header in landscape) */}
-        <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
+        {/* Top bar */}
+        <div className="game-top-bar flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
@@ -378,8 +469,7 @@ export function LocalGamePage() {
           <SeriesBanner seriesInfo={seriesInfo} players={gameState.players} playerId={playerId} />
         )}
 
-        {/* Floating spectator pill — unobtrusive indicator at top of screen.
-            Hidden when winnerId is set because the match is over (no active game to spectate). */}
+        {/* Floating spectator pill */}
         {isEliminated && !winnerId && (
           <div className="spectator-pill animate-fade-in">
             Eliminated — Spectating
@@ -387,7 +477,7 @@ export function LocalGamePage() {
         )}
 
         <div className="game-content">
-          {/* Sidebar — player list + call history (side column in landscape) */}
+          {/* Sidebar — player list */}
           <div className="game-sidebar">
             <div data-tooltip="players">
               <PlayerList
@@ -402,10 +492,6 @@ export function LocalGamePage() {
                 turnDeadline={gameState.turnDeadline}
                 turnDurationMs={gameState.turnDurationMs}
               />
-            </div>
-            {/* Call history in sidebar — landscape only */}
-            <div className="landscape-only flex-col" data-tooltip="call-history">
-              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
           </div>
 
@@ -458,7 +544,7 @@ export function LocalGamePage() {
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}
-                onDismiss={() => setQuickDrawOpen(false)}
+                onDismiss={handleQuickDrawDismiss}
               />
             )}
 
@@ -467,13 +553,12 @@ export function LocalGamePage() {
               <SpectatorView spectatorCards={gameState.spectatorCards} currentPlayerId={gameState.currentPlayerId} />
             )}
 
-            {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only" data-tooltip="call-history">
+            {/* Call history */}
+            <div data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
 
             {/* Action row — BULL/TRUE on left, Raise/Call on right */}
-            {/* Placed BEFORE the hand selector so buttons never move when picker opens */}
             {!isEliminated && (
               <div className="flex justify-between items-start relative" data-tooltip="action-area">
                 <ActionButtons
@@ -489,7 +574,7 @@ export function LocalGamePage() {
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
-                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
+                      onClick={openHandSelector}
                       className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="C"
                     >
@@ -538,7 +623,7 @@ export function LocalGamePage() {
         {/* First-game contextual tooltips */}
         <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
 
-        {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}
+        {/* Max cards warning */}
         {isAtMaxCards && (
           <div className="max-cards-warning-glow" aria-hidden="true" />
         )}
@@ -585,6 +670,7 @@ export function LocalGamePage() {
           </div>
         )}
       </div>
+      )}
       {selectedPlayer && gameState && (
         <BotProfileModal
           player={selectedPlayer}
