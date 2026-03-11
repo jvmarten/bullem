@@ -2242,12 +2242,12 @@ body {
 
 /* Center content inside the table: action buttons flanking the current call */
 .rt-table-center {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 9rem 1fr 9rem;
   align-items: center;
-  justify-content: center;
-  gap: 2.5rem;
+  gap: 3rem;
   max-width: 80%;
+  width: 80%;
   text-align: center;
   position: relative;
   z-index: 10;
@@ -2260,9 +2260,9 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 0 0 9rem;
-  width: 9rem;
   justify-content: center;
+  grid-column: 1;
+  opacity: 0.92;
 }
 
 /* Right side of center — raise/call/submit buttons */
@@ -2271,9 +2271,9 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 0 0 9rem;
-  width: 9rem;
   justify-content: center;
+  grid-column: 3;
+  opacity: 0.92;
 }
 
 /* Current call badge in the table center */
@@ -2281,13 +2281,15 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-self: center;
+  grid-column: 2;
   gap: 1px;
   background: rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(4px);
   border: 1px solid rgba(212, 168, 67, 0.25);
   border-radius: 0.5rem;
   padding: 0.25rem 0.75rem;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .rt-current-call-label {
@@ -2304,6 +2306,10 @@ body {
   font-size: 1rem;
   color: var(--gold);
   line-height: 1.2;
+  max-width: 14rem;
+  text-align: center;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .rt-current-call-caller {
@@ -2700,6 +2706,7 @@ body {
 
   .rt-current-call-hand {
     font-size: 0.95rem;
+    max-width: 10rem;
   }
 
   .rt-current-call--lg {
