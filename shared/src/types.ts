@@ -170,6 +170,8 @@ export interface ClientGameState {
   spectatorCards?: SpectatorPlayerCards[];
   /** Series info for best-of matches. Null for single games. */
   seriesInfo?: SeriesInfo | null;
+  /** Whether this game is a ranked match. */
+  ranked?: boolean;
 }
 
 export enum BotDifficulty {

@@ -28,12 +28,15 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
     seriesWinnerId: room.seriesState.seriesWinnerId,
   } : null;
 
+  const ranked = room.settings.ranked ?? false;
+
   for (const [playerId] of room.players) {
     const socketId = room.getSocketId(playerId);
     if (!socketId) continue;
     const state = room.getClientGameState(playerId);
     if (state) {
       state.seriesInfo = seriesInfo;
+      state.ranked = ranked;
       io.to(socketId).emit('game:state', state);
     }
   }
@@ -42,6 +45,7 @@ export function broadcastGameState(io: TypedServer, room: Room): void {
     const spectatorState = room.getSpectatorGameState();
     if (spectatorState) {
       spectatorState.seriesInfo = seriesInfo;
+      spectatorState.ranked = ranked;
       for (const sid of room.spectatorSockets) {
         io.to(sid).emit('game:state', spectatorState);
       }
@@ -58,12 +62,15 @@ export function broadcastNewRound(io: TypedServer, room: Room): void {
     seriesWinnerId: room.seriesState.seriesWinnerId,
   } : null;
 
+  const ranked = room.settings.ranked ?? false;
+
   for (const [playerId] of room.players) {
     const socketId = room.getSocketId(playerId);
     if (!socketId) continue;
     const state = room.getClientGameState(playerId);
     if (state) {
       state.seriesInfo = seriesInfo;
+      state.ranked = ranked;
       io.to(socketId).emit('game:newRound', state);
     }
   }
@@ -72,6 +79,7 @@ export function broadcastNewRound(io: TypedServer, room: Room): void {
     const spectatorState = room.getSpectatorGameState();
     if (spectatorState) {
       spectatorState.seriesInfo = seriesInfo;
+      spectatorState.ranked = ranked;
       for (const sid of room.spectatorSockets) {
         io.to(sid).emit('game:newRound', spectatorState);
       }
