@@ -17,6 +17,8 @@ interface LayoutProps {
   headerRightExtra?: ReactNode;
   /** Override the default title click behavior (e.g., to reset submenu state before navigating home) */
   onTitleClick?: () => void;
+  /** Hide the full header in landscape mode and show game info as a floating overlay instead */
+  hideHeaderLandscape?: boolean;
 }
 
 function getGuestDisplayName(): string {
@@ -73,7 +75,7 @@ function AuthLink() {
   );
 }
 
-export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra, onTitleClick }: LayoutProps) {
+export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra, onTitleClick, hideHeaderLandscape }: LayoutProps) {
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
   const hasConnected = ctx?.hasConnected ?? true;
@@ -151,7 +153,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   }, [showPopup]);
 
   return (
-    <div className="felt-bg text-[#e8e0d4]">
+    <div className={`felt-bg text-[#e8e0d4]${hideHeaderLandscape ? ' landscape-header-hidden' : ''}`}>
       <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
         <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch' : 'items-center gap-2'} min-w-0`}>
@@ -213,6 +215,20 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           <VolumeControl />
         </div>
       </header>
+      {/* Floating overlay for landscape game mode — replaces hidden header */}
+      {hideHeaderLandscape && (headerLeftExtra || headerRightExtra) && (
+        <div className="game-header-overlay">
+          {headerLeftExtra && (
+            <div className="game-header-overlay-left">{headerLeftExtra}</div>
+          )}
+          {headerRightExtra && (
+            <div className="game-header-overlay-right">{headerRightExtra}</div>
+          )}
+          <div className="game-header-overlay-volume">
+            <VolumeControl />
+          </div>
+        </div>
+      )}
       {!isConnected && (
         <div className="flex items-center justify-center gap-1.5 text-xs text-[var(--gold)] py-1.5 border-b border-[var(--felt-border)]">
           <span className="dot-disconnected" />

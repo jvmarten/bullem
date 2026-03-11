@@ -352,7 +352,7 @@ export function LocalGamePage() {
   );
 
   return (
-    <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
+    <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra} hideHeaderLandscape>
       {/* ── Roundtable layout (landscape/desktop) ── */}
       {isLandscape ? (
         <div className={`${isEliminated && !winnerId ? 'spectating' : ''}`}>
