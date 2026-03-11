@@ -7,6 +7,9 @@
     "build": "tsc",
     "simulate": "tsx src/simulate.ts",
     "train": "tsx src/train.ts",
+    "train-five-draw": "tsx src/trainFiveDraw.ts",
+    "generate-five-draw-strategy": "tsx src/generateFiveDrawStrategyData.ts",
+    "analyze-five-draw": "tsx src/analyzeFiveDraw.ts",
     "evaluate": "tsx src/evaluate.ts",
     "evolve": "tsx src/evolve.ts",
     "evaluate-evolved": "tsx src/evaluateEvolved.ts"

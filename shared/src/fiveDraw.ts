@@ -10,12 +10,10 @@
  * Runs entirely client-side using the shared engine (hand checking, CFR
  * strategy, etc.) — no socket/server needed for gameplay.
  */
-import type { Card, HandCall, ClientGameState, TurnEntry } from './types.js';
-import { HandType, RoundPhase, TurnAction } from './types.js';
+import type { Card, HandCall } from './types.js';
 import { isHigherHand, getMinimumRaise, handToString } from './hands.js';
 import { HandChecker } from './engine/HandChecker.js';
-import { decideCFR } from './cfr/cfrEval.js';
-import type { BotAction } from './engine/BotPlayer.js';
+import { decideFiveDrawCFR } from './cfr/fiveDrawEval.js';
 import { buildDeck, shuffleDeck } from './deckDraw.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -79,67 +77,14 @@ export function dealFiveDrawCards(rng: () => number = Math.random): {
 }
 
 /**
- * Build a synthetic ClientGameState for the CFR bot to evaluate.
- * Mimics a 2-player Bull 'Em round with 5 cards each.
- */
-function buildCFRState(
-  dealerCards: Card[],
-  currentHand: HandCall | null,
-  turnHistory: FiveDrawTurnEntry[],
-  roundPhase: RoundPhase,
-  isPlayerTurn: boolean,
-): ClientGameState {
-  // Build turn entries matching the game engine's format
-  const engineTurnHistory: TurnEntry[] = turnHistory.map(entry => ({
-    playerId: entry.participant === 'player' ? 'player' : 'dealer',
-    playerName: entry.participant === 'player' ? 'Player' : 'Dealer',
-    action: entry.action === 'call' ? TurnAction.CALL : TurnAction.LAST_CHANCE_PASS,
-    hand: entry.hand,
-    timestamp: Date.now(),
-  }));
-
-  return {
-    gamePhase: 'playing' as ClientGameState['gamePhase'],
-    players: [
-      {
-        id: 'player',
-        name: 'Player',
-        cardCount: 5,
-        isEliminated: false,
-        isConnected: true,
-        isBot: false,
-        isHost: true,
-      },
-      {
-        id: 'dealer',
-        name: 'Dealer',
-        cardCount: 5,
-        isEliminated: false,
-        isConnected: true,
-        isBot: true,
-        isHost: false,
-      },
-    ],
-    myCards: dealerCards,
-    currentPlayerId: isPlayerTurn ? 'player' : 'dealer',
-    startingPlayerId: 'player',
-    currentHand,
-    lastCallerId: null,
-    roundPhase,
-    turnHistory: engineTurnHistory,
-    roundNumber: 1,
-    maxCards: 5,
-  };
-}
-
-/**
  * Get the Dealer's (CFR bot) decision for the current game state.
+ *
+ * Uses a dedicated 5 Draw CFR strategy trained specifically for the
+ * call-or-pass mechanics, rather than mapping standard Bull 'Em actions.
  *
  * In 5 Draw, the only legal actions are:
  * - 'call' with a higher hand (raise)
  * - 'pass' (decline to raise, ending the round)
- *
- * No 'true' or 'bull' calls are allowed.
  */
 export function getDealerAction(
   dealerCards: Card[],
@@ -154,52 +99,27 @@ export function getDealerAction(
     }
   }
 
-  // Build state for CFR — use CALLING phase since no bull/true allowed
-  const state = buildCFRState(
-    dealerCards,
-    currentHand,
-    turnHistory,
-    currentHand ? RoundPhase.CALLING : RoundPhase.CALLING,
-    false, // it's dealer's turn
-  );
+  // Count turns so far for the info set key
+  const turnCount = turnHistory.length;
+  // Dealer is the opener if there are no previous turns
+  const isOpener = turnCount === 0;
 
-  const botAction = decideCFR(state, dealerCards, 10, 2);
+  const decision = decideFiveDrawCFR(dealerCards, currentHand, turnCount, isOpener);
 
-  if (!botAction) {
+  if (decision.action === 'pass') {
     return { participant: 'dealer', action: 'pass' };
   }
 
-  return mapBotActionToFiveDrawAction(botAction, currentHand);
-}
-
-/**
- * Map a BotAction from the CFR system to a FiveDrawTurnEntry.
- * In 5 Draw, bull/true get mapped to 'pass' since they aren't allowed.
- */
-function mapBotActionToFiveDrawAction(
-  botAction: BotAction,
-  currentHand: HandCall | null,
-): FiveDrawTurnEntry {
-  switch (botAction.action) {
-    case 'call':
-    case 'lastChanceRaise':
-      // Validate the hand is actually higher than current
-      if (currentHand && !isHigherHand(botAction.hand, currentHand)) {
-        // CFR produced an invalid raise — fall back to minimum raise or pass
-        const minRaise = getMinimumRaise(currentHand);
-        if (minRaise) {
-          return { participant: 'dealer', action: 'call', hand: minRaise };
-        }
-        return { participant: 'dealer', action: 'pass' };
-      }
-      return { participant: 'dealer', action: 'call', hand: botAction.hand };
-
-    case 'bull':
-    case 'true':
-    case 'lastChancePass':
-      // In 5 Draw these mean "don't raise" = pass
-      return { participant: 'dealer', action: 'pass' };
+  // Validate the hand is actually higher than current
+  if (decision.hand && currentHand && !isHigherHand(decision.hand, currentHand)) {
+    const fallback = getMinimumRaise(currentHand);
+    if (fallback) {
+      return { participant: 'dealer', action: 'call', hand: fallback };
+    }
+    return { participant: 'dealer', action: 'pass' };
   }
+
+  return { participant: 'dealer', action: 'call', hand: decision.hand };
 }
 
 /**
