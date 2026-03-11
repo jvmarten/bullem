@@ -461,6 +461,7 @@ export function LocalGamePage() {
             >
               Leave
             </button>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">LOCAL</span>
           </div>
         </div>
 

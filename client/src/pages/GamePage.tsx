@@ -561,6 +561,7 @@ export function GamePage() {
             >
               Leave
             </button>
+            <span className="font-mono tracking-wider text-[var(--gold-dim)]">ONLINE</span>
           </div>
         </div>
 
