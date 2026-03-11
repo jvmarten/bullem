@@ -162,11 +162,21 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
   const lastTickRef = useRef<number | null>(null);
   const [tickPulse, setTickPulse] = useState(false);
   const { play } = useSound();
 
   const isLastChance = roundPhase === RoundPhase.LAST_CHANCE;
+
+  const timeoutAction = (() => {
+    switch (roundPhase) {
+      case RoundPhase.LAST_CHANCE: return 'Auto-pass';
+      case RoundPhase.BULL_PHASE: return 'Auto-bull';
+      case RoundPhase.CALLING: return hasCurrentHand ? 'Auto-bull' : 'Auto-call';
+      case RoundPhase.RESOLVING: return '';
+    }
+  })();
 
   useEffect(() => {
     const total = turnDurationMs != null && turnDurationMs > 0
@@ -208,6 +218,16 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
         }
       }
 
+      // Update countdown label
+      if (labelRef.current) {
+        if (secs > 0 && secs <= 5 && timeoutAction) {
+          labelRef.current.textContent = `${timeoutAction} in ${secs}s`;
+          labelRef.current.style.opacity = '1';
+        } else {
+          labelRef.current.style.opacity = '0';
+        }
+      }
+
       // Play tick + heartbeat each second during last 5 seconds
       if (secs > 0 && secs <= 5 && secs !== lastTickRef.current) {
         lastTickRef.current = secs;
@@ -221,7 +241,7 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
     update();
     const interval = setInterval(update, 100);
     return () => clearInterval(interval);
-  }, [turnDeadline, turnDurationMs, play]);
+  }, [turnDeadline, turnDurationMs, play, timeoutAction]);
 
   return (
     <>
@@ -239,6 +259,8 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
           className="rt-turn-timer-bar"
         />
       </div>
+      {/* Autobull/auto-pass countdown label */}
+      <div ref={labelRef} className="rt-autobull-label" style={{ opacity: 0 }} aria-live="polite" />
     </>
   );
 });
@@ -440,30 +462,35 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             )}
 
             {currentHand && (
-              <div className="rt-current-call animate-slide-up">
+              <div className="rt-current-call rt-current-call--lg animate-slide-up">
                 <span className="rt-current-call-label">Current Call</span>
                 <span className="rt-current-call-hand">
                   {handToString(currentHand)}
                 </span>
-                {callerName && (
-                  <span className="rt-current-call-caller">by {callerName}</span>
-                )}
               </div>
             )}
 
             {!isEliminated && !isSpectator && (
               <div className="rt-center-right" data-tooltip="raise-area">
                 {canRaise && !handSelectorOpen && (
-                  <button
-                    onClick={onOpenHandSelector}
-                    className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
-                    data-kbd="C"
-                  >
-                    {currentHand ? 'Raise' : 'Call'}
-                  </button>
+                  <div className="relative flex flex-col items-center">
+                    {isLastChanceCaller && (
+                      <span className="rt-last-chance-label">last chance</span>
+                    )}
+                    <button
+                      onClick={onOpenHandSelector}
+                      className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
+                      data-kbd="C"
+                    >
+                      {currentHand ? 'Raise' : 'Call'}
+                    </button>
+                  </div>
                 )}
                 {canRaise && handSelectorOpen && (
                   <div className="relative flex flex-col items-center">
+                    {isLastChanceCaller && (
+                      <span className="rt-last-chance-label">last chance</span>
+                    )}
                     <button
                       onClick={onHandSubmit}
                       disabled={!pendingValid}

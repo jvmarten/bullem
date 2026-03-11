@@ -409,24 +409,26 @@ export function GamePage() {
 
   /* Landscape/desktop: merge game info into the Layout header bar */
   const headerLeftExtra = (
-    <>
-      <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
-        Round {gameState.roundNumber}
-      </span>
-      {seriesInfo && seriesInfo.bestOf > 1 && (
-        <span className="text-[var(--gold-dim)] font-mono text-xs">
-          Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
+    <div className="flex flex-col items-start gap-0">
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider text-xs">
+          Round {gameState.roundNumber}
         </span>
-      )}
-      <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${deckSize} cards in play`}>
-        {cardStats.total}/{deckSize} ({cardStats.pct}%)
-      </span>
+        {seriesInfo && seriesInfo.bestOf > 1 && (
+          <span className="text-[var(--gold-dim)] font-mono text-xs">
+            Bo{seriesInfo.bestOf} Set {seriesInfo.currentSet}
+          </span>
+        )}
+        <span className="text-[var(--gold-dim)] font-mono text-xs" title={`${cardStats.total} of ${deckSize} cards in play`}>
+          {cardStats.total}/{deckSize} ({cardStats.pct}%)
+        </span>
+      </div>
       <CallHistoryToggleButton
         count={gameState.turnHistory.length}
         isOpen={callHistoryOpen}
         onToggle={() => setCallHistoryOpen(v => !v)}
       />
-    </>
+    </div>
   );
 
   const headerRightExtra = (

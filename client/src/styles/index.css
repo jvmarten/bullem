@@ -2312,6 +2312,14 @@ body {
   opacity: 0.7;
 }
 
+/* Larger current call tile for landscape center */
+.rt-current-call--lg {
+  padding: 0.375rem 1rem;
+}
+.rt-current-call--lg .rt-current-call-hand {
+  font-size: 1rem;
+}
+
 /* Player seat — absolutely positioned around the table */
 .rt-seat {
   position: absolute;
@@ -2484,9 +2492,9 @@ body {
 /* Highlighted action chip for the last caller */
 .rt-action-chip--latest {
   font-size: 0.875rem;
-  padding: 3px 10px;
+  padding: 3px 12px;
   max-width: 160px;
-  transform: scale(1.1);
+  transform: scale(1.15);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
 }
 
@@ -2542,7 +2550,7 @@ body {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gold-dim) transparent;
-  z-index: 5;
+  z-index: 45; /* above table center (z-10) and other overlays */
   padding: 0.25rem;
   font-size: 0.75rem;
 }
@@ -2690,6 +2698,10 @@ body {
     font-size: 0.875rem;
   }
 
+  .rt-current-call--lg .rt-current-call-hand {
+    font-size: 0.85rem;
+  }
+
   .rt-call-history {
     width: 260px;
     font-size: 0.65rem;
@@ -2781,6 +2793,10 @@ body {
     font-size: 1.125rem;
   }
 
+  .rt-current-call--lg .rt-current-call-hand {
+    font-size: 1.125rem;
+  }
+
   .rt-call-history {
     width: 340px;
   }
@@ -2828,4 +2844,32 @@ body {
   border-radius: 3px;
   background: var(--info);
   transition: height 0.15s linear, background 0.3s ease;
+}
+
+/* Auto-bull/auto-pass countdown label next to the vertical timer */
+.rt-autobull-label {
+  position: fixed;
+  right: 16px;
+  top: 60px;
+  z-index: 40;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+/* "last chance" label above the raise button */
+.rt-last-chance-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+  animation: pulse 1.5s ease-in-out infinite;
 }
