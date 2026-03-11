@@ -20,6 +20,7 @@ interface Props {
   /** Seat-ordered players (index 0 = local player) */
   orderedPlayers: Player[];
   playerCount: number;
+  myPlayerId?: string;
   onComplete: () => void;
 }
 
@@ -55,13 +56,30 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   result,
   orderedPlayers,
   playerCount,
+  myPlayerId,
   onComplete,
 }: Props) {
   const { play } = useSound();
   const [slots, setSlots] = useState<RevealSlot[]>([]);
   const [showResult, setShowResult] = useState(false);
+  const [showBeat2, setShowBeat2] = useState(false);
   const [canDismiss, setCanDismiss] = useState(false);
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Personalized beat 1 message (SAFE/WRONG/BUSTED)
+  const beat1 = useMemo(() => {
+    if (!myPlayerId) return null;
+    const isCaller = myPlayerId === result.callerId;
+    const wasPenalized = result.penalizedPlayerIds.includes(myPlayerId);
+
+    if (isCaller && wasPenalized && !result.handExists) {
+      return { text: 'BUSTED', color: 'var(--danger)' };
+    }
+    if (wasPenalized) {
+      return { text: 'WRONG', color: 'var(--danger)' };
+    }
+    return { text: 'SAFE', color: 'var(--safe)' };
+  }, [myPlayerId, result.callerId, result.handExists, result.penalizedPlayerIds]);
 
   // Build seat index lookup
   const seatIndexByPlayerId = useMemo(() => {
@@ -125,6 +143,12 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
 
     return seq;
   }, [revealPlayerOrder, orderedPlayers, revealedByPlayer]);
+
+  // Count total relevant (hand) cards for centering layout
+  const totalRelevantCards = useMemo(
+    () => slotSequence.filter(s => s.isRelevant).length,
+    [slotSequence],
+  );
 
   // Calculate timing for each slot
   const slotTimings = useMemo(() => {
@@ -205,6 +229,10 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     const resultTimer = setTimeout(() => setShowResult(true), totalTime);
     timers.push(resultTimer);
 
+    // Transition from beat 1 (SAFE/WRONG/BUSTED) to beat 2 (hand exists/fake) after 1.5s
+    const beat2Timer = setTimeout(() => setShowBeat2(true), totalTime + 1500);
+    timers.push(beat2Timer);
+
     const dismissTimer = setTimeout(() => setCanDismiss(true), totalTime + MIN_DISPLAY_TIME);
     timers.push(dismissTimer);
 
@@ -229,6 +257,7 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
           key={slot.id}
           slot={slot}
           playerCount={playerCount}
+          totalRelevantCards={totalRelevantCards}
         />
       ))}
 
@@ -236,9 +265,50 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
       {showResult && (
         <div className="rt-reveal-result animate-cube-roll-in">
           <div className="rt-reveal-result-scrim" />
-          <div className={`rt-reveal-result-text ${result.handExists ? 'rt-reveal-result--exists' : 'rt-reveal-result--fake'}`}>
-            {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
-          </div>
+          {beat1 ? (
+            <div
+              className="rt-reveal-result-box"
+              style={{
+                borderColor: showBeat2
+                  ? (result.handExists ? 'var(--info)' : 'var(--danger)')
+                  : beat1.color,
+                background: showBeat2
+                  ? (result.handExists ? 'var(--info-bg)' : 'var(--danger-bg)')
+                  : (beat1.color === 'var(--safe)' ? 'rgba(40, 167, 69, 0.15)' : 'var(--danger-bg)'),
+              }}
+            >
+              {/* Beat 1: SAFE / WRONG / BUSTED */}
+              <div
+                className="rt-reveal-result-beat"
+                style={{
+                  color: beat1.color,
+                  opacity: showBeat2 ? 0 : 1,
+                  transform: showBeat2 ? 'scale(0.8) translateY(-4px)' : 'scale(1) translateY(0)',
+                  position: showBeat2 ? 'absolute' : 'relative',
+                  inset: showBeat2 ? 0 : undefined,
+                }}
+              >
+                {beat1.text}
+              </div>
+              {/* Beat 2: hand exists / hand is fake */}
+              <div
+                className="rt-reveal-result-beat"
+                style={{
+                  color: result.handExists ? 'var(--info)' : 'var(--danger)',
+                  opacity: showBeat2 ? 1 : 0,
+                  transform: showBeat2 ? 'scale(1) translateY(0)' : 'scale(1.15) translateY(4px)',
+                  position: showBeat2 ? 'relative' : 'absolute',
+                  inset: showBeat2 ? undefined : 0,
+                }}
+              >
+                {result.handExists ? 'The hand EXISTS!' : 'Hand is fake!'}
+              </div>
+            </div>
+          ) : (
+            <div className={`rt-reveal-result-text ${result.handExists ? 'rt-reveal-result--exists' : 'rt-reveal-result--fake'}`}>
+              {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
+            </div>
+          )}
           {canDismiss && (
             <button
               className="rt-reveal-continue btn-gold mt-3 animate-fade-in"
@@ -256,14 +326,18 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
 /** Center of the table — where revealed cards fly to and stack. */
 const TABLE_CENTER_X = 50;
 const TABLE_CENTER_Y = 42;
+/** Horizontal spacing (in px) between cards arranged in a line at center */
+const CENTER_CARD_SPACING = 52;
 
 /** Individual card in the reveal sequence. */
 const RevealSlotElement = memo(function RevealSlotElement({
   slot,
   playerCount,
+  totalRelevantCards,
 }: {
   slot: RevealSlot;
   playerCount: number;
+  totalRelevantCards: number;
 }) {
   const { seatIndex, revealedCard, phase, cardSlotIndex, playerCardTotal, centerIndex } = slot;
   const seatPos = getSeatPosition(playerCount, seatIndex);
@@ -282,10 +356,11 @@ const RevealSlotElement = memo(function RevealSlotElement({
   // Cards that have "settled" at center render at the center pile position
   const isAtCenter = phase === 'flying' || phase === 'settled';
 
-  // Small random-ish offsets for center pile stacking (deterministic from centerIndex)
-  const centerOffsetX = centerIndex >= 0 ? ((centerIndex * 17) % 30) - 15 : 0;
-  const centerOffsetY = centerIndex >= 0 ? ((centerIndex * 11) % 20) - 10 : 0;
-  const centerRotation = centerIndex >= 0 ? ((centerIndex * 7) % 16) - 8 : 0;
+  // Arrange cards in a neat horizontal line at center (evenly spaced)
+  const centerOffsetX = centerIndex >= 0
+    ? (centerIndex - (totalRelevantCards - 1) / 2) * CENTER_CARD_SPACING
+    : 0;
+  const centerOffsetY = 0;
 
   const posX = isAtCenter ? `calc(${TABLE_CENTER_X}% + ${centerOffsetX}px)` : `calc(${seatLeft}% + ${spreadOffset}px)`;
   const posY = isAtCenter ? `${TABLE_CENTER_Y}%` : `${seatTop}%`;
@@ -307,7 +382,7 @@ const RevealSlotElement = memo(function RevealSlotElement({
         '--center-y': `calc(${TABLE_CENTER_Y}% + ${centerOffsetY}px)`,
         '--seat-orig-x': `calc(${seatLeft}% + ${spreadOffset}px)`,
         '--seat-orig-y': `${seatTop}%`,
-        '--center-rotation': `${centerRotation}deg`,
+        '--center-rotation': '0deg',
         '--fly-duration': `${FLY_TO_CENTER_DURATION}ms`,
         '--burn-duration': `${CARD_BURN_DURATION}ms`,
       } as React.CSSProperties}
