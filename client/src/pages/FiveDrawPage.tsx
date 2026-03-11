@@ -278,7 +278,7 @@ export function FiveDrawPage() {
     if (!dealer) return;
 
     const state = engine.getClientState(DEALER_ID);
-    const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.NORMAL);
+    const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.HARD, undefined, undefined, undefined, true);
 
     // Play appropriate sound for dealer action
     switch (decision.action) {
@@ -422,7 +422,6 @@ export function FiveDrawPage() {
     // Skip dealing animation — go straight to playing with cards visible
     setPhase('playing');
     broadcastState();
-    play('cardDeal');
 
     // Brief delay before bot can act (so player sees the initial state)
     setTimeout(() => scheduleBotTurn(), 600);
