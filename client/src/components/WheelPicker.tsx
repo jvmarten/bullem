@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, memo, type ReactNode } from 'react';
+import { useRef, useEffect, useCallback, useState, memo, type KeyboardEvent, type ReactNode } from 'react';
 
 interface WheelPickerProps<T> {
   items: T[];
@@ -197,6 +197,28 @@ function WheelPickerInner<T>({
     onSelectSound?.();
   }, [itemHeight, minIndex, onSelect, onSelectSound]);
 
+  // Keyboard navigation: ArrowUp/Down to move selection, Home/End to jump
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    let targetIdx: number | null = null;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      targetIdx = Math.max(minIndex, selectedIndex - 1);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      targetIdx = Math.min(items.length - 1, selectedIndex + 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      targetIdx = minIndex;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      targetIdx = items.length - 1;
+    }
+    if (targetIdx !== null && targetIdx !== selectedIndex) {
+      onSelect(targetIdx);
+      onSelectSound?.();
+    }
+  }, [selectedIndex, minIndex, items.length, onSelect, onSelectSound]);
+
   return (
     <div className="wheel-picker-mask" style={{ height: viewportHeight, transition: 'height 0.3s ease' }}>
       {/* Center slot highlight indicator */}
@@ -207,6 +229,11 @@ function WheelPickerInner<T>({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="listbox"
+        aria-label="Picker"
+        aria-activedescendant={`wheel-item-${visualIndex}`}
         className="wheel-picker-scroll select-none"
         style={{
           height: viewportHeight,
@@ -222,6 +249,9 @@ function WheelPickerInner<T>({
             key={i}
             ref={el => { itemRefs.current[i] = el; }}
             onClick={() => handleItemClick(i)}
+            id={`wheel-item-${i}`}
+            role="option"
+            aria-selected={i === visualIndex}
             data-wheel-item={i}
             style={{
               height: itemHeight,

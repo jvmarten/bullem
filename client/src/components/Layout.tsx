@@ -154,6 +154,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
 
   return (
     <div className={`felt-bg text-[#e8e0d4]${hideHeaderLandscape ? ' landscape-header-hidden' : ''}`}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`}>
         {/* Left group */}
         <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch' : 'items-center gap-2'} min-w-0`}>
@@ -241,7 +242,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           <span className="text-amber-400">You&apos;re offline &mdash; local bot games still work!</span>
         </div>
       )}
-      <main className="max-w-6xl mx-auto px-4 py-3 layout-main">{children}</main>
+      <main id="main-content" className="max-w-6xl mx-auto px-4 py-3 layout-main">{children}</main>
       <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} audioReady={jokerAudioReady} />
     </div>
   );
