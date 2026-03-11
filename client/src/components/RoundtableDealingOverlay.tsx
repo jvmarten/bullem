@@ -11,7 +11,6 @@ const DECK_FADE_DELAY = 300;    // delay after last card before deck fades
 const OVERLAY_LINGER = 200;     // extra time before overlay unmounts
 
 interface Props {
-  players: Player[];
   myPlayerId: string | null;
   myCards: Card[];
   playerCount: number;
@@ -38,7 +37,6 @@ interface FlyingCard {
  * After all cards are dealt, the deck fades out and the overlay unmounts.
  */
 export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
-  players,
   myPlayerId,
   myCards,
   playerCount,

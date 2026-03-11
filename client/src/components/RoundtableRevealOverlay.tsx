@@ -1,5 +1,5 @@
 import { memo, useEffect, useState, useMemo, useRef } from 'react';
-import type { RoundResult, Player, OwnedCard, PlayerId } from '@bull-em/shared';
+import type { RoundResult, Player, OwnedCard } from '@bull-em/shared';
 import { handToString } from '@bull-em/shared';
 import { getSeatPosition } from '../utils/roundtablePositions.js';
 import { CardDisplay } from './CardDisplay.js';
@@ -13,8 +13,6 @@ const MIN_DISPLAY_TIME = 1500;      // minimum time to show result before allowi
 
 interface Props {
   result: RoundResult;
-  players: Player[];
-  myPlayerId?: PlayerId;
   /** Seat-ordered players (index 0 = local player) */
   orderedPlayers: Player[];
   playerCount: number;
@@ -39,8 +37,6 @@ interface RevealCard {
  */
 export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   result,
-  players,
-  myPlayerId,
   orderedPlayers,
   playerCount,
   onComplete,
