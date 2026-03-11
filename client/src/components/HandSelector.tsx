@@ -411,7 +411,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   }, [hand, isValid, onSubmit, play]);
 
   return (
-    <div className="animate-slide-up hs-backdrop" data-testid="hand-selector">
+    <div className="animate-slide-up hs-backdrop" data-testid="hand-selector" role="group" aria-label="Hand selector">
       {/* Top: Hand name */}
       <div className="text-center py-0.5">
         {hand ? (
@@ -564,6 +564,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             onClick={handleSubmit}
             disabled={!hand || !isValid}
             className={`btn-gold px-6 py-2 text-base font-bold ${hand && isValid ? 'hs-call-pulse' : ''}`}
+            aria-label={hand ? `${label}: ${handToString(hand)}` : label}
           >
             {label}
           </button>

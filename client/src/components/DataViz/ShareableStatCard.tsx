@@ -24,7 +24,7 @@ const COLORS = {
   feltLight: '#0f4d28',
   gold: '#d4a843',
   goldLight: '#e8c56e',
-  goldDim: '#a07c2e',
+  goldDim: '#c49a3a',
   text: '#e8e0d4',
   textDim: '#a09888',
   green: '#22c55e',

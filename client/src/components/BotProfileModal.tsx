@@ -4,6 +4,7 @@ import { BOT_NAME_TO_USER_ID, openSkillDisplayRating } from '@bull-em/shared';
 import { playerColor } from '../utils/cardUtils.js';
 import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { RankBadge } from './RankBadge.js';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 
 interface Props {
   player: Player;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) {
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
   // Resolve userId: use player.userId if set, otherwise look up by bot name
   const resolvedUserId = player.userId
@@ -65,18 +67,23 @@ export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) 
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose} role="presentation">
       <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-profile-title"
         className="glass p-6 rounded-xl max-w-xs w-full space-y-4 animate-scale-in"
         onClick={e => e.stopPropagation()}
         style={{ maxHeight: '85vh', overflowY: 'auto' }}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="text-center">
           <div className={`w-16 h-16 rounded-full ${playerColor(playerIndex)} flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden`}>
             <PlayerAvatarContent name={player.name} avatar={player.avatar} photoUrl={player.photoUrl} isBot={player.isBot} />
           </div>
-          <h3 className="text-xl font-bold text-[var(--gold)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+          <h3 id="player-profile-title" className="text-xl font-bold text-[var(--gold)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
             {player.name}
           </h3>
           <p className="text-xs mt-1 text-[var(--gold-dim)]">
@@ -219,6 +226,7 @@ export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) 
         <button
           onClick={onClose}
           className="w-full btn-ghost py-2 text-sm"
+          aria-label="Close player profile"
         >
           Close
         </button>

@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext.js';
 import { FriendsProvider } from './context/FriendsContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { ScreenReaderAnnouncerProvider } from './components/ScreenReaderAnnouncer.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 import { waitForAudioReady } from './hooks/soundEngine.js';
 
@@ -127,6 +128,7 @@ export default function App() {
     <AuthProvider>
     <ToastProvider>
     <FriendsProvider>
+    <ScreenReaderAnnouncerProvider>
     <BrowserRouter>
       <ToastContainer />
       <ScrollToTop />
@@ -168,6 +170,7 @@ export default function App() {
           <Route path="*" element={<SuspenseRoute label="page"><NotFoundPage /></SuspenseRoute>} />
         </Routes>
     </BrowserRouter>
+    </ScreenReaderAnnouncerProvider>
     </FriendsProvider>
     </ToastProvider>
     </AuthProvider>

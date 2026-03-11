@@ -36,6 +36,7 @@ import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
 import { SeriesBanner } from '../components/SeriesBanner.js';
@@ -103,6 +104,7 @@ export function GamePage() {
   const isSpectator = gameState ? !myPlayer : false;
 
   useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated);
+  useGameAnnouncements(gameState, roundResult, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);

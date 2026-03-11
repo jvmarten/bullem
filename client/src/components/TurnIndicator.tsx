@@ -150,7 +150,7 @@ export const TurnIndicator = memo(function TurnIndicator({ currentPlayerId, roun
         style={{ opacity: 0 }}
         aria-hidden="true"
       />
-      <div className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
+      <div role="status" aria-live="polite" aria-label={`${turnLabel}. ${phaseLabel}`} className={`text-center py-1.5 px-3 rounded-lg transition-all duration-300 ${
         isMyTurn
           ? isWarning
             ? `glass-danger border-[var(--danger)] ${tickPulse ? 'animate-timer-tick' : 'animate-shake'}`
