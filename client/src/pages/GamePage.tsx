@@ -485,6 +485,7 @@ export function GamePage() {
             quickDrawSuggestions={quickDrawSuggestions}
             callHistoryVisible={callHistoryOpen}
             disconnectDeadlines={disconnectDeadlines}
+            revealInProgress={!!roundResult && revealPhase === 'cinematic'}
             onBull={callBull}
             onTrue={callTrue}
             onLastChancePass={lastChancePass}

@@ -3151,7 +3151,6 @@ body {
   font-weight: 700;
   font-size: 1.25rem;
   color: var(--gold);
-  /* No background panel — just readable text via shadows */
   text-shadow:
     0 0 8px rgba(0, 0, 0, 0.9),
     0 0 20px rgba(0, 0, 0, 0.6),
@@ -3159,7 +3158,7 @@ body {
   padding: 0.375rem 1.25rem;
 }
 
-/* ── Card flip system — 3D perspective card turn ────── */
+/* ── Card reveal system — cards at seats that flip, fly, or burn ────── */
 
 .rt-reveal-card {
   position: absolute;
@@ -3168,13 +3167,14 @@ body {
   left: var(--seat-x);
   top: var(--seat-y);
   transform: translate(-50%, -50%);
-  /* Realistic 3D perspective for the flip */
   perspective: 600px;
-  transition: filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+  transition: left 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+              top 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+              filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* The flipper container that actually rotates */
+/* The flipper container that rotates for 3D card flip */
 .rt-reveal-card-flipper {
   position: relative;
   width: 44px;
@@ -3182,19 +3182,47 @@ body {
   transform-style: preserve-3d;
   /* Start face-down (back visible) */
   transform: rotateY(180deg);
-  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* When flipping: rotate to show front face */
+/* Flipping: rotate to show front face */
 .rt-reveal-card--flipping .rt-reveal-card-flipper {
   transform: rotateY(0deg);
-  animation: rt-card-flip-3d 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: rt-card-flip-3d 0.45s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
-/* After flip completes — card stays face-up */
-.rt-reveal-card--hand-glow .rt-reveal-card-flipper,
-.rt-reveal-card--dimmed .rt-reveal-card-flipper {
+/* ── Flying to center — card slides from seat to table center ────── */
+.rt-reveal-card--flying {
+  left: var(--center-x) !important;
+  top: var(--center-y) !important;
+  transform: translate(-50%, -50%) rotate(var(--center-rotation, 0deg));
+  filter: drop-shadow(0 0 8px rgba(212, 168, 67, 0.8));
+  transition: left var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
+              top var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
+              transform var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
+              filter 0.3s ease-out;
+  z-index: 21;
+}
+.rt-reveal-card--flying .rt-reveal-card-flipper {
   transform: rotateY(0deg);
+}
+
+/* Settled at center — card rests in the center pile with gold glow */
+.rt-reveal-card--settled {
+  left: var(--center-x) !important;
+  top: var(--center-y) !important;
+  transform: translate(-50%, -50%) rotate(var(--center-rotation, 0deg));
+  filter: drop-shadow(0 0 6px rgba(212, 168, 67, 0.7));
+  animation: rt-hand-glow-pulse 2s ease-in-out infinite;
+  z-index: 21;
+}
+.rt-reveal-card--settled .rt-reveal-card-flipper {
+  transform: rotateY(0deg);
+}
+
+/* ── Burning — non-revealed cards fade and dim ────── */
+.rt-reveal-card--burning {
+  animation: rt-card-burn var(--burn-duration, 500ms) ease-out forwards;
 }
 
 /* Card faces — positioned for 3D flip */
@@ -3215,20 +3243,6 @@ body {
   transform: scale(0.85);
 }
 
-/* ── Post-flip highlights ────── */
-
-/* Gold glow for cards that ARE part of the called hand */
-.rt-reveal-card--hand-glow {
-  filter: drop-shadow(0 0 6px rgba(212, 168, 67, 0.7));
-  animation: rt-hand-glow-pulse 2s ease-in-out infinite;
-}
-
-/* Dim/desaturate cards that are NOT part of the hand */
-.rt-reveal-card--dimmed {
-  filter: brightness(0.55) saturate(0.3);
-  opacity: 0.7;
-}
-
 /* ── Keyframes ────── */
 
 /* 3D card flip — back to front with a slight scale pop at midpoint */
@@ -3244,7 +3258,7 @@ body {
   }
 }
 
-/* Subtle gold pulse on hand-matching cards */
+/* Subtle gold pulse on hand-matching cards settled at center */
 @keyframes rt-hand-glow-pulse {
   0%, 100% {
     filter: drop-shadow(0 0 6px rgba(212, 168, 67, 0.7));
@@ -3252,6 +3266,25 @@ body {
   50% {
     filter: drop-shadow(0 0 12px rgba(212, 168, 67, 0.9))
            drop-shadow(0 0 20px rgba(212, 168, 67, 0.3));
+  }
+}
+
+/* Card burn — non-hand cards fade, dim, and shrink away */
+@keyframes rt-card-burn {
+  0% {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  40% {
+    opacity: 0.7;
+    filter: brightness(0.5) saturate(0.2);
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.2) saturate(0);
+    transform: translate(-50%, -50%) scale(0.8) rotate(3deg);
   }
 }
 
@@ -3268,7 +3301,6 @@ body {
   flex-direction: column;
   align-items: center;
 }
-/* Subtle scrim just behind the banner — only appears with the result, not before */
 .rt-reveal-result-scrim {
   position: absolute;
   inset: -40px -60px;
@@ -3284,7 +3316,6 @@ body {
   padding: 0.75rem 2rem;
   border-radius: 0.75rem;
   border: 2px solid;
-  /* Slight blur just behind text for readability over cards */
   backdrop-filter: blur(4px);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
@@ -3335,5 +3366,10 @@ body {
   /* Reveal cards — show face immediately without flip */
   .rt-reveal-card-flipper {
     transform: rotateY(0deg) !important;
+  }
+
+  /* Burning cards — hide immediately */
+  .rt-reveal-card--burning {
+    opacity: 0 !important;
   }
 }

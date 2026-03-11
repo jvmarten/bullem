@@ -16,6 +16,9 @@ interface Props {
   playerCount: number;
   /** Seat-ordered players (index 0 = local player) */
   orderedPlayers: Player[];
+  /** Called when a card finishes flying and "lands" at a seat — used to
+   *  progressively reveal seat card backs in the layout. */
+  onCardDealt?: (seatIndex: number) => void;
 }
 
 interface FlyingCard {
@@ -41,6 +44,7 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
   myCards,
   playerCount,
   orderedPlayers,
+  onCardDealt,
 }: Props) {
   const { play } = useSound();
   const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
@@ -109,11 +113,12 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
           },
         ]);
 
-        // Mark card as landed after fly duration
+        // Mark card as landed after fly duration and notify parent
         const landTimer = setTimeout(() => {
           setFlyingCards(prev =>
             prev.map(c => c.id === i ? { ...c, landed: true } : c),
           );
+          onCardDealt?.(deal.seatIndex);
         }, CARD_FLY_DURATION);
         timers.push(landTimer);
       }, delay);

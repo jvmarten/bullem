@@ -377,6 +377,7 @@ export function LocalGamePage() {
             quickDrawEnabled={quickDrawEnabled}
             quickDrawSuggestions={quickDrawSuggestions}
             callHistoryVisible={callHistoryOpen}
+            revealInProgress={!!roundResult && revealPhase === 'cinematic'}
             onBull={callBull}
             onTrue={callTrue}
             onLastChancePass={lastChancePass}
