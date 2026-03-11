@@ -15,6 +15,7 @@ import type {
   GameSettings, ServerPlayer,
   ClientGameState,
   BotProfileConfig,
+  JokerCount, LastChanceMode,
 } from '@bull-em/shared';
 import type { BotAction } from '@bull-em/shared';
 import { createBotPlayers } from '../gameLoop.js';
@@ -41,6 +42,15 @@ export interface TrainingConfig {
   players: number | number[];
   /** Max cards before elimination. */
   maxCards: number;
+  /** Number of jokers in the deck (0, 1, or 2). Jokers are wildcards. */
+  jokerCount?: JokerCount;
+  /** Last chance raise mode ('classic' or 'strict'). */
+  lastChanceMode?: LastChanceMode;
+  /**
+   * When true, each iteration randomly picks joker count and lastChanceMode
+   * from the full configuration space. Trains a universal strategy.
+   */
+  mixConfigs?: boolean;
   /** How often to log progress (iterations). 0 = no progress. */
   progressInterval: number;
   /** How often to save checkpoints (iterations). 0 = no checkpoints. */
@@ -142,11 +152,26 @@ function validatePlayerCounts(players: number | number[], maxCards: number): voi
  * Run the CFR self-play training loop with outcome sampling.
  * Supports mixed player counts to learn strategies across table sizes.
  */
+/** All joker/LCR configurations for mixed training. */
+const ALL_JOKER_COUNTS: JokerCount[] = [0, 0, 0, 1, 1, 2]; // Weight standard deck more heavily
+const ALL_LCR_MODES: LastChanceMode[] = ['classic', 'classic', 'strict']; // Weight classic more
+
+/** Pick random joker count and LCR mode for mixed-config training. */
+function randomConfig(): { jokerCount: JokerCount; lastChanceMode: LastChanceMode } {
+  return {
+    jokerCount: ALL_JOKER_COUNTS[Math.floor(Math.random() * ALL_JOKER_COUNTS.length)]!,
+    lastChanceMode: ALL_LCR_MODES[Math.floor(Math.random() * ALL_LCR_MODES.length)]!,
+  };
+}
+
 export function trainCFR(config: TrainingConfig): TrainingResult {
   const {
     iterations,
     players: playerSpec,
     maxCards,
+    jokerCount: fixedJokerCount = 0,
+    lastChanceMode: fixedLcm = 'classic',
+    mixConfigs = false,
     progressInterval,
     checkpointInterval,
     onCheckpoint,
@@ -160,11 +185,6 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
   const maxPlayerCount = typeof playerSpec === 'number'
     ? playerSpec
     : Math.max(...playerSpec);
-
-  const settings: GameSettings = {
-    maxCards,
-    turnTimer: 0,
-  };
 
   // Filter opponent pool to lvl7-8 profiles (strongest heuristic bots).
   // Training against the strongest opponents teaches CFR to exploit the
@@ -180,6 +200,18 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
   for (let iter = 0; iter < iterations; iter++) {
     const playerCount = resolvePlayerCount(playerSpec);
 
+    // Resolve game configuration for this iteration
+    const { jokerCount, lastChanceMode } = mixConfigs
+      ? randomConfig()
+      : { jokerCount: fixedJokerCount, lastChanceMode: fixedLcm };
+
+    const settings: GameSettings = {
+      maxCards,
+      turnTimer: 0,
+      jokerCount: jokerCount > 0 ? jokerCount : undefined,
+      lastChanceMode,
+    };
+
     // For multiplayer (3+), use 1 CFR traverser + (n-1) bot opponents.
     // CFR self-play only converges to Nash in 2-player zero-sum games.
     // In 3+ player games, training against the bot pool teaches the CFR
@@ -190,7 +222,7 @@ export function trainCFR(config: TrainingConfig): TrainingResult {
     );
 
     const { result, decisions, roundOutcomes } = runTrainingGame(
-      players, settings, cfrEngine, iter, opponentConfigs,
+      players, settings, cfrEngine, iter, opponentConfigs, jokerCount, lastChanceMode,
     );
     totalGames++;
 
@@ -240,6 +272,9 @@ export function resumeTraining(
     iterations: additionalIterations,
     players: playerSpec,
     maxCards,
+    jokerCount: fixedJokerCount = 0,
+    lastChanceMode: fixedLcm = 'classic',
+    mixConfigs = false,
     progressInterval,
     checkpointInterval,
     onCheckpoint,
@@ -247,11 +282,6 @@ export function resumeTraining(
   } = config;
 
   validatePlayerCounts(playerSpec, maxCards);
-
-  const settings: GameSettings = {
-    maxCards,
-    turnTimer: 0,
-  };
 
   const profilePool = BOT_PROFILES.filter(p =>
     p.key.includes('_lvl7') || p.key.includes('_lvl8'),
@@ -263,12 +293,24 @@ export function resumeTraining(
 
   for (let i = 0; i < additionalIterations; i++) {
     const playerCount = resolvePlayerCount(playerSpec);
+
+    const { jokerCount, lastChanceMode } = mixConfigs
+      ? randomConfig()
+      : { jokerCount: fixedJokerCount, lastChanceMode: fixedLcm };
+
+    const settings: GameSettings = {
+      maxCards,
+      turnTimer: 0,
+      jokerCount: jokerCount > 0 ? jokerCount : undefined,
+      lastChanceMode,
+    };
+
     const { players, traverserId, opponentConfigs } = createTrainingPlayers(
       playerCount, startIter + i, profilePool,
     );
 
     const { result, decisions, roundOutcomes } = runTrainingGame(
-      players, settings, existingEngine, startIter + i, opponentConfigs,
+      players, settings, existingEngine, startIter + i, opponentConfigs, jokerCount, lastChanceMode,
     );
     totalGames++;
 
@@ -379,6 +421,8 @@ function runTrainingGame(
   cfrEngine: CFREngine,
   iteration: number = 0,
   opponentConfigs: Map<string, BotProfileConfig> = new Map(),
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
 ): TrainingGameResult {
   // Reset player state
   for (const p of players) {
@@ -427,7 +471,7 @@ function runTrainingGame(
         const legalActions = getLegalAbstractActions(state);
 
         if (legalActions.length > 0) {
-          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount);
+          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode);
           const node = cfrEngine.getNode(infoSetKey, legalActions);
           const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 

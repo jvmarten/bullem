@@ -8,6 +8,7 @@
  *   npx tsx training/src/train.ts --iterations 50000 --players 4 --resume
  */
 
+import type { JokerCount, LastChanceMode } from '@bull-em/shared';
 import {
   trainCFR, resumeTraining,
   saveCheckpoint, exportStrategy, exportStrategiesByPlayerCount,
@@ -20,6 +21,9 @@ function parseArgs(argv: string[]): {
   iterations: number;
   players: number | number[];
   maxCards: number;
+  jokerCount: JokerCount;
+  lastChanceMode: LastChanceMode;
+  mixConfigs: boolean;
   progressInterval: number;
   checkpointInterval: number;
   resume: boolean;
@@ -35,6 +39,9 @@ function parseArgs(argv: string[]): {
   // ~50-100 visits per info set — enough for reasonable convergence.
   let players: number | number[] = [2, 2, 3, 3, 4, 4, 5, 5, 6, 6]; // balanced distribution
   let maxCards = 5;
+  let jokerCount: JokerCount = 0;
+  let lastChanceMode: LastChanceMode = 'classic';
+  let mixConfigs = false;
   let progressInterval = 1000;
   let checkpointInterval = 100_000;
   let resume = false;
@@ -112,6 +119,31 @@ function parseArgs(argv: string[]): {
         }
         i++;
         break;
+      case '--jokers':
+      case '-j': {
+        const jc = parseInt(next ?? '', 10);
+        if (isNaN(jc) || (jc !== 0 && jc !== 1 && jc !== 2)) {
+          console.error('Error: --jokers must be 0, 1, or 2');
+          process.exit(1);
+        }
+        jokerCount = jc as JokerCount;
+        i++;
+        break;
+      }
+      case '--last-chance-mode':
+      case '--lcm': {
+        const val = (next ?? '').toLowerCase();
+        if (val !== 'classic' && val !== 'strict') {
+          console.error('Error: --last-chance-mode must be "classic" or "strict"');
+          process.exit(1);
+        }
+        lastChanceMode = val;
+        i++;
+        break;
+      }
+      case '--mix-configs':
+        mixConfigs = true;
+        break;
       case '--strategy-name':
         strategyName = next ?? null;
         if (!strategyName) {
@@ -134,6 +166,9 @@ Options:
   --players, -p <n|list>     Players per game: single number or comma-separated
                              (default: 2,3,4,5,6 — mixed training)
   --max-cards, -m <n>        Max cards before elimination (default: 5, range: 1-5)
+  --jokers, -j <n>           Jokers in deck: 0, 1, or 2 (default: 0)
+  --last-chance-mode <mode>  Last chance raise mode: classic or strict (default: classic)
+  --mix-configs              Randomly mix joker/LCR settings each iteration
   --progress <n>             Log progress every N iterations (default: 1000)
   --checkpoint-interval <n>  Save checkpoint every N iterations (default: 100000)
   --resume                   Resume from latest checkpoint
@@ -154,20 +189,21 @@ Examples:
     }
   }
 
-  // Validate player/card combo
-  const maxPlayersForCards = Math.floor(52 / maxCards);
+  // Validate player/card combo (account for jokers expanding deck size)
+  const deckSize = 52 + jokerCount;
+  const maxPlayersForCards = Math.floor(deckSize / maxCards);
   const playerCounts = typeof players === 'number' ? [players] : players;
   for (const p of playerCounts) {
     if (p > maxPlayersForCards) {
       console.error(
-        `Error: ${p} players with max ${maxCards} cards exceeds deck size. ` +
+        `Error: ${p} players with max ${maxCards} cards exceeds deck size (${deckSize}). ` +
         `Max players for ${maxCards} cards: ${maxPlayersForCards}`,
       );
       process.exit(1);
     }
   }
 
-  return { iterations, players, maxCards, progressInterval, checkpointInterval, resume, checkpointFile, strategyName };
+  return { iterations, players, maxCards, jokerCount, lastChanceMode, mixConfigs, progressInterval, checkpointInterval, resume, checkpointFile, strategyName };
 }
 
 const config = parseArgs(process.argv);
@@ -220,9 +256,12 @@ function onCheckpoint(engine: CFREngine, iteration: number): void {
 const playerDesc = typeof config.players === 'number'
   ? `${config.players} players`
   : `mixed [${config.players.join(',')}] players`;
+const configDesc = config.mixConfigs
+  ? 'mixed configs (jokers 0/1/2, LCR classic/strict)'
+  : `${config.jokerCount} jokers, ${config.lastChanceMode} LCR`;
 console.log(
   `\nCFR Training: ${config.iterations} iterations, ${playerDesc}, ` +
-  `max ${config.maxCards} cards\n`,
+  `max ${config.maxCards} cards, ${configDesc}\n`,
 );
 
 const result = existingEngine

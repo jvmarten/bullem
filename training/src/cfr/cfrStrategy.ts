@@ -8,7 +8,7 @@
  *    deterministically (no exploration, no regret tracking).
  */
 
-import type { Card, ClientGameState } from '@bull-em/shared';
+import type { Card, ClientGameState, JokerCount, LastChanceMode } from '@bull-em/shared';
 import type { BotStrategy, BotStrategyContext, BotStrategyAction } from '../types.js';
 import { CFREngine, type ExportedStrategy } from './cfrEngine.js';
 import {
@@ -41,12 +41,12 @@ export function createCFRTrainingStrategy(
   decisionLog: DecisionRecord[],
 ): BotStrategy {
   return (context: BotStrategyContext): BotStrategyAction | undefined => {
-    const { state, botId, botCards, totalCards, activePlayers } = context;
+    const { state, botId, botCards, totalCards, activePlayers, jokerCount, lastChanceMode } = context;
 
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers);
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic');
     const { action: abstractAction, strategy } = cfrEngine.sampleAction(infoSetKey, legalActions);
 
     // Accumulate strategy for averaging
@@ -177,12 +177,12 @@ function makeEvalStrategy(
   evalStats?: EvaluationStats,
 ): BotStrategy {
   return (context: BotStrategyContext): BotStrategyAction | undefined => {
-    const { state, botCards, totalCards, activePlayers } = context;
+    const { state, botCards, totalCards, activePlayers, jokerCount, lastChanceMode } = context;
 
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers);
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic');
     const strategyEntry = exportedStrategy.strategy[infoSetKey];
 
     let chosenAction: AbstractAction;
