@@ -6,6 +6,12 @@ import { useToast } from '../context/ToastContext.js';
 import { useSound } from '../hooks/useSound.js';
 import type { FriendEntry } from '@bull-em/shared';
 
+const AVATAR_EMOJI: Record<string, string> = {
+  bull: '\u{1F402}', ace: '\u{1F0A1}', crown: '\u{1F451}', diamond: '\u{1F48E}',
+  skull: '\u{1F480}', star: '\u2B50', wolf: '\u{1F43A}', eagle: '\u{1F985}',
+  lion: '\u{1F981}', fox: '\u{1F98A}', bear: '\u{1F43B}',
+};
+
 /** Online status indicator dot. */
 function OnlineDot({ isOnline }: { isOnline: boolean }) {
   return (
@@ -41,12 +47,7 @@ function FriendCard({
         <div className="w-10 h-10 rounded-full bg-[var(--felt-light)] flex items-center justify-center text-lg">
           {friend.avatar ? (
             <span className="text-xl">
-              {friend.avatar === 'bull' ? '\u{1F402}' : friend.avatar === 'ace' ? '\u{1F0A1}' :
-               friend.avatar === 'crown' ? '\u{1F451}' : friend.avatar === 'diamond' ? '\u{1F48E}' :
-               friend.avatar === 'skull' ? '\u{1F480}' : friend.avatar === 'star' ? '\u2B50' :
-               friend.avatar === 'wolf' ? '\u{1F43A}' : friend.avatar === 'eagle' ? '\u{1F985}' :
-               friend.avatar === 'lion' ? '\u{1F981}' : friend.avatar === 'fox' ? '\u{1F98A}' :
-               friend.avatar === 'bear' ? '\u{1F43B}' : '\u{1F464}'}
+              {AVATAR_EMOJI[friend.avatar] ?? '\u{1F464}'}
             </span>
           ) : (
             <span className="text-[var(--gold-dim)]">{friend.displayName.charAt(0).toUpperCase()}</span>

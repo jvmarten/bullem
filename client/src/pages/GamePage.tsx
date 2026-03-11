@@ -529,8 +529,6 @@ export function GamePage() {
           {roundResult && revealPhase === 'cinematic' && (
             <RoundtableRevealOverlay
               result={roundResult}
-              players={gameState.players}
-              myPlayerId={playerId ?? undefined}
               orderedPlayers={orderedPlayersForReveal}
               playerCount={Math.min(gameState.players.length, 12)}
               onComplete={() => setRevealPhase('results')}

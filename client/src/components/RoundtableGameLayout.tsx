@@ -393,9 +393,9 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     if (prevRoundRef.current !== roundNumber && prevRoundRef.current !== 0) {
       setShowDealing(true);
       // Auto-hide after animation completes (safety net — overlay also self-removes)
-      const maxCards = Math.max(...players.filter(p => !p.isEliminated).map(p => p.cardCount), 0);
+      const maxPlayerCards = Math.max(...players.filter(p => !p.isEliminated).map(p => p.cardCount), 0);
       const totalPlayers = players.filter(p => !p.isEliminated).length;
-      const totalCards = maxCards * totalPlayers;
+      const totalCards = maxPlayerCards * totalPlayers;
       const timeout = totalCards * 180 + 350 + 300 + 400; // deal + fly + fade + buffer
       const t = setTimeout(() => setShowDealing(false), timeout);
       prevRoundRef.current = roundNumber;
@@ -450,10 +450,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     return undefined;
   }, [turnHistory]);
   const latestCallerId = latestCallEntry?.playerId ?? null;
-
-  const callerName = lastCallerId
-    ? players.find(p => p.id === lastCallerId)?.name ?? '?'
-    : null;
 
   // Seat 0 position for placing the player's own cards
   const mySeatPos = getSeatPosition(playerCount, 0);
@@ -530,7 +526,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         {/* Dealing animation overlay — shows deck + flying cards at round start */}
         {showDealing && (
           <RoundtableDealingOverlay
-            players={players}
             myPlayerId={myPlayerId}
             myCards={myCards}
             playerCount={playerCount}
