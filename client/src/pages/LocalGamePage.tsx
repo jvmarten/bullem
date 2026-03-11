@@ -411,6 +411,7 @@ export function LocalGamePage() {
               result={roundResult}
               orderedPlayers={orderedPlayersForReveal}
               playerCount={Math.min(gameState.players.length, 12)}
+              myPlayerId={playerId ?? undefined}
               onComplete={() => setRevealPhase('results')}
             />
           )}

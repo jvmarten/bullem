@@ -3131,7 +3131,7 @@ body {
 /* Transparent positioning container — NO dark overlay, NO blur.
    The table stays fully visible. This just handles click-to-dismiss. */
 .rt-reveal-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 18;
   background: transparent;
@@ -3328,6 +3328,28 @@ body {
   color: var(--danger);
   background: var(--danger-bg);
   border-color: var(--danger);
+}
+/* Two-beat result box (SAFE/WRONG/BUSTED → hand exists/fake) */
+.rt-reveal-result-box {
+  position: relative;
+  overflow: hidden;
+  min-height: 3.5rem;
+  min-width: 14rem;
+  border: 2px solid;
+  border-radius: 0.75rem;
+  backdrop-filter: blur(4px);
+  padding: 0.75rem 2rem;
+  transition: border-color 0.5s ease, background 0.5s ease;
+}
+.rt-reveal-result-beat {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 .rt-reveal-continue {
   padding: 0.5rem 2rem;
