@@ -2315,6 +2315,11 @@ body {
   opacity: 0.35;
 }
 
+/* Turn highlight — pop active player above overlapping neighbors */
+.rt-seat--active {
+  z-index: 8;
+}
+
 /* Turn highlight — glow ring around active player's avatar */
 .rt-seat--active .rt-avatar {
   box-shadow:
@@ -2501,12 +2506,12 @@ body {
   z-index: 3;
 }
 
-/* Call history — small scrollable panel on the left edge */
+/* Call history — scrollable panel on the left edge */
 .rt-call-history {
   position: absolute;
   top: 56px; /* below header */
   left: 0;
-  width: 200px;
+  width: 300px;
   max-height: calc(100dvh - 56px - 140px);
   overflow-y: auto;
   scrollbar-width: thin;
@@ -2554,12 +2559,18 @@ body {
 
 /* Hand selector in roundtable — compact, pulled up closer to preview */
 .rt-hand-selector {
-  margin-top: -0.5rem;
+  margin-top: -0.75rem;
+}
+
+.rt-hand-selector .hs-backdrop {
+  /* Tighter padding top/bottom */
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .rt-hand-selector .wheel-picker-mask {
-  /* Reduce visible height to bring highlighter closer to the preview hand */
-  max-height: 180px;
+  /* Reduce visible height to bring highlight spots closer to preview hand */
+  max-height: 150px;
 }
 
 /* ── Narrow landscape refinements for roundtable ───── */
@@ -2614,13 +2625,46 @@ body {
   }
 
   .rt-call-history {
-    width: 170px;
+    width: 260px;
     font-size: 0.65rem;
   }
 
   .rt-controls {
     padding: 0.125rem 0.5rem;
   }
+}
+
+/* ── Crowded table: compact seats for 9+ players ───── */
+.rt-table-area--crowded .rt-card-back {
+  width: 34px;
+  height: 46px;
+}
+
+.rt-table-area--crowded .rt-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 0.65rem;
+}
+
+.rt-table-area--crowded .rt-avatar--overlap {
+  margin-top: -10px;
+}
+
+.rt-table-area--crowded .rt-name {
+  font-size: 0.6rem;
+  max-width: 60px;
+}
+
+.rt-table-area--crowded .rt-action-chip {
+  font-size: 0.5rem;
+  padding: 1px 6px;
+  max-width: 80px;
+}
+
+.rt-table-area--crowded .rt-action-chip--latest {
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  max-width: 110px;
 }
 
 /* ── Wider desktop: larger seats and table ─────────── */
@@ -2664,6 +2708,6 @@ body {
   }
 
   .rt-call-history {
-    width: 240px;
+    width: 340px;
   }
 }
