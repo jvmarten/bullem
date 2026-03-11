@@ -5,8 +5,8 @@ import { useSound } from '../hooks/useSound.js';
 import { CardDisplay } from './CardDisplay.js';
 
 /** Timing constants (ms) */
-const CARD_DEAL_INTERVAL = 180; // delay between each card dealt
-const CARD_FLY_DURATION = 350;  // how long each card takes to fly to its seat
+const CARD_DEAL_INTERVAL = 200; // delay between each card dealt
+const CARD_FLY_DURATION = 420;  // how long each card takes to fly to its seat
 const DECK_FADE_DELAY = 300;    // delay after last card before deck fades
 const OVERLAY_LINGER = 200;     // extra time before overlay unmounts
 
@@ -45,6 +45,7 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
   const { play } = useSound();
   const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
   const [deckVisible, setDeckVisible] = useState(true);
+  const [dealtCount, setDealtCount] = useState(0);
   const [done, setDone] = useState(false);
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -95,6 +96,7 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
       const delay = i * CARD_DEAL_INTERVAL;
       const t = setTimeout(() => {
         play('cardDeal');
+        setDealtCount(i + 1);
         setFlyingCards(prev => [
           ...prev,
           {
@@ -143,12 +145,22 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
       {/* Deck in center of table */}
       <div
         className={`rt-dealing-deck ${deckVisible ? '' : 'rt-dealing-deck--fade'}`}
+        style={{
+          '--deck-shrink': Math.min(dealtCount / Math.max(dealSequence.length, 1), 1),
+        } as React.CSSProperties}
       >
-        {/* Stack of cards for visual depth */}
+        {/* Stack of cards for visual depth — 6 layers with 3D offsets */}
         <div className="rt-dealing-deck-stack">
-          <div className="rt-card-back rt-dealing-deck-card" style={{ transform: 'translate(-1px, -1px)' }} />
-          <div className="rt-card-back rt-dealing-deck-card" style={{ transform: 'translate(0px, 0px)' }} />
-          <div className="rt-card-back rt-dealing-deck-card" style={{ transform: 'translate(1px, 1px)' }} />
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div
+              key={i}
+              className="rt-card-back rt-dealing-deck-card"
+              style={{
+                transform: `translate(${-i * 0.5}px, ${-i * 1.2}px)`,
+                zIndex: i,
+              }}
+            />
+          ))}
         </div>
       </div>
 

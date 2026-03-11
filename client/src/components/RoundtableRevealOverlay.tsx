@@ -6,10 +6,12 @@ import { CardDisplay } from './CardDisplay.js';
 import { useSound } from '../hooks/useSound.js';
 
 /** Timing constants (ms) */
-const CARD_REVEAL_INTERVAL = 400;   // delay between each card's reveal
-const CARD_FLY_DURATION = 400;      // how long the card flies to center or burns
-const RESULT_DELAY = 600;           // delay after last card before showing result
-const MIN_DISPLAY_TIME = 1500;      // minimum time to show result before allowing dismiss
+const CARD_FLIP_DURATION = 500;    // 3D card flip animation time
+const CARD_FLIP_INTERVAL = 250;    // delay between cards within same player
+const PLAYER_PAUSE = 400;          // pause between players for narrative pacing
+const SETTLE_DELAY = 300;          // delay after flip before applying highlight/dim
+const RESULT_DELAY = 700;          // delay after last card before showing result
+const MIN_DISPLAY_TIME = 1500;     // minimum time to show result before allowing dismiss
 
 interface Props {
   result: RoundResult;
@@ -23,17 +25,20 @@ interface RevealCard {
   id: number;
   card: OwnedCard;
   seatIndex: number;
+  /** Which card slot this is at the player's seat (for offset positioning) */
+  cardSlotIndex: number;
+  /** Total cards this player has (for offset calculation) */
+  playerCardTotal: number;
   /** Whether this card is part of the called hand */
   isPartOfHand: boolean;
-  phase: 'waiting' | 'revealing' | 'burned' | 'collected';
+  phase: 'waiting' | 'flipping' | 'revealed';
 }
 
 /**
  * Cinematic reveal animation for the roundtable layout.
- * When a call is challenged, cards are revealed one-by-one from each player:
- * - Cards NOT part of the called hand: burn animation (fade red, slide out)
- * - Cards that ARE part of the called hand: fly to center, land face-up
- * After all cards evaluated, shows the result.
+ * Cards reveal player-by-player at their seat positions with 3D card flips.
+ * No overlay — the table stays fully visible throughout.
+ * Hand cards get a gold glow; non-hand cards dim after flipping.
  */
 export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   result,
@@ -55,7 +60,6 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   }, [orderedPlayers]);
 
   // Build the set of cards that form the called hand
-  // revealedCards from result are the cards that are part of the hand
   const handCardKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const card of result.revealedCards) {
@@ -64,26 +68,56 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     return keys;
   }, [result.revealedCards]);
 
-  // Build the reveal sequence from all revealed cards
+  // Build the reveal sequence: grouped by player (seat order), all cards per player together
   const revealSequence = useMemo(() => {
-    const seq: { card: OwnedCard; seatIndex: number; isPartOfHand: boolean }[] = [];
+    // Group cards by player
+    const byPlayer = new Map<string, { card: OwnedCard; seatIndex: number; isPartOfHand: boolean }[]>();
 
     for (const ownedCard of result.revealedCards) {
       const seatIndex = seatIndexByPlayerId.get(ownedCard.playerId) ?? 0;
       const key = `${ownedCard.playerId}-${ownedCard.rank}-${ownedCard.suit}`;
       const isPartOfHand = handCardKeys.has(key);
 
-      seq.push({ card: ownedCard, seatIndex, isPartOfHand });
+      if (!byPlayer.has(ownedCard.playerId)) {
+        byPlayer.set(ownedCard.playerId, []);
+      }
+      byPlayer.get(ownedCard.playerId)!.push({ card: ownedCard, seatIndex, isPartOfHand });
     }
 
-    // Sort: burn cards first (not part of hand), then hand cards for dramatic buildup
-    seq.sort((a, b) => {
-      if (a.isPartOfHand !== b.isPartOfHand) return a.isPartOfHand ? 1 : -1;
-      return 0; // preserve order within same group
-    });
+    // Order players by seat index for clockwise reveal
+    const playerIds = Array.from(byPlayer.keys());
+    playerIds.sort((a, b) => (seatIndexByPlayerId.get(a) ?? 0) - (seatIndexByPlayerId.get(b) ?? 0));
+
+    // Flatten into sequence with card slot indices
+    const seq: { card: OwnedCard; seatIndex: number; isPartOfHand: boolean; cardSlotIndex: number; playerCardTotal: number }[] = [];
+    for (const playerId of playerIds) {
+      const cards = byPlayer.get(playerId)!;
+      cards.forEach((c, idx) => {
+        seq.push({ ...c, cardSlotIndex: idx, playerCardTotal: cards.length });
+      });
+    }
 
     return seq;
   }, [result.revealedCards, seatIndexByPlayerId, handCardKeys]);
+
+  // Calculate timing for each card based on player grouping
+  const cardTimings = useMemo(() => {
+    const timings: number[] = [];
+    let currentTime = 0;
+    let lastSeatIndex = -1;
+
+    for (const item of revealSequence) {
+      // Add pause when switching to a new player
+      if (item.seatIndex !== lastSeatIndex && lastSeatIndex !== -1) {
+        currentTime += PLAYER_PAUSE;
+      }
+      timings.push(currentTime);
+      currentTime += CARD_FLIP_INTERVAL;
+      lastSeatIndex = item.seatIndex;
+    }
+
+    return timings;
+  }, [revealSequence]);
 
   // Run the reveal animation
   useEffect(() => {
@@ -95,38 +129,38 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
       id: i,
       card: item.card,
       seatIndex: item.seatIndex,
+      cardSlotIndex: item.cardSlotIndex,
+      playerCardTotal: item.playerCardTotal,
       isPartOfHand: item.isPartOfHand,
       phase: 'waiting' as const,
     }));
     setRevealCards(initial);
 
-    // Reveal cards one at a time
+    // Reveal cards with player-grouped timing
     revealSequence.forEach((_, i) => {
-      const revealDelay = i * CARD_REVEAL_INTERVAL;
+      const revealDelay = cardTimings[i] ?? i * CARD_FLIP_INTERVAL;
 
-      // Start revealing
+      // Start flipping
       const t1 = setTimeout(() => {
         play('cardDeal');
         setRevealCards(prev =>
-          prev.map(c => c.id === i ? { ...c, phase: 'revealing' } : c),
+          prev.map(c => c.id === i ? { ...c, phase: 'flipping' } : c),
         );
       }, revealDelay);
       timers.push(t1);
 
-      // Complete the animation (burn or collect)
+      // Complete the flip — card is now face-up with highlight/dim
       const t2 = setTimeout(() => {
         setRevealCards(prev =>
-          prev.map(c => {
-            if (c.id !== i) return c;
-            return { ...c, phase: c.isPartOfHand ? 'collected' : 'burned' };
-          }),
+          prev.map(c => c.id === i ? { ...c, phase: 'revealed' } : c),
         );
-      }, revealDelay + CARD_FLY_DURATION);
+      }, revealDelay + CARD_FLIP_DURATION + SETTLE_DELAY);
       timers.push(t2);
     });
 
     // Show result after all cards revealed
-    const totalRevealTime = revealSequence.length * CARD_REVEAL_INTERVAL + CARD_FLY_DURATION + RESULT_DELAY;
+    const lastCardTime = cardTimings[cardTimings.length - 1] ?? 0;
+    const totalRevealTime = lastCardTime + CARD_FLIP_DURATION + SETTLE_DELAY + RESULT_DELAY;
     const resultTimer = setTimeout(() => setShowResult(true), totalRevealTime);
     timers.push(resultTimer);
 
@@ -139,41 +173,29 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
-  // Count collected cards for spread layout
-  const collectedCount = revealCards.filter(c => c.phase === 'collected').length;
-
   return (
     <div className="rt-reveal-overlay" onClick={canDismiss ? onComplete : undefined}>
-      {/* Called hand label at top */}
+      {/* Called hand label at top — no background overlay, just text with shadow */}
       <div className="rt-reveal-header animate-fade-in">
         <span className="rt-reveal-hand-label">
           {handToString(result.calledHand)}
         </span>
       </div>
 
-      {/* Reveal cards */}
+      {/* Reveal cards — flip in place at each player's seat */}
       {revealCards.map(rc => (
         <RevealCardElement
           key={rc.id}
           revealCard={rc}
           playerCount={playerCount}
-          collectedIndex={
-            rc.phase === 'collected'
-              ? revealCards.filter(c => c.phase === 'collected' && c.id < rc.id).length
-              : 0
-          }
-          collectedTotal={collectedCount}
         />
       ))}
 
-      {/* Center pile glow when cards are collecting */}
-      {collectedCount > 0 && (
-        <div className="rt-reveal-center-glow" />
-      )}
-
-      {/* Result banner */}
+      {/* Result banner — only appears after all cards revealed */}
       {showResult && (
         <div className="rt-reveal-result animate-cube-roll-in">
+          {/* Subtle scrim just behind the banner text for readability */}
+          <div className="rt-reveal-result-scrim" />
           <div className={`rt-reveal-result-text ${result.handExists ? 'rt-reveal-result--exists' : 'rt-reveal-result--fake'}`}>
             {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
           </div>
@@ -191,48 +213,50 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   );
 });
 
-/** Individual card in the reveal sequence. */
+/** Individual card in the reveal sequence — flips in place at player's seat. */
 const RevealCardElement = memo(function RevealCardElement({
   revealCard,
   playerCount,
-  collectedIndex,
-  collectedTotal,
 }: {
   revealCard: RevealCard;
   playerCount: number;
-  collectedIndex: number;
-  collectedTotal: number;
 }) {
-  const { seatIndex, card, phase, isPartOfHand } = revealCard;
+  const { seatIndex, card, phase, isPartOfHand, cardSlotIndex, playerCardTotal } = revealCard;
   const seatPos = getSeatPosition(playerCount, seatIndex);
 
   const seatLeft = parseFloat(seatPos.left);
   const seatTop = parseFloat(seatPos.top);
 
-  // Center of table for collected cards
-  const centerLeft = 50;
-  const centerTop = 42;
-
-  // Spread collected cards in center
-  const spreadOffset = collectedTotal > 1
-    ? (collectedIndex - (collectedTotal - 1) / 2) * 28
+  // Offset cards horizontally within the same player's seat so they fan out
+  const spreadOffset = playerCardTotal > 1
+    ? (cardSlotIndex - (playerCardTotal - 1) / 2) * 24
     : 0;
 
   if (phase === 'waiting') return null;
 
+  const isFlipping = phase === 'flipping';
+  const isRevealed = phase === 'revealed';
+
   return (
     <div
-      className={`rt-reveal-card rt-reveal-card--${phase} ${isPartOfHand ? 'rt-reveal-card--hand' : 'rt-reveal-card--burn'}`}
+      className={[
+        'rt-reveal-card',
+        isFlipping ? 'rt-reveal-card--flipping' : '',
+        isRevealed && isPartOfHand ? 'rt-reveal-card--hand-glow' : '',
+        isRevealed && !isPartOfHand ? 'rt-reveal-card--dimmed' : '',
+      ].join(' ')}
       style={{
-        '--seat-x': `${seatLeft}%`,
+        '--seat-x': `calc(${seatLeft}% + ${spreadOffset}px)`,
         '--seat-y': `${seatTop}%`,
-        '--center-x': `calc(${centerLeft}% + ${spreadOffset}px)`,
-        '--center-y': `${centerTop}%`,
-        '--fly-duration': `${CARD_FLY_DURATION}ms`,
       } as React.CSSProperties}
     >
-      <div className="rt-reveal-card-inner">
-        <CardDisplay card={card} />
+      <div className="rt-reveal-card-flipper">
+        {/* Back face — shown during flip start */}
+        <div className="rt-reveal-card-back rt-card-back" />
+        {/* Front face — the actual card */}
+        <div className="rt-reveal-card-front">
+          <CardDisplay card={card} />
+        </div>
       </div>
     </div>
   );
