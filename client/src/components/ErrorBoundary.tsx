@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-4"
+        <div className="h-full flex items-center justify-center p-4"
              style={{ background: 'var(--felt)' }}>
           <div className="text-center space-y-4 glass p-8 max-w-sm">
             <h1 className="font-display text-2xl font-bold text-[var(--gold)]">

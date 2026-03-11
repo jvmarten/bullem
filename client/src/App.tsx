@@ -72,7 +72,7 @@ function LocalLayout() {
 
 function RouteLoadingFallback({ label }: { label?: string } = {}) {
   return (
-    <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
+    <div className="felt-bg text-[#e8e0d4] items-center justify-center">
       <div className="text-center space-y-3">
         <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-[var(--gold-dim)]">Loading {label ?? 'page'}&hellip;</p>
@@ -85,7 +85,7 @@ function RouteLoadingFallback({ label }: { label?: string } = {}) {
 function SplashScreen({ progress }: { progress: number }) {
   const pct = Math.round(progress * 100);
   return (
-    <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center">
+    <div className="felt-bg text-[#e8e0d4] items-center justify-center">
       <div className="text-center space-y-4 animate-fade-in">
         <img
           src="/bullem-text-transparent.png"

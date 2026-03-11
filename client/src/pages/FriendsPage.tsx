@@ -189,7 +189,7 @@ export function FriendsPage() {
 
   if (!user) {
     return (
-      <div className="felt-bg text-[#e8e0d4] min-h-screen flex items-center justify-center p-4">
+      <div className="felt-bg text-[#e8e0d4] items-center justify-center p-4">
         <div className="text-center space-y-4 animate-fade-in">
           <h1 className="text-2xl font-bold text-[var(--gold)]">Friends</h1>
           <p className="text-[var(--gold-dim)]">Log in to add friends and see who's online.</p>
@@ -200,8 +200,8 @@ export function FriendsPage() {
   }
 
   return (
-    <div className="felt-bg text-[#e8e0d4] min-h-screen">
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-fade-in">
+    <div className="felt-bg text-[#e8e0d4]">
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-fade-in layout-main">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
