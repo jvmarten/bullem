@@ -165,6 +165,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const [spectatorInitialStats, setSpectatorInitialStats] = useState<GameStats | null>(null);
   const [sessionTransferred, setSessionTransferred] = useState(false);
+  const reactionTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
@@ -497,10 +498,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('server:playerNames', setOnlinePlayerNames);
     socket.on('game:reaction', (reaction: EmojiReaction) => {
       setReactions(prev => [...prev, reaction]);
-      // Auto-remove after 2 seconds
-      setTimeout(() => {
+      // Auto-remove after 2 seconds; track timer for cleanup on unmount
+      const timer = setTimeout(() => {
+        reactionTimersRef.current.delete(timer);
         setReactions(prev => prev.filter(r => r.timestamp !== reaction.timestamp || r.playerId !== reaction.playerId));
       }, 2000);
+      reactionTimersRef.current.add(timer);
     });
     socket.on('chat:message', (message: ChatMessage) => {
       setChatMessages(prev => {
@@ -547,6 +550,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
+      for (const timer of reactionTimersRef.current) clearTimeout(timer);
+      reactionTimersRef.current.clear();
       socket.off('connect');
       socket.off('disconnect');
       socket.off('room:state');

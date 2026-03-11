@@ -106,7 +106,7 @@ export class GameEngine {
 
     // Deal cards (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      const needed = p.cardCount || STARTING_CARDS;
+      const needed = p.cardCount ?? STARTING_CARDS;
       const available = Math.min(needed, this.deck.remaining);
       p.cards = this.deck.deal(available);
     }
@@ -171,7 +171,7 @@ export class GameEngine {
 
     // Re-deal cards based on each player's current card count (with deck exhaustion safety)
     for (const p of this.getActivePlayers()) {
-      const needed = p.cardCount || STARTING_CARDS;
+      const needed = p.cardCount ?? STARTING_CARDS;
       const available = Math.min(needed, this.deck.remaining);
       p.cards = this.deck.deal(available);
     }
@@ -534,12 +534,15 @@ export class GameEngine {
   }
 
   private resolveRound(): TurnResult {
+    if (!this.currentHand || !this.lastCallerId) {
+      return { type: 'error', message: 'Cannot resolve round: no hand was called' };
+    }
     this.roundPhase = RoundPhase.RESOLVING;
     this.gameStats.totalRounds++;
     const allCards = this.getAllCards();
     const allCardsOwned = this.getAllCardsWithOwnership();
-    const handExists = HandChecker.exists(allCards, this.currentHand!);
-    const revealedCards = HandChecker.findAllRelevantCards(allCardsOwned, this.currentHand!);
+    const handExists = HandChecker.exists(allCards, this.currentHand);
+    const revealedCards = HandChecker.findAllRelevantCards(allCardsOwned, this.currentHand);
 
     // Note: hand existence is now tracked at call time (in handleCall / handleLastChanceRaise)
     // so it reflects whether the hand existed when called, not just at resolution.
@@ -572,7 +575,7 @@ export class GameEngine {
     }
     const allWouldEliminate =
       wouldBePenalized.length === activePlayers.length &&
-      activePlayers.every(p => (p.cardCount || STARTING_CARDS) + 1 > this.settings.maxCards);
+      activePlayers.every(p => (p.cardCount ?? STARTING_CARDS) + 1 > this.settings.maxCards);
 
     for (const p of activePlayers) {
       const lastAction = this.getPlayerLastAction(p.id);
@@ -611,7 +614,7 @@ export class GameEngine {
 
       if (incorrect && !allWouldEliminate) {
         penalizedPlayerIds.push(p.id);
-        p.cardCount = (p.cardCount || STARTING_CARDS) + 1;
+        p.cardCount = (p.cardCount ?? STARTING_CARDS) + 1;
         if (p.cardCount > this.settings.maxCards) {
           p.isEliminated = true;
           this._activePlayers = null;
@@ -624,12 +627,12 @@ export class GameEngine {
         stats.roundsSurvived++;
       }
 
-      penalties[p.id] = p.cardCount || STARTING_CARDS;
+      penalties[p.id] = p.cardCount ?? STARTING_CARDS;
     }
 
     const result: RoundResult = {
-      calledHand: this.currentHand!,
-      callerId: this.lastCallerId!,
+      calledHand: this.currentHand,
+      callerId: this.lastCallerId,
       handExists,
       revealedCards,
       penalties,
