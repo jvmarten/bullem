@@ -2223,32 +2223,50 @@ body {
   flex-shrink: 0;
 }
 
-/* Oval table surface */
+/* Poker table surface — stadium/racetrack shape like a real poker table */
 .rt-table {
   position: absolute;
-  top: 8%;
-  left: 15%;
-  width: 70%;
-  height: 70%;
+  top: 6%;
+  left: 12%;
+  width: 76%;
+  height: 74%;
   background: radial-gradient(ellipse, var(--felt-light) 0%, var(--felt) 70%, var(--felt-dark) 100%);
-  border: 2px solid var(--felt-border);
-  border-radius: 50%;
+  border: 3px solid var(--felt-border);
+  border-radius: 42% / 50%;
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.5),
-    inset 0 0 40px rgba(0, 0, 0, 0.15);
+    inset 0 0 40px rgba(0, 0, 0, 0.15),
+    0 0 0 6px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Center content inside the table: turn indicator + current call */
+/* Center content inside the table: action buttons flanking the current call */
 .rt-table-center {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.25rem;
-  max-width: 60%;
+  justify-content: center;
+  gap: 0.75rem;
+  max-width: 80%;
   text-align: center;
+}
+
+/* Left side of center — bull/true/pass buttons */
+.rt-center-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* Right side of center — raise/call/submit buttons */
+.rt-center-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
 }
 
 /* Current call badge in the table center */
@@ -2415,8 +2433,8 @@ body {
 }
 
 .rt-card-back {
-  width: 30px;
-  height: 42px;
+  width: 38px;
+  height: 52px;
   background: linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%);
   border-radius: 3px;
   border: 1px solid #d44;
@@ -2484,7 +2502,7 @@ body {
 
 /* Seat 0 — local player's face-up cards at the bottom-center seat */
 .rt-seat--me-cards {
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -60%);
   z-index: 3;
 }
 
@@ -2520,12 +2538,23 @@ body {
 
 
 
-/* Action buttons row in roundtable */
+/* Action buttons row in roundtable (now centered in table) */
 .rt-actions {
   display: flex;
   justify-content: space-between;
   align-items: start;
   position: relative;
+}
+
+/* Center action buttons in table — keep flex row layout */
+.rt-center-left [data-action-buttons] {
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rt-center-right [data-action-buttons] {
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 /* Hand selector in roundtable — compact */
@@ -2536,8 +2565,8 @@ body {
 /* ── Narrow landscape refinements for roundtable ───── */
 @media (orientation: landscape) and (max-height: 500px) {
   .rt-table {
-    top: 4%;
-    height: 76%;
+    top: 3%;
+    height: 78%;
   }
 
   .rt-avatar {
@@ -2556,12 +2585,12 @@ body {
   }
 
   .rt-card-back {
-    width: 24px;
-    height: 34px;
+    width: 30px;
+    height: 42px;
   }
 
   .rt-avatar--overlap {
-    margin-top: -10px;
+    margin-top: -12px;
   }
 
   .rt-action-chip {
@@ -2616,8 +2645,8 @@ body {
   }
 
   .rt-card-back {
-    width: 36px;
-    height: 50px;
+    width: 44px;
+    height: 60px;
   }
 
   .rt-action-chip {
