@@ -141,4 +141,4 @@ vite.config.ts.timestamp-*
 # CFR training checkpoints and strategy files (large intermediate data — not committed)
 # Final strategy is embedded in shared/src/cfr/strategyData.ts
 training/checkpoints/
-training/strategies/*.json
+training/strategies/**/*.json
