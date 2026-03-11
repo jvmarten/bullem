@@ -19,7 +19,7 @@ import { useSound } from '../hooks/useSound.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import {
-  RoundPhase, BotDifficulty, GameEngine, BotPlayer, getMinimumRaise, handToString,
+  RoundPhase, BotDifficulty, GameEngine, BotPlayer, handToString,
   FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_DEFAULT_WAGER, FIVE_DRAW_WIN_MULTIPLIER,
   DECK_DRAW_STARTING_BALANCE,
   type HandCall, type Card, type Suit, type ServerPlayer, type ClientGameState, type RoundResult,
@@ -598,18 +598,6 @@ export function FiveDrawPage() {
     setHandSelectorOpen(false);
   }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
 
-  const handleQuickRaise = useCallback(() => {
-    const current = gameState?.currentHand;
-    if (!current) return;
-    const minRaise = getMinimumRaise(current);
-    if (!minRaise) return;
-    if (isLastChanceCaller) lastChanceRaise(minRaise);
-    else callHand(minRaise);
-    setHandSelectorOpen(false);
-  }, [gameState?.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
-
-  const handleActionExpand = useCallback(() => setHandSelectorOpen(false), []);
-
   // Close hand selector on tap outside
   useEffect(() => {
     if (!handSelectorOpen) return;
@@ -817,7 +805,6 @@ export function FiveDrawPage() {
               onBull={callBull}
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
-              onExpand={handleActionExpand}
             />
             {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
@@ -828,13 +815,6 @@ export function FiveDrawPage() {
                   {gameState.currentHand ? 'Raise' : 'Call'}
                 </button>
               </div>
-            )}
-            {canRaise && handSelectorOpen && gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-              <button
-                onClick={handleQuickRaise}
-                className="btn-amber action-btn-base font-bold action-btn-minraise absolute left-1/2 -translate-x-1/2 top-0 z-10"
-                title="Auto-raise to the minimum valid hand"
-              >min<br />raise</button>
             )}
             {canRaise && handSelectorOpen && (
               <div className="flex flex-col items-center ml-auto">

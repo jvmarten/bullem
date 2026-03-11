@@ -22,7 +22,6 @@ import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { HandCall, Card, Player } from '@bull-em/shared';
-import { getMinimumRaise } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
 import { QuickDrawHint } from '../components/QuickDrawHint.js';
@@ -207,24 +206,9 @@ export function LocalGamePage() {
     setHandSelectorOpen(false);
   }, [pendingHand, pendingValid, isLastChanceCaller, lastChanceRaise, callHand]);
 
-  // Quick raise — immediately submit the minimum valid raise
-  const handleQuickRaise = useCallback(() => {
-    const current = gameState?.currentHand;
-    if (!current) return;
-    const minRaise = getMinimumRaise(current);
-    if (!minRaise) return;
-    if (isLastChanceCaller) {
-      lastChanceRaise(minRaise);
-    } else {
-      callHand(minRaise);
-    }
-    setHandSelectorOpen(false);
-  }, [gameState?.currentHand, isLastChanceCaller, lastChanceRaise, callHand]);
-
   // Stable callback references so ActionButtons' React.memo isn't broken by
   // inline arrow functions creating new references on every render.
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
-  const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
   const openHandSelector = useCallback(() => { play('uiClick'); setHandSelectorOpen(true); }, [play]);
   const handleQuickDrawDismiss = useCallback(() => setQuickDrawOpen(false), []);
 
@@ -396,11 +380,9 @@ export function LocalGamePage() {
             onBull={callBull}
             onTrue={callTrue}
             onLastChancePass={lastChancePass}
-            onActionExpand={handleActionExpand}
             onOpenHandSelector={openHandSelector}
             onHandSubmit={handleHandSubmit}
             onHandChange={handleHandChange}
-            onQuickRaise={handleQuickRaise}
             onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined}
             onQuickDrawSelect={handleQuickDrawSelect}
             onQuickDrawDismiss={handleQuickDrawDismiss}
@@ -577,7 +559,6 @@ export function LocalGamePage() {
                   onBull={callBull}
                   onTrue={callTrue}
                   onLastChancePass={lastChancePass}
-                  onExpand={handleActionExpand}
                 />
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
@@ -589,15 +570,6 @@ export function LocalGamePage() {
                       {gameState.currentHand ? 'Raise' : 'Call'}
                     </button>
                   </div>
-                )}
-                {canRaise && handSelectorOpen && gameState.currentHand && getMinimumRaise(gameState.currentHand) && (
-                  <button
-                    onClick={handleQuickRaise}
-                    className="btn-amber action-btn-base font-bold action-btn-minraise absolute left-1/2 -translate-x-1/2 top-0 z-10"
-                    title="Auto-raise to the minimum valid hand"
-                  >
-                    min<br />raise
-                  </button>
                 )}
                 {canRaise && handSelectorOpen && (
                   <div className="flex flex-col items-center ml-auto">

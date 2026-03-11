@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { memo } from 'react';
 import { RoundPhase } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
 
@@ -10,7 +10,6 @@ interface Props {
   onBull: () => void;
   onTrue: () => void;
   onLastChancePass: () => void;
-  onExpand?: () => void;
 }
 
 // Memoized: skips re-renders when parent state changes (e.g. timer ticks,
@@ -24,64 +23,17 @@ export const ActionButtons = memo(function ActionButtons({
   onBull,
   onTrue,
   onLastChancePass,
-  onExpand,
 }: Props) {
   const { play } = useSound();
-  const [expanded, setExpanded] = useState(false);
-
-  // Reset expanded state when turn changes
-  useEffect(() => {
-    setExpanded(false);
-  }, [isMyTurn, roundPhase]);
-
-  // Close on tap outside — listen for clicks on the document
-  const handleOutsideClick = useCallback((e: MouseEvent | TouchEvent) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest('[data-action-buttons]')) {
-      setExpanded(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!expanded) return;
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('touchstart', handleOutsideClick);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
-    };
-  }, [expanded, handleOutsideClick]);
-
-  // Prevent document-level outside-click handlers (e.g. quick draw close)
-  // from intercepting mousedown/touchstart on ghost buttons, which can
-  // interfere with the subsequent click event that expands the real buttons.
-  const stopBubble = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-  }, []);
 
   if (!isMyTurn) return null;
 
   const handleClick = (action: () => void, sound: 'uiClick' | 'bullCalled' = 'uiClick') => {
     play(sound);
-    setExpanded(false);
     action();
   };
 
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
-    if (!expanded) {
-      return (
-        <div className="flex justify-start animate-slide-up" data-action-buttons>
-          <button
-            onMouseDown={stopBubble}
-            onTouchStart={stopBubble}
-            onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
-            className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary"
-          >
-            Pass
-          </button>
-        </div>
-      );
-    }
     return (
       <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
         <button onClick={() => handleClick(onLastChancePass)} className="btn-safe action-btn-base font-bold action-btn-primary kbd-shortcut" data-kbd="P">
@@ -95,21 +47,6 @@ export const ActionButtons = memo(function ActionButtons({
   const showTrue = roundPhase === RoundPhase.BULL_PHASE;
 
   if (!showBull && !showTrue) return null;
-
-  if (!expanded) {
-    return (
-      <div className="flex justify-start animate-slide-up" data-action-buttons>
-        <button
-          onMouseDown={stopBubble}
-          onTouchStart={stopBubble}
-          onClick={() => { play('uiClick'); setExpanded(true); onExpand?.(); }}
-          className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary whitespace-nowrap shrink-0"
-        >
-          {showTrue ? 'BULL! / TRUE' : 'BULL!'}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons>
