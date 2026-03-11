@@ -2532,7 +2532,7 @@ body {
 /* Bottom controls strip — overlays the bottom of the table area */
 .rt-controls {
   position: absolute;
-  bottom: 5%;
+  bottom: 0;
   left: 0;
   right: 0;
   display: flex;
@@ -2544,7 +2544,13 @@ body {
   z-index: 5;
 }
 
-
+/* When hand selector is open, stretch from near table center to bottom */
+.rt-controls:has(.rt-hand-selector) {
+  top: 38%;
+  bottom: 0;
+  max-height: none;
+  justify-content: flex-start;
+}
 
 /* Action buttons row in roundtable (now centered in table) */
 .rt-actions {
@@ -2567,21 +2573,24 @@ body {
 
 /* Hand selector in roundtable — compact layout for landscape */
 .rt-hand-selector {
-  margin-top: -0.25rem;
+  margin-top: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .rt-hand-selector .hs-backdrop {
   /* Tighter padding top/bottom */
   padding-top: 0;
   padding-bottom: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .rt-hand-selector .wheel-picker-mask {
-  /* Shift wheels up so the highlight row (at 70px from top) sits near the top,
-     then clip overflow to hide items that scroll above the visible area.
-     The 60px negative margin hides most of the dead space above the highlight. */
-  margin-top: -60px;
-  max-height: 150px;
+  margin-top: -30px;
+  flex: 1;
 }
 
 /* The flex-1 wrappers around each wheel column must clip the negative-margin overflow */
@@ -2602,6 +2611,12 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   line-height: 1.2;
+}
+
+/* Wheel pickers container fills remaining vertical space */
+.rt-hand-selector .hs-backdrop > .flex.gap-1 {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Narrow landscape refinements for roundtable ───── */
@@ -2665,12 +2680,12 @@ body {
     padding: 0.125rem 0.5rem;
   }
 
-  .rt-hand-selector {
-    margin-top: 0;
+  .rt-controls:has(.rt-hand-selector) {
+    top: 42%;
   }
 
   .rt-hand-selector .wheel-picker-mask {
-    max-height: 110px;
+    margin-top: -40px;
   }
 }
 
