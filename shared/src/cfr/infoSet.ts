@@ -15,7 +15,7 @@
  * - Bull/true sentiment
  */
 
-import type { Card, HandCall, Rank, Suit, ClientGameState } from '../types.js';
+import type { Card, HandCall, Rank, Suit, ClientGameState, JokerCount, LastChanceMode } from '../types.js';
 import { HandType, RoundPhase } from '../types.js';
 import { RANK_VALUES } from '../constants.js';
 
@@ -295,6 +295,8 @@ export function getInfoSetKey(
   myCards: Card[],
   totalCards: number,
   activePlayers: number = 2,
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
 ): string {
   const parts: string[] = [
     state.roundPhase.charAt(0),
@@ -312,6 +314,15 @@ export function getInfoSetKey(
   // pair+ claims (may be bluffs). Only appended for p2.
   if (activePlayers <= 2 && state.currentHand) {
     parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
+  }
+
+  // Variant suffixes — only appended for non-default configs so existing
+  // standard-config strategies remain backward-compatible.
+  if (jokerCount > 0) {
+    parts.push(`j${jokerCount}`);
+  }
+  if (lastChanceMode === 'strict') {
+    parts.push('lcS');
   }
 
   return parts.join('|');

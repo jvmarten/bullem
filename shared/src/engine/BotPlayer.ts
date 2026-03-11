@@ -2,7 +2,7 @@ import { HandType, RoundPhase, BotDifficulty, TurnAction } from '../types.js';
 import { RANK_VALUES, ALL_RANKS, ALL_SUITS, SUIT_ORDER } from '../constants.js';
 import { isHigherHand } from '../hands.js';
 import { HandChecker } from './HandChecker.js';
-import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId } from '../types.js';
+import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId, JokerCount, LastChanceMode } from '../types.js';
 import type { BotProfileConfig } from '../botProfiles.js';
 import { DEFAULT_BOT_PROFILE_CONFIG } from '../botProfiles.js';
 import { decideCFR } from '../cfr/index.js';
@@ -359,6 +359,7 @@ export class BotPlayer {
     scope?: string,
     profileConfig?: BotProfileConfig,
     isCFR?: boolean,
+    gameSettings?: { jokerCount?: JokerCount; lastChanceMode?: LastChanceMode },
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
@@ -370,7 +371,11 @@ export class BotPlayer {
       const totalCards = state.players
         .filter(p => !p.isEliminated)
         .reduce((sum, p) => sum + p.cardCount, 0);
-      const cfrAction = decideCFR(state, botCards, totalCards, activePlayers);
+      const cfrAction = decideCFR(
+        state, botCards, totalCards, activePlayers,
+        (gameSettings?.jokerCount ?? 0) as JokerCount,
+        gameSettings?.lastChanceMode ?? 'classic',
+      );
       if (cfrAction) return cfrAction;
       // Fall through to heuristic if CFR returns null (shouldn't happen)
     }

@@ -7,7 +7,7 @@
  * Strategy data is ~120KB total, acceptable for both server and client bundles.
  */
 
-import type { Card, ClientGameState } from '../types.js';
+import type { Card, ClientGameState, JokerCount, LastChanceMode } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
@@ -76,6 +76,8 @@ export function decideCFR(
   botCards: Card[],
   totalCards: number,
   activePlayers: number,
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
 ): BotAction | null {
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
@@ -86,7 +88,7 @@ export function decideCFR(
   let chosenAction: AbstractAction;
 
   if (strategyMap) {
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers);
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount, lastChanceMode);
     const strategyEntry = strategyMap[infoSetKey];
 
     if (strategyEntry) {
