@@ -1913,6 +1913,11 @@ body {
     min-width: 180px;
   }
 
+  /* Push TRUE button lower so it's harder to accidentally tap BULL */
+  .action-btn-gap > .btn-info {
+    margin-top: 1.25rem;
+  }
+
   .hand-display-large .playing-card {
     width: 3.75rem;
     height: 5.25rem;
