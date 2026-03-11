@@ -56,6 +56,41 @@ body {
   width: 100%;
 }
 
+/* ── Focus Indicators (keyboard accessibility) ──────── */
+/* Visible outline for keyboard users; :focus-visible ensures
+   mouse/touch clicks don't show the ring. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Elements with custom focus styles (inputs, selects) already
+   use box-shadow — keep their outline suppressed. */
+.input-felt:focus-visible,
+.select-felt:focus-visible,
+.volume-slider:focus-visible {
+  outline: none;
+}
+
+/* ── Skip Navigation Link ───────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--gold);
+  color: #1a1a0e;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
+}
+
 /* ── Felt Table Background ───────────────────────────── */
 .felt-bg {
   background:
