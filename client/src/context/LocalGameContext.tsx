@@ -559,38 +559,43 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const togglePause = useCallback(() => {
-    setIsPaused(prev => {
-      const next = !prev;
-      isPausedRef.current = next;
-      if (next) {
-        // Pausing: save remaining timer time before clearing
-        const engine = engineRef.current;
-        if (engine) {
-          const deadline = engine.getClientState(HUMAN_ID).turnDeadline;
-          if (deadline != null) {
-            pausedTimerRemainingRef.current = Math.max(0, deadline - Date.now());
-          } else {
-            pausedTimerRemainingRef.current = null;
-          }
+    // Read current pause state from the ref (always in sync) and compute next.
+    // Side effects are kept OUTSIDE the state updater so React 18 StrictMode's
+    // double-invocation of updater functions doesn't run them twice — which
+    // previously caused pausedTimerRemainingRef to be cleared on the first
+    // invocation and read back as null on the second, resetting the timer to
+    // full duration on resume.
+    const next = !isPausedRef.current;
+    isPausedRef.current = next;
+    setIsPaused(next);
+
+    if (next) {
+      // Pausing: save remaining timer time before clearing
+      const engine = engineRef.current;
+      if (engine) {
+        const deadline = engine.getClientState(HUMAN_ID).turnDeadline;
+        if (deadline != null) {
+          pausedTimerRemainingRef.current = Math.max(0, deadline - Date.now());
+        } else {
+          pausedTimerRemainingRef.current = null;
         }
-        // Clear all pending timers
-        if (botTimerRef.current) { clearTimeout(botTimerRef.current); botTimerRef.current = null; }
-        if (turnTimerRef.current) { clearTimeout(turnTimerRef.current); turnTimerRef.current = null; }
-        // Clear turn deadline so timer UI stops
-        if (engine) {
-          engine.setTurnDeadline(null);
-          setGameState(engine.getClientState(HUMAN_ID));
-        }
-      } else {
-        // Resuming: restore timer with remaining time from before pause
-        const remaining = pausedTimerRemainingRef.current;
-        pausedTimerRemainingRef.current = null;
-        scheduleBotTurn();
-        scheduleHumanTimer(remaining);
-        broadcastState();
       }
-      return next;
-    });
+      // Clear all pending timers
+      if (botTimerRef.current) { clearTimeout(botTimerRef.current); botTimerRef.current = null; }
+      if (turnTimerRef.current) { clearTimeout(turnTimerRef.current); turnTimerRef.current = null; }
+      // Clear turn deadline so timer UI stops
+      if (engine) {
+        engine.setTurnDeadline(null);
+        setGameState(engine.getClientState(HUMAN_ID));
+      }
+    } else {
+      // Resuming: restore timer with remaining time from before pause
+      const remaining = pausedTimerRemainingRef.current;
+      pausedTimerRemainingRef.current = null;
+      scheduleBotTurn();
+      scheduleHumanTimer(remaining);
+      broadcastState();
+    }
   }, [scheduleBotTurn, scheduleHumanTimer, broadcastState]);
 
   // After restoring a saved game, schedule bot/human turns once callbacks are ready
