@@ -115,9 +115,12 @@ const AvatarTimerRing = memo(function AvatarTimerRing({
       if (!circleRef.current) return;
       const elapsed = Date.now() - mountTime;
       const pct = Math.max(0, 1 - elapsed / total);
-      const offset = circumference * (1 - pct);
-      circleRef.current.style.strokeDasharray = `${circumference} ${circumference}`;
-      circleRef.current.style.strokeDashoffset = String(offset);
+      // Diminish clockwise from 12 o'clock — same technique as TileMeter:
+      // shrink the visible dash and offset backward so the gap grows from the start.
+      const visibleLength = circumference * pct;
+      const gapLength = circumference - visibleLength;
+      circleRef.current.style.strokeDasharray = `${visibleLength} ${circumference}`;
+      circleRef.current.style.strokeDashoffset = String(-gapLength);
       circleRef.current.style.stroke = pct <= 0.3 ? 'var(--danger)' : 'var(--gold-dim)';
     };
 
