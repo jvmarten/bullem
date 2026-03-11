@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useEffect, useRef } from 'react';
 import { handToString } from '@bull-em/shared';
 import type { Player, PlayerId, HandCall, TurnEntry, Card, SpectatorPlayerCards } from '@bull-em/shared';
 import type { RoundPhase } from '@bull-em/shared';
@@ -9,7 +9,6 @@ import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { HandDisplay } from './HandDisplay.js';
 import { HandSelector } from './HandSelector.js';
 import { ActionButtons } from './ActionButtons.js';
-import { TurnIndicator } from './TurnIndicator.js';
 import { CallHistory } from './CallHistory.js';
 import { SpectatorView } from './SpectatorView.js';
 import { QuickDrawChips } from './QuickDrawChips.js';
@@ -121,16 +120,18 @@ const RoundtableSeat = memo(function RoundtableSeat({
  * Used in landscape/desktop mode as an alternative to the vertical portrait layout.
  *
  * Layout:
- * - Oval table background with players positioned around it
- * - Center of table: current call + turn indicator
- * - Bottom strip: my cards, action buttons, hand selector
+ * - Oval table background with opponent seats around it
+ * - Seat 0 (bottom center) shows the local player's cards instead of an avatar
+ * - Center of table: current call display
+ * - No turn indicator — the hand selector auto-opens to signal your turn
+ * - Action buttons + hand selector overlay the bottom area
  * - Call history: compact panel on the left edge
  */
 export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: RoundtableGameLayoutProps) {
   const {
-    players, currentPlayerId, myPlayerId, maxCards, roundNumber,
+    players, currentPlayerId, myPlayerId, maxCards,
     roundPhase, currentHand, lastCallerId, myCards, turnHistory,
-    turnDeadline, turnDurationMs, spectatorCards,
+    spectatorCards,
     isMyTurn, isEliminated, isSpectator, isLastChanceCaller, canRaise,
     handSelectorOpen, pendingValid, pendingHand,
     quickDrawOpen, quickDrawEnabled, quickDrawSuggestions,
@@ -140,6 +141,16 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
   } = props;
 
+  // Auto-open the hand selector when it becomes our turn in roundtable mode.
+  // This replaces the turn indicator — the selector opening IS the turn signal.
+  const prevCanRaise = useRef(canRaise);
+  useEffect(() => {
+    if (canRaise && !prevCanRaise.current && !handSelectorOpen) {
+      onOpenHandSelector();
+    }
+    prevCanRaise.current = canRaise;
+  }, [canRaise, handSelectorOpen, onOpenHandSelector]);
+
   // Reorder players so myPlayerId is seat 0 (bottom center)
   const orderedPlayers = useMemo(() => {
     const myIdx = players.findIndex(p => p.id === myPlayerId);
@@ -147,10 +158,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     return [...players.slice(myIdx), ...players.slice(0, myIdx)];
   }, [players, myPlayerId]);
 
-  const activePlayers = orderedPlayers.filter(p => !p.isEliminated);
-  const eliminatedPlayers = orderedPlayers.filter(p => p.isEliminated);
-  // Show all players in their seats — eliminated ones get dimmed
-  const allForSeating = [...activePlayers, ...eliminatedPlayers];
   // Use total player count for seat positions (keep stable layout)
   const playerCount = Math.min(orderedPlayers.length, 9);
 
@@ -164,24 +171,17 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     ? players.find(p => p.id === lastCallerId)?.name ?? '?'
     : null;
 
+  // Seat 0 position for placing the player's own cards
+  const mySeatPos = getSeatPosition(playerCount, 0);
+
   return (
     <div className="rt-layout">
       {/* Table area with oval and player seats */}
       <div className="rt-table-area">
         {/* Oval table surface */}
         <div className="rt-table">
-          {/* Center content: turn indicator + current call */}
+          {/* Center content: current call only (no turn indicator) */}
           <div className="rt-table-center">
-            <div className="rt-turn-indicator" data-tooltip="turn-indicator">
-              <TurnIndicator
-                currentPlayerId={currentPlayerId}
-                roundPhase={roundPhase}
-                players={players}
-                myPlayerId={myPlayerId}
-                turnDeadline={turnDeadline}
-                hasCurrentHand={currentHand !== null}
-              />
-            </div>
             {currentHand && (
               <div className="rt-current-call animate-slide-up">
                 <span className="rt-current-call-label">Current Call</span>
@@ -196,18 +196,29 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
           </div>
         </div>
 
-        {/* Player seats — positioned absolutely around the table */}
-        {orderedPlayers.slice(0, playerCount).map((player, i) => (
+        {/* Opponent seats — skip seat 0 (local player), render from seat 1 onwards */}
+        {orderedPlayers.slice(1, playerCount).map((player, i) => (
           <RoundtableSeat
             key={player.id}
             player={player}
-            seatIndex={i}
+            seatIndex={i + 1}
             playerCount={playerCount}
             isCurrent={player.id === currentPlayerId}
-            isMe={player.id === myPlayerId}
+            isMe={false}
             maxCards={maxCards}
           />
         ))}
+
+        {/* Seat 0: local player's cards placed at the bottom-center seat position */}
+        {!isEliminated && !isSpectator && (
+          <div
+            className="rt-seat rt-seat--me-cards"
+            style={{ top: mySeatPos.top, left: mySeatPos.left }}
+            data-tooltip="my-cards"
+          >
+            <HandDisplay cards={myCards} large onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined} />
+          </div>
+        )}
       </div>
 
       {/* Call history — compact panel on the left */}
@@ -223,13 +234,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
 
       {/* Bottom controls strip */}
       <div className="rt-controls">
-        {/* My cards */}
-        {!isEliminated && !isSpectator && (
-          <div className="rt-my-cards" data-tooltip="my-cards">
-            <HandDisplay cards={myCards} large onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined} />
-          </div>
-        )}
-
         {/* Quick Draw hint */}
         {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
           <QuickDrawHint visible={canRaise} />
