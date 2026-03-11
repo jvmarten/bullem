@@ -108,6 +108,7 @@ export function registerFriendHandlers(
 ): void {
   // ── friends:list ────────────────────────────────────────────────────
   socket.on('friends:list', async (callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const userId = socket.data.userId;
     if (!userId) {
@@ -134,6 +135,7 @@ export function registerFriendHandlers(
 
   // ── friends:request ─────────────────────────────────────────────────
   socket.on('friends:request', async (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const userId = socket.data.userId;
     if (!userId) {
@@ -206,6 +208,7 @@ export function registerFriendHandlers(
 
   // ── friends:respond ─────────────────────────────────────────────────
   socket.on('friends:respond', async (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const userId = socket.data.userId;
     if (!userId) {
@@ -257,6 +260,7 @@ export function registerFriendHandlers(
 
   // ── friends:remove ──────────────────────────────────────────────────
   socket.on('friends:remove', async (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const userId = socket.data.userId;
     if (!userId) {
@@ -286,6 +290,7 @@ export function registerFriendHandlers(
 
   // ── friends:invite ──────────────────────────────────────────────────
   socket.on('friends:invite', async (data, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const userId = socket.data.userId;
     if (!userId) {

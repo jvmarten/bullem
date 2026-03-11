@@ -14,6 +14,7 @@ export function registerPushHandlers(
   pushManager: PushManager,
 ): void {
   socket.on('push:subscribe', async (subscription, callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     const playerId = room?.getPlayerId(socket.id);
@@ -46,6 +47,7 @@ export function registerPushHandlers(
   });
 
   socket.on('push:unsubscribe', async (callback) => {
+    if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const room = roomManager.getRoomForSocket(socket.id);
     const playerId = room?.getPlayerId(socket.id);
