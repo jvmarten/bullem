@@ -131,14 +131,12 @@ const RoundtableSeat = memo(function RoundtableSeat({
       className={`rt-seat ${isCurrent ? 'rt-seat--active' : ''} ${player.isEliminated ? 'rt-seat--eliminated' : ''}`}
       style={{ top: pos.top, left: pos.left }}
     >
-      {/* Card backs — shown above the seat info */}
-      {!player.isEliminated && (
-        <SeatCardBacks count={player.cardCount} />
-      )}
-
-      {/* Avatar + name row */}
-      <div className="rt-seat-info">
-        <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''}`}>
+      {/* Card+avatar stack — avatar overlaps bottom of cards */}
+      <div className="rt-seat-card-avatar">
+        {!player.isEliminated && (
+          <SeatCardBacks count={player.cardCount} />
+        )}
+        <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''} rt-avatar--overlap`}>
           <PlayerAvatarContent
             name={player.name}
             avatar={player.avatar}
@@ -146,19 +144,21 @@ const RoundtableSeat = memo(function RoundtableSeat({
             isBot={player.isBot}
           />
         </div>
-        <div className="rt-seat-text">
-          <div className={`rt-name ${isMe ? 'rt-name--me' : ''}`}>
-            {isMe ? 'You' : player.name}
-          </div>
-          {!player.isEliminated && (
-            <div className={`rt-card-count ${atMax ? 'rt-card-count--max' : ''}`}>
-              {player.cardCount}/{maxCards}
-            </div>
-          )}
-          {player.isEliminated && (
-            <div className="rt-eliminated-badge">OUT</div>
-          )}
+      </div>
+
+      {/* Name + card count below */}
+      <div className="rt-seat-text rt-seat-text--center">
+        <div className={`rt-name ${isMe ? 'rt-name--me' : ''}`}>
+          {player.name}
         </div>
+        {!player.isEliminated && (
+          <div className={`rt-card-count ${atMax ? 'rt-card-count--max' : ''}`}>
+            {player.cardCount}/{maxCards}
+          </div>
+        )}
+        {player.isEliminated && (
+          <div className="rt-eliminated-badge">OUT</div>
+        )}
       </div>
 
       {/* Last action chip — floats near the seat toward the table center */}
@@ -232,9 +232,17 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     return actions;
   }, [turnHistory]);
 
-  // The player who made the most recent action in the turn history
-  const lastEntry = turnHistory.length > 0 ? turnHistory[turnHistory.length - 1] : undefined;
-  const latestCallerId = lastEntry?.playerId ?? null;
+  // The player who made the most recent CALL/RAISE action (not bull/true/pass)
+  const latestCallEntry = useMemo(() => {
+    for (let i = turnHistory.length - 1; i >= 0; i--) {
+      const entry = turnHistory[i];
+      if (entry && (entry.action === TurnAction.CALL || entry.action === TurnAction.LAST_CHANCE_RAISE)) {
+        return entry;
+      }
+    }
+    return undefined;
+  }, [turnHistory]);
+  const latestCallerId = latestCallEntry?.playerId ?? null;
 
   const callerName = lastCallerId
     ? players.find(p => p.id === lastCallerId)?.name ?? '?'
@@ -302,7 +310,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                 />
               </div>
               <div className="rt-seat-text">
-                <div className="rt-name rt-name--me">You</div>
+                <div className="rt-name rt-name--me">{myPlayer.name}</div>
                 {!myPlayer.isEliminated && (
                   <div className={`rt-card-count ${myAtMax ? 'rt-card-count--max' : ''}`}>
                     {myPlayer.cardCount}/{maxCards}

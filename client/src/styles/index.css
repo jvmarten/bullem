@@ -2316,6 +2316,19 @@ body {
   box-shadow: 0 0 6px var(--gold-glow);
 }
 
+/* ── Card + avatar stack: avatar overlaps bottom of cards ─────── */
+.rt-seat-card-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.rt-avatar--overlap {
+  margin-top: -14px;
+  z-index: 1;
+}
+
 /* ── Seat info row: avatar + name/count side by side ─────── */
 .rt-seat-info {
   display: flex;
@@ -2328,6 +2341,10 @@ body {
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+}
+
+.rt-seat-text--center {
+  align-items: center;
 }
 
 /* Avatar circle */
@@ -2398,8 +2415,8 @@ body {
 }
 
 .rt-card-back {
-  width: 24px;
-  height: 34px;
+  width: 30px;
+  height: 42px;
   background: linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%);
   border-radius: 3px;
   border: 1px solid #d44;
@@ -2539,8 +2556,12 @@ body {
   }
 
   .rt-card-back {
-    width: 20px;
-    height: 28px;
+    width: 24px;
+    height: 34px;
+  }
+
+  .rt-avatar--overlap {
+    margin-top: -10px;
   }
 
   .rt-action-chip {
@@ -2581,6 +2602,10 @@ body {
     font-size: 0.95rem;
   }
 
+  .rt-avatar--overlap {
+    margin-top: -18px;
+  }
+
   .rt-name {
     font-size: 0.85rem;
     max-width: 100px;
@@ -2591,8 +2616,8 @@ body {
   }
 
   .rt-card-back {
-    width: 30px;
-    height: 42px;
+    width: 36px;
+    height: 50px;
   }
 
   .rt-action-chip {
