@@ -2253,8 +2253,8 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 7.5rem;
   justify-content: center;
 }
 
@@ -2264,8 +2264,8 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   align-items: center;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 7.5rem;
   justify-content: center;
 }
 
@@ -2563,9 +2563,9 @@ body {
   gap: 0.25rem;
 }
 
-/* Hand selector in roundtable — compact, pulled up closer to preview */
+/* Hand selector in roundtable — compact layout for landscape */
 .rt-hand-selector {
-  margin-top: -0.75rem;
+  margin-top: -0.25rem;
 }
 
 .rt-hand-selector .hs-backdrop {
@@ -2576,7 +2576,15 @@ body {
 
 .rt-hand-selector .wheel-picker-mask {
   /* Reduce visible height to bring highlight spots closer to preview hand */
-  max-height: 150px;
+  max-height: 130px;
+}
+
+/* Reduce preview card area spacing to tighten the selector */
+.rt-hand-selector .hs-backdrop > .flex.justify-center {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.25rem;
+  min-height: 48px;
 }
 
 /* ── Narrow landscape refinements for roundtable ───── */
@@ -2637,6 +2645,14 @@ body {
 
   .rt-controls {
     padding: 0.125rem 0.5rem;
+  }
+
+  .rt-hand-selector {
+    margin-top: 0;
+  }
+
+  .rt-hand-selector .wheel-picker-mask {
+    max-height: 110px;
   }
 }
 
