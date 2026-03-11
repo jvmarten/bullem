@@ -54,6 +54,9 @@ interface RoundtableGameLayoutProps {
   // Disconnect deadlines
   disconnectDeadlines?: DisconnectDeadlines;
 
+  /** When true, hides seat card backs so the cinematic reveal overlay can animate them. */
+  revealInProgress?: boolean;
+
   // Action handlers
   onBull: () => void;
   onTrue: () => void;
@@ -266,9 +269,12 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
   );
 });
 
-/** Mini card-back fan for opponent seats — shows face-down cards matching their card count. */
-const SeatCardBacks = memo(function SeatCardBacks({ count }: { count: number }) {
+/** Mini card-back fan for opponent seats — shows face-down cards matching their card count.
+ *  When `visibleCount` is provided (during dealing), only that many cards are visible but
+ *  all card slots are rendered to maintain stable layout — hidden cards use opacity 0. */
+const SeatCardBacks = memo(function SeatCardBacks({ count, visibleCount }: { count: number; visibleCount?: number }) {
   if (count <= 0) return null;
+  const showCount = visibleCount ?? count;
   const cards = [];
   for (let i = 0; i < count; i++) {
     const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 8;
@@ -280,6 +286,8 @@ const SeatCardBacks = memo(function SeatCardBacks({ count }: { count: number }) 
           transform: `rotate(${angle}deg)`,
           marginLeft: i > 0 ? '-6px' : undefined,
           zIndex: i,
+          opacity: i < showCount ? 1 : 0,
+          transition: 'opacity 0.15s ease-out',
         }}
       />,
     );
@@ -298,6 +306,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isLatestCaller,
   turnDeadline,
   turnDurationMs,
+  visibleCardCount,
 }: {
   player: Player;
   seatIndex: number;
@@ -308,6 +317,8 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isLatestCaller: boolean;
   turnDeadline?: number | null;
   turnDurationMs?: number | null;
+  /** When set, only this many card backs are visible (used during dealing animation). */
+  visibleCardCount?: number;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
@@ -321,7 +332,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
       {/* Card+avatar stack — avatar overlaps bottom of cards */}
       <div className="rt-seat-card-avatar">
         {!player.isEliminated && (
-          <SeatCardBacks count={player.cardCount} />
+          <SeatCardBacks count={player.cardCount} visibleCount={visibleCardCount} />
         )}
         <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''} rt-avatar--overlap`}>
           <PlayerAvatarContent
@@ -379,6 +390,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     quickDrawOpen, quickDrawEnabled, quickDrawSuggestions,
     callHistoryVisible,
     disconnectDeadlines,
+    revealInProgress,
     onBull, onTrue, onLastChancePass,
     onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
@@ -387,11 +399,19 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   // ── Dealing animation: show when roundNumber changes ──
   const prevRoundRef = useRef(roundNumber);
   const [showDealing, setShowDealing] = useState(false);
+  // Track how many cards have "landed" at each seat — used to progressively
+  // reveal seat card backs so they appear in sync with the flying card animation.
+  const [dealtPerSeat, setDealtPerSeat] = useState<Record<number, number>>({});
+
+  const handleCardDealt = useCallback((seatIndex: number) => {
+    setDealtPerSeat(prev => ({ ...prev, [seatIndex]: (prev[seatIndex] ?? 0) + 1 }));
+  }, []);
 
   useEffect(() => {
     // On the very first render, don't show dealing (player is joining mid-round)
     if (prevRoundRef.current !== roundNumber && prevRoundRef.current !== 0) {
       setShowDealing(true);
+      setDealtPerSeat({}); // reset dealt counts for new round
       // Auto-hide after animation completes (safety net — overlay also self-removes)
       const maxPlayerCards = Math.max(...players.filter(p => !p.isEliminated).map(p => p.cardCount), 0);
       const totalPlayers = players.filter(p => !p.isEliminated).length;
@@ -403,6 +423,9 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     }
     prevRoundRef.current = roundNumber;
   }, [roundNumber, players]);
+
+  // Whether seat card backs should be suppressed (dealing or cinematic reveal in progress)
+  const suppressSeatCards = showDealing || !!revealInProgress;
 
   // Auto-open the hand selector when it becomes our turn in roundtable mode.
   // This replaces the turn indicator — the selector opening IS the turn signal.
@@ -530,24 +553,33 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             myCards={myCards}
             playerCount={playerCount}
             orderedPlayers={orderedPlayers}
+            onCardDealt={handleCardDealt}
           />
         )}
 
         {/* Opponent seats — skip seat 0 (local player), render from seat 1 onwards */}
-        {orderedPlayers.slice(1, playerCount).map((player, i) => (
-          <RoundtableSeat
-            key={player.id}
-            player={player}
-            seatIndex={i + 1}
-            playerCount={playerCount}
-            isCurrent={player.id === currentPlayerId}
-            isMe={false}
-            lastAction={lastActions[player.id] ?? null}
-            isLatestCaller={player.id === latestCallerId}
-            turnDeadline={player.id === currentPlayerId ? turnDeadline : null}
-            turnDurationMs={turnDurationMs}
-          />
-        ))}
+        {orderedPlayers.slice(1, playerCount).map((player, i) => {
+          const seatIdx = i + 1;
+          // During dealing: progressive card reveal; during reveal: hide all card backs
+          const visCardCount = suppressSeatCards
+            ? (revealInProgress ? 0 : (dealtPerSeat[seatIdx] ?? 0))
+            : undefined;
+          return (
+            <RoundtableSeat
+              key={player.id}
+              player={player}
+              seatIndex={seatIdx}
+              playerCount={playerCount}
+              isCurrent={player.id === currentPlayerId}
+              isMe={false}
+              lastAction={lastActions[player.id] ?? null}
+              isLatestCaller={player.id === latestCallerId}
+              turnDeadline={player.id === currentPlayerId ? turnDeadline : null}
+              turnDurationMs={turnDurationMs}
+              visibleCardCount={visCardCount}
+            />
+          );
+        })}
 
         {/* Seat 0: local player — face-up cards + name/info below */}
         <div
@@ -571,7 +603,13 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             </div>
           )}
           {!isEliminated && !isSpectator && (
-            <HandDisplay cards={myCards} large onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined} />
+            <HandDisplay
+              cards={suppressSeatCards
+                ? (revealInProgress ? [] : myCards.slice(0, dealtPerSeat[0] ?? 0))
+                : myCards}
+              large
+              onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
+            />
           )}
           {myPlayer && (
             <div className="rt-seat-info">
