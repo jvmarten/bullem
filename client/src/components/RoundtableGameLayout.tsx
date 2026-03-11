@@ -347,7 +347,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
 
       {/* Last action chip — floats near the seat toward the table center */}
       {action && !player.isEliminated && (
-        <div className={`rt-action-chip rt-action-chip--${action.type} ${isLatestCaller ? 'rt-action-chip--latest' : ''}`}>
+        <div className={`rt-action-chip rt-action-chip--${action.type} ${isLatestCaller ? 'rt-action-chip--latest' : ''} ${action.type === 'call' && !isLatestCaller ? 'rt-action-chip--call-prior' : ''}`}>
           {action.text}
         </div>
       )}

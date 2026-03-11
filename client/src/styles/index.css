@@ -2514,6 +2514,14 @@ body {
   border: 1px solid rgba(212, 168, 67, 0.3);
 }
 
+/* Prior call chips — other players' calls that aren't the current/latest call */
+.rt-action-chip--call-prior {
+  background: rgba(80, 80, 100, 0.5);
+  color: #b0b8c8;
+  border: 1px solid rgba(160, 170, 200, 0.3);
+  opacity: 0.8;
+}
+
 .rt-action-chip--bull {
   background: rgba(180, 40, 40, 0.55);
   color: #ff6b6b;
