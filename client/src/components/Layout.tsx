@@ -244,7 +244,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           <span className="text-amber-400">You&apos;re offline &mdash; local bot games still work!</span>
         </div>
       )}
-      <main id="main-content" className="w-full max-w-6xl mx-auto px-4 py-3 layout-main">{children}</main>
+      <main id="main-content" className="w-full px-4 py-3 layout-main">{children}</main>
       <JokerOverlay phase={jokerPhase} setPhase={setJokerPhase} audioRef={jokerAudioRef} audioReady={jokerAudioReady} />
     </div>
   );
