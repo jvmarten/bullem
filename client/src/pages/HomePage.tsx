@@ -817,14 +817,6 @@ export function HomePage() {
             >
               Rules
             </Link>
-            {user?.role === 'admin' && (
-              <Link
-                to="/dev/roundtable"
-                className="w-full btn-ghost py-2 text-xs text-center block text-[var(--gold-dim)] opacity-60"
-              >
-                Dev: Roundtable
-              </Link>
-            )}
           </div>
         )}
 
