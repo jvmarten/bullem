@@ -195,6 +195,51 @@ function CardBackFan({ count, roundNumber, playerIndex }: { count: number; round
   return <div className="flex items-center">{cards}</div>;
 }
 
+/**
+ * Reorder items so that when placed in a 2-column CSS grid (left-right,
+ * top-to-bottom flow), reading the grid clockwise yields the original order:
+ *   top-left → right across top → down right column →
+ *   left across bottom → up left column.
+ *
+ * Returns an array of { item, originalIndex } to preserve identity/color mapping.
+ */
+function clockwiseGridOrder<T>(items: T[]): { item: T; originalIndex: number }[] {
+  const n = items.length;
+  if (n <= 2) return items.map((item, i) => ({ item, originalIndex: i }));
+
+  const cols = 2;
+  const rows = Math.ceil(n / cols);
+
+  // Build clockwise sequence of (row, col) grid positions
+  const positions: [number, number][] = [];
+  // Top row, left to right
+  for (let c = 0; c < cols; c++) positions.push([0, c]);
+  // Right column, top to bottom (skip first row)
+  for (let r = 1; r < rows; r++) positions.push([r, cols - 1]);
+  // Bottom row, right to left (skip last column)
+  for (let c = cols - 2; c >= 0; c--) positions.push([rows - 1, c]);
+  // Left column, bottom to top (skip first and last rows)
+  for (let r = rows - 2; r >= 1; r--) positions.push([r, 0]);
+
+  // Deduplicate and filter positions that exist (odd count → last row has 1 cell)
+  const seen = new Set<number>();
+  const clockwiseSlots: number[] = [];
+  for (const [r, c] of positions) {
+    const flat = r * cols + c;
+    if (flat < n && !seen.has(flat)) {
+      seen.add(flat);
+      clockwiseSlots.push(flat);
+    }
+  }
+
+  // Place player i at grid slot clockwiseSlots[i]
+  const result = new Array<{ item: T; originalIndex: number }>(n);
+  for (let i = 0; i < n; i++) {
+    result[clockwiseSlots[i]!] = { item: items[i]!, originalIndex: i };
+  }
+  return result;
+}
+
 function formatAction(e: TurnEntry): string {
   switch (e.action) {
     case TurnAction.CALL:
@@ -451,11 +496,11 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
         </button>
       )}
       <div className="grid grid-cols-2 gap-1">
-        {players.map((p, i) => (
+        {clockwiseGridOrder(players).map(({ item: p, originalIndex }) => (
           <PlayerCard
             key={p.id}
             p={p}
-            i={i}
+            i={originalIndex}
             isCurrent={p.id === currentPlayerId}
             isMe={p.id === myPlayerId}
             maxCards={maxCards}
