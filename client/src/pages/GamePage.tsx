@@ -35,7 +35,7 @@ import { useToast } from '../context/ToastContext.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
-import { useUISettings } from '../components/VolumeControl.js';
+import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 
@@ -553,6 +553,7 @@ export function GamePage() {
               </span>
             )}
             {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
+            <VolumeControl />
             <button
               onClick={handleLeave}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -560,7 +561,6 @@ export function GamePage() {
             >
               Leave
             </button>
-            <span className="font-mono tracking-wider text-[var(--gold-dim)]">ONLINE</span>
           </div>
         </div>
 

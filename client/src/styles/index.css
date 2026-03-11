@@ -1634,6 +1634,15 @@ body {
   gap: 1.25rem;
 }
 
+/* Hide the full layout header when in a game — reclaim vertical space for gameplay.
+   The gear-icon settings button is moved into the game-top-bar instead. */
+.landscape-header-hidden .layout-header {
+  display: none !important;
+}
+.landscape-header-hidden main {
+  padding-top: 0 !important;
+}
+
 /* Hide landscape game overlay in portrait — rendered in DOM but only visible in landscape */
 .game-header-overlay {
   display: none;
@@ -1661,13 +1670,7 @@ body {
     padding-bottom: 0.375rem !important;
   }
 
-  /* -- Hide header in landscape game mode, show floating overlay -- */
-  .landscape-header-hidden .layout-header {
-    display: none !important;
-  }
-  .landscape-header-hidden main {
-    padding-top: 0 !important;
-  }
+  /* -- Show floating overlay in landscape game mode (header already hidden globally) -- */
 
   .game-header-overlay {
     display: flex;
