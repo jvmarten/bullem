@@ -2579,9 +2579,9 @@ body {
 
 /* Reduce preview card area spacing to tighten the selector */
 .rt-hand-selector .hs-backdrop > .flex.justify-center {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-  margin-bottom: 0.25rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0;
+  margin-bottom: 0;
   min-height: 48px;
 }
 
