@@ -2577,8 +2577,16 @@ body {
 }
 
 .rt-hand-selector .wheel-picker-mask {
-  /* Reduce visible height to bring highlight spots closer to preview hand */
-  max-height: 130px;
+  /* Shift wheels up so the highlight row (at 70px from top) sits near the top,
+     then clip overflow to hide items that scroll above the visible area.
+     The 60px negative margin hides most of the dead space above the highlight. */
+  margin-top: -60px;
+  max-height: 150px;
+}
+
+/* The flex-1 wrappers around each wheel column must clip the negative-margin overflow */
+.rt-hand-selector .flex > .flex-1 {
+  overflow: hidden;
 }
 
 /* Reduce preview card area spacing to tighten the selector */

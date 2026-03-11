@@ -7,7 +7,6 @@ import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
 import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
 import { WheelPicker } from './WheelPicker.js';
 import { useSound } from '../hooks/useSound.js';
-import { useIsLandscape } from '../hooks/useIsLandscape.js';
 
 interface Props {
   currentHand: HandCall | null;
@@ -173,12 +172,6 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const [rank, setRank] = useState<Rank>(initial.rank);
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
-
-  const isLandscape = useIsLandscape();
-  // In landscape, reduce visible wheel items so the highlighted center sits
-  // closer to the preview cards above (less dead space above the selection).
-  // Hand type keeps visibleCount=3 (minimum for scrollable wheel with highlight).
-  const detailVisibleCount = isLandscape ? 3 : 5;
 
   const { play, playHandPreview } = useSound();
   const handleTickSound = useCallback(() => play('wheelTick'), [play]);
@@ -475,7 +468,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
                   itemHeight={42}
-                  visibleCount={detailVisibleCount}
+                  visibleCount={5}
                   highlightHeight={70}
                   onTickSound={handleTickSound}
                   onSelectSound={handleSelectSound}
@@ -496,7 +489,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   onSelect={handleRank2Wheel}
                   renderItem={renderRank}
                   itemHeight={42}
-                  visibleCount={detailVisibleCount}
+                  visibleCount={5}
                   highlightHeight={70}
                   onTickSound={handleTickSound}
                   onSelectSound={handleSelectSound}
@@ -513,7 +506,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   onSelect={handlePrimaryWheel}
                   renderItem={renderRank}
                   itemHeight={42}
-                  visibleCount={detailVisibleCount}
+                  visibleCount={5}
                   highlightHeight={70}
                   onTickSound={handleTickSound}
                   onSelectSound={handleSelectSound}
@@ -526,7 +519,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                   onSelect={handleSuitWheel}
                   renderItem={renderSuit}
                   itemHeight={42}
-                  visibleCount={detailVisibleCount}
+                  visibleCount={5}
                   highlightHeight={70}
                   onTickSound={handleTickSound}
                   onSelectSound={handleSelectSound}
@@ -542,7 +535,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 onSelect={handleSuitWheel}
                 renderItem={renderSuit}
                 itemHeight={42}
-                visibleCount={detailVisibleCount}
+                visibleCount={5}
                 highlightHeight={70}
                 onTickSound={handleTickSound}
                 onSelectSound={handleSelectSound}
@@ -554,7 +547,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
                 onSelect={handlePrimaryWheel}
                 renderItem={renderRank}
                 itemHeight={42}
-                visibleCount={detailVisibleCount}
+                visibleCount={5}
                 highlightHeight={70}
                 onTickSound={handleTickSound}
                 onSelectSound={handleSelectSound}
