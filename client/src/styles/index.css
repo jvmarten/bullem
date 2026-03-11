@@ -2880,13 +2880,19 @@ body {
   pointer-events: none;
 }
 
-/* "last chance" label above the raise button */
+/* "last chance" label above the raise button — absolutely positioned so it
+   doesn't push the button down when it appears */
 .rt-last-chance-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 0.5rem;
   font-weight: 700;
   color: var(--danger);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 2px;
+  white-space: nowrap;
   animation: pulse 1.5s ease-in-out infinite;
 }
