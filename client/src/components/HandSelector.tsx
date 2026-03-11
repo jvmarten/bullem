@@ -177,7 +177,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const isLandscape = useIsLandscape();
   // In landscape, reduce visible wheel items so the highlighted center sits
   // closer to the preview cards above (less dead space above the selection).
-  const typeVisibleCount = isLandscape ? 1 : 3;
+  // Hand type keeps visibleCount=3 (minimum for scrollable wheel with highlight).
   const detailVisibleCount = isLandscape ? 3 : 5;
 
   const { play, playHandPreview } = useSound();
@@ -456,7 +456,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
             onSelect={handleTypeWheel}
             renderItem={renderHandType}
             itemHeight={70}
-            visibleCount={typeVisibleCount}
+            visibleCount={3}
             minIndex={minHandTypeIndex}
             onTickSound={handleTickSoundLow}
             onSelectSound={handleSelectSound}
