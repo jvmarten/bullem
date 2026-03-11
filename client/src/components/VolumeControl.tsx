@@ -139,14 +139,14 @@ export function VolumeControl() {
         title="Settings"
         aria-label="Settings"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in">
+        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in" role="group" aria-label="Settings panel">
           {/* Master volume */}
           <div className="flex items-center gap-2">
             {/* Speaker icon — tap to toggle mute */}
@@ -154,6 +154,7 @@ export function VolumeControl() {
               onClick={toggleMute}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors shrink-0 p-0"
               title={muted ? 'Unmute' : 'Mute'}
+              aria-label={muted ? 'Unmute audio' : 'Mute audio'}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -184,6 +185,7 @@ export function VolumeControl() {
                 if (v === 0 && !muted) toggleMute();
               }}
               className="volume-slider flex-1"
+              aria-label="Master volume"
             />
           </div>
 
@@ -200,6 +202,7 @@ export function VolumeControl() {
                 value={muted ? 0 : categoryVolumes.sfx}
                 onChange={(e) => setCategoryVolume('sfx', parseFloat(e.target.value))}
                 className="volume-slider flex-1"
+                aria-label="Sound effects volume"
               />
             </div>
             {/* UI volume */}
@@ -213,6 +216,7 @@ export function VolumeControl() {
                 value={muted ? 0 : categoryVolumes.ui}
                 onChange={(e) => setCategoryVolume('ui', parseFloat(e.target.value))}
                 className="volume-slider flex-1"
+                aria-label="UI sounds volume"
               />
             </div>
           </div>
@@ -221,6 +225,8 @@ export function VolumeControl() {
           <button
             onClick={toggleHaptics}
             className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={hapticsEnabled}
+            aria-label={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
           >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Haptics
@@ -249,6 +255,8 @@ export function VolumeControl() {
           <button
             onClick={toggleChatEnabled}
             className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={chatOn}
+            aria-label={chatOn ? 'Hide chat' : 'Show chat'}
           >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Chat
@@ -268,6 +276,8 @@ export function VolumeControl() {
           <button
             onClick={toggleEmojiEnabled}
             className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={emojiOn}
+            aria-label={emojiOn ? 'Hide emoji reactions' : 'Show emoji reactions'}
           >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Emoji
@@ -290,6 +300,8 @@ export function VolumeControl() {
           <button
             onClick={toggleQuickDrawEnabled}
             className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={quickDrawOn}
+            aria-label={quickDrawOn ? 'Disable quick draw' : 'Enable quick draw'}
           >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Quick Draw
@@ -309,6 +321,8 @@ export function VolumeControl() {
           <button
             onClick={toggleImpossibleBotEnabled}
             className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={impossibleBotOn}
+            aria-label={impossibleBotOn ? 'Disable impossible bot' : 'Enable impossible bot'}
           >
             <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
               Impossible Bot

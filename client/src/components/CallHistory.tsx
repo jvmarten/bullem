@@ -64,12 +64,15 @@ export const CallHistoryToggleButton = memo(function CallHistoryToggleButton({
     <button
       onClick={onToggle}
       className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1"
+      aria-expanded={isOpen}
+      aria-label={`${isOpen ? 'Hide' : 'Show'} call history (${count} entries)`}
     >
       <span>{isOpen ? 'Hide' : 'Show'} History ({count})</span>
       <svg
         width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
         className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        aria-hidden="true"
       >
         <polyline points="6 9 12 15 18 9" />
       </svg>
@@ -100,12 +103,15 @@ export const CallHistory = memo(function CallHistory({ history, cardCounts, forc
       <button
         onClick={() => setVisible(v => !v)}
         className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1 mx-auto"
+        aria-expanded={visible}
+        aria-label={`${visible ? 'Hide' : 'Show'} call history (${history.length} entries)`}
       >
         <span>{visible ? 'Hide' : 'Show'} Call History ({history.length})</span>
         <svg
           width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
           className={`transition-transform ${visible ? 'rotate-180' : ''}`}
+          aria-hidden="true"
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>

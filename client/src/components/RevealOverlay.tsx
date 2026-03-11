@@ -2,6 +2,7 @@ import { handToString, TurnAction } from '@bull-em/shared';
 import type { RoundResult, Player, OwnedCard, TurnEntry, Card, PlayerId } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
 import { useEffect, useRef, useState, useMemo, memo } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 
 function FlipCard({ card, delay }: { card: Card; delay: number }) {
   return (
@@ -46,6 +47,7 @@ function actionLabel(entry: TurnEntry): string {
 // parent re-renders (e.g. from the countdown timer in the game page) would
 // re-render the entire overlay including flip-card animations.
 export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true }: Props) {
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(true, onDismiss);
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
   const [showBeat2, setShowBeat2] = useState(false);
@@ -116,9 +118,15 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
-         style={{ background: 'var(--overlay)' }}>
-      <div className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in max-h-[90vh] overflow-y-auto reveal-scroll"
-           style={{ overscrollBehavior: 'contain' }}>
+         style={{ background: 'var(--overlay)' }}
+         role="presentation">
+      <div ref={focusTrapRef}
+           role="dialog"
+           aria-modal="true"
+           aria-label={`Round result: ${callerName} called ${handToString(result.calledHand)}. ${result.handExists ? 'The hand exists.' : 'The hand is fake.'}`}
+           className="glass-raised p-6 max-w-sm w-full space-y-5 text-center animate-scale-in max-h-[90vh] overflow-y-auto reveal-scroll"
+           style={{ overscrollBehavior: 'contain' }}
+           tabIndex={-1}>
         <p className="text-[var(--card-face)]">
           {callerName} called:{' '}
           <span className="text-[var(--gold)] font-bold">{handToString(result.calledHand)}</span>
@@ -188,11 +196,14 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
             <button
               onClick={() => setActionsExpanded(v => !v)}
               className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 bg-transparent border-none p-0 cursor-pointer"
+              aria-expanded={actionsExpanded}
+              aria-label={actionsExpanded ? 'Hide round actions' : 'Show round actions'}
             >
               <span>Round Actions</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className={`transition-transform duration-200 ${actionsExpanded ? 'rotate-180' : ''}`}>
+                className={`transition-transform duration-200 ${actionsExpanded ? 'rotate-180' : ''}`}
+                aria-hidden="true">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>

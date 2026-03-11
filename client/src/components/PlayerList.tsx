@@ -311,6 +311,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           role={onPlayerClick ? 'button' : undefined}
           tabIndex={onPlayerClick ? 0 : undefined}
           onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
+          aria-label={onPlayerClick ? `View ${p.name}'s profile` : undefined}
           className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''} overflow-hidden`}
         >
           <PlayerAvatarContent name={p.name} avatar={p.avatar} photoUrl={p.photoUrl} isBot={p.isBot} />
@@ -365,8 +366,9 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
             onClick={(e) => { e.stopPropagation(); onRemoveBot(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Remove bot"
+            aria-label={`Remove bot ${p.name}`}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         )}
         {showKickPlayer && !p.isBot && !p.isHost && onKickPlayer && (
@@ -374,8 +376,9 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
             onClick={(e) => { e.stopPropagation(); onKickPlayer(p.id); }}
             className="text-[var(--danger)] hover:text-red-400 transition-colors text-xs ml-1"
             title="Kick player"
+            aria-label={`Kick player ${p.name}`}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         )}
       </div>
@@ -433,10 +436,13 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
         <button
           onClick={() => setCollapsed(false)}
           className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 px-1"
+          aria-expanded={false}
+          aria-label={`Expand player list (${activeCount} of ${players.length} active)`}
         >
           <span>Players ({activeCount}/{players.length})</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true">
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
@@ -486,11 +492,14 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
         <button
           onClick={() => setCollapsed(true)}
           className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 px-1"
+          aria-expanded={true}
+          aria-label="Collapse player list"
         >
           <span>Players</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="rotate-180">
+            className="rotate-180"
+            aria-hidden="true">
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>

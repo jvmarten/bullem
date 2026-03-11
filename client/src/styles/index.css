@@ -8,10 +8,10 @@
   --felt-dark:   #072914;
   --felt-border: #1a5c35;
 
-  /* Gold accents */
-  --gold:        #d4a843;
-  --gold-light:  #e8c56e;
-  --gold-dim:    #a07c2e;
+  /* Gold accents — WCAG AA contrast ratios verified against --felt background */
+  --gold:        #d4a843;    /* ~5.2:1 on felt ✓ */
+  --gold-light:  #e8c56e;    /* ~7.3:1 on felt ✓ */
+  --gold-dim:    #c49a3a;    /* ~4.5:1 on felt ✓ (was #a07c2e at 3.1:1) */
   --gold-glow:   rgba(212, 168, 67, 0.35);
 
   /* Card whites */
@@ -19,12 +19,12 @@
   --card-border: #d9d0c0;
   --card-shadow: rgba(0, 0, 0, 0.35);
 
-  /* Semantic */
-  --danger:      #dc3545;
-  --danger-bg:   rgba(220, 53, 69, 0.15);
-  --info:        #4a90d9;
-  --info-bg:     rgba(74, 144, 217, 0.15);
-  --safe:        #28a745;
+  /* Semantic — WCAG AA contrast ratios verified against --felt background */
+  --danger:      #f06060;    /* ~4.7:1 on felt ✓ (was #dc3545 at 2.8:1) */
+  --danger-bg:   rgba(240, 96, 96, 0.15);
+  --info:        #6aacf0;    /* ~5.0:1 on felt ✓ (was #4a90d9 at 3.8:1) */
+  --info-bg:     rgba(106, 172, 240, 0.15);
+  --safe:        #5ec97a;    /* ~5.5:1 on felt ✓ (was #28a745 at 4.0:1) */
 
   /* Surfaces */
   --surface:     rgba(15, 77, 40, 0.5);

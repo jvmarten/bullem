@@ -24,6 +24,7 @@ export const EmojiReactionBar = memo(function EmojiReactionBar({ onReaction }: P
                 onClick={() => { onReaction(emoji); }}
                 className="emoji-reaction-btn"
                 type="button"
+                aria-label={`React with ${emoji}`}
               >
                 {emoji}
               </button>

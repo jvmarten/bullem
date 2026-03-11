@@ -28,6 +28,7 @@ import { QuickDrawHint } from '../components/QuickDrawHint.js';
 import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
 import { SeriesBanner } from '../components/SeriesBanner.js';
@@ -52,6 +53,7 @@ export function LocalGamePage() {
   useErrorToast(error, clearError);
   const { play } = useSound();
   useGameSounds(gameState, roundResult, winnerId, playerId);
+  useGameAnnouncements(gameState, roundResult, playerId);
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult);

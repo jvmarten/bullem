@@ -123,6 +123,7 @@ export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps)
                 maxLength={CHAT_MESSAGE_MAX_LENGTH}
                 className="flex-1 bg-[var(--surface)] text-[var(--text)] text-xs rounded px-2 py-1.5 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none placeholder:text-[var(--gold-dim)]/50 min-h-[36px]"
                 autoComplete="off"
+                aria-label="Chat message"
               />
               <button
                 type="submit"
