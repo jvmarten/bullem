@@ -499,7 +499,7 @@ export function FiveDrawPage() {
       id: DEALER_ID, name: 'Dealer', cardCount: 5,
       isConnected: true, isEliminated: false, isHost: false, isBot: true, cards: [],
     };
-    const players = Math.random() < 0.5 ? [humanPlayer, dealerPlayer] : [dealerPlayer, humanPlayer];
+    const players = [dealerPlayer, humanPlayer];
     playersRef.current = players;
 
     const engine = new GameEngine(players, { maxCards: 5, turnTimer: 0 });
