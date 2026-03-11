@@ -11,6 +11,7 @@ import { HandType, RoundPhase } from '../types.js';
 import { isHigherHand, getMinimumRaise } from '../hands.js';
 import { ALL_RANKS, ALL_SUITS, RANK_VALUES } from '../constants.js';
 import type { BotAction } from '../engine/BotPlayer.js';
+import { HandChecker } from '../engine/HandChecker.js';
 import { AbstractAction } from './infoSet.js';
 
 /**
@@ -24,6 +25,11 @@ export function mapAbstractToConcreteAction(
 ): BotAction {
   switch (abstractAction) {
     case AbstractAction.BULL:
+      // Sanity check: never call bull on a hand the bot can verify from its own cards.
+      // If our cards alone satisfy the called hand, it provably exists — call true instead.
+      if (state.currentHand && HandChecker.exists(myCards, state.currentHand)) {
+        return { action: 'true' };
+      }
       return { action: 'bull' };
 
     case AbstractAction.TRUE:
