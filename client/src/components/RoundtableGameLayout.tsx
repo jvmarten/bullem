@@ -110,6 +110,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isMe,
   maxCards,
   lastAction,
+  isLatestCaller,
 }: {
   player: Player;
   seatIndex: number;
@@ -118,6 +119,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   isMe: boolean;
   maxCards: number;
   lastAction: TurnEntry | null;
+  isLatestCaller: boolean;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
@@ -161,7 +163,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
 
       {/* Last action chip — floats near the seat toward the table center */}
       {action && !player.isEliminated && (
-        <div className={`rt-action-chip rt-action-chip--${action.type}`}>
+        <div className={`rt-action-chip rt-action-chip--${action.type} ${isLatestCaller ? 'rt-action-chip--latest' : ''}`}>
           {action.text}
         </div>
       )}
@@ -230,6 +232,10 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     return actions;
   }, [turnHistory]);
 
+  // The player who made the most recent action in the turn history
+  const lastEntry = turnHistory.length > 0 ? turnHistory[turnHistory.length - 1] : undefined;
+  const latestCallerId = lastEntry?.playerId ?? null;
+
   const callerName = lastCallerId
     ? players.find(p => p.id === lastCallerId)?.name ?? '?'
     : null;
@@ -272,6 +278,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             isMe={false}
             maxCards={maxCards}
             lastAction={lastActions[player.id] ?? null}
+            isLatestCaller={player.id === latestCallerId}
           />
         ))}
 
