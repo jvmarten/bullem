@@ -648,3 +648,128 @@ describe('Smart Hard Bot - updateMemory self-image integration', () => {
     expect(['call', 'bull', 'true', 'lastChanceRaise', 'lastChancePass']).toContain(action.action);
   });
 });
+
+describe('Self-evidence override — never bull a hand you can verify', () => {
+  beforeEach(() => {
+    BotPlayer.resetMemory();
+  });
+
+  describe('canSelfVerifyHand', () => {
+    it('verifies HIGH_CARD when bot holds the rank', () => {
+      const cards: Card[] = [{ rank: 'A', suit: 'spades' }];
+      expect(BotPlayer.canSelfVerifyHand({ type: HandType.HIGH_CARD, rank: 'A' }, cards)).toBe(true);
+    });
+
+    it('does not verify HIGH_CARD when bot lacks the rank', () => {
+      const cards: Card[] = [{ rank: 'K', suit: 'spades' }];
+      expect(BotPlayer.canSelfVerifyHand({ type: HandType.HIGH_CARD, rank: 'A' }, cards)).toBe(false);
+    });
+
+    it('verifies PAIR when bot holds two of the rank', () => {
+      const cards: Card[] = [
+        { rank: '7', suit: 'hearts' },
+        { rank: '7', suit: 'diamonds' },
+      ];
+      expect(BotPlayer.canSelfVerifyHand({ type: HandType.PAIR, rank: '7' }, cards)).toBe(true);
+    });
+
+    it('does not verify PAIR with only one of the rank', () => {
+      const cards: Card[] = [{ rank: '7', suit: 'hearts' }];
+      expect(BotPlayer.canSelfVerifyHand({ type: HandType.PAIR, rank: '7' }, cards)).toBe(false);
+    });
+
+    it('verifies THREE_OF_A_KIND when bot holds three', () => {
+      const cards: Card[] = [
+        { rank: '9', suit: 'hearts' },
+        { rank: '9', suit: 'diamonds' },
+        { rank: '9', suit: 'clubs' },
+      ];
+      expect(BotPlayer.canSelfVerifyHand({ type: HandType.THREE_OF_A_KIND, rank: '9' }, cards)).toBe(true);
+    });
+  });
+
+  it('never calls bull on Ace high when holding an Ace (calling phase)', () => {
+    const aceCards: Card[] = [{ rank: 'A', suit: 'spades' }];
+    const scope = 'self-verify-call';
+
+    for (let i = 0; i < 50; i++) {
+      BotPlayer.resetMemory();
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
+        lastCallerId: 'p1',
+        myCards: aceCards,
+        turnHistory: [
+          makeTurnEntry('p1', TurnAction.CALL, { type: HandType.HIGH_CARD, rank: 'A' }),
+        ],
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', aceCards, BotDifficulty.HARD, undefined, scope);
+      expect(action.action).not.toBe('bull');
+    }
+  });
+
+  it('never calls bull on Ace high when holding an Ace (bull phase)', () => {
+    const aceCards: Card[] = [{ rank: 'A', suit: 'spades' }];
+    const scope = 'self-verify-bull';
+
+    for (let i = 0; i < 50; i++) {
+      BotPlayer.resetMemory();
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.HIGH_CARD, rank: 'A' },
+        lastCallerId: 'p1',
+        myCards: aceCards,
+        turnHistory: [
+          makeTurnEntry('p1', TurnAction.CALL, { type: HandType.HIGH_CARD, rank: 'A' }),
+          makeTurnEntry('p2', TurnAction.BULL),
+        ],
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', aceCards, BotDifficulty.HARD, undefined, scope);
+      expect(action.action).not.toBe('bull');
+    }
+  });
+
+  it('never calls bull on a pair when holding two of that rank (calling phase)', () => {
+    const pairCards: Card[] = [
+      { rank: '7', suit: 'hearts' },
+      { rank: '7', suit: 'diamonds' },
+    ];
+    const scope = 'self-verify-pair';
+
+    for (let i = 0; i < 50; i++) {
+      BotPlayer.resetMemory();
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: { type: HandType.PAIR, rank: '7' },
+        lastCallerId: 'p1',
+        myCards: pairCards,
+        turnHistory: [
+          makeTurnEntry('p1', TurnAction.CALL, { type: HandType.PAIR, rank: '7' }),
+        ],
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', pairCards, BotDifficulty.HARD, undefined, scope);
+      expect(action.action).not.toBe('bull');
+    }
+  });
+
+  it('never calls bull on King high when holding a King (bull phase, multiple bull callers)', () => {
+    const kingCards: Card[] = [{ rank: 'K', suit: 'clubs' }];
+    const scope = 'self-verify-king-multi-bull';
+
+    for (let i = 0; i < 50; i++) {
+      BotPlayer.resetMemory();
+      const state = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: { type: HandType.HIGH_CARD, rank: 'K' },
+        lastCallerId: 'p1',
+        myCards: kingCards,
+        turnHistory: [
+          makeTurnEntry('p1', TurnAction.CALL, { type: HandType.HIGH_CARD, rank: 'K' }),
+          makeTurnEntry('p2', TurnAction.BULL),
+        ],
+      });
+      const action = BotPlayer.decideAction(state, 'bot1', kingCards, BotDifficulty.HARD, undefined, scope);
+      expect(action.action).not.toBe('bull');
+    }
+  });
+});
