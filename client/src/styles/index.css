@@ -2320,11 +2320,12 @@ body {
 
 /* Larger current call tile for landscape center */
 .rt-current-call--lg {
-  padding: 0.5rem 1.25rem;
+  padding: 0.5rem 2rem;
   gap: 2px;
+  min-width: 12rem;
 }
 .rt-current-call--lg .rt-current-call-label {
-  font-size: 0.6rem;
+  font-size: 0.5rem;
 }
 .rt-current-call--lg .rt-current-call-hand {
   font-size: 1.25rem;
@@ -2813,12 +2814,13 @@ body {
   }
 
   .rt-current-call--lg {
-    padding: 0.625rem 1.5rem;
+    padding: 0.625rem 2.25rem;
     gap: 3px;
+    min-width: 14rem;
   }
 
   .rt-current-call--lg .rt-current-call-label {
-    font-size: 0.65rem;
+    font-size: 0.55rem;
   }
 
   .rt-current-call-hand {
