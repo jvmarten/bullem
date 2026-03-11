@@ -51,6 +51,7 @@ function getBotAction(
   strategy: BotStrategy | undefined,
   allPlayers: ServerPlayer[],
   profileConfig?: BotProfileConfig,
+  settings?: GameSettings,
 ): BotAction {
   if (strategy) {
     const active = allPlayers.filter(p => !p.isEliminated);
@@ -61,6 +62,8 @@ function getBotAction(
       botCards: player.cards,
       totalCards,
       activePlayers: active.length,
+      jokerCount: settings?.jokerCount,
+      lastChanceMode: settings?.lastChanceMode,
     });
     if (result) return result;
   }
@@ -110,7 +113,7 @@ export function runGame(
       const difficulty = botCfg?.difficulty ?? defaultDifficulty;
 
       const state = engine.getClientState(currentId);
-      const action = getBotAction(state, player, difficulty, scope, strategy, players, botCfg?.profileConfig);
+      const action = getBotAction(state, player, difficulty, scope, strategy, players, botCfg?.profileConfig, settings);
       const result = dispatchAction(engine, currentId, action);
 
       roundTurns++;

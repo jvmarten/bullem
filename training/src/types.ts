@@ -1,4 +1,4 @@
-import type { BotDifficulty, GameSettings, PlayerId } from '@bull-em/shared';
+import type { BotDifficulty, GameSettings, PlayerId, JokerCount, LastChanceMode } from '@bull-em/shared';
 import type { BotProfileConfig } from '@bull-em/shared';
 
 /** Configuration for a single bot player in a simulation. */
@@ -29,6 +29,10 @@ export interface BotStrategyContext {
   totalCards: number;
   /** Number of active (non-eliminated) players in the game. */
   activePlayers: number;
+  /** Number of jokers in the deck (0, 1, or 2). */
+  jokerCount?: JokerCount;
+  /** Last chance raise mode ('classic' or 'strict'). */
+  lastChanceMode?: LastChanceMode;
 }
 
 /** Action returned by a pluggable strategy. Mirrors BotAction from shared. */

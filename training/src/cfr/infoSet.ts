@@ -13,7 +13,7 @@
  * - Card count (how many cards I hold)
  */
 
-import type { Card, HandCall, Rank, Suit, ClientGameState } from '@bull-em/shared';
+import type { Card, HandCall, Rank, Suit, ClientGameState, JokerCount, LastChanceMode } from '@bull-em/shared';
 import { HandType, RoundPhase } from '@bull-em/shared';
 import { RANK_VALUES } from '@bull-em/shared';
 
@@ -356,6 +356,8 @@ export function getInfoSetKey(
   myCards: Card[],
   totalCards: number,
   activePlayers: number = 2,
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
 ): string {
   const parts: string[] = [
     // Phase: c=calling, b=bull_phase, l=last_chance
@@ -385,6 +387,21 @@ export function getInfoSetKey(
   // Only appended for p2 so multiplayer keys stay identical.
   if (activePlayers <= 2 && state.currentHand) {
     parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
+  }
+
+  // Joker context — jokers fundamentally change hand plausibility
+  // (wildcards make high hands much more likely to exist).
+  // Only add segment when jokers are present to keep standard-deck
+  // info set keys backward-compatible with existing strategies.
+  if (jokerCount > 0) {
+    parts.push(`j${jokerCount}`);
+  }
+
+  // Last chance mode context — 'strict' changes the game tree after a
+  // last-chance raise (returns to CALLING instead of BULL_PHASE), which
+  // affects optimal raise/pass decisions. Only add when non-default.
+  if (lastChanceMode === 'strict') {
+    parts.push('lcS');
   }
 
   return parts.join('|');
