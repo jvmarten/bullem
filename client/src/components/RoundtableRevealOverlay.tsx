@@ -155,19 +155,25 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     const timings: number[] = [];
     let currentTime = 200; // brief initial delay
     let lastPlayerId = '';
+    let burnGroupStarted = false;
 
     for (const slot of slotSequence) {
       // Add player pause when switching to a new player
       if (slot.playerId !== lastPlayerId && lastPlayerId !== '') {
         currentTime += PLAYER_PAUSE;
+        burnGroupStarted = false;
       }
       timings.push(currentTime);
       // Revealed cards take longer (flip + fly), non-revealed cards just burn
       if (slot.isRelevant) {
         currentTime += CARD_FLIP_DURATION + POST_FLIP_PAUSE + FLY_TO_CENTER_DURATION + CARD_INTERVAL;
-      } else {
+        burnGroupStarted = false;
+      } else if (!burnGroupStarted) {
+        // First non-relevant card in a group: advance time once for all of them
+        burnGroupStarted = true;
         currentTime += CARD_BURN_DURATION + CARD_INTERVAL;
       }
+      // Subsequent non-relevant cards for the same player share the same start time
       lastPlayerId = slot.playerId;
     }
 

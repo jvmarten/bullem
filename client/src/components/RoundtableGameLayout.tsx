@@ -6,6 +6,7 @@ import { getSeatPosition } from '../utils/roundtablePositions.js';
 import { playerColor } from '../utils/cardUtils.js';
 import { PlayerAvatarContent } from './PlayerAvatar.js';
 import { HandDisplay } from './HandDisplay.js';
+import { CardDisplay } from './CardDisplay.js';
 import { HandSelector } from './HandSelector.js';
 import { ActionButtons } from './ActionButtons.js';
 import { CallHistory } from './CallHistory.js';
@@ -269,6 +270,31 @@ const LandscapeTurnTimer = memo(function LandscapeTurnTimer({
   );
 });
 
+/** Mini face-up card fan for spectator view at opponent seats. */
+const SeatFaceUpCards = memo(function SeatFaceUpCards({ cards }: { cards: Card[] }) {
+  if (cards.length <= 0) return null;
+  const count = cards.length;
+  return (
+    <div className="rt-card-backs-fan">
+      {cards.map((card, i) => {
+        const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 8;
+        return (
+          <div
+            key={`${card.rank}-${card.suit}`}
+            style={{
+              transform: `rotate(${angle}deg)`,
+              marginLeft: i > 0 ? '-6px' : undefined,
+              zIndex: i,
+            }}
+          >
+            <CardDisplay card={card} small />
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
 /** Mini card-back fan for opponent seats — shows face-down cards matching their card count.
  *  When `visibleCount` is provided (during dealing), only that many cards are visible but
  *  all card slots are rendered to maintain stable layout — hidden cards use opacity 0. */
@@ -307,6 +333,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   turnDeadline,
   turnDurationMs,
   visibleCardCount,
+  spectatorFaceUpCards,
 }: {
   player: Player;
   seatIndex: number;
@@ -319,6 +346,8 @@ const RoundtableSeat = memo(function RoundtableSeat({
   turnDurationMs?: number | null;
   /** When set, only this many card backs are visible (used during dealing animation). */
   visibleCardCount?: number;
+  /** When spectating, the player's cards shown face-up at the seat instead of card backs. */
+  spectatorFaceUpCards?: Card[];
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
@@ -331,7 +360,9 @@ const RoundtableSeat = memo(function RoundtableSeat({
     >
       {/* Card+avatar stack — avatar overlaps bottom of cards */}
       <div className="rt-seat-card-avatar">
-        {!player.isEliminated && (
+        {!player.isEliminated && spectatorFaceUpCards && spectatorFaceUpCards.length > 0 ? (
+          <SeatFaceUpCards cards={spectatorFaceUpCards} />
+        ) : !player.isEliminated && (
           <SeatCardBacks count={player.cardCount} visibleCount={visibleCardCount} />
         )}
         <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''} rt-avatar--overlap`}>
@@ -426,6 +457,17 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
 
   // Whether seat card backs should be suppressed (dealing or cinematic reveal in progress)
   const suppressSeatCards = showDealing || !!revealInProgress;
+
+  // Spectator mode: build a lookup of player ID → face-up cards for rendering at seats
+  const isSpectating = isEliminated || isSpectator;
+  const spectatorCardsByPlayerId = useMemo(() => {
+    if (!isSpectating || !spectatorCards) return undefined;
+    const map = new Map<string, Card[]>();
+    for (const sc of spectatorCards) {
+      map.set(sc.playerId, sc.cards);
+    }
+    return map;
+  }, [isSpectating, spectatorCards]);
 
   // Auto-open the hand selector when it becomes our turn in roundtable mode.
   // This replaces the turn indicator — the selector opening IS the turn signal.
@@ -577,6 +619,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
               turnDeadline={player.id === currentPlayerId ? turnDeadline : null}
               turnDurationMs={turnDurationMs}
               visibleCardCount={visCardCount}
+              spectatorFaceUpCards={spectatorCardsByPlayerId?.get(player.id)}
             />
           );
         })}
@@ -602,13 +645,18 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
               />
             </div>
           )}
-          {!isEliminated && !isSpectator && (
+          {!isEliminated && !isSpectator ? (
             <HandDisplay
               cards={suppressSeatCards
                 ? (revealInProgress ? [] : myCards.slice(0, dealtPerSeat[0] ?? 0))
                 : myCards}
               large
               onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
+            />
+          ) : isSpectating && myPlayer && spectatorCardsByPlayerId?.get(myPlayer.id) && (
+            <HandDisplay
+              cards={spectatorCardsByPlayerId.get(myPlayer.id)!}
+              large
             />
           )}
           {myPlayer && (
@@ -652,12 +700,8 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         />
       )}
 
-      {/* Bottom controls strip — hand selector + spectator view */}
+      {/* Bottom controls strip — hand selector (spectator cards are shown face-up at seats) */}
       <div className="rt-controls">
-        {/* Spectator view */}
-        {(isEliminated || isSpectator) && spectatorCards && (
-          <SpectatorView spectatorCards={spectatorCards} currentPlayerId={currentPlayerId} />
-        )}
 
         {/* Hand selector */}
         {canRaise && handSelectorOpen && (
