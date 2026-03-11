@@ -36,6 +36,8 @@ import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useUISettings } from '../components/VolumeControl.js';
+import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 
 function SeriesBanner({ seriesInfo, players, playerId }: {
   seriesInfo: NonNullable<import('@bull-em/shared').SeriesInfo>;
@@ -128,6 +130,7 @@ export function GamePage() {
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
+  const isLandscape = useIsLandscape();
 
   const rejoinAttemptedRef = useRef(false);
   const wasEliminatedRef = useRef(false);
@@ -323,6 +326,8 @@ export function GamePage() {
   // Stable callback references so ActionButtons' React.memo isn't broken
   const closeHandSelector = useCallback(() => setHandSelectorOpen(false), []);
   const handleActionExpand = useCallback(() => { setHandSelectorOpen(false); setQuickDrawOpen(false); }, []);
+  const openHandSelector = useCallback(() => { play('uiClick'); setHandSelectorOpen(true); }, [play]);
+  const handleQuickDrawDismiss = useCallback(() => setQuickDrawOpen(false), []);
 
   // Close hand selector on tap outside
   useEffect(() => {
@@ -456,9 +461,78 @@ export function GamePage() {
 
   return (
     <Layout headerLeftExtra={headerLeftExtra} headerRightExtra={headerRightExtra}>
+      {/* ── Roundtable layout (landscape/desktop) ── */}
+      {isLandscape ? (
+        <div className={`${(isEliminated || isSpectator) && !winnerId ? 'spectating' : ''}`}>
+          {(isEliminated || isSpectator) && !winnerId && (
+            <div className="spectator-pill animate-fade-in">
+              {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
+            </div>
+          )}
+          <RoundtableGameLayout
+            players={gameState.players}
+            currentPlayerId={gameState.currentPlayerId}
+            myPlayerId={playerId}
+            maxCards={gameState.maxCards}
+            roundNumber={gameState.roundNumber}
+            roundPhase={gameState.roundPhase}
+            currentHand={gameState.currentHand}
+            lastCallerId={gameState.lastCallerId}
+            myCards={gameState.myCards}
+            turnHistory={gameState.turnHistory}
+            turnDeadline={gameState.turnDeadline}
+            turnDurationMs={gameState.turnDurationMs}
+            spectatorCards={gameState.spectatorCards}
+            isMyTurn={isMyTurn}
+            isEliminated={isEliminated}
+            isSpectator={isSpectator}
+            isLastChanceCaller={isLastChanceCaller}
+            canRaise={canRaise}
+            handSelectorOpen={handSelectorOpen}
+            pendingValid={pendingValid}
+            pendingHand={pendingHand}
+            quickDrawOpen={quickDrawOpen}
+            quickDrawEnabled={quickDrawEnabled}
+            quickDrawSuggestions={quickDrawSuggestions}
+            disconnectDeadlines={disconnectDeadlines}
+            onBull={callBull}
+            onTrue={callTrue}
+            onLastChancePass={lastChancePass}
+            onActionExpand={handleActionExpand}
+            onOpenHandSelector={openHandSelector}
+            onHandSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+            onQuickRaise={handleQuickRaise}
+            onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined}
+            onQuickDrawSelect={handleQuickDrawSelect}
+            onQuickDrawDismiss={handleQuickDrawDismiss}
+            onPlayerClick={handlePlayerClick}
+          />
+
+          {/* Overlays still render on top */}
+          <GameTooltips gameActive={!roundResult && !roundTransition} />
+          {roundTransition && !roundResult && (
+            <TransitionOverlay deadline={roundTransitionDeadline} />
+          )}
+          {roundResult && (
+            <RevealOverlay
+              result={roundResult}
+              players={gameState.players}
+              myPlayerId={playerId ?? undefined}
+              onDismiss={clearRoundResult}
+            />
+          )}
+          {isAtMaxCards && (
+            <div className="max-cards-warning-glow" aria-hidden="true" />
+          )}
+          {sessionTransferred && <SessionTransferredOverlay />}
+          {!isConnected && hasConnected && !sessionTransferred && <ReconnectOverlay />}
+        </div>
+      ) : (
+      /* ── Portrait layout (existing) ── */
       <div className={`game-layout ${(isEliminated || isSpectator) && !winnerId ? 'spectating' : ''}`}>
         {/* Top bar — portrait only (merged into header in landscape) */}
-        <div className="game-top-bar portrait-only flex justify-between items-center text-xs">
+        <div className="game-top-bar flex justify-between items-center text-xs">
           <div className="flex items-center gap-3">
             <span className="text-[var(--gold-dim)] font-semibold uppercase tracking-wider">
               Round {gameState.roundNumber}
@@ -504,7 +578,7 @@ export function GamePage() {
         )}
 
         <div className="game-content">
-          {/* Sidebar — player list + call history (side column in landscape) */}
+          {/* Sidebar — player list */}
           <div className="game-sidebar">
             <div data-tooltip="players">
               <PlayerList
@@ -520,10 +594,6 @@ export function GamePage() {
                 turnDeadline={gameState.turnDeadline}
                 turnDurationMs={gameState.turnDurationMs}
               />
-            </div>
-            {/* Call history in sidebar — landscape only */}
-            <div className="landscape-only flex-col" data-tooltip="call-history">
-              <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
           </div>
 
@@ -582,7 +652,7 @@ export function GamePage() {
               <QuickDrawChips
                 suggestions={quickDrawSuggestions}
                 onSelect={handleQuickDrawSelect}
-                onDismiss={() => setQuickDrawOpen(false)}
+                onDismiss={handleQuickDrawDismiss}
               />
             )}
 
@@ -591,8 +661,8 @@ export function GamePage() {
               <SpectatorView spectatorCards={gameState.spectatorCards} currentPlayerId={gameState.currentPlayerId} />
             )}
 
-            {/* Call history — portrait only (in sidebar for landscape) */}
-            <div className="portrait-only" data-tooltip="call-history">
+            {/* Call history */}
+            <div data-tooltip="call-history">
               <CallHistory history={gameState.turnHistory} cardCounts={cardCounts} />
             </div>
 
@@ -613,7 +683,7 @@ export function GamePage() {
                 {canRaise && !handSelectorOpen && (
                   <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
                     <button
-                      onClick={() => { play('uiClick'); setHandSelectorOpen(true); }}
+                      onClick={openHandSelector}
                       className="btn-ghost border-[var(--gold-dim)] action-btn-base font-bold animate-pulse-glow action-btn-primary kbd-shortcut"
                       data-kbd="C"
                     >
@@ -688,6 +758,7 @@ export function GamePage() {
         {/* Reconnecting overlay — shown when own connection drops */}
         {!isConnected && hasConnected && !sessionTransferred && <ReconnectOverlay />}
       </div>
+      )}
 
       {/* Emoji, stats, and chat rendered OUTSIDE game-layout so they are not affected
           by the .spectating CSS filter which breaks position:fixed children. */}
