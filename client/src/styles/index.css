@@ -493,6 +493,12 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slide-up-right {
+  from { opacity: 0; transform: translate(-10px, 16px); }
+  to { opacity: 1; transform: translate(0, 0); }
+}
+.animate-slide-up-right { animation: slide-up-right 0.3s ease-out; }
+
 @keyframes slide-down {
   from { opacity: 0; transform: translateY(-16px); }
   to { opacity: 1; transform: translateY(0); }
