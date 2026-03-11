@@ -57,11 +57,9 @@ interface RoundtableGameLayoutProps {
   onBull: () => void;
   onTrue: () => void;
   onLastChancePass: () => void;
-  onActionExpand: () => void;
   onOpenHandSelector: () => void;
   onHandSubmit: () => void;
   onHandChange: (hand: HandCall | null, valid: boolean) => void;
-  onQuickRaise: () => void;
   onCardTap?: (card: Card) => void;
   onQuickDrawSelect: (suggestion: QuickDrawSuggestion) => void;
   onQuickDrawDismiss: () => void;
@@ -188,8 +186,8 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     quickDrawOpen, quickDrawEnabled, quickDrawSuggestions,
     callHistoryVisible,
     disconnectDeadlines,
-    onBull, onTrue, onLastChancePass, onActionExpand,
-    onOpenHandSelector, onHandSubmit, onHandChange, onQuickRaise,
+    onBull, onTrue, onLastChancePass,
+    onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
   } = props;
 
@@ -267,7 +265,6 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                   onBull={onBull}
                   onTrue={onTrue}
                   onLastChancePass={onLastChancePass}
-                  onExpand={onActionExpand}
                 />
               </div>
             )}
