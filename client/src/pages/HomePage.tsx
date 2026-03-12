@@ -1244,12 +1244,12 @@ export function HomePage() {
         </div>
       )}
 
-      {/* Version — bottom right, scrolls with page content, only on main menu */}
+      {/* Version — fixed bottom right, floats above content, only on main menu */}
       {mode === 'menu' && (
-      <div className="flex justify-end mt-4 pb-4 pr-2">
+      <div className="fixed bottom-2 right-2 z-40">
         <button
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
-          className="text-[10px] text-[var(--gold-dim)] opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="text-[10px] text-[var(--gold-dim)] opacity-40 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
           v1.4.0
         </button>
