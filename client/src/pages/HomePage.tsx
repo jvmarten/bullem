@@ -1282,7 +1282,7 @@ export function HomePage() {
 
       {/* Version — fixed bottom right, floats above content, only on main menu */}
       {mode === 'menu' && (
-      <div className="fixed bottom-2 right-2 z-40">
+      <div className="fixed right-2 z-40" style={{ bottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-40 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -1317,7 +1317,7 @@ export function HomePage() {
         <div
           style={{
             position: 'fixed',
-            bottom: 8,
+            bottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
             left: 8,
             padding: '2px 8px',
             fontSize: '10px',
