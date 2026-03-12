@@ -107,8 +107,11 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
         const ok = window.confirm('Leave current game/session and return home?');
         if (!ok) return;
       }
-      ctx?.leaveRoom?.();
+      // Navigate first so React Router commits the route change before
+      // leaveRoom() clears game state. This prevents LocalGamePage's
+      // "no gameState → redirect to /local" effect from racing and winning.
       navigate('/');
+      ctx?.leaveRoom?.();
       return;
     }
     // In a lobby room, just navigate away — player stays in the room and

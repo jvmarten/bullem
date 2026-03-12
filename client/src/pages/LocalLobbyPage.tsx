@@ -143,10 +143,13 @@ export function LocalLobbyPage() {
     startGame();
   }, [isQuickPlay, roomState, startGame]);
 
-  // Navigate to game when it starts — only if started from this lobby session
+  // Navigate to game when it starts — only if started from this lobby session.
+  // Use replace so the lobby doesn't stay in the history stack — pressing back
+  // from the game should return to the page before the lobby, not the lobby itself
+  // (which would destroy the in-progress game on mount).
   useEffect(() => {
     if (gameState && gameStartedRef.current) {
-      navigate('/local/game');
+      navigate('/local/game', { replace: true });
     }
   }, [gameState, navigate]);
 
@@ -164,13 +167,15 @@ export function LocalLobbyPage() {
   const canStart = roomState && playerCount >= MIN_PLAYERS;
   const canAddBot = playerCount < dynamicMaxPlayers;
 
-  if (!roomState) {
+  // Quick Play: show a loading state instead of the full lobby UI to avoid
+  // flashing match settings before the game auto-starts and redirects.
+  if (isQuickPlay || !roomState) {
     return (
       <Layout>
         <div className="flex items-center justify-center pt-16">
           <div className="text-center space-y-3 animate-fade-in">
             <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-[var(--gold-dim)]">Setting up game&hellip;</p>
+            <p className="text-[var(--gold-dim)]">{isQuickPlay ? 'Starting game\u2026' : 'Setting up game\u2026'}</p>
           </div>
         </div>
       </Layout>
