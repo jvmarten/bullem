@@ -72,8 +72,6 @@ export function HostPage() {
   return (
     <Layout>
       <div className="host-content space-y-4 max-w-md mx-auto pt-4">
-        <h2 className="font-display text-2xl text-[var(--gold)] text-center host-title">Host Game</h2>
-
         <div className="host-actions">
           <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
           <button onClick={() => { play('uiBack'); navigate('/', { state: { mode: 'online' } }); }} className="w-full btn-ghost py-2">Back</button>
