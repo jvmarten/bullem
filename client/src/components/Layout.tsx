@@ -158,47 +158,49 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
       <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`} role="banner">
         {/* Left group */}
         <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch pt-3 portrait-header-left' : 'items-center gap-2'} min-w-0`}>
-          {isConnected && (
-            <div ref={popupRef} className="relative flex-shrink-0">
-              <button
-                onClick={() => setShowPopup(prev => !prev)}
-                className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-                aria-expanded={showPopup}
-                aria-label={`${onlinePlayerCount || 1} players online`}
-              >
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
-                {onlinePlayerCount || 1}
-              </button>
-              {showPopup && (
-                <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
-                  <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
-                    Online ({onlinePlayerNames.length || onlinePlayerCount})
-                    {latencyMs !== null && (
-                      <span className="ml-2 text-[8px] normal-case tracking-normal opacity-70">
-                        {latencyMs}ms
-                      </span>
-                    )}
-                  </p>
-                  {onlinePlayerNames.length > 0 ? (
-                    <ul className="space-y-0.5">
-                      {onlinePlayerNames.map((name, i) => (
-                        <li key={i} className="text-xs text-[var(--gold-light)] flex items-center gap-1.5">
-                          <span className="inline-block w-1 h-1 rounded-full bg-green-500 flex-shrink-0" />
-                          {name}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-[var(--gold-dim)]">
-                      {onlinePlayerCount} players online
+          <div className={largeTitle ? 'mt-auto' : 'contents'}>
+            {isConnected && (
+              <div ref={popupRef} className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowPopup(prev => !prev)}
+                  className="flex items-center gap-1 text-[10px] text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+                  aria-expanded={showPopup}
+                  aria-label={`${onlinePlayerCount || 1} players online`}
+                >
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
+                  {onlinePlayerCount || 1}
+                </button>
+                {showPopup && (
+                  <div className="absolute left-0 top-full mt-1 glass px-3 py-2 rounded-lg z-50 min-w-[120px] animate-fade-in">
+                    <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
+                      Online ({onlinePlayerNames.length || onlinePlayerCount})
+                      {latencyMs !== null && (
+                        <span className="ml-2 text-[8px] normal-case tracking-normal opacity-70">
+                          {latencyMs}ms
+                        </span>
+                      )}
                     </p>
-                  )}
-                </div>
-              )}
+                    {onlinePlayerNames.length > 0 ? (
+                      <ul className="space-y-0.5">
+                        {onlinePlayerNames.map((name, i) => (
+                          <li key={i} className="text-xs text-[var(--gold-light)] flex items-center gap-1.5">
+                            <span className="inline-block w-1 h-1 rounded-full bg-green-500 flex-shrink-0" />
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-[var(--gold-dim)]">
+                        {onlinePlayerCount} players online
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className={largeTitle ? 'auth-link-bottom' : 'self-end'}>
+              <AuthLink />
             </div>
-          )}
-          <div className={largeTitle ? 'auth-link-bottom mt-auto' : 'self-end'}>
-            <AuthLink />
           </div>
           {headerLeftExtra && (
             <div className="landscape-only items-center gap-3">{headerLeftExtra}</div>
