@@ -407,6 +407,10 @@ export interface GameHistoryEntry {
   playerName: string;
   finalCardCount: number;
   stats: PlayerGameStats;
+  /** Whether this game was a ranked match. */
+  isRanked: boolean;
+  /** Rating change from this game (positive = gained, negative = lost). Null for non-ranked games. */
+  ratingChange: number | null;
 }
 
 /**
