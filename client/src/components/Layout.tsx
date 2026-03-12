@@ -197,7 +197,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
               )}
             </div>
           )}
-          <div className={largeTitle ? 'mt-auto pb-0.5' : 'self-end'}>
+          <div className={largeTitle ? 'auth-link-bottom mt-auto' : 'self-end'}>
             <AuthLink />
           </div>
           {headerLeftExtra && (
