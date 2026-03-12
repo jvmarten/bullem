@@ -302,6 +302,11 @@ export interface GameEngineSnapshot {
   respondedPlayers: PlayerId[];
   lastChanceUsed: boolean;
   gameStats: GameStats;
+  /** Round snapshots captured so far (for replay). Optional for backwards
+   *  compatibility with snapshots created before this field existed. */
+  roundSnapshots?: import('./replay.js').RoundSnapshot[];
+  /** Cards dealt at the start of the current round. Optional for backwards compat. */
+  roundStartCards?: SpectatorPlayerCards[];
 }
 
 /** Room info broadcast to all clients in the room (lobby and during game). */

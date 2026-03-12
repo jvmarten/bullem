@@ -101,15 +101,19 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
     }
   }
 
+  // Capture round snapshots synchronously before the async chain — a rematch
+  // can replace room.game before the .then() callback fires, which would cause
+  // us to read snapshots from the new (empty) engine instead of the completed game.
+  const replaySnapshots = room.game ? room.game.getRoundSnapshots() : [];
+
   // Fire-and-forget — game persistence must never block or crash the game
   persistGameResult(record)
     .then((gameId) => {
       if (!gameId) return;
 
       // Persist round snapshots for replay after the game row exists (FK constraint)
-      if (room.game) {
-        const snapshots = room.game.getRoundSnapshots();
-        persistReplayRounds(gameId, snapshots).catch(() => {
+      if (replaySnapshots.length > 0) {
+        persistReplayRounds(gameId, replaySnapshots).catch(() => {
           // Error already logged inside persistReplayRounds
         });
       }
