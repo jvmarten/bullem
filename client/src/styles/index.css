@@ -2377,6 +2377,10 @@ body {
   margin-top: -32px;
   z-index: 1;
 }
+/* When spectating, avatar sits behind face-up cards so cards are fully visible */
+.spectating .rt-avatar--overlap {
+  z-index: -1;
+}
 
 /* ── Seat info row: avatar + name/count side by side ─────── */
 .rt-seat-info {
@@ -3248,14 +3252,13 @@ body {
 
 .rt-reveal-result {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   z-index: 22;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 .rt-reveal-result-scrim {
   position: absolute;
