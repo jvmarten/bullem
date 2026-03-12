@@ -17,10 +17,30 @@ const RETRYABLE_PG_CODES = new Set([
   '57P03', // cannot_connect_now
 ]);
 
+/**
+ * Schema/programming error codes (class 42) that indicate missing tables,
+ * columns, or other DDL issues. These are NOT transient — retrying won't help.
+ * Log at warn level since they typically mean a migration hasn't been applied yet.
+ */
+const SCHEMA_ERROR_PG_CODES = new Set([
+  '42P01', // undefined_table (relation does not exist)
+  '42703', // undefined_column
+  '42P02', // undefined_parameter
+  '42883', // undefined_function
+]);
+
 /** Check whether a query error is a transient connection issue worth retrying. */
 function isRetryable(err: unknown): boolean {
   if (typeof err === 'object' && err !== null && 'code' in err) {
     return RETRYABLE_PG_CODES.has(String((err as { code: string }).code));
+  }
+  return false;
+}
+
+/** Check whether a query error is a schema/DDL issue (missing table, column, etc.). */
+function isSchemaError(err: unknown): boolean {
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    return SCHEMA_ERROR_PG_CODES.has(String((err as { code: string }).code));
   }
   return false;
 }
@@ -53,6 +73,17 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 
     return result;
   } catch (err) {
+    // Schema errors (missing table/column) are not transient — don't retry,
+    // log at warn to reduce noise. Typically means a migration hasn't run yet.
+    if (isSchemaError(err)) {
+      const durationMs = Math.round(performance.now() - start);
+      logger.warn(
+        { err, durationMs, query: text },
+        'Database query hit schema error (missing table/column) — returning null',
+      );
+      return null;
+    }
+
     // Retry once for transient connection errors (pool recovery, DB restart).
     if (isRetryable(err)) {
       logger.warn(
@@ -118,6 +149,17 @@ export async function readQuery<T extends QueryResultRow = QueryResultRow>(
 
     return result;
   } catch (err) {
+    // Schema errors (missing table/column) are not transient — don't retry,
+    // log at warn to reduce noise. Typically means a migration hasn't run yet.
+    if (isSchemaError(err)) {
+      const durationMs = Math.round(performance.now() - start);
+      logger.warn(
+        { err, durationMs, query: text },
+        'Read-replica query hit schema error (missing table/column) — returning null',
+      );
+      return null;
+    }
+
     if (isRetryable(err)) {
       logger.warn(
         { err, query: text },
