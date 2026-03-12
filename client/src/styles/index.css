@@ -39,11 +39,10 @@
 
 /* ── Base ────────────────────────────────────────────── */
 html {
-  /* Canvas background — covers the entire viewport including safe-area
-     regions that fixed/dvh sizing might not reach on initial iOS load.
-     Uses the same radial gradient as .felt-bg so the bottom safe area
-     (home indicator region on iOS home-screen apps) blends seamlessly. */
-  background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
+  /* Solid background-color covers the entire viewport including safe-area
+     regions that percentage/dvh sizing might not reach on iOS standalone apps.
+     The color matches the outermost gradient stop so the safe area blends. */
+  background-color: var(--felt-dark);
   height: 100%;
   overflow: hidden;
 }
