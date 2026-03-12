@@ -83,6 +83,7 @@ export function useGameSounds(
   winnerId: PlayerId | null,
   playerId: string | null,
   isSpectator = false,
+  isLandscape = false,
 ) {
   const { play } = useSound();
   // Use -1 as sentinel: "not yet initialized from game state". On the first
@@ -157,7 +158,11 @@ export function useGameSounds(
       return;
     }
     if (roundNumber > prevRoundNumberRef.current) {
-      if (isSpectator) {
+      // In landscape mode, RoundtableDealingOverlay plays its own deal sounds
+      // during the card-dealing animation — skip here to avoid duplicates.
+      if (isLandscape) {
+        // no-op: landscape dealing overlay handles the sound
+      } else if (isSpectator) {
         // Spectators hear the sound immediately when the round actually starts,
         // giving them an audio cue even if the result overlay is still showing
         play('cardDeal');
@@ -170,16 +175,19 @@ export function useGameSounds(
       }
     }
     prevRoundNumberRef.current = roundNumber;
-  }, [roundNumber, play, roundResult, isSpectator]);
+  }, [roundNumber, play, roundResult, isSpectator, isLandscape]);
 
   // Play deferred card deal sound when round result overlay is dismissed
-  // (active players only — spectators already played immediately)
+  // (active players only — spectators already played immediately).
+  // In landscape mode the dealing overlay handles its own sounds.
   useEffect(() => {
     if (!roundResult && pendingDealSoundRef.current) {
       pendingDealSoundRef.current = false;
-      play('cardDeal');
+      if (!isLandscape) {
+        play('cardDeal');
+      }
     }
-  }, [roundResult, play]);
+  }, [roundResult, play, isLandscape]);
 
   // React to it becoming your turn
   const currentPlayer = gameState?.currentPlayerId ?? null;

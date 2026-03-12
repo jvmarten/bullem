@@ -107,12 +107,12 @@ export function GamePage() {
   const isEliminated = myPlayer?.isEliminated ?? false;
   const isSpectator = gameState ? !myPlayer : false;
 
-  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated);
+  const isLandscape = useIsLandscape();
+  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated, isLandscape);
   useGameAnnouncements(gameState, roundResult, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
-  const isLandscape = useIsLandscape();
 
   const rejoinAttemptedRef = useRef(false);
   const wasEliminatedRef = useRef(false);
