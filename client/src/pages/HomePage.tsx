@@ -773,28 +773,16 @@ export function HomePage() {
 
         {/* Right panel in landscape: name + menu buttons */}
         <div className="home-right">
-        {/* Player name / auth display — centered */}
-        {(mode === 'menu' || mode === 'online' || mode === 'offline') && (
+        {/* Sign in link — only shown on home menu when not signed in */}
+        {(mode === 'menu' || mode === 'online' || mode === 'offline') && !user && (
           <div className="flex items-center justify-center gap-2 animate-fade-in">
-            {user ? (
-              /* Signed-in: show user icon + username linking to profile */
-              <Link
-                to="/profile"
-                className="text-base text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-2 min-h-[44px]"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span>{name}</span>
-              </Link>
-            ) : (
-              /* Not signed in: show GuestXXXX as a button that navigates to sign-in */
-              <Link
-                to="/login"
-                className="text-base text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-2 min-h-[44px]"
-              >
-                <span>{name}</span>
-                <span className="text-xs opacity-60">(sign in)</span>
-              </Link>
-            )}
+            <Link
+              to="/login"
+              className="text-base text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-2 min-h-[44px]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Sign In</span>
+            </Link>
           </div>
         )}
 
