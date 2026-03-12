@@ -171,6 +171,8 @@ export class RoomManager {
     const listings: RoomListing[] = [];
     for (const room of this.rooms.values()) {
       if (room.gamePhase !== GamePhase.LOBBY) continue;
+      // Only show public rooms in the browse list
+      if (!room.settings.isPublic) continue;
       const effectiveMax = this.effectiveMaxPlayers(room);
       if (room.playerCount >= effectiveMax) continue;
       // O(1) host name via Room.hostName getter instead of scanning player map

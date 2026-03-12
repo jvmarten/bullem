@@ -103,9 +103,11 @@ describe('RoomManager critical operations', () => {
     it('only returns rooms in LOBBY phase', () => {
       const lobby = manager.createRoom();
       lobby.addPlayer('s1', 'p1', 'Alice');
+      lobby.updateSettings({ ...lobby.settings, isPublic: true });
 
       const playing = manager.createRoom();
       playing.addPlayer('s2', 'p2', 'Bob');
+      playing.updateSettings({ ...playing.settings, isPublic: true });
       playing.gamePhase = GamePhase.PLAYING;
 
       const rooms = manager.getAvailableRooms();

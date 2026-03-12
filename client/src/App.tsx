@@ -17,7 +17,7 @@ import { HomePage } from './pages/HomePage.js';
 // Lazy-loaded pages — deferred until the user navigates to them.
 // This keeps the initial bundle small: lobby/game/results code (plus the
 // entire LocalGameContext + GameEngine) is only fetched when needed.
-const HostPage = lazy(() => import('./pages/HostPage.js').then(m => ({ default: m.HostPage })));
+// HostPage removed — game creation now goes directly to lobby via "Create Game"
 const LobbyPage = lazy(() => import('./pages/LobbyPage.js').then(m => ({ default: m.LobbyPage })));
 const GamePage = lazy(() => import('./pages/GamePage.js').then(m => ({ default: m.GamePage })));
 const ResultsPage = lazy(() => import('./pages/ResultsPage.js').then(m => ({ default: m.ResultsPage })));
@@ -148,7 +148,8 @@ export default function App() {
           <Route element={<OnlineLayout />}>
             <Route path="/u/:username" element={<SuspenseRoute label="profile"><PublicProfilePage /></SuspenseRoute>} />
             <Route path="/" element={<HomePage />} />
-            <Route path="/host" element={<SuspenseRoute label="lobby"><HostPage /></SuspenseRoute>} />
+            {/* /host removed — game creation goes directly to lobby via "Create Game" */}
+            <Route path="/host" element={<Navigate to="/" replace />} />
             <Route path="/room/:roomCode" element={<SuspenseRoute label="lobby"><LobbyPage /></SuspenseRoute>} />
             <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GamePage /></SuspenseRoute>} />
             <Route path="/results/:roomCode" element={<SuspenseRoute label="results"><ResultsPage /></SuspenseRoute>} />

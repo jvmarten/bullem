@@ -228,6 +228,9 @@ export interface GameSettings {
   /** Number of joker (wild) cards in the deck: 0, 1, or 2. Defaults to 0 (standard 52-card deck).
    *  Jokers act as wildcards — they can substitute for any card when checking hand existence. */
   jokerCount?: JokerCount;
+  /** Whether this room is publicly visible in the browse list.
+   *  Defaults to false (private) — host must explicitly make it public. */
+  isPublic?: boolean;
 }
 
 // ── Series (Best-of) types ────────────────────────────────────────────

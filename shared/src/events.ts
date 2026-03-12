@@ -40,6 +40,7 @@ export interface ClientToServerEvents {
   'room:listLive': (callback: (response: { games: LiveGameListing[] }) => void) => void;
   'room:spectate': (data: { roomCode: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   'room:updateSettings': (data: { settings: GameSettings }) => void;
+  'room:setVisibility': (data: { isPublic: boolean }) => void;
   'game:start': () => void;
   'game:call': (data: { hand: HandCall }) => void;
   'game:bull': () => void;

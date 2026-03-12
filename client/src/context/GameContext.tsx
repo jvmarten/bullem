@@ -43,6 +43,7 @@ export interface GameContextValue {
   spectateGame: (roomCode: string) => Promise<void>;
   watchRandomGame: () => Promise<string>;
   updateSettings: (settings: GameSettings) => void;
+  setVisibility: (isPublic: boolean) => void;
   startGame: () => void;
   callHand: (hand: HandCall) => void;
   callBull: () => void;
@@ -741,6 +742,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit('room:updateSettings', { settings });
   }, []);
 
+  const setVisibility = useCallback((isPublic: boolean) => {
+    socket.emit('room:setVisibility', { isPublic });
+  }, []);
+
   const clearRoundResult = useCallback(() => {
     if (!roundResultRef.current) return;
     socket.emit('game:continue');
@@ -878,6 +883,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     spectateGame,
     watchRandomGame,
     updateSettings,
+    setVisibility,
     startGame,
     callHand,
     callBull,
@@ -913,7 +919,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastReplay, reactions, chatMessages,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
-    spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
+    spectateGame, watchRandomGame, updateSettings, setVisibility, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
     joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, resetForMatchedGame, clearPendingRejoinRoom,
