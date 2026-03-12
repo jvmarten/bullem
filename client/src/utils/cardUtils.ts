@@ -14,6 +14,35 @@ export const SUIT_CSS: Record<Suit, string> = {
   clubs: 'suit-black',
 };
 
+/** Four-color deck: clubs green, diamonds blue for easier suit distinction. */
+export const SUIT_CSS_FOUR_COLOR: Record<Suit, string> = {
+  spades: 'suit-black',
+  hearts: 'suit-red',
+  diamonds: 'suit-blue',
+  clubs: 'suit-green',
+};
+
+/** Standard two-color hex values for inline style usage. */
+const SUIT_HEX: Record<Suit, string> = {
+  spades: '#1a1a1a',
+  hearts: '#c0392b',
+  diamonds: '#c0392b',
+  clubs: '#1a1a1a',
+};
+
+/** Four-color hex values for inline style usage. */
+const SUIT_HEX_FOUR_COLOR: Record<Suit, string> = {
+  spades: '#1a1a1a',
+  hearts: '#c0392b',
+  diamonds: '#2563eb',
+  clubs: '#16803c',
+};
+
+/** Returns the hex color for a suit, respecting four-color deck preference. */
+export function getSuitHex(suit: Suit, fourColor: boolean): string {
+  return fourColor ? SUIT_HEX_FOUR_COLOR[suit] : SUIT_HEX[suit];
+}
+
 const AVATAR_COLORS = [
   'bg-amber-700',
   'bg-emerald-700',

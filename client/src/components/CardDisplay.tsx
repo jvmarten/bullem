@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { Card } from '@bull-em/shared';
-import { SUIT_SYMBOLS, SUIT_CSS, rankDisplay } from '../utils/cardUtils.js';
+import { SUIT_SYMBOLS, SUIT_CSS, SUIT_CSS_FOUR_COLOR, rankDisplay } from '../utils/cardUtils.js';
+import { useUISettings } from './VolumeControl.js';
 
 /** Joker star symbol — distinct from standard suits. */
 const JOKER_SYMBOL = '\u2605'; // ★
@@ -16,6 +17,8 @@ export const CardDisplay = memo(function CardDisplay({ card, small, suitOnly, cl
   onPointerEnter?: () => void;
   onClick?: () => void;
 }) {
+  const { fourColorDeckEnabled } = useUISettings();
+  const suitCssMap = fourColorDeckEnabled ? SUIT_CSS_FOUR_COLOR : SUIT_CSS;
   // Joker cards get a distinct purple/gold visual treatment
   if (card.isJoker) {
     if (small) {
@@ -37,7 +40,7 @@ export const CardDisplay = memo(function CardDisplay({ card, small, suitOnly, cl
     );
   }
 
-  const suitColor = SUIT_CSS[card.suit];
+  const suitColor = suitCssMap[card.suit];
 
   if (small) {
     if (suitOnly) {

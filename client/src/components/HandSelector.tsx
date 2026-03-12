@@ -4,7 +4,8 @@ import {
   isHigherHand, handToString, getMinimumRaise,
 } from '@bull-em/shared';
 import type { HandCall, Rank, Suit, Card } from '@bull-em/shared';
-import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
+import { SUIT_SYMBOLS, SUIT_CSS, SUIT_CSS_FOUR_COLOR } from '../utils/cardUtils.js';
+import { useUISettings } from './VolumeControl.js';
 import { WheelPicker } from './WheelPicker.js';
 import { useSound } from '../hooks/useSound.js';
 
@@ -173,6 +174,8 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   const [rank2, setRank2] = useState<Rank>(initial.rank2);
   const [suit, setSuit] = useState<Suit>(initial.suit);
 
+  const { fourColorDeckEnabled } = useUISettings();
+  const suitCssMap = fourColorDeckEnabled ? SUIT_CSS_FOUR_COLOR : SUIT_CSS;
   const { play, playHandPreview } = useSound();
   const handleTickSound = useCallback(() => play('wheelTick'), [play]);
   const handleTickSoundLow = useCallback(() => play('wheelTickLow'), [play]);
@@ -389,15 +392,20 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
   ), []);
 
   const renderSuit = useCallback((s: string, isSelected: boolean) => {
-    const isRed = s === 'hearts' || s === 'diamonds';
+    const cssClass = suitCssMap[s as Suit];
+    // Map card-level suit classes to hand-selector variants
+    const hsSuitClass = cssClass === 'suit-red' ? 'hs-suit-red'
+      : cssClass === 'suit-green' ? 'hs-suit-green'
+      : cssClass === 'suit-blue' ? 'hs-suit-blue'
+      : 'hs-suit-black';
     return (
       <div className={`hs-rank-wheel-card hs-suit-wheel-card ${isSelected ? 'hs-rank-wheel-card-selected' : ''}`} data-suit-card>
-        <span className={`hs-suit-wheel-symbol ${isSelected ? 'hs-suit-wheel-symbol-selected' : ''} ${isRed ? 'hs-suit-red' : 'hs-suit-black'}`}>
+        <span className={`hs-suit-wheel-symbol ${isSelected ? 'hs-suit-wheel-symbol-selected' : ''} ${hsSuitClass}`}>
           {SUIT_SYMBOLS[s as Suit]}
         </span>
       </div>
     );
-  }, []);
+  }, [suitCssMap]);
 
   // Stable array references for WheelPicker items — avoids re-rendering
   // the picker on every parent render due to new array identity.
@@ -429,7 +437,7 @@ export const HandSelector = memo(function HandSelector({ currentHand, onSubmit, 
       {/* Middle: Card preview */}
       <div className="flex justify-center flex-wrap gap-0.5 py-1 mb-0 min-h-[56px] items-center">
         {hand && previewCards.map((card, i) => {
-          const sc = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'suit-red' : 'suit-black';
+          const sc = suitCssMap[card.suit];
           return (
             <div key={i} className="playing-card no-hover inline-flex flex-col items-center justify-center w-9 h-[52px] select-none">
               <span className={`text-xs font-bold leading-tight ${sc}`}>{card.rank}</span>

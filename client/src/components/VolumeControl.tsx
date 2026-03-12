@@ -8,6 +8,7 @@ const CHAT_KEY = 'bull-em-chat-enabled';
 const EMOJI_KEY = 'bull-em-emoji-enabled';
 const QUICK_DRAW_KEY = 'bull-em-quick-draw';
 const IMPOSSIBLE_BOT_KEY = 'bull-em-impossible-enabled';
+const FOUR_COLOR_DECK_KEY = 'bull-em-four-color-deck';
 
 let settingsListeners = new Set<() => void>();
 function notifySettings() { settingsListeners.forEach(cb => cb()); }
@@ -27,11 +28,13 @@ let emojiEnabled = readBool(EMOJI_KEY, true);
 let quickDrawEnabled = readBool(QUICK_DRAW_KEY, true);
 // Impossible bot uses 'true'/'false' strings to stay compatible with lobby pages
 let impossibleBotEnabled = localStorage.getItem(IMPOSSIBLE_BOT_KEY) === 'true';
+let fourColorDeckEnabled = readBool(FOUR_COLOR_DECK_KEY, false);
 
 function getChatEnabled() { return chatEnabled; }
 function getEmojiEnabled() { return emojiEnabled; }
 function getQuickDrawEnabled() { return quickDrawEnabled; }
 function getImpossibleBotEnabled() { return impossibleBotEnabled; }
+function getFourColorDeckEnabled() { return fourColorDeckEnabled; }
 
 function toggleChatEnabled() {
   chatEnabled = !chatEnabled;
@@ -54,6 +57,12 @@ function toggleQuickDrawEnabled() {
 export function toggleImpossibleBotEnabled() {
   impossibleBotEnabled = !impossibleBotEnabled;
   localStorage.setItem(IMPOSSIBLE_BOT_KEY, String(impossibleBotEnabled));
+  notifySettings();
+}
+
+function toggleFourColorDeckEnabled() {
+  fourColorDeckEnabled = !fourColorDeckEnabled;
+  localStorage.setItem(FOUR_COLOR_DECK_KEY, fourColorDeckEnabled ? '1' : '0');
   notifySettings();
 }
 
@@ -108,7 +117,8 @@ export function useUISettings() {
   const emoji = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const quickDraw = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
   const impossibleBot = useSyncExternalStore(subscribeSettings, getImpossibleBotEnabled);
-  return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw, impossibleBotEnabled: impossibleBot };
+  const fourColorDeck = useSyncExternalStore(subscribeSettings, getFourColorDeckEnabled);
+  return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw, impossibleBotEnabled: impossibleBot, fourColorDeckEnabled: fourColorDeck };
 }
 
 export function VolumeControl() {
@@ -117,6 +127,7 @@ export function VolumeControl() {
   const emojiOn = useSyncExternalStore(subscribeSettings, getEmojiEnabled);
   const quickDrawOn = useSyncExternalStore(subscribeSettings, getQuickDrawEnabled);
   const impossibleBotOn = useSyncExternalStore(subscribeSettings, getImpossibleBotEnabled);
+  const fourColorDeckOn = useSyncExternalStore(subscribeSettings, getFourColorDeckEnabled);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -363,6 +374,31 @@ export function VolumeControl() {
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
                 {!impossibleBotOn && <line x1="2" y1="2" x2="22" y2="22" />}
+              </svg>
+            </span>
+          </button>
+
+          {/* Four-Color Deck toggle */}
+          <button
+            onClick={toggleFourColorDeckEnabled}
+            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-pressed={fourColorDeckOn}
+            aria-label={fourColorDeckOn ? 'Disable four-color deck' : 'Enable four-color deck'}
+          >
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+              4-Color Deck
+            </span>
+            <span
+              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!fourColorDeckOn ? 'opacity-40' : ''}`}
+              title={fourColorDeckOn ? 'Switch to standard 2-color deck' : 'Switch to 4-color deck'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Four-diamond grid representing four distinct colors */}
+                <rect x="3" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#1a1a1a' : 'none'} />
+                <rect x="14" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#c0392b' : 'none'} />
+                <rect x="3" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#16803c' : 'none'} />
+                <rect x="14" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#2563eb' : 'none'} />
+                {!fourColorDeckOn && <line x1="2" y1="2" x2="22" y2="22" />}
               </svg>
             </span>
           </button>
