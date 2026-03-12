@@ -157,7 +157,7 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className={`layout-header flex ${largeTitle ? 'items-end' : 'items-center'} px-4 border-b border-[var(--felt-border)] ${largeTitle ? 'py-3 layout-header-large' : 'py-1.5'}`} role="banner">
         {/* Left group */}
-        <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch' : 'items-center gap-2'} min-w-0`}>
+        <div className={`flex-1 flex ${largeTitle ? 'flex-col items-start self-stretch pt-3 portrait-header-left' : 'items-center gap-2'} min-w-0`}>
           {isConnected && (
             <div ref={popupRef} className="relative flex-shrink-0">
               <button
