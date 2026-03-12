@@ -353,7 +353,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   onPlayerClick?: (player: Player) => void;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
-  const colorClass = playerColor(seatIndex);
+  const colorClass = playerColor(seatIndex, player.avatarBgColor);
   const action = lastAction ? formatSeatAction(lastAction) : null;
 
   return (
@@ -661,7 +661,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                 <SeatFaceUpCards cards={spectatorCardsByPlayerId.get(myPlayer.id)!} />
               )}
               <div
-                className={`rt-avatar ${playerColor(0)} rt-avatar--me rt-avatar--overlap ${onPlayerClick ? 'cursor-pointer' : ''}`}
+                className={`rt-avatar ${playerColor(0, myPlayer.avatarBgColor)} rt-avatar--me rt-avatar--overlap ${onPlayerClick ? 'cursor-pointer' : ''}`}
                 onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(myPlayer); } : undefined}
                 role={onPlayerClick ? 'button' : undefined}
                 tabIndex={onPlayerClick ? 0 : undefined}
@@ -719,7 +719,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             {myPlayer && (
               <div className="rt-seat-info">
                 <div
-                  className={`rt-avatar ${playerColor(0)} rt-avatar--me ${onPlayerClick ? 'cursor-pointer' : ''}`}
+                  className={`rt-avatar ${playerColor(0, myPlayer.avatarBgColor)} rt-avatar--me ${onPlayerClick ? 'cursor-pointer' : ''}`}
                   onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(myPlayer); } : undefined}
                   role={onPlayerClick ? 'button' : undefined}
                   tabIndex={onPlayerClick ? 0 : undefined}

@@ -148,7 +148,7 @@ export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete
                 type="button"
               >
                 <div
-                  className={`avatar ${playerColor(entry.originalIndex)} flex items-center justify-center flex-shrink-0 overflow-hidden`}
+                  className={`avatar ${playerColor(entry.originalIndex, entry.player.avatarBgColor)} flex items-center justify-center flex-shrink-0 overflow-hidden`}
                   style={{ width: isWinner ? '2.5rem' : '2rem', height: isWinner ? '2.5rem' : '2rem', fontSize: isWinner ? '1.1rem' : '0.9rem' }}
                 >
                   <PlayerAvatarContent name={entry.player.name} avatar={entry.player.avatar} photoUrl={entry.player.photoUrl} isBot={entry.player.isBot} />

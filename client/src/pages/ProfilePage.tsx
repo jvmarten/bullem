@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
-import { AVATAR_OPTIONS, openSkillDisplayRating } from '@bull-em/shared';
-import type { AvatarId, GameHistoryEntry, PlayerStatsResponse, UserRatings } from '@bull-em/shared';
+import { AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS } from '@bull-em/shared';
+import { openSkillDisplayRating } from '@bull-em/shared';
+import type { AvatarId, AvatarBgColor, GameHistoryEntry, PlayerStatsResponse, UserRatings } from '@bull-em/shared';
+import { AVATAR_BG_COLOR_HEX } from '../utils/cardUtils.js';
 import { useToast } from '../context/ToastContext.js';
 import { RankBadge } from '../components/RankBadge.js';
 import { AdvancedStats } from '../components/AdvancedStats.js';
@@ -169,7 +171,7 @@ function GameFilterTabs({ filter, onChange }: { filter: GameFilter; onChange: (f
 }
 
 export function ProfilePage() {
-  const { user, profile, loading, logout, updateAvatar, uploadPhoto, updateUsername } = useAuth();
+  const { user, profile, loading, logout, updateAvatar, updateAvatarBgColor, uploadPhoto, updateUsername } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -313,6 +315,18 @@ export function ProfilePage() {
     }
   };
 
+  const [savingBgColor, setSavingBgColor] = useState(false);
+  const handleBgColorSelect = async (color: AvatarBgColor | null) => {
+    setSavingBgColor(true);
+    try {
+      await updateAvatarBgColor(color);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to update background color');
+    } finally {
+      setSavingBgColor(false);
+    }
+  };
+
   const isAdmin = user.role === 'admin';
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -412,7 +426,8 @@ export function ProfilePage() {
         <div className="text-center mb-6">
           <button
             onClick={() => setShowAvatarPicker(v => !v)}
-            className="w-16 h-16 rounded-full bg-[var(--gold)]/20 border-2 border-[var(--gold)] flex items-center justify-center mx-auto mb-3 hover:border-white transition-colors cursor-pointer overflow-hidden"
+            className={`w-16 h-16 rounded-full border-2 border-[var(--gold)] flex items-center justify-center mx-auto mb-3 hover:border-white transition-colors cursor-pointer overflow-hidden ${!profile.avatarBgColor ? 'bg-[var(--gold)]/20' : ''}`}
+            style={profile.avatarBgColor ? { backgroundColor: AVATAR_BG_COLOR_HEX[profile.avatarBgColor] } : undefined}
             title="Change avatar"
           >
             {profile.photoUrl ? (
@@ -513,6 +528,36 @@ export function ProfilePage() {
                 Remove avatar (use initial)
               </button>
             )}
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3">
+                Background Color
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {AVATAR_BG_COLOR_OPTIONS.map(color => (
+                  <button
+                    key={color}
+                    onClick={() => handleBgColorSelect(color)}
+                    disabled={savingBgColor}
+                    className={`w-8 h-8 rounded-full transition-all ${
+                      profile.avatarBgColor === color
+                        ? 'ring-2 ring-[var(--gold)] ring-offset-2 ring-offset-[var(--felt)] scale-110'
+                        : 'hover:scale-105 hover:ring-1 hover:ring-[var(--gold-dim)] hover:ring-offset-1 hover:ring-offset-[var(--felt)]'
+                    }`}
+                    style={{ backgroundColor: AVATAR_BG_COLOR_HEX[color] }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              {profile.avatarBgColor && (
+                <button
+                  onClick={() => handleBgColorSelect(null)}
+                  disabled={savingBgColor}
+                  className="w-full mt-2 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+                >
+                  Reset to default color
+                </button>
+              )}
+            </div>
             {isAdmin && (
               <div className="mt-3 pt-3 border-t border-white/10">
                 <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">

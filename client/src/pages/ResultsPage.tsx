@@ -202,7 +202,7 @@ export function ResultsPage() {
       <div className="results-content flex flex-col items-center gap-6 pt-8 text-center animate-scale-in">
         <div className="results-left">
         <div className="animate-float">
-          <div className={`avatar ${playerColor(winnerIndex >= 0 ? winnerIndex : 0)} flex items-center justify-center overflow-hidden`}
+          <div className={`avatar ${playerColor(winnerIndex >= 0 ? winnerIndex : 0, winnerPlayer?.avatarBgColor)} flex items-center justify-center overflow-hidden`}
                style={{ width: '4rem', height: '4rem', fontSize: '1.75rem' }}>
             <PlayerAvatarContent name={winnerName} avatar={winnerPlayer?.avatar} photoUrl={winnerPlayer?.photoUrl} isBot={winnerPlayer?.isBot} />
           </div>

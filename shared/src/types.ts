@@ -73,6 +73,8 @@ export interface Player {
   avatar?: AvatarId | null;
   /** Custom profile photo URL (Tigris object storage). Takes priority over emoji avatar when present. */
   photoUrl?: string | null;
+  /** User-chosen avatar background color. When absent, falls back to index-based color. */
+  avatarBgColor?: AvatarBgColor | null;
 }
 
 /** Server-side player with actual cards. Never sent to other players' clients. */
@@ -342,6 +344,14 @@ export const AVATAR_OPTIONS = [
 
 export type AvatarId = typeof AVATAR_OPTIONS[number];
 
+/** Pre-defined avatar background color options users can choose from. */
+export const AVATAR_BG_COLOR_OPTIONS = [
+  'amber', 'emerald', 'sky', 'purple', 'rose',
+  'teal', 'orange', 'indigo', 'pink',
+] as const;
+
+export type AvatarBgColor = typeof AVATAR_BG_COLOR_OPTIONS[number];
+
 /** Authenticated user stored in the database. Never send password_hash to clients. */
 export interface User {
   id: string;
@@ -353,6 +363,8 @@ export interface User {
   avatar: AvatarId | null;
   /** Optional custom profile photo URL (set by admin). */
   photoUrl?: string | null;
+  /** User-chosen avatar background color. Null means index-based fallback. */
+  avatarBgColor?: AvatarBgColor | null;
   createdAt: string;
   lastSeenAt: string;
   /** True for bot accounts seeded in the database. */
@@ -369,6 +381,8 @@ export interface PublicProfile {
   avatar: AvatarId | null;
   /** Optional custom profile photo URL (set by admin). */
   photoUrl?: string | null;
+  /** User-chosen avatar background color. Null means index-based fallback. */
+  avatarBgColor?: AvatarBgColor | null;
   createdAt: string;
   gamesPlayed: number;
   gamesWon: number;

@@ -1,4 +1,4 @@
-import type { Suit, Rank } from '@bull-em/shared';
+import type { Suit, Rank, AvatarBgColor } from '@bull-em/shared';
 
 export const SUIT_SYMBOLS: Record<Suit, string> = {
   spades: '\u2660',
@@ -63,6 +63,37 @@ export function playerInitial(name: string): string {
   return name.charAt(0).toUpperCase();
 }
 
-export function playerColor(index: number): string {
+/** Maps user-chosen AvatarBgColor to Tailwind CSS background class. */
+const AVATAR_BG_COLOR_MAP: Record<AvatarBgColor, string> = {
+  amber: 'bg-amber-700',
+  emerald: 'bg-emerald-700',
+  sky: 'bg-sky-700',
+  purple: 'bg-purple-700',
+  rose: 'bg-rose-700',
+  teal: 'bg-teal-700',
+  orange: 'bg-orange-700',
+  indigo: 'bg-indigo-700',
+  pink: 'bg-pink-700',
+};
+
+/** Returns the Tailwind bg class for a player.
+ *  If the player has a chosen avatarBgColor, use it; otherwise fall back to index-based color. */
+export function playerColor(index: number, avatarBgColor?: AvatarBgColor | null): string {
+  if (avatarBgColor && avatarBgColor in AVATAR_BG_COLOR_MAP) {
+    return AVATAR_BG_COLOR_MAP[avatarBgColor];
+  }
   return AVATAR_COLORS[index % AVATAR_COLORS.length]!;
 }
+
+/** Returns the hex value for an avatar background color (for CSS vars / inline styles). */
+export const AVATAR_BG_COLOR_HEX: Record<AvatarBgColor, string> = {
+  amber: '#b45309',
+  emerald: '#047857',
+  sky: '#0369a1',
+  purple: '#7e22ce',
+  rose: '#be123c',
+  teal: '#0f766e',
+  orange: '#c2410c',
+  indigo: '#4338ca',
+  pink: '#be185d',
+};

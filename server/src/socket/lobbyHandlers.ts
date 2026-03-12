@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS, JOKER_COUNT_OPTIONS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, JokerCount } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS, JOKER_COUNT_OPTIONS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, AvatarBgColor, JokerCount } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
@@ -28,6 +28,14 @@ function sanitizeAvatar(raw: unknown): AvatarId | undefined {
   if (typeof raw !== 'string') return undefined;
   if (!(AVATAR_OPTIONS as readonly string[]).includes(raw)) return undefined;
   return raw as AvatarId;
+}
+
+/** Validate an avatar background color. Returns the validated color or undefined if invalid/absent. */
+function sanitizeAvatarBgColor(raw: unknown): AvatarBgColor | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== 'string') return undefined;
+  if (!(AVATAR_BG_COLOR_OPTIONS as readonly string[]).includes(raw)) return undefined;
+  return raw as AvatarBgColor;
 }
 
 /** Validate a room code. Returns the uppercased code or null if invalid. */
@@ -61,11 +69,13 @@ export function registerLobbyHandlers(
     const room = roomManager.createRoom();
     const playerId = randomUUID();
     const avatar = sanitizeAvatar(data.avatar);
+    const avatarBgColor = sanitizeAvatarBgColor(socket.data.avatarBgColor);
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
       username: socket.data.username,
       avatar,
       photoUrl: socket.data.photoUrl as string | undefined,
+      avatarBgColor,
     });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);
@@ -169,11 +179,13 @@ export function registerLobbyHandlers(
 
     const playerId = randomUUID();
     const avatar = sanitizeAvatar(data.avatar);
+    const joinAvatarBgColor = sanitizeAvatarBgColor(socket.data.avatarBgColor);
     const { player, reconnectToken } = room.addPlayer(socket.id, playerId, name, {
       userId: socket.data.userId,
       username: socket.data.username,
       avatar,
       photoUrl: socket.data.photoUrl as string | undefined,
+      avatarBgColor: joinAvatarBgColor,
     });
     // Track authenticated user ID for game history persistence
     if (socket.data.userId) room.setPlayerUserId(playerId, socket.data.userId);

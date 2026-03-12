@@ -312,7 +312,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
           tabIndex={onPlayerClick ? 0 : undefined}
           onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(p); } } : undefined}
           aria-label={onPlayerClick ? `View ${p.name}'s profile` : undefined}
-          className={`avatar avatar-sm ${playerColor(i)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''} overflow-hidden`}
+          className={`avatar avatar-sm ${playerColor(i, p.avatarBgColor)} ${p.isEliminated ? 'opacity-50' : ''} ${isCurrent && !p.isEliminated ? 'avatar-active-turn' : ''} ${onPlayerClick ? 'cursor-pointer' : ''} overflow-hidden`}
         >
           <PlayerAvatarContent name={p.name} avatar={p.avatar} photoUrl={p.photoUrl} isBot={p.isBot} />
         </div>

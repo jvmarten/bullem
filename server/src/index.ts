@@ -116,13 +116,14 @@ io.use(async (socket, next) => {
         socket.data.username = payload.username;
         socket.data.role = payload.role;
 
-        // Fetch photo URL from database so it's available in all handlers
+        // Fetch photo URL and avatar bg color from database so they're available in all handlers
         try {
-          const { getUserPhotoUrl } = await import('./db/users.js');
-          const photoUrl = await getUserPhotoUrl(payload.userId);
+          const { getUserAvatarAndPhoto } = await import('./db/users.js');
+          const { photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(payload.userId);
           if (photoUrl) socket.data.photoUrl = photoUrl;
+          if (avatarBgColor) socket.data.avatarBgColor = avatarBgColor;
         } catch {
-          // Non-fatal — photo just won't be available
+          // Non-fatal — photo/bg color just won't be available
         }
       }
     }
