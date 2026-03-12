@@ -38,15 +38,19 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-/* body uses position:fixed + inset:0 to stretch to the true viewport edges
-   (100dvh is wrong on iOS Safari first paint). Both body and .felt-bg carry
-   the same radial gradient so any sub-pixel gap between them is invisible —
-   the gradient's bottom isn't pure --felt-dark (center is at 30% height), so
-   a solid fallback would create a visible seam. */
 html {
+  /* Solid background-color covers the entire viewport including safe-area
+     regions that percentage/dvh sizing might not reach on iOS standalone apps.
+     The color matches the outermost gradient stop so the safe area blends. */
+  background-color: var(--felt-dark);
+  height: 100%;
   overflow: hidden;
 }
 
+/* body uses position:fixed + inset:0 so it always stretches to the true
+   viewport edges (including safe areas with viewport-fit=cover), rather
+   than relying on 100dvh which may exclude the bottom safe area on
+   initial iOS Safari portrait load. */
 body {
   font-family: var(--font-body);
   background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
