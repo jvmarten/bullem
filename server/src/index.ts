@@ -967,7 +967,31 @@ Sentry.setupExpressErrorHandler(app);
 // In production, serve built client
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '../../client/dist');
-  app.use(express.static(clientDist));
+
+  // Serve sw.js with no-cache so the browser always checks for updates.
+  // Without this, the browser can serve a stale service worker from disk cache,
+  // which in turn serves stale precached assets — causing the "old version in
+  // normal browser, new version in incognito" problem.
+  app.get('/sw.js', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(clientDist, 'sw.js'));
+  });
+
+  // Hashed assets (Vite outputs filenames like index-abc123.js) are immutable —
+  // cache them aggressively. Non-hashed files (index.html, manifest, logos)
+  // must be revalidated on every request.
+  app.use(express.static(clientDist, {
+    setHeaders(res, filePath) {
+      // Vite hashes all JS/CSS chunks — safe to cache indefinitely
+      if (/\.[a-f0-9]{8,}\.(js|css)$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        // Everything else (index.html, logos, manifest) — always revalidate
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
+
   // SPA catch-all: only serve index.html for non-API paths. Without this guard,
   // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
   // HTML with a 200 instead of a proper 404, confusing API clients.
@@ -976,6 +1000,7 @@ if (process.env.NODE_ENV === 'production') {
       res.status(404).json({ error: 'Not found' });
       return;
     }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
