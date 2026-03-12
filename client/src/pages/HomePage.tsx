@@ -633,12 +633,20 @@ export function HomePage() {
               <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
                 Join with Code
               </button>
-              <button
-                onClick={() => { play('uiBack'); setMode('menu'); }}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center mt-auto"
-              >
-                Back
-              </button>
+              <div className="w-full mt-2">
+                <button
+                  onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+                >
+                  <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className={`transition-transform ${showRecentPlayers ? 'rotate-180' : ''}`}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {showRecentPlayers && <RecentPlayers />}
+              </div>
             </div>
           </div>
         )}
@@ -670,12 +678,54 @@ export function HomePage() {
                   </Link>
                 </div>
               )}
-              <button
-                onClick={() => { play('uiBack'); setMode('menu'); }}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center mt-auto"
-              >
-                Back
-              </button>
+            </div>
+          </div>
+        )}
+        {/* Landscape browse left column: Live Games */}
+        {isLandscape && mode === 'browse' && (
+          <div className="home-left home-submenu-col">
+            <div className="flex flex-col gap-3 w-full animate-fade-in">
+              {loadingRooms ? (
+                <div className="text-center py-4">
+                  <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin mx-auto" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1">
+                    Live Games
+                  </p>
+                  {liveGames.length === 0 ? (
+                    <div className="glass px-4 py-4 text-center">
+                      <p className="text-[var(--gold-dim)] text-xs">No live games to spectate</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {liveGames.map(game => (
+                        <button
+                          key={game.roomCode}
+                          onClick={() => handleSpectate(game.roomCode)}
+                          className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
+                        >
+                          <div className="text-left">
+                            <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{game.roomCode}</span>
+                            <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {game.hostName}</span>
+                          </div>
+                          <div className="text-right text-xs text-[var(--gold-dim)]">
+                            <span>{game.playerCount} players</span>
+                            <span className="ml-2">Rd {game.roundNumber}</span>
+                            {game.spectatorCount > 0 && (
+                              <span className="ml-2">{game.spectatorCount} watching</span>
+                            )}
+                            {game.spectatorsCanSeeCards && (
+                              <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -897,14 +947,12 @@ export function HomePage() {
                 )}
               </>
             )}
-            {!isLandscape && (
-              <button
-                onClick={() => { play('uiBack'); setMode('menu'); }}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-              >
-                Back
-              </button>
-            )}
+            <button
+              onClick={() => { play('uiBack'); setMode('menu'); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
           </div>
         )}
 
@@ -1011,21 +1059,24 @@ export function HomePage() {
             >
               Watch a Game
             </button>
-            <div className="w-full">
-              <button
-                onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
-                className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
-              >
-                <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  className={`transition-transform ${showRecentPlayers ? 'rotate-180' : ''}`}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              {showRecentPlayers && <RecentPlayers />}
-            </div>
-            {/* Portrait-only: Lobby, Host, Join, Friends, Back (in landscape these are in the left column) */}
+            {/* Recent Players — portrait only (in landscape it's in the left column) */}
+            {!isLandscape && (
+              <div className="w-full">
+                <button
+                  onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+                >
+                  <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className={`transition-transform ${showRecentPlayers ? 'rotate-180' : ''}`}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {showRecentPlayers && <RecentPlayers />}
+              </div>
+            )}
+            {/* Portrait-only: Lobby, Host, Join, Friends (in landscape these are in the left column) */}
             {!isLandscape && (
               <>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
@@ -1038,14 +1089,14 @@ export function HomePage() {
                   Join with Code
                 </button>
                 <FriendsMenuLink />
-                <button
-                  onClick={() => { play('uiBack'); setMode('menu'); }}
-                  className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-                >
-                  Back
-                </button>
               </>
             )}
+            <button
+              onClick={() => { play('uiBack'); setMode('menu'); }}
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            >
+              Back
+            </button>
           </div>
         )}
 
@@ -1114,39 +1165,43 @@ export function HomePage() {
                   </div>
                 )}
 
-                {/* Live Games */}
-                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1 mt-2">
-                  Live Games
-                </p>
-                {liveGames.length === 0 ? (
-                  <div className="glass px-4 py-4 text-center">
-                    <p className="text-[var(--gold-dim)] text-xs">No live games to spectate</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {liveGames.map(game => (
-                      <button
-                        key={game.roomCode}
-                        onClick={() => handleSpectate(game.roomCode)}
-                        className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
-                      >
-                        <div className="text-left">
-                          <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{game.roomCode}</span>
-                          <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {game.hostName}</span>
-                        </div>
-                        <div className="text-right text-xs text-[var(--gold-dim)]">
-                          <span>{game.playerCount} players</span>
-                          <span className="ml-2">Rd {game.roundNumber}</span>
-                          {game.spectatorCount > 0 && (
-                            <span className="ml-2">{game.spectatorCount} watching</span>
-                          )}
-                          {game.spectatorsCanSeeCards && (
-                            <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                {/* Live Games — portrait only (in landscape they're in the left column) */}
+                {!isLandscape && (
+                  <>
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1 mt-2">
+                      Live Games
+                    </p>
+                    {liveGames.length === 0 ? (
+                      <div className="glass px-4 py-4 text-center">
+                        <p className="text-[var(--gold-dim)] text-xs">No live games to spectate</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {liveGames.map(game => (
+                          <button
+                            key={game.roomCode}
+                            onClick={() => handleSpectate(game.roomCode)}
+                            className="w-full glass px-4 py-3 flex justify-between items-center hover:border-[var(--gold)] transition-colors"
+                          >
+                            <div className="text-left">
+                              <span className="font-mono text-[var(--gold)] font-bold tracking-wider">{game.roomCode}</span>
+                              <span className="text-[var(--gold-dim)] text-xs ml-2">hosted by {game.hostName}</span>
+                            </div>
+                            <div className="text-right text-xs text-[var(--gold-dim)]">
+                              <span>{game.playerCount} players</span>
+                              <span className="ml-2">Rd {game.roundNumber}</span>
+                              {game.spectatorCount > 0 && (
+                                <span className="ml-2">{game.spectatorCount} watching</span>
+                              )}
+                              {game.spectatorsCanSeeCards && (
+                                <span className="ml-1 text-[var(--gold)]" title="Cards visible">&#128065;</span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
