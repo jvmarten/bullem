@@ -139,6 +139,14 @@ body {
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
 
+/* Home page lets content bleed into the safe area — the background is
+   continuous so the bottom inset padding just creates a visible bar on
+   iOS standalone PWA. Fixed-positioned elements (version badge, dev
+   badge) handle safe area offsets individually. */
+.layout-main:has(> .home-content) {
+  padding-bottom: 0;
+}
+
 /* ── Auth link bottom-aligned in large header ────────── */
 .auth-link-bottom {
   margin-bottom: -0.75rem;
