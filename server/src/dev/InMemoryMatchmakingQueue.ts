@@ -19,10 +19,9 @@ import {
   MATCHMAKING_MULTIPLAYER_ELO_SPREAD,
   ELO_DEFAULT,
   OPENSKILL_DEFAULT_MU,
-  OPENSKILL_DEFAULT_SIGMA,
   RANKED_SETTINGS,
   RANKED_BEST_OF,
-  openSkillOrdinal,
+  openSkillDisplayRating,
   GamePhase,
   BotPlayer,
   getRankTier,
@@ -135,7 +134,7 @@ export class InMemoryMatchmakingQueue {
 
     const rating = mode === 'heads_up'
       ? ELO_DEFAULT
-      : Math.round(openSkillOrdinal(OPENSKILL_DEFAULT_MU, OPENSKILL_DEFAULT_SIGMA));
+      : openSkillDisplayRating(OPENSKILL_DEFAULT_MU);
 
     const avatarAndPhoto = await getUserAvatarAndPhoto(userId);
 

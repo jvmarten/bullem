@@ -1,5 +1,5 @@
 import { query } from './index.js';
-import { BOT_PROFILE_MAP, IMPOSSIBLE_BOT, CFR_BOTS } from '@bull-em/shared';
+import { BOT_PROFILE_MAP, IMPOSSIBLE_BOT, CFR_BOTS, openSkillDisplayRating } from '@bull-em/shared';
 import type { BotProfileConfig, BotProfileDefinition } from '@bull-em/shared';
 import logger from '../logger.js';
 
@@ -77,9 +77,8 @@ export async function getRankedBotPool(
       rating = ratingRow ? parseFloat(ratingRow.elo) : 1200;
     } else {
       const mu = ratingRow ? parseFloat(ratingRow.mu) : 25;
-      const sigma = ratingRow ? parseFloat(ratingRow.sigma) : 8.333;
-      // Use ordinal (mu - 3*sigma) scaled to Elo-like range for comparison
-      rating = (mu - 3 * sigma) * 48;
+      // Use mu * 48 — same display formula as leaderboard and profile pages
+      rating = openSkillDisplayRating(mu);
     }
 
     entries.push({

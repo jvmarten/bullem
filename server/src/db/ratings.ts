@@ -254,8 +254,8 @@ async function updateOpenSkillRating(
   sigma: number,
   gamesPlayed: number,
 ): Promise<void> {
-  // Use mu - 3*sigma as the display rating for peak tracking
-  const displayRating = mu - 3 * sigma;
+  // Use mu * 48 — same display formula as leaderboard and profile pages
+  const displayRating = openSkillDisplayRating(mu);
   await query(
     `UPDATE ratings
      SET mu = $1,
