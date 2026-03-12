@@ -38,19 +38,18 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-/* body uses position:fixed + inset:0 so it always stretches to the true
-   viewport edges on initial load. 100dvh can be wrong on iOS Safari's
-   first paint, leaving a gap at the bottom that only resolves after a
-   viewport change (rotation, toolbar show/hide). inset:0 avoids this.
-   The gradient stays on .felt-bg — body only carries the matching solid
-   color so any sub-pixel gap at the edge is invisible. */
+/* body uses position:fixed + inset:0 to stretch to the true viewport edges
+   (100dvh is wrong on iOS Safari first paint). Both body and .felt-bg carry
+   the same radial gradient so any sub-pixel gap between them is invisible —
+   the gradient's bottom isn't pure --felt-dark (center is at 30% height), so
+   a solid fallback would create a visible seam. */
 html {
   overflow: hidden;
 }
 
 body {
   font-family: var(--font-body);
-  background: var(--felt-dark);
+  background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
