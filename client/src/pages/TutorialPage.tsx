@@ -450,373 +450,406 @@ export function TutorialPage() {
 
   const show = (section: string) => step.visibleSections.includes(section as typeof step.visibleSections[number]);
 
-  return (
-    <Layout>
-      <div className="flex flex-col gap-3 pb-8 relative">
-        {/* Progress bar */}
-        <div className="flex items-center gap-2 px-1">
-          <span className="text-[10px] text-[var(--gold-dim)] font-semibold uppercase tracking-wider shrink-0">
-            {section === 'quick' ? 'Quick Start' : 'Advanced'}
-          </span>
-          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${((stepIndex + 1) / steps.length) * 100}%`,
-                background: 'var(--gold)',
-              }}
-            />
-          </div>
-          <span className="text-[10px] text-[var(--gold-dim)] font-mono tabular-nums">
-            {stepIndex + 1}/{steps.length}
-          </span>
-        </div>
+  /* ── Reusable pieces ──────────────────────────────── */
 
-        {/* Game mockup area */}
-        <div className="flex flex-col gap-2 min-h-[280px]">
-          {/* Players */}
-          {show('players') && (
-            <div className="animate-fade-in" data-tutorial="players">
-              <div className="flex gap-2 justify-center">
-                {PLAYERS.map(p => {
-                  const isCurrent = step.gameState?.currentPlayerId === p.id;
-                  const isMe = p.id === MY_ID;
-                  return (
-                    <div
-                      key={p.id}
-                      className={`glass px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-all ${
-                        isCurrent ? 'border-[var(--gold)] animate-pulse-glow' : ''
-                      } ${isMe ? 'glass-me' : ''}`}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isMe ? 'bg-sky-700' : 'bg-amber-700'
-                      }`}>
-                        {p.isBot ? '\u2699' : p.name.charAt(0)}
-                      </div>
-                      <div>
-                        <span className={`font-semibold ${isMe ? 'text-[var(--info)]' : ''}`}>
-                          {p.name}
-                        </span>
-                        <span className="text-[var(--gold-dim)] text-xs ml-1">
-                          {p.cardCount} card{p.cardCount !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+  /** Progress bar (shared between portrait & landscape) */
+  const progressBar = (
+    <div className="flex items-center gap-2 px-1 tutorial-progress">
+      <span className="text-[10px] text-[var(--gold-dim)] font-semibold uppercase tracking-wider shrink-0">
+        {section === 'quick' ? 'Quick Start' : 'Advanced'}
+      </span>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{
+            width: `${((stepIndex + 1) / steps.length) * 100}%`,
+            background: 'var(--gold)',
+          }}
+        />
+      </div>
+      <span className="text-[10px] text-[var(--gold-dim)] font-mono tabular-nums">
+        {stepIndex + 1}/{steps.length}
+      </span>
+    </div>
+  );
 
-          {/* Turn indicator */}
-          {show('turn') && step.gameState && (
-            <div className="animate-fade-in" data-tutorial="turn-indicator">
-              <div className="text-center py-1.5 px-3 rounded-lg glass-me animate-pulse-glow-blue border-[var(--info)]">
-                <p className="font-display text-base font-bold text-[var(--info)]">
-                  Your Turn
-                  <span className="text-xs font-normal ml-2 text-[rgba(74,144,217,0.7)]">
-                    {step.gameState.currentHand ? 'Bull or Raise' : 'Call a Hand'}
-                  </span>
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Current call display */}
-          {show('currentCall') && step.gameState?.currentHand && (
-            <div className="animate-slide-up" data-tutorial="current-call">
-              <div className="glass-raised px-3 py-1.5 flex items-baseline">
-                <div className="w-1/4 min-w-0 shrink-0">
-                  <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
-                    Current Call
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0 text-center">
-                  <span className="font-display font-bold text-[var(--gold)] whitespace-nowrap" style={{ fontSize: 'clamp(0.85rem, 3.86vw, 1rem)' }}>
-                    {handToString(step.gameState.currentHand)}
-                  </span>
-                </div>
-                <div className="w-1/4 min-w-0 shrink-0 text-right">
-                  <span className="text-[9px] text-[var(--gold-dim)] opacity-70">
-                    {BOT_NAME}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* My cards */}
-          {show('cards') && (
-            <div className="animate-fade-in" data-tutorial="my-cards">
-              <HandDisplay cards={MY_CARDS} large />
-            </div>
-          )}
-
-          {/* Call history */}
-          {show('callHistory') && displayHistory.length > 0 && (
-            <div className="animate-fade-in glass p-2 rounded-lg">
-              <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
-                Turn History
-              </p>
-              <div className="space-y-1">
-                {displayHistory.map((entry, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={`font-semibold ${entry.playerId === MY_ID ? 'text-[var(--info)]' : 'text-[var(--gold)]'}`}>
-                      {entry.playerName}
-                    </span>
-                    <span className="text-[var(--gold-dim)]">
-                      {entry.action === TurnAction.CALL && entry.hand
-                        ? `calls ${handToString(entry.hand)}`
-                        : entry.action === TurnAction.BULL
-                          ? 'calls BULL!'
-                          : entry.action}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons (bull/raise) */}
-          {show('actions') && (
-            <div className="animate-slide-up" data-tutorial="actions">
-              <div className="flex justify-between items-start">
-                <div className="flex gap-2 justify-start" data-action-buttons>
-                  <button
-                    onClick={handleBull}
-                    className="btn-danger px-4 py-2 text-base font-bold min-w-[7rem]"
-                  >
-                    BULL!
-                  </button>
-                </div>
-                <button
-                  className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] opacity-50 cursor-not-allowed"
-                  title="Raise is disabled in this tutorial step"
+  /** Game mockup area */
+  const gameMockup = (
+    <div className="flex flex-col gap-2 tutorial-mockup">
+      {/* Players */}
+      {show('players') && (
+        <div className="animate-fade-in" data-tutorial="players">
+          <div className="flex gap-2 justify-center flex-wrap">
+            {PLAYERS.map(p => {
+              const isCurrent = step.gameState?.currentPlayerId === p.id;
+              const isMe = p.id === MY_ID;
+              return (
+                <div
+                  key={p.id}
+                  className={`glass px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-all ${
+                    isCurrent ? 'border-[var(--gold)] animate-pulse-glow' : ''
+                  } ${isMe ? 'glass-me' : ''}`}
                 >
-                  Raise
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Hand selector */}
-          {show('handSelector') && (
-            <div className="animate-fade-in" data-tutorial="hand-selector">
-              <HandSelector
-                currentHand={null}
-                onSubmit={handleHandSubmit}
-                onHandChange={handleHandChange}
-              />
-            </div>
-          )}
-
-          {/* Reveal / result display */}
-          {show('result') && (
-            <div className="animate-fade-in glass-raised p-4 rounded-xl">
-              <div className="text-center mb-3">
-                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
-                  Called Hand
-                </p>
-                <p className="font-display text-lg font-bold text-[var(--gold)]">
-                  Three 9s
-                </p>
-              </div>
-
-              <div className="text-center mb-3">
-                <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
-                  All Cards
-                </p>
-                <div className="flex justify-center gap-2">
-                  <div className="text-center">
-                    <p className="text-[10px] text-[var(--info)] mb-1">{MY_NAME}</p>
-                    <CardDisplay card={MY_CARDS[0]!} />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    isMe ? 'bg-sky-700' : 'bg-amber-700'
+                  }`}>
+                    {p.isBot ? '\u2699' : p.name.charAt(0)}
                   </div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-[var(--gold)] mb-1">{BOT_NAME}</p>
-                    <CardDisplay card={BOT_CARDS[0]!} />
+                  <div>
+                    <span className={`font-semibold ${isMe ? 'text-[var(--info)]' : ''}`}>
+                      {p.name}
+                    </span>
+                    <span className="text-[var(--gold-dim)] text-xs ml-1">
+                      {p.cardCount} card{p.cardCount !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 </div>
-              </div>
-
-              <div className="text-center">
-                <p className="font-display text-base font-bold text-[var(--danger)]">
-                  Hand is FAKE!
-                </p>
-                <p className="text-xs text-[var(--gold-dim)] mt-1">
-                  No 9s in play. {BOT_NAME} bluffed and gets +1 card.
-                </p>
-              </div>
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
+      )}
 
-        {/* Tutorial overlay (for non-interactive steps with highlights) */}
-        {!step.interactive && step.highlight && (
-          <TutorialOverlay
-            targetSelector={step.highlight}
-            position={step.position}
-            visible
-            onBackdropTap={advance}
-          >
-            <h3 className="font-display text-base font-bold text-[var(--gold)] mb-2">
-              {step.title}
-            </h3>
-            {step.body}
-            <div className="flex justify-between items-center mt-3">
-              {stepIndex > 0 && (
-                <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
-                  Back
-                </button>
-              )}
-              <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
-                {isLastStep ? 'Finish' : 'Next'}
+      {/* Turn indicator */}
+      {show('turn') && step.gameState && (
+        <div className="animate-fade-in" data-tutorial="turn-indicator">
+          <div className="text-center py-1.5 px-3 rounded-lg glass-me animate-pulse-glow-blue border-[var(--info)]">
+            <p className="font-display text-base font-bold text-[var(--info)]">
+              Your Turn
+              <span className="text-xs font-normal ml-2 text-[rgba(74,144,217,0.7)]">
+                {step.gameState.currentHand ? 'Bull or Raise' : 'Call a Hand'}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Current call display */}
+      {show('currentCall') && step.gameState?.currentHand && (
+        <div className="animate-slide-up" data-tutorial="current-call">
+          <div className="glass-raised px-3 py-1.5 flex items-baseline">
+            <div className="w-1/4 min-w-0 shrink-0">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Current Call
+              </span>
+            </div>
+            <div className="flex-1 min-w-0 text-center">
+              <span className="font-display font-bold text-[var(--gold)] whitespace-nowrap" style={{ fontSize: 'clamp(0.85rem, 3.86vw, 1rem)' }}>
+                {handToString(step.gameState.currentHand)}
+              </span>
+            </div>
+            <div className="w-1/4 min-w-0 shrink-0 text-right">
+              <span className="text-[9px] text-[var(--gold-dim)] opacity-70">
+                {BOT_NAME}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* My cards */}
+      {show('cards') && (
+        <div className="animate-fade-in" data-tutorial="my-cards">
+          <HandDisplay cards={MY_CARDS} large />
+        </div>
+      )}
+
+      {/* Call history */}
+      {show('callHistory') && displayHistory.length > 0 && (
+        <div className="animate-fade-in glass p-2 rounded-lg">
+          <p className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
+            Turn History
+          </p>
+          <div className="space-y-1">
+            {displayHistory.map((entry, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className={`font-semibold ${entry.playerId === MY_ID ? 'text-[var(--info)]' : 'text-[var(--gold)]'}`}>
+                  {entry.playerName}
+                </span>
+                <span className="text-[var(--gold-dim)]">
+                  {entry.action === TurnAction.CALL && entry.hand
+                    ? `calls ${handToString(entry.hand)}`
+                    : entry.action === TurnAction.BULL
+                      ? 'calls BULL!'
+                      : entry.action}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons (bull/raise) */}
+      {show('actions') && (
+        <div className="animate-slide-up" data-tutorial="actions">
+          <div className="flex justify-between items-start">
+            <div className="flex gap-2 justify-start" data-action-buttons>
+              <button
+                onClick={handleBull}
+                className="btn-danger px-4 py-2 text-base font-bold min-w-[7rem]"
+              >
+                BULL!
               </button>
             </div>
-          </TutorialOverlay>
-        )}
+            <button
+              className="btn-ghost border-[var(--gold-dim)] px-6 py-2 text-base font-bold animate-pulse-glow min-w-[9rem] opacity-50 cursor-not-allowed"
+              title="Raise is disabled in this tutorial step"
+            >
+              Raise
+            </button>
+          </div>
+        </div>
+      )}
 
-        {/* Inline tooltip for interactive steps or steps without highlights */}
-        {(step.interactive || !step.highlight) && (
-          <div className="glass-raised p-4 rounded-xl animate-fade-in" style={{ border: '1px solid var(--gold-dim)' }}>
-            <h3 className="font-display text-base font-bold text-[var(--gold)] mb-2">
-              {step.title}
-            </h3>
-            {step.id === 'rankings-quiz' ? (
-              /* ── Ranking quiz ─────────────────────────────── */
-              <>
-                <p className="text-sm text-[#e8e0d4] mb-3">
-                  Which hand is <strong className="text-[var(--gold)]">higher</strong> in Bull &apos;Em?
-                </p>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => handleQuizAnswer('flush')}
-                    disabled={quizAnswer !== null}
-                    className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
-                      quizAnswer === 'flush'
-                        ? 'border-[var(--danger)] bg-[rgba(220,38,38,0.15)]'
-                        : quizAnswer === 'three'
-                          ? 'opacity-50'
-                          : 'hover:border-[var(--gold)]'
-                    }`}
-                    style={{ border: quizAnswer === 'flush' ? '1px solid var(--danger)' : '1px solid transparent' }}
-                  >
-                    <span className="font-semibold text-[#e8e0d4]">Flush</span>
-                    <span className="text-[var(--gold-dim)] text-xs ml-2">(all same suit)</span>
-                    {quizAnswer === 'flush' && (
-                      <span className="text-[var(--danger)] text-xs ml-2 font-semibold">Not quite!</span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleQuizAnswer('three')}
-                    disabled={quizAnswer !== null}
-                    className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
-                      quizAnswer === 'three'
-                        ? 'border-[var(--gold)] bg-[rgba(212,168,67,0.15)]'
-                        : quizAnswer === 'flush'
-                          ? 'opacity-50'
-                          : 'hover:border-[var(--gold)]'
-                    }`}
-                    style={{ border: quizAnswer === 'three' ? '1px solid var(--gold)' : '1px solid transparent' }}
-                  >
-                    <span className="font-semibold text-[#e8e0d4]">Three of a Kind</span>
-                    <span className="text-[var(--gold-dim)] text-xs ml-2">(three same rank)</span>
-                    {quizAnswer === 'three' && (
-                      <span className="text-[var(--gold)] text-xs ml-2 font-semibold">Correct!</span>
-                    )}
-                  </button>
-                </div>
-                {quizAnswer && (
-                  <div className="mt-3 animate-fade-in">
-                    {quizAnswer === 'three' ? (
-                      <p className="text-xs text-[var(--gold)]">
-                        That&apos;s right! In Bull &apos;Em, Three of a Kind (#5) beats Flush (#4).
-                        This is different from standard poker!
-                      </p>
-                    ) : (
-                      <p className="text-xs text-[var(--danger)]">
-                        In standard poker, yes — but in Bull &apos;Em, Flush (#4) is LOWER than
-                        Three of a Kind (#5). This is the #1 mistake new players make!
-                      </p>
-                    )}
-                    <div className="flex justify-between items-center mt-3">
-                      {stepIndex > 0 && (
-                        <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
-                          Back
-                        </button>
-                      )}
-                      <button onClick={() => { setQuizAnswer(null); advance(); }} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              /* ── Standard step body ──────────────────────── */
-              <>
-                {step.body}
-                {!step.interactive && (
+      {/* Hand selector */}
+      {show('handSelector') && (
+        <div className="animate-fade-in" data-tutorial="hand-selector">
+          <HandSelector
+            currentHand={null}
+            onSubmit={handleHandSubmit}
+            onHandChange={handleHandChange}
+          />
+        </div>
+      )}
+
+      {/* Reveal / result display */}
+      {show('result') && (
+        <div className="animate-fade-in glass-raised p-4 rounded-xl">
+          <div className="text-center mb-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1">
+              Called Hand
+            </p>
+            <p className="font-display text-lg font-bold text-[var(--gold)]">
+              Three 9s
+            </p>
+          </div>
+
+          <div className="text-center mb-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              All Cards
+            </p>
+            <div className="flex justify-center gap-2">
+              <div className="text-center">
+                <p className="text-[10px] text-[var(--info)] mb-1">{MY_NAME}</p>
+                <CardDisplay card={MY_CARDS[0]!} />
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-[var(--gold)] mb-1">{BOT_NAME}</p>
+                <CardDisplay card={BOT_CARDS[0]!} />
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <p className="font-display text-base font-bold text-[var(--danger)]">
+              Hand is FAKE!
+            </p>
+            <p className="text-xs text-[var(--gold-dim)] mt-1">
+              No 9s in play. {BOT_NAME} bluffed and gets +1 card.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  /** Tutorial text panel (instructions, quiz, navigation) */
+  const tutorialText = (
+    <div className="tutorial-text-panel flex flex-col gap-3">
+      {/* Tutorial overlay (for non-interactive steps with highlights) */}
+      {!step.interactive && step.highlight && (
+        <TutorialOverlay
+          targetSelector={step.highlight}
+          position={step.position}
+          visible
+          onBackdropTap={advance}
+        >
+          <h3 className="font-display text-base font-bold text-[var(--gold)] mb-2">
+            {step.title}
+          </h3>
+          {step.body}
+          <div className="flex justify-between items-center mt-3">
+            {stepIndex > 0 && (
+              <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                Back
+              </button>
+            )}
+            <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+              {isLastStep ? 'Finish' : 'Next'}
+            </button>
+          </div>
+        </TutorialOverlay>
+      )}
+
+      {/* Inline tooltip for interactive steps or steps without highlights */}
+      {(step.interactive || !step.highlight) && (
+        <div className="glass-raised p-4 rounded-xl animate-fade-in" style={{ border: '1px solid var(--gold-dim)' }}>
+          <h3 className="font-display text-base font-bold text-[var(--gold)] mb-2">
+            {step.title}
+          </h3>
+          {step.id === 'rankings-quiz' ? (
+            /* ── Ranking quiz ─────────────────────────────── */
+            <>
+              <p className="text-sm text-[#e8e0d4] mb-3">
+                Which hand is <strong className="text-[var(--gold)]">higher</strong> in Bull &apos;Em?
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleQuizAnswer('flush')}
+                  disabled={quizAnswer !== null}
+                  className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
+                    quizAnswer === 'flush'
+                      ? 'border-[var(--danger)] bg-[rgba(220,38,38,0.15)]'
+                      : quizAnswer === 'three'
+                        ? 'opacity-50'
+                        : 'hover:border-[var(--gold)]'
+                  }`}
+                  style={{ border: quizAnswer === 'flush' ? '1px solid var(--danger)' : '1px solid transparent' }}
+                >
+                  <span className="font-semibold text-[#e8e0d4]">Flush</span>
+                  <span className="text-[var(--gold-dim)] text-xs ml-2">(all same suit)</span>
+                  {quizAnswer === 'flush' && (
+                    <span className="text-[var(--danger)] text-xs ml-2 font-semibold">Not quite!</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleQuizAnswer('three')}
+                  disabled={quizAnswer !== null}
+                  className={`w-full text-left glass px-3 py-2 rounded-lg transition-all text-sm ${
+                    quizAnswer === 'three'
+                      ? 'border-[var(--gold)] bg-[rgba(212,168,67,0.15)]'
+                      : quizAnswer === 'flush'
+                        ? 'opacity-50'
+                        : 'hover:border-[var(--gold)]'
+                  }`}
+                  style={{ border: quizAnswer === 'three' ? '1px solid var(--gold)' : '1px solid transparent' }}
+                >
+                  <span className="font-semibold text-[#e8e0d4]">Three of a Kind</span>
+                  <span className="text-[var(--gold-dim)] text-xs ml-2">(three same rank)</span>
+                  {quizAnswer === 'three' && (
+                    <span className="text-[var(--gold)] text-xs ml-2 font-semibold">Correct!</span>
+                  )}
+                </button>
+              </div>
+              {quizAnswer && (
+                <div className="mt-3 animate-fade-in">
+                  {quizAnswer === 'three' ? (
+                    <p className="text-xs text-[var(--gold)]">
+                      That&apos;s right! In Bull &apos;Em, Three of a Kind (#5) beats Flush (#4).
+                      This is different from standard poker!
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[var(--danger)]">
+                      In standard poker, yes — but in Bull &apos;Em, Flush (#4) is LOWER than
+                      Three of a Kind (#5). This is the #1 mistake new players make!
+                    </p>
+                  )}
                   <div className="flex justify-between items-center mt-3">
                     {stepIndex > 0 && (
                       <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
                         Back
                       </button>
                     )}
-                    {isQuickDone || (section === 'advanced' && isLastStep) ? (
-                      <div className="flex flex-col gap-2 ml-auto w-full">
-                        <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/local'); }}
-                            className="btn-ghost px-4 py-1.5 text-sm font-semibold"
-                          >
-                            Play Offline
-                          </button>
-                          <button
-                            onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
-                            className="btn-gold px-4 py-1.5 text-sm font-semibold"
-                          >
-                            Play Online
-                          </button>
-                        </div>
-                        {isQuickDone && (
-                          <button
-                            onClick={enterAdvanced}
-                            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-right"
-                          >
-                            Learn Advanced Rules →
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
-                        Next
-                      </button>
-                    )}
+                    <button onClick={() => { setQuizAnswer(null); advance(); }} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                      Next
+                    </button>
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* ── Standard step body ──────────────────────── */
+            <>
+              {step.body}
+              {!step.interactive && (
+                <div className="flex justify-between items-center mt-3">
+                  {stepIndex > 0 && (
+                    <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                      Back
+                    </button>
+                  )}
+                  {isQuickDone || (section === 'advanced' && isLastStep) ? (
+                    <div className="flex flex-col gap-2 ml-auto w-full">
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/local'); }}
+                          className="btn-ghost px-4 py-1.5 text-sm font-semibold"
+                        >
+                          Play Offline
+                        </button>
+                        <button
+                          onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }}
+                          className="btn-gold px-4 py-1.5 text-sm font-semibold"
+                        >
+                          Play Online
+                        </button>
+                      </div>
+                      {isQuickDone && (
+                        <button
+                          onClick={enterAdvanced}
+                          className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-right"
+                        >
+                          Learn Advanced Rules →
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                      Next
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
-        {/* Skip / Back to home */}
-        <div className="flex justify-center gap-4">
-          {!(isQuickDone || (section === 'advanced' && isLastStep)) && (
-            <button
-              onClick={() => { clearTutorialStepProgress(); navigate('/'); }}
-              className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              Skip Tutorial
-            </button>
+      {/* Skip / Back to home */}
+      <div className="flex justify-center gap-4">
+        {!(isQuickDone || (section === 'advanced' && isLastStep)) && (
+          <button
+            onClick={() => { clearTutorialStepProgress(); navigate('/'); }}
+            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            Skip Tutorial
+          </button>
+        )}
+        {(isQuickDone || (section === 'advanced' && isLastStep)) && (
+          <button
+            onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); navigate('/'); }}
+            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+          >
+            Back to Home
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const hasGameMockup = step.visibleSections.length > 0;
+
+  return (
+    <Layout>
+      <div className="tutorial-content pb-8 relative">
+        {progressBar}
+
+        {/* Portrait layout: vertical stack (default) */}
+        <div className="tutorial-portrait flex flex-col gap-3">
+          {gameMockup}
+          {tutorialText}
+        </div>
+
+        {/* Landscape layout: two-panel side by side */}
+        <div className={`tutorial-landscape ${hasGameMockup ? 'tutorial-landscape-split' : 'tutorial-landscape-centered'}`}>
+          {hasGameMockup && (
+            <div className="tutorial-landscape-left">
+              {gameMockup}
+            </div>
           )}
-          {(isQuickDone || (section === 'advanced' && isLastStep)) && (
-            <button
-              onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); navigate('/'); }}
-              className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
-            >
-              Back to Home
-            </button>
-          )}
+          <div className="tutorial-landscape-right">
+            {tutorialText}
+          </div>
         </div>
       </div>
     </Layout>
