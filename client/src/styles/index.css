@@ -52,7 +52,7 @@ html {
    initial iOS Safari portrait load. */
 body {
   font-family: var(--font-body);
-  background: var(--felt-dark);
+  background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
