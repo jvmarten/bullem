@@ -38,29 +38,33 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-/* html is NOT given overflow:hidden or a fixed height — its background
-   propagates to the canvas and must cover the entire viewport including
-   safe-area regions that 100dvh may exclude on initial iOS Safari load. */
 html {
+  /* Canvas background — covers the entire viewport including safe-area
+     regions that fixed/dvh sizing might not reach on initial iOS load. */
   background: var(--felt-dark);
-}
-
-body, #root {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   overflow: hidden;
 }
 
+/* body uses position:fixed + inset:0 so it always stretches to the true
+   viewport edges (including safe areas with viewport-fit=cover), rather
+   than relying on 100dvh which may exclude the bottom safe area on
+   initial iOS Safari portrait load. */
 body {
   font-family: var(--font-body);
   background: var(--felt-dark);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  width: 100%;
+  inset: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
