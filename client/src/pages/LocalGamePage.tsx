@@ -9,6 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory, CallHistoryToggleButton } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { SpectatorPill } from '../components/SpectatorPill.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
 import { BotProfileModal } from '../components/BotProfileModal.js';
@@ -349,9 +350,7 @@ export function LocalGamePage() {
       {isLandscape ? (
         <div className={`${isEliminated && !winnerId ? 'spectating' : ''}`}>
           {isEliminated && !winnerId && (
-            <div className="spectator-pill animate-fade-in">
-              Eliminated — Spectating
-            </div>
+            <SpectatorPill isEliminated={true} />
           )}
           <RoundtableGameLayout
             players={gameState.players}
@@ -473,9 +472,7 @@ export function LocalGamePage() {
 
         {/* Floating spectator pill */}
         {isEliminated && !winnerId && (
-          <div className="spectator-pill animate-fade-in">
-            Eliminated — Spectating
-          </div>
+          <SpectatorPill isEliminated={true} />
         )}
 
         <div className="game-content">
