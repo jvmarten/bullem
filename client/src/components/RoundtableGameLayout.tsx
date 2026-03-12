@@ -439,7 +439,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   } = props;
 
   // ── Dealing animation: show when roundNumber changes ──
-  const prevRoundRef = useRef(roundNumber);
+  const prevRoundRef = useRef(0); // 0 = sentinel for "first mount"
   const [showDealing, setShowDealing] = useState(false);
   // Track how many cards have "landed" at each seat — used to progressively
   // reveal seat card backs so they appear in sync with the flying card animation.
@@ -450,22 +450,31 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   }, []);
 
   useEffect(() => {
-    // On the very first render, don't show dealing (player is joining mid-round)
-    if (prevRoundRef.current !== roundNumber && prevRoundRef.current !== 0) {
-      setShowDealing(true);
-      setDealtPerSeat({}); // reset dealt counts for new round
-      // Auto-hide after animation completes (safety net — overlay also self-removes)
-      const activePlayers = players.filter(p => !p.isEliminated);
-      const maxPlayerCards = Math.max(...activePlayers.map(p => p.cardCount), 0);
-      const totalCards = maxPlayerCards * activePlayers.length;
-      const timeout = totalCards * 180 + 350 + 300 + 400; // deal + fly + fade + buffer
-      const t = setTimeout(() => setShowDealing(false), timeout);
+    const isFirstMount = prevRoundRef.current === 0;
+    const roundChanged = prevRoundRef.current !== roundNumber;
+
+    if (!roundChanged) return;
+
+    // On first mount, only animate if the round is fresh (no calls made yet).
+    // If there's already a currentHand or turnHistory, the player is joining
+    // mid-round (e.g. orientation change or reconnect) — skip the animation.
+    if (isFirstMount && (currentHand !== null || turnHistory.length > 0)) {
       prevRoundRef.current = roundNumber;
-      return () => clearTimeout(t);
+      return;
     }
+
+    setShowDealing(true);
+    setDealtPerSeat({}); // reset dealt counts for new round
+    // Auto-hide after animation completes (safety net — overlay also self-removes)
+    const activePlayers = players.filter(p => !p.isEliminated);
+    const maxPlayerCards = Math.max(...activePlayers.map(p => p.cardCount), 0);
+    const totalCards = maxPlayerCards * activePlayers.length;
+    const timeout = totalCards * 180 + 350 + 300 + 400; // deal + fly + fade + buffer
+    const t = setTimeout(() => setShowDealing(false), timeout);
     prevRoundRef.current = roundNumber;
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on roundNumber change;
-    // players is read inside the round-change branch and will have the correct value in that render.
+    // players/currentHand/turnHistory are read inside and will have the correct values in that render.
   }, [roundNumber]);
 
   // Whether seat card backs should be suppressed (dealing or cinematic reveal in progress)
