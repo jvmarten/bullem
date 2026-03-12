@@ -1101,7 +1101,7 @@ export function HomePage() {
         )}
 
         {mode === 'join' && (
-          <div className="flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
+          <div className="home-join-center flex flex-col gap-3 w-full animate-fade-in" onKeyDown={handleKeyDown}>
             <input
               type="text"
               placeholder="Room code"
