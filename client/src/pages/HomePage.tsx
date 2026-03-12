@@ -453,6 +453,7 @@ export function HomePage() {
     return !isTutorialCompleted() && isFirstGame();
   });
   const [rankedExpanded, setRankedExpanded] = useState(false);
+  const [minigamesExpanded, setMinigamesExpanded] = useState(false);
   const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
 
   // Sync joining state with matchmaking status — keep the queue mode visible
@@ -848,18 +849,31 @@ export function HomePage() {
             >
               Tutorial
             </Link>
-            <Link
-              to="/draw"
-              className="w-full btn-gold py-4 text-lg text-center block"
+            {/* Minigames — expandable with Deck Draw / 5 Draw sub-options */}
+            <button
+              onClick={() => { play('uiSoft'); setMinigamesExpanded(prev => !prev); }}
+              className="w-full btn-orange py-4 text-lg"
             >
-              Deck Draw
-            </Link>
-            <Link
-              to="/five-draw"
-              className="w-full btn-gold py-4 text-lg text-center block"
-            >
-              5 Draw
-            </Link>
+              Minigames
+            </button>
+            {minigamesExpanded && (
+              <div className="flex gap-2 w-full animate-fade-in -mt-1">
+                <Link
+                  to="/draw"
+                  onClick={() => play('uiSoft')}
+                  className="flex-1 py-3 text-sm btn-danger text-center block"
+                >
+                  Deck Draw
+                </Link>
+                <Link
+                  to="/five-draw"
+                  onClick={() => play('uiSoft')}
+                  className="flex-1 py-3 text-sm btn-danger text-center block"
+                >
+                  5 Draw
+                </Link>
+              </div>
+            )}
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
