@@ -1694,6 +1694,13 @@ body {
 }
 
 /* ── Home Page Portrait Defaults ────────────────────── */
+/* Slightly smaller tagline on portrait phones so it doesn't dominate */
+@media (orientation: portrait) {
+  .home-left > p {
+    font-size: 1rem;
+  }
+}
+
 /* Ensure the right panel (name + buttons) spans full width in portrait
    and has breathing room between the name and the action buttons. */
 .home-right {
