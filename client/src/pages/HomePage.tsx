@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { loadMatchSettings } from '../components/VolumeControl.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { useFriends } from '../context/FriendsContext.js';
+import { useIsLandscape } from '../hooks/useIsLandscape.js';
 import { isTutorialCompleted, isFirstGame } from '../utils/tutorialProgress.js';
 import { friendlyError } from '../utils/friendlyErrors.js';
 import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
@@ -455,6 +456,7 @@ export function HomePage() {
   const [rankedExpanded, setRankedExpanded] = useState(false);
   const [minigamesExpanded, setMinigamesExpanded] = useState(false);
   const [joiningRanked, setJoiningRanked] = useState<'heads_up' | 'multiplayer' | null>(null);
+  const isLandscape = useIsLandscape();
 
   // Sync joining state with matchmaking status — keep the queue mode visible
   // so the 1v1/multiplayer buttons maintain their in-queue appearance
@@ -616,7 +618,67 @@ export function HomePage() {
   return (
     <Layout largeTitle={mode === 'menu'} onTitleClick={mode !== 'menu' ? () => { play('uiBack'); setMode('menu'); } : undefined}>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
-        {/* Left panel in landscape: deck demo + tagline — only on main menu */}
+        {/* Left panel in landscape: deck demo on main menu, submenu buttons on online/offline */}
+        {/* Landscape online left column: Lobby, Friends, Host Game, Join with Code */}
+        {isLandscape && mode === 'online' && (
+          <div className="home-left home-submenu-col">
+            <div className="flex flex-col gap-3 w-full animate-fade-in">
+              <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+                Lobby
+              </button>
+              <FriendsMenuLink />
+              <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
+                Host Game
+              </button>
+              <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+                Join with Code
+              </button>
+              <button
+                onClick={() => { play('uiBack'); setMode('menu'); }}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center mt-auto"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Landscape offline left column: Minigames */}
+        {isLandscape && mode === 'offline' && (
+          <div className="home-left home-submenu-col">
+            <div className="flex flex-col gap-3 w-full animate-fade-in">
+              <button
+                onClick={() => { play('uiSoft'); setMinigamesExpanded(prev => !prev); }}
+                className="w-full btn-orange py-4 text-lg"
+              >
+                Minigames
+              </button>
+              {minigamesExpanded && (
+                <div className="flex gap-2 w-full animate-fade-in -mt-1">
+                  <Link
+                    to="/draw"
+                    onClick={() => play('uiSoft')}
+                    className="flex-1 py-3 text-sm btn-danger text-center block"
+                  >
+                    Deck Draw
+                  </Link>
+                  <Link
+                    to="/five-draw"
+                    onClick={() => play('uiSoft')}
+                    className="flex-1 py-3 text-sm btn-danger text-center block"
+                  >
+                    5 Draw
+                  </Link>
+                </div>
+              )}
+              <button
+                onClick={() => { play('uiBack'); setMode('menu'); }}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center mt-auto"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
         {mode === 'menu' && <div className="home-left">
         {/* Tagline — orients first-time visitors */}
         <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in" style={{ maxWidth: '320px' }}>
@@ -834,88 +896,85 @@ export function HomePage() {
             >
               Tutorial
             </Link>
-            {/* Minigames — expandable with Deck Draw / 5 Draw sub-options */}
-            <button
-              onClick={() => { play('uiSoft'); setMinigamesExpanded(prev => !prev); }}
-              className="w-full btn-orange py-4 text-lg"
-            >
-              Minigames
-            </button>
-            {minigamesExpanded && (
-              <div className="flex gap-2 w-full animate-fade-in -mt-1">
-                <Link
-                  to="/draw"
-                  onClick={() => play('uiSoft')}
-                  className="flex-1 py-3 text-sm btn-danger text-center block"
+            {/* Minigames — only in portrait (landscape has them in left column) */}
+            {!isLandscape && (
+              <>
+                <button
+                  onClick={() => { play('uiSoft'); setMinigamesExpanded(prev => !prev); }}
+                  className="w-full btn-orange py-4 text-lg"
                 >
-                  Deck Draw
-                </Link>
-                <Link
-                  to="/five-draw"
-                  onClick={() => play('uiSoft')}
-                  className="flex-1 py-3 text-sm btn-danger text-center block"
-                >
-                  5 Draw
-                </Link>
-              </div>
+                  Minigames
+                </button>
+                {minigamesExpanded && (
+                  <div className="flex gap-2 w-full animate-fade-in -mt-1">
+                    <Link
+                      to="/draw"
+                      onClick={() => play('uiSoft')}
+                      className="flex-1 py-3 text-sm btn-danger text-center block"
+                    >
+                      Deck Draw
+                    </Link>
+                    <Link
+                      to="/five-draw"
+                      onClick={() => play('uiSoft')}
+                      className="flex-1 py-3 text-sm btn-danger text-center block"
+                    >
+                      5 Draw
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
-            <button
-              onClick={() => { play('uiBack'); setMode('menu'); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
-            >
-              Back
-            </button>
+            {!isLandscape && (
+              <button
+                onClick={() => { play('uiBack'); setMode('menu'); }}
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              >
+                Back
+              </button>
+            )}
           </div>
         )}
 
         {mode === 'online' && (
           <div className="flex flex-col gap-3 w-full animate-fade-in">
+            {/* Quick Start / Return to Room — always on right */}
             {roomState ? (
-              <>
-                <button
-                  onClick={() => navigate(`/room/${roomState.roomCode}`)}
-                  className="w-full btn-gold py-4 text-lg flex items-center justify-center relative"
-                >
-                  <span>Return to Room ({roomState.roomCode})</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
+              <button
+                onClick={() => navigate(`/room/${roomState.roomCode}`)}
+                className="w-full btn-gold py-4 text-lg flex items-center justify-center relative"
+              >
+                <span>Return to Room ({roomState.roomCode})</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const ok = window.confirm('Close this room? All players will be disconnected.');
+                    if (!ok) return;
+                    play('uiSoft');
+                    deleteRoom();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
                       e.stopPropagation();
+                      e.preventDefault();
                       const ok = window.confirm('Close this room? All players will be disconnected.');
                       if (!ok) return;
                       play('uiSoft');
                       deleteRoom();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        const ok = window.confirm('Close this room? All players will be disconnected.');
-                        if (!ok) return;
-                        play('uiSoft');
-                        deleteRoom();
-                      }
-                    }}
-                    className="absolute right-3 text-red-500 hover:text-red-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]"
-                    title="Close room"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </span>
-                </button>
-                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
-                  Lobby
-                </button>
-                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-                  Join with Code
-                </button>
-              </>
+                    }
+                  }}
+                  className="absolute right-3 text-red-500 hover:text-red-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]"
+                  title="Close room"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </span>
+              </button>
             ) : (
-              <>
-                <button onClick={() => { play('uiSoft'); handleQuickStart(); }} className="w-full btn-gold py-4 text-lg">
-                  Quick Start
-                </button>
-              </>
+              <button onClick={() => { play('uiSoft'); handleQuickStart(); }} className="w-full btn-gold py-4 text-lg">
+                Quick Start
+              </button>
             )}
             {/* Ranked Play — expandable with 1v1 / Multiplayer sub-options */}
             <button
@@ -968,34 +1027,39 @@ export function HomePage() {
                 )}
               </div>
             )}
-            <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
-              Lobby
-            </button>
-            <button
-              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
-              className="w-full btn-ghost py-4 text-lg"
-            >
-              Watch a Game
-            </button>
             <Link
               to="/leaderboard"
               className="w-full btn-ghost py-4 text-lg text-center block"
             >
               Leaderboard
             </Link>
-            <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
-              Host Game
-            </button>
-            <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-              Join with Code
-            </button>
-            <FriendsMenuLink />
             <button
-              onClick={() => { play('uiBack'); setMode('menu'); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              onClick={() => { play('uiSoft'); handleWatchRandom(); }}
+              className="w-full btn-ghost py-4 text-lg"
             >
-              Back
+              Watch a Game
             </button>
+            {/* Portrait-only: Lobby, Host, Join, Friends, Back (in landscape these are in the left column) */}
+            {!isLandscape && (
+              <>
+                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
+                </button>
+                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
+                  Host Game
+                </button>
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+                  Join with Code
+                </button>
+                <FriendsMenuLink />
+                <button
+                  onClick={() => { play('uiBack'); setMode('menu'); }}
+                  className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+                >
+                  Back
+                </button>
+              </>
+            )}
           </div>
         )}
 

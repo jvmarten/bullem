@@ -1876,6 +1876,14 @@ body {
     justify-self: center;
     min-height: 0;
   }
+  /* When home-left is used for submenu buttons (online/offline landscape) */
+  .home-left.home-submenu-col {
+    width: 100%;
+    max-width: 20rem;
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 1rem 0;
+  }
   .home-right {
     display: flex;
     flex-direction: column;
@@ -2035,13 +2043,23 @@ body {
   .home-content {
     gap: 1rem;
   }
-  .home-left {
+  .home-left:not(.home-submenu-col) {
     transform: scale(0.85);
     transform-origin: center;
     gap: 0.5rem;
   }
   .home-left > p {
     font-size: 0.6875rem;
+  }
+  .home-left.home-submenu-col {
+    gap: 0.625rem;
+  }
+  .home-left.home-submenu-col .btn-gold,
+  .home-left.home-submenu-col .btn-ghost,
+  .home-left.home-submenu-col .btn-orange {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.9375rem;
   }
   .home-right {
     gap: 0.625rem;
