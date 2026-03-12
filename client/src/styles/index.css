@@ -44,6 +44,12 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Safe area bars match the felt green when viewport-fit=cover is active.
+   This is the colour visible behind notches, Dynamic Island, and home indicators. */
+html {
+  background: var(--felt-dark);
+}
+
 body {
   font-family: var(--font-body);
   background: var(--felt-dark);
@@ -99,6 +105,13 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Safe area: push content away from notch/Dynamic Island/home indicator
+     so game elements never overlap with system UI, while the background
+     gradient (and overlays) extend edge-to-edge behind the safe zones. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* ── Layout shell — fixed viewport, inner scroll only ─ */
@@ -1791,6 +1804,10 @@ body {
     z-index: 40;
     pointer-events: none;
     padding: 0.375rem 0.75rem;
+    /* Safe area: fixed overlay needs its own safe-area offsets in landscape */
+    padding-top: max(0.375rem, env(safe-area-inset-top, 0px));
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
   }
   .game-header-overlay-left,
   .game-header-overlay-right,
