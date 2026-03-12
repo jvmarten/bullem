@@ -1764,8 +1764,6 @@ body {
   .layout-header {
     padding-top: 0.25rem !important;
     padding-bottom: 0.25rem !important;
-    padding-left: calc(1rem + env(safe-area-inset-left)) !important;
-    padding-right: calc(1rem + env(safe-area-inset-right)) !important;
   }
   .layout-header-large {
     padding-top: 0.375rem !important;
@@ -1792,7 +1790,7 @@ body {
     right: 0;
     z-index: 40;
     pointer-events: none;
-    padding: 0.375rem calc(0.75rem + env(safe-area-inset-right)) 0.375rem calc(0.75rem + env(safe-area-inset-left));
+    padding: 0.375rem 0.75rem;
   }
   .game-header-overlay-left,
   .game-header-overlay-right,
@@ -1824,7 +1822,7 @@ body {
     max-width: none;
     margin-left: 0;
     margin-right: 0;
-    padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    padding: 0;
     overflow: hidden;
   }
   .landscape-header-hidden .game-layout {
@@ -2614,7 +2612,7 @@ body {
 .rt-call-history {
   position: absolute;
   top: 56px; /* below header */
-  left: env(safe-area-inset-left);
+  left: 0;
   width: 300px;
   max-height: calc(100dvh - 56px - 140px);
   overflow-y: auto;
@@ -2634,7 +2632,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.25rem calc(0.5rem + env(safe-area-inset-right)) 0.25rem calc(0.5rem + env(safe-area-inset-left));
+  padding: 0.25rem 0.5rem;
   max-height: 55%;
   overflow-y: auto;
   z-index: 5;
@@ -2797,7 +2795,7 @@ body {
   }
 
   .rt-controls {
-    padding: 0.125rem calc(0.5rem + env(safe-area-inset-right)) 0.125rem calc(0.5rem + env(safe-area-inset-left));
+    padding: 0.125rem 0.5rem;
   }
 
   .rt-controls:has(.rt-hand-selector) {
@@ -2933,7 +2931,7 @@ body {
 /* ── Landscape Turn Timer (player's own vertical bar, right edge) ── */
 .rt-turn-timer-track {
   position: fixed;
-  right: calc(4px + env(safe-area-inset-right));
+  right: 4px;
   top: 60px;  /* below header */
   bottom: 8px;
   width: 6px;
@@ -2961,7 +2959,7 @@ body {
 /* Auto-bull/auto-pass countdown label next to the vertical timer */
 .rt-autobull-label {
   position: fixed;
-  right: calc(16px + env(safe-area-inset-right));
+  right: 16px;
   top: 60px;
   z-index: 40;
   font-size: 0.65rem;
