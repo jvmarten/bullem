@@ -1754,6 +1754,14 @@ body {
 }
 .landscape-header-hidden main {
   padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.landscape-header-hidden .game-layout {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Hide landscape game overlay in portrait — rendered in DOM but only visible in landscape */
