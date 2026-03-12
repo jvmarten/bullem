@@ -81,6 +81,11 @@ export interface GameContextValue {
   leaveMatchmaking: () => Promise<void>;
   /** Clear the matchmaking found state (after navigation). */
   clearMatchmakingFound: () => void;
+  /** Clear old game state when transitioning to a matched game.
+   *  Unlike leaveRoom(), this does NOT emit room:leave (the server already
+   *  assigned the socket to the new room) and does NOT clear session storage
+   *  (already set to the new room's data by matchmaking:found handler). */
+  resetForMatchedGame: () => void;
   /** Rating changes from the last completed ranked game (keyed by playerId). */
   ratingChanges: Record<PlayerId, RatingChange> | null;
   /** Room code to auto-navigate to after localStorage recovery (browser reopen). */
@@ -775,6 +780,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearMatchmakingFound = useCallback(() => setMatchmakingFound(null), []);
+
+  // Clear old game state for matchmaking transitions without emitting room:leave.
+  // The server already assigned the socket to the new matched room, so emitting
+  // room:leave would destroy the NEW room connection. Session storage already
+  // holds the new room's data (set by the matchmaking:found handler).
+  const resetForMatchedGame = useCallback(() => {
+    setWinnerId(null);
+    setGameStats(null);
+    setRatingChanges(null);
+    setRoomState(null);
+    setGameState(null);
+    setRoundResult(null);
+    setRoundTransition(false);
+    setRoundTransitionDeadline(null);
+    setLastReplay(null);
+    setChatMessages([]);
+    pendingGameStateRef.current = null;
+    if (roundResultTimerRef.current) {
+      clearTimeout(roundResultTimerRef.current);
+      roundResultTimerRef.current = null;
+    }
+  }, []);
   const clearPendingRejoinRoom = useCallback(() => setPendingRejoinRoom(null), []);
 
   const startGame = useCallback(() => socket.emit('game:start'), []);
@@ -844,6 +871,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     joinMatchmaking,
     leaveMatchmaking,
     clearMatchmakingFound,
+    resetForMatchedGame,
     ratingChanges,
     pendingRejoinRoom,
     clearPendingRejoinRoom,
@@ -858,7 +886,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     spectateGame, watchRandomGame, updateSettings, startGame, callHand, callBull, callTrue,
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
-    joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, clearPendingRejoinRoom,
+    joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, resetForMatchedGame, clearPendingRejoinRoom,
   ]);
 
   return (

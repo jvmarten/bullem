@@ -941,6 +941,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     joinMatchmaking: async () => {},
     leaveMatchmaking: async () => {},
     clearMatchmakingFound: () => {},
+    resetForMatchedGame: () => {},
     ratingChanges: null,
     pendingRejoinRoom: null,
     clearPendingRejoinRoom: () => {},
