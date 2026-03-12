@@ -625,56 +625,83 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         })}
 
         {/* Seat 0: local player — face-up cards + name/info below */}
-        <div
-          className={`rt-seat rt-seat--me-cards ${myPlayer?.id === currentPlayerId ? 'rt-seat--active' : ''}`}
-          style={{ top: mySeatPos.top, left: mySeatPos.left }}
-          data-tooltip="my-cards"
-        >
-          {/* Quick Draw suggestions — positioned above the cards */}
-          {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
-            <div className="rt-quick-draw-above">
-              <QuickDrawHint visible={canRaise} />
-            </div>
-          )}
-          {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
-            <div className="rt-quick-draw-above">
-              <QuickDrawChips
-                suggestions={quickDrawSuggestions}
-                onSelect={onQuickDrawSelect}
-                onDismiss={onQuickDrawDismiss}
-              />
-            </div>
-          )}
-          {!isEliminated && !isSpectator ? (
-            <HandDisplay
-              cards={suppressSeatCards
-                ? (revealInProgress ? [] : myCards.slice(0, dealtPerSeat[0] ?? 0))
-                : myCards}
-              large
-              onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
-            />
-          ) : isSpectating && myPlayer && spectatorCardsByPlayerId?.get(myPlayer.id) && (
-            <HandDisplay
-              cards={spectatorCardsByPlayerId.get(myPlayer.id)!}
-              large
-            />
-          )}
-          {myPlayer && (
-            <div className="rt-seat-info">
-              <div className={`rt-avatar ${playerColor(0)} rt-avatar--me`}>
+        {isSpectating && myPlayer ? (
+          /* When spectating, render bottom seat like any other seat (same card size & layout) */
+          <div
+            className={`rt-seat ${myPlayer.id === currentPlayerId ? 'rt-seat--active' : ''} ${myPlayer.isEliminated ? 'rt-seat--eliminated' : ''}`}
+            style={{ top: mySeatPos.top, left: mySeatPos.left }}
+            data-tooltip="my-cards"
+          >
+            <div className="rt-seat-card-avatar">
+              {!myPlayer.isEliminated && spectatorCardsByPlayerId?.get(myPlayer.id) && (
+                <SeatFaceUpCards cards={spectatorCardsByPlayerId.get(myPlayer.id)!} />
+              )}
+              <div className={`rt-avatar ${playerColor(0)} rt-avatar--me rt-avatar--overlap`}>
                 <PlayerAvatarContent
                   name={myPlayer.name}
                   avatar={myPlayer.avatar}
                   photoUrl={myPlayer.photoUrl}
                   isBot={myPlayer.isBot}
                 />
-              </div>
-              <div className="rt-seat-text">
-                <div className="rt-name rt-name--me">{myPlayer.name}</div>
+                {myPlayer.id === currentPlayerId && turnDeadline && !myPlayer.isEliminated && (
+                  <AvatarTimerRing turnDeadline={turnDeadline} turnDurationMs={turnDurationMs ?? undefined} />
+                )}
               </div>
             </div>
-          )}
-        </div>
+            <div className="rt-seat-text rt-seat-text--center">
+              <div className="rt-name rt-name--me">{myPlayer.name}</div>
+              {myPlayer.isEliminated && (
+                <div className="rt-eliminated-badge">OUT</div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`rt-seat rt-seat--me-cards ${myPlayer?.id === currentPlayerId ? 'rt-seat--active' : ''}`}
+            style={{ top: mySeatPos.top, left: mySeatPos.left }}
+            data-tooltip="my-cards"
+          >
+            {/* Quick Draw suggestions — positioned above the cards */}
+            {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
+              <div className="rt-quick-draw-above">
+                <QuickDrawHint visible={canRaise} />
+              </div>
+            )}
+            {quickDrawOpen && canRaise && quickDrawSuggestions.length > 0 && (
+              <div className="rt-quick-draw-above">
+                <QuickDrawChips
+                  suggestions={quickDrawSuggestions}
+                  onSelect={onQuickDrawSelect}
+                  onDismiss={onQuickDrawDismiss}
+                />
+              </div>
+            )}
+            {!isEliminated && !isSpectator && (
+              <HandDisplay
+                cards={suppressSeatCards
+                  ? (revealInProgress ? [] : myCards.slice(0, dealtPerSeat[0] ?? 0))
+                  : myCards}
+                large
+                onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
+              />
+            )}
+            {myPlayer && (
+              <div className="rt-seat-info">
+                <div className={`rt-avatar ${playerColor(0)} rt-avatar--me`}>
+                  <PlayerAvatarContent
+                    name={myPlayer.name}
+                    avatar={myPlayer.avatar}
+                    photoUrl={myPlayer.photoUrl}
+                    isBot={myPlayer.isBot}
+                  />
+                </div>
+                <div className="rt-seat-text">
+                  <div className="rt-name rt-name--me">{myPlayer.name}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Call history — compact panel on the left (toggle button is in the header overlay) */}
