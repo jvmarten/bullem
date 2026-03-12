@@ -25,6 +25,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
 
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
@@ -33,7 +41,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   const data = await res.json() as T & { error?: string };
   if (!res.ok) {
-    throw new Error(data.error ?? `Request failed with status ${res.status}`);
+    throw new ApiError(data.error ?? `Request failed with status ${res.status}`, res.status);
   }
   return data;
 }
@@ -48,9 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await apiFetch<{ user: User; profile: PublicProfile }>('/auth/me');
       setUser(data.user);
       setProfile(data.profile);
-    } catch {
-      setUser(null);
-      setProfile(null);
+    } catch (err) {
+      // Only clear user state on auth failures (401) — the session is truly invalid.
+      // For server errors (500, 404) or network failures, keep existing user state
+      // so a successful login isn't wiped out by a transient /auth/me failure.
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        setProfile(null);
+      }
     }
   }, []);
 

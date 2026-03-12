@@ -300,7 +300,8 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
 
-    // Fetch user + aggregated stats from game_players
+    // Fetch core user fields — avatar_bg_color is fetched separately so a
+    // missing column (migration 023 not yet applied) doesn't break the whole query.
     const userResult = await query<{
       id: string;
       username: string;
@@ -309,12 +310,11 @@ router.get('/me', requireAuth, async (req, res) => {
       role: string;
       avatar: string | null;
       photo_url: string | null;
-      avatar_bg_color: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, role, avatar, photo_url, avatar_bg_color, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -324,6 +324,13 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 
     const row = userResult.rows[0]!;
+
+    // Fetch avatar_bg_color separately — gracefully degrades to null if the
+    // column doesn't exist yet (migration 023 not applied).
+    const bgColorResult = await query<{ avatar_bg_color: string | null }>(
+      'SELECT avatar_bg_color FROM users WHERE id = $1',
+      [userId],
+    );
 
     // Aggregate stats from game_players table
     const statsResult = await query<{
@@ -352,7 +359,7 @@ router.get('/me', requireAuth, async (req, res) => {
     const callsMade = stats ? parseInt(stats.total_calls_made, 10) : 0;
     const bluffsSuccessful = stats ? parseInt(stats.total_bluffs_successful, 10) : 0;
 
-    const rawBgColor = row.avatar_bg_color;
+    const rawBgColor = bgColorResult?.rows[0]?.avatar_bg_color ?? null;
     const avatarBgColor: AvatarBgColor | null = rawBgColor && (AVATAR_BG_COLOR_OPTIONS as readonly string[]).includes(rawBgColor)
       ? rawBgColor as AvatarBgColor
       : null;
