@@ -14,10 +14,9 @@ import {
   MATCHMAKING_MULTIPLAYER_ELO_SPREAD,
   ELO_DEFAULT,
   OPENSKILL_DEFAULT_MU,
-  OPENSKILL_DEFAULT_SIGMA,
   RANKED_SETTINGS,
   RANKED_BEST_OF,
-  openSkillOrdinal,
+  openSkillDisplayRating,
   GamePhase,
   BotPlayer,
   getRankTier,
@@ -811,12 +810,12 @@ export class MatchmakingQueue {
     try {
       const rating = await getRating(userId, mode);
       if (!rating) {
-        return mode === 'heads_up' ? ELO_DEFAULT : Math.round(openSkillOrdinal(OPENSKILL_DEFAULT_MU, OPENSKILL_DEFAULT_SIGMA));
+        return mode === 'heads_up' ? ELO_DEFAULT : openSkillDisplayRating(OPENSKILL_DEFAULT_MU);
       }
       if (rating.mode === 'heads_up') return rating.elo;
-      return Math.round(openSkillOrdinal(rating.mu, rating.sigma));
+      return openSkillDisplayRating(rating.mu);
     } catch {
-      return mode === 'heads_up' ? ELO_DEFAULT : Math.round(openSkillOrdinal(OPENSKILL_DEFAULT_MU, OPENSKILL_DEFAULT_SIGMA));
+      return mode === 'heads_up' ? ELO_DEFAULT : openSkillDisplayRating(OPENSKILL_DEFAULT_MU);
     }
   }
 
