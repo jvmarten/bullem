@@ -14,16 +14,21 @@ function devBullLogo(): Plugin {
       server.middlewares.use('/site.webmanifest', (_req, res) => {
         res.setHeader('Content-Type', 'application/manifest+json');
         res.end(JSON.stringify({
+          id: '/',
           name: 'Bull \'Em (Dev)',
           short_name: 'Bull \'Em',
           description: 'A multiplayer bluffing card game',
           start_url: '/',
+          scope: '/',
           display: 'standalone',
+          display_override: ['standalone'],
+          orientation: 'portrait',
           background_color: '#1a1a2e',
           theme_color: '#1a1a2e',
+          categories: ['games', 'entertainment'],
           icons: [
-            { src: '/bull-logo-blue-192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/bull-logo-blue-512.png', sizes: '512x512', type: 'image/png' },
+            { src: '/bull-logo-blue-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/bull-logo-blue-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
             { src: '/bull-logo-blue-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         }, null, 2));

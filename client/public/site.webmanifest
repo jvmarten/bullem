@@ -1,21 +1,28 @@
 {
+  "id": "/",
   "name": "Bull 'Em",
   "short_name": "Bull 'Em",
   "description": "A multiplayer bluffing card game",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait",
   "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "theme_color": "#072914",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
       "src": "/bull-logo-red-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/bull-logo-red-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/bull-logo-red-512.png",
