@@ -893,10 +893,10 @@ body {
   }
 }
 
-/* Spectator mode — no dimming so the game stays fully readable.
-   A subtle top border tint signals spectator status without hurting visibility. */
+/* Spectator mode — the inline SpectatorPill banner handles the visual signal;
+   no extra border needed on the layout container. */
 .spectating {
-  border-top: 2px solid var(--gold-dim);
+  /* kept so the class toggle in GamePage/LocalGamePage doesn't need removal */
 }
 
 /* Spectator pill — inline banner that sits in document flow, never overlaps content */
