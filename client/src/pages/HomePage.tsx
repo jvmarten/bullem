@@ -1019,7 +1019,7 @@ export function HomePage() {
                       joinMatchmaking('heads_up').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                     }}
                     disabled={joiningRanked !== null && joiningRanked !== 'heads_up'}
-                    className={`flex-1 py-3 text-sm ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
+                    className={`flex-1 py-4 text-lg ${joiningRanked === 'heads_up' ? 'btn-safe animate-pulse' : joiningRanked === 'multiplayer' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
                   >
                     {joiningRanked === 'heads_up' ? 'In Queue...' : '1v1'}
                   </button>
@@ -1032,7 +1032,7 @@ export function HomePage() {
                       joinMatchmaking('multiplayer').catch(e => { setJoiningRanked(null); addToast(e instanceof Error ? e.message : 'Failed to join queue'); });
                     }}
                     disabled={joiningRanked !== null && joiningRanked !== 'multiplayer'}
-                    className={`flex-1 py-3 text-sm ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
+                    className={`flex-1 py-4 text-lg ${joiningRanked === 'multiplayer' ? 'btn-safe animate-pulse' : joiningRanked === 'heads_up' ? 'btn-ghost opacity-40 cursor-not-allowed' : 'btn-danger'}`}
                   >
                     {joiningRanked === 'multiplayer' ? 'In Queue...' : 'Multiplayer'}
                   </button>
