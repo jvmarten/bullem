@@ -163,6 +163,13 @@ export function GamePage() {
   useEffect(() => {
     if (gameState || !roomCode || rejoinAttemptedRef.current) return;
 
+    // Spectators don't rejoin as players — their reconnect is handled by
+    // GameContext's connect/reconnect handlers via SPECTATOR_ROOM_KEY.
+    if (sessionStorage.getItem('bull-em-spectator-room')) {
+      rejoinAttemptedRef.current = true;
+      return;
+    }
+
     // If we already have a playerId set (e.g., from matchmaking auto-join),
     // we're already in the room on the server side. Don't attempt a rejoin
     // that will fail with "Room is full" or "Game already in progress" —
