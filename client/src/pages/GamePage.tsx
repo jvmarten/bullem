@@ -215,10 +215,10 @@ export function GamePage() {
   }, [gameState, roomCode, joinRoom, navigate, playerId, addToast]);
 
   useEffect(() => {
-    if (!gameState && roomState?.gamePhase === 'lobby' && roomCode) {
+    if (!gameState && !countdown && roomState?.gamePhase === 'lobby' && roomCode) {
       navigate(`/room/${roomCode}`);
     }
-  }, [gameState, roomState?.gamePhase, roomCode, navigate]);
+  }, [gameState, countdown, roomState?.gamePhase, roomCode, navigate]);
 
   // Show a one-time prominent notification when the player gets eliminated
   useEffect(() => {
