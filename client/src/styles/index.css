@@ -38,34 +38,22 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html {
-  /* Solid background-color covers the entire viewport including safe-area
-     regions that percentage/dvh sizing might not reach on iOS standalone apps.
-     The color matches the outermost gradient stop so the safe area blends. */
-  background-color: var(--felt-dark);
-  height: 100%;
+html, body, #root {
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
-/* body uses position:fixed + inset:0 so it always stretches to the true
-   viewport edges (including safe areas with viewport-fit=cover), rather
-   than relying on 100dvh which may exclude the bottom safe area on
-   initial iOS Safari portrait load. */
 body {
   font-family: var(--font-body);
-  background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
+  background: var(--felt-dark);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  inset: 0;
-  overflow: hidden;
-}
-
-#root {
-  height: 100%;
-  overflow: hidden;
+  width: 100%;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
@@ -119,32 +107,11 @@ body {
   flex-shrink: 0;
 }
 
-/* Safe area insets are applied to content children (header + main) rather than
-   the .felt-bg container. This avoids an iOS Safari initial-load bug where
-   viewport-fit=cover hasn't taken effect yet but env() values are already
-   non-zero, causing a visible gap at the bottom of the outer container. */
-.felt-bg > header {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: max(1rem, env(safe-area-inset-left, 0px));
-  padding-right: max(1rem, env(safe-area-inset-right, 0px));
-}
-
 .layout-main {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: max(1rem, env(safe-area-inset-left, 0px));
-  padding-right: max(1rem, env(safe-area-inset-right, 0px));
-}
-
-/* Home page lets content bleed into the safe area — the background is
-   continuous so the bottom inset padding just creates a visible bar on
-   iOS standalone PWA. Fixed-positioned elements (version badge, dev
-   badge) handle safe area offsets individually. */
-.layout-main:has(> .home-content) {
-  padding-bottom: 0;
 }
 
 /* ── Auth link bottom-aligned in large header ────────── */
@@ -1764,11 +1731,6 @@ body {
 .landscape-header-hidden main {
   padding-top: 0 !important;
 }
-/* With the header hidden, the game layout needs its own top safe area inset
-   so content doesn't overlap the notch/status bar in portrait. */
-.landscape-header-hidden .game-layout {
-  padding-top: env(safe-area-inset-top, 0px);
-}
 
 /* Hide landscape game overlay in portrait — rendered in DOM but only visible in landscape */
 .game-header-overlay {
@@ -1829,10 +1791,6 @@ body {
     z-index: 40;
     pointer-events: none;
     padding: 0.375rem 0.75rem;
-    /* Safe area: fixed overlay needs its own safe-area offsets in landscape */
-    padding-top: max(0.375rem, env(safe-area-inset-top, 0px));
-    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
-    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
   }
   .game-header-overlay-left,
   .game-header-overlay-right,
@@ -1865,9 +1823,6 @@ body {
     margin-left: 0;
     margin-right: 0;
     padding: 0;
-    /* Landscape safe area: notch/sensor housing on left or right */
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
     overflow: hidden;
   }
   .landscape-header-hidden .game-layout {
