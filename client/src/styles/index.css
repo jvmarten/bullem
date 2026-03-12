@@ -1757,7 +1757,7 @@ body {
   padding-bottom: 0 !important;
 }
 .landscape-header-hidden .game-layout {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: env(safe-area-inset-top, 0px);
   display: flex;
   flex-direction: column;
   height: 100%;
