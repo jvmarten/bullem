@@ -731,7 +731,7 @@ export function HomePage() {
         )}
         {mode === 'menu' && <div className="home-left">
         {/* Tagline — orients first-time visitors */}
-        <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in" style={{ maxWidth: '320px' }}>
+        <p className="text-lg text-[var(--gold-dim)] text-center animate-fade-in" style={{ maxWidth: '320px' }}>
           A multiplayer bluffing card game —<br />
           raise it or call bull.
         </p>
