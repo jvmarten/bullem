@@ -811,7 +811,7 @@ export function GamePage() {
         </>
       )}
       {(isEliminated || isSpectator) && (
-        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none">
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
           <div className="pointer-events-auto">
             <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
           </div>
