@@ -6,16 +6,67 @@ import { PlayerRankingReveal } from '../components/PlayerRankingReveal.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useWinConfetti } from '../hooks/useWinConfetti.js';
 import { useSound } from '../hooks/useSound.js';
-import { RankBadge } from '../components/RankBadge.js';
+import { RankBadgeLarge } from '../components/RankBadge.js';
 import { playerColor } from '../utils/cardUtils.js';
 import { PlayerAvatarContent } from '../components/PlayerAvatar.js';
 import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
+import { MATCHMAKING_BOT_BACKFILL_SECONDS } from '@bull-em/shared';
 import type { RankedMode } from '@bull-em/shared';
+
+/** Fullscreen overlay shown while queued for a ranked rematch. */
+function RankedQueueOverlay({ status, onCancel }: { status: { mode: RankedMode; position: number; estimatedWaitSeconds: number }; onCancel: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const modeLabel = status.mode === 'heads_up' ? 'Finding 1v1 opponent' : 'Finding multiplayer match';
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = mins > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `0:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+      <div className="glass p-8 rounded-xl max-w-xs text-center space-y-4 animate-scale-in">
+        <p className="text-lg font-semibold text-[var(--gold)]">{modeLabel}...</p>
+        <div className="flex justify-center gap-1.5">
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              className="w-2.5 h-2.5 rounded-full bg-[var(--gold)]"
+              style={{
+                animation: 'matchmaking-pulse 1.2s ease-in-out infinite',
+                animationDelay: `${i * 0.2}s`,
+              }}
+            />
+          ))}
+        </div>
+        <p className="text-sm text-[var(--gold-dim)] font-mono">{elapsedStr}</p>
+        {status.position > 0 && (
+          <p className="text-xs text-[var(--gold-dim)]">Position: #{status.position}</p>
+        )}
+        {elapsed < MATCHMAKING_BOT_BACKFILL_SECONDS && (
+          <p className="text-xs text-[var(--gold-dim)]">
+            Max wait: {MATCHMAKING_BOT_BACKFILL_SECONDS - elapsed}s
+          </p>
+        )}
+        <button
+          onClick={onCancel}
+          className="btn-ghost px-6 py-2 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame, joinMatchmaking, leaveMatchmaking, matchmakingStatus, matchmakingFound, clearMatchmakingFound } = useGameContext();
+  const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame, joinMatchmaking, leaveMatchmaking, matchmakingStatus, matchmakingFound, clearMatchmakingFound, resetForMatchedGame } = useGameContext();
   const [watchingAnother, setWatchingAnother] = useState(false);
   const [rankingDone, setRankingDone] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -55,12 +106,13 @@ export function ResultsPage() {
     if (winnerId) markFirstGamePlayed();
   }, [winnerId]);
 
-  // When winnerId is cleared (rematch started), navigate back to the game page
+  // When winnerId is cleared (rematch started), navigate back to the game page.
+  // Skip this during ranked matchmaking transitions — those navigate separately.
   useEffect(() => {
-    if (!winnerId && roomCode && gameState) {
+    if (!winnerId && roomCode && gameState && !matchmakingFound) {
       navigate(`/game/${roomCode}`);
     }
-  }, [winnerId, roomCode, gameState, navigate]);
+  }, [winnerId, roomCode, gameState, matchmakingFound, navigate]);
 
   const winnerIndex = gameState?.players.findIndex((p) => p.id === winnerId) ?? -1;
   const winnerPlayer = winnerIndex >= 0 ? gameState!.players[winnerIndex]! : null;
@@ -95,16 +147,39 @@ export function ResultsPage() {
     }
   }, [matchmakingStatus, matchmakingFound]);
 
-  // When a ranked rematch is found, leave the old room and navigate to the new game
+  // Track whether the new matched game's state has arrived (server starts
+  // the game after MATCHMAKING_FOUND_COUNTDOWN_MS ≈ 4s).
+  const matchedGameReady = !!matchmakingFound && !!gameState && gameState.ranked === true;
+  const [matchDisplayDone, setMatchDisplayDone] = useState(false);
+
+  // Minimum display time for the "Match Found" screen so players see opponents
+  useEffect(() => {
+    if (!matchmakingFound) { setMatchDisplayDone(false); return; }
+    const timer = setTimeout(() => setMatchDisplayDone(true), 2500);
+    return () => clearTimeout(timer);
+  }, [matchmakingFound]);
+
+  // Navigate to the new game when both display timer elapsed AND game is ready,
+  // or after a 5s fallback so the user isn't stuck indefinitely.
   useEffect(() => {
     if (!matchmakingFound) return;
-    const timer = setTimeout(() => {
-      leaveRoom();
+    if (matchDisplayDone && matchedGameReady) {
+      const newRoomCode = matchmakingFound.roomCode;
+      resetForMatchedGame();
       clearMatchmakingFound();
-      navigate(`/game/${matchmakingFound.roomCode}`);
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [matchmakingFound, leaveRoom, clearMatchmakingFound, navigate]);
+      navigate(`/game/${newRoomCode}`);
+      return;
+    }
+    // Fallback: navigate after 5s even if game state hasn't arrived yet
+    const fallback = setTimeout(() => {
+      if (!matchmakingFound) return;
+      const newRoomCode = matchmakingFound.roomCode;
+      resetForMatchedGame();
+      clearMatchmakingFound();
+      navigate(`/game/${newRoomCode}`);
+    }, 5000);
+    return () => clearTimeout(fallback);
+  }, [matchmakingFound, matchDisplayDone, matchedGameReady, resetForMatchedGame, clearMatchmakingFound, navigate]);
 
   const handleRankedPlayAgain = useCallback(() => {
     if (rankedQueuing) return;
@@ -272,6 +347,11 @@ export function ResultsPage() {
         </div>{/* end results-right */}
       </div>
 
+      {/* Matchmaking queue overlay — shown while waiting for opponent */}
+      {matchmakingStatus && !matchmakingFound && (
+        <RankedQueueOverlay status={matchmakingStatus} onCancel={handleCancelQueue} />
+      )}
+
       {/* Match Found overlay for ranked rematch queue */}
       {matchmakingFound && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
@@ -281,7 +361,7 @@ export function ResultsPage() {
               {matchmakingFound.opponents.map((opp, i) => (
                 <div key={i} className="flex items-center justify-center gap-2">
                   <span className="text-sm text-[var(--gold)]">{opp.name}</span>
-                  <RankBadge rating={opp.rating} size="md" />
+                  <RankBadgeLarge rating={opp.rating} tier={opp.tier} />
                 </div>
               ))}
             </div>
