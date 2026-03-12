@@ -380,7 +380,7 @@ export function ReplayPage() {
         )}
 
         {/* Playback controls */}
-        <div className="fixed bottom-0 left-0 right-0 glass-raised border-t border-[var(--gold)]/20 px-4 py-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))', paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))', paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))' }}>
+        <div className="fixed bottom-0 left-0 right-0 glass-raised border-t border-[var(--gold)]/20 px-4 py-3 z-40" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}>
           <div className="max-w-lg mx-auto flex items-center justify-between gap-2">
             <button
               onClick={() => { engine.seekToStart(); setIsPlaying(false); rerender(); }}
