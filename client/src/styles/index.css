@@ -2148,7 +2148,9 @@ body {
   }
   .home-left.home-submenu-col .btn-gold,
   .home-left.home-submenu-col .btn-ghost,
-  .home-left.home-submenu-col .btn-orange {
+  .home-left.home-submenu-col .btn-orange,
+  .home-left.home-submenu-col .btn-danger,
+  .home-left.home-submenu-col .btn-safe {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     font-size: 0.9375rem;
@@ -2158,7 +2160,9 @@ body {
   }
   .home-right .btn-gold,
   .home-right .btn-ghost,
-  .home-right .btn-orange {
+  .home-right .btn-orange,
+  .home-right .btn-danger,
+  .home-right .btn-safe {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     font-size: 0.9375rem;
