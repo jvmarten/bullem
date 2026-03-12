@@ -899,10 +899,10 @@ body {
   border-top: 2px solid var(--gold-dim);
 }
 
-/* Floating spectator pill — persistent but unobtrusive */
+/* Floating spectator pill — persistent but unobtrusive, vertically draggable */
 .spectator-pill {
   position: fixed;
-  top: 56px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -916,7 +916,15 @@ body {
   letter-spacing: 0.1em;
   color: var(--gold);
   backdrop-filter: blur(8px);
-  pointer-events: none;
+  white-space: nowrap;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.spectator-pill:active {
+  cursor: grabbing;
 }
 
 /* ── Joker Easter Egg ──────────────────────────────── */

@@ -9,6 +9,7 @@ import { TurnIndicator } from '../components/TurnIndicator.js';
 import { CallHistory, CallHistoryToggleButton } from '../components/CallHistory.js';
 import { RevealOverlay } from '../components/RevealOverlay.js';
 import { SpectatorView } from '../components/SpectatorView.js';
+import { SpectatorPill } from '../components/SpectatorPill.js';
 import { ShareButton } from '../components/ShareButton.js';
 import { ReconnectOverlay } from '../components/ReconnectOverlay.js';
 import { SessionTransferredOverlay } from '../components/SessionTransferredOverlay.js';
@@ -456,9 +457,7 @@ export function GamePage() {
       {isLandscape ? (
         <div className={`${(isEliminated || isSpectator) && !winnerId ? 'spectating' : ''}`}>
           {(isEliminated || isSpectator) && !winnerId && (
-            <div className="spectator-pill animate-fade-in">
-              {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
-            </div>
+            <SpectatorPill isEliminated={isEliminated} />
           )}
           <RoundtableGameLayout
             players={gameState.players}
@@ -573,9 +572,7 @@ export function GamePage() {
         {/* Floating spectator pill — unobtrusive indicator at top of screen.
             Hidden when winnerId is set because the match is over (no active game to spectate). */}
         {(isEliminated || isSpectator) && !winnerId && (
-          <div className="spectator-pill animate-fade-in">
-            {isEliminated ? 'Eliminated — Spectating' : 'Spectating'}
-          </div>
+          <SpectatorPill isEliminated={isEliminated} />
         )}
 
         <div className="game-content">
