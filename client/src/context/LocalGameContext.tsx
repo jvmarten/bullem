@@ -5,7 +5,7 @@ import {
   BOT_BULL_DELAY_MIN, BOT_BULL_DELAY_MAX,
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, getDeckSize, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
-  saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP,
+  saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP, GAME_COUNTDOWN_SECONDS,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
@@ -145,6 +145,8 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   );
 
   const [isPaused, setIsPaused] = useState(false);
+  const [countdown, setCountdown] = useState<{ secondsLeft: number; label?: string } | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
   const [onlinePlayerNames, setOnlinePlayerNames] = useState<string[]>([]);
 
@@ -386,7 +388,30 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
   const pendingNextSetRef = useRef(false);
 
-  const startNextSet = useCallback(() => {
+  /** Run a visual countdown, then invoke the callback. */
+  const runCountdown = useCallback((label: string | undefined, onComplete: () => void) => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdown({ secondsLeft: GAME_COUNTDOWN_SECONDS, label });
+    countdownTimerRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (!prev || prev.secondsLeft <= 1) {
+          if (countdownTimerRef.current) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          // Use setTimeout(0) to run onComplete after state update
+          setTimeout(onComplete, 0);
+          return null;
+        }
+        return { ...prev, secondsLeft: prev.secondsLeft - 1 };
+      });
+    }, 1000);
+  }, []);
+
+  const startNextSetImmediate = useCallback(() => {
     // Reset all players to starting state for the next set
     for (const p of playersRef.current) {
       p.cardCount = STARTING_CARDS;
@@ -417,6 +442,12 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     scheduleHumanTimer();
     broadcastState();
   }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
+
+  const startNextSet = useCallback(() => {
+    const series = seriesStateRef.current;
+    const label = series ? `Set ${series.currentSet}` : undefined;
+    runCountdown(label, startNextSetImmediate);
+  }, [runCountdown, startNextSetImmediate]);
 
   const handleTurnResult = useCallback((result: TurnResult) => {
     const engine = engineRef.current;
@@ -643,6 +674,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const leaveRoom = useCallback(() => {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     if (roundResultTimerRef.current) clearTimeout(roundResultTimerRef.current);
+    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
     clearHumanTimer();
     clearLocalGameSave();
     engineRef.current = null;
@@ -656,6 +688,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     setGameStats(null);
     setLastReplay(null);
     setIsPaused(false);
+    setCountdown(null);
     isPausedRef.current = false;
   }, []);
 
@@ -699,11 +732,16 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       seriesStateRef.current = null;
     }
 
+    // Transition to PLAYING (triggers navigation) and show countdown
     setRoomState(prev => prev ? { ...prev, gamePhase: GamePhase.PLAYING } : null);
-    scheduleBotTurn();
-    scheduleHumanTimer();
-    broadcastState();
-  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer]);
+    const seriesLabel = seriesStateRef.current && seriesStateRef.current.bestOf > 1
+      ? `Set ${seriesStateRef.current.currentSet}` : undefined;
+    runCountdown(seriesLabel, () => {
+      scheduleBotTurn();
+      scheduleHumanTimer();
+      broadcastState();
+    });
+  }, [broadcastState, scheduleBotTurn, scheduleHumanTimer, runCountdown]);
 
   const callHand = useCallback((hand: HandCall) => {
     if (!engineRef.current) return;
@@ -947,12 +985,13 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     clearPendingRejoinRoom: () => {},
     spectatorInitialStats: null,
     sessionTransferred: false,
+    countdown,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
     addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
-    setGameSettings, isPaused, togglePause, lastReplay, onlinePlayerCount, onlinePlayerNames,
+    setGameSettings, isPaused, togglePause, lastReplay, onlinePlayerCount, onlinePlayerNames, countdown,
     noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
   ]);
 

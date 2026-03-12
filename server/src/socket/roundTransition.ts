@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS } from '@bull-em/shared';
+import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
@@ -138,6 +138,19 @@ export function handleSetOver(
   // avoid operating on a stale room reference if it was deleted during the
   // transition delay (e.g., all players disconnect and stale cleanup fires).
   const roomCode = room.roomCode;
+  const countdownDelayMs = SERIES_TRANSITION_DELAY_MS - GAME_COUNTDOWN_SECONDS * 1000;
+
+  // Emit countdown partway through the transition, then start the next set
+  setTimeout(() => {
+    const midRoom = roomManager.getRoom(roomCode);
+    if (!midRoom || !midRoom.game) return;
+    if (midRoom.gamePhase === GamePhase.GAME_OVER || midRoom.gamePhase === GamePhase.FINISHED) return;
+    io.to(roomCode).emit('game:countdown', {
+      seconds: GAME_COUNTDOWN_SECONDS,
+      label: `Set ${series.currentSet}`,
+    });
+  }, Math.max(0, countdownDelayMs));
+
   setTimeout(() => {
     const freshRoom = roomManager.getRoom(roomCode);
     if (!freshRoom || !freshRoom.game) return;

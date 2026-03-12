@@ -32,7 +32,7 @@ function botLevelDescription(category: BotLevelCategory): string {
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings, countdown } = useGameContext();
   const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
@@ -54,12 +54,12 @@ export function LobbyPage() {
     }
   }, [playerId, navigate]);
 
-  // Navigate to game when it starts
+  // Navigate to game when it starts or when countdown begins
   useEffect(() => {
-    if (gameState && roomState?.gamePhase === GamePhase.PLAYING) {
+    if ((gameState && roomState?.gamePhase === GamePhase.PLAYING) || countdown) {
       navigate(`/game/${roomCode}`);
     }
-  }, [gameState, roomState?.gamePhase, roomCode, navigate]);
+  }, [gameState, roomState?.gamePhase, roomCode, navigate, countdown]);
 
   // Navigate kicked players back to home with a toast notification
   useEffect(() => {

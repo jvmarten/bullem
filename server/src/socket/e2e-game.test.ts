@@ -494,7 +494,7 @@ describe('E2E: Game over and rematch', () => {
     expect(stats.totalRounds).toBeGreaterThanOrEqual(1);
   });
 
-  it('host can start a rematch after game over', async () => {
+  it('host can start a rematch after game over', { timeout: 15000 }, async () => {
     const host = await ctx.connectClient();
     const { roomCode } = await createRoom(host, 'Alice');
 

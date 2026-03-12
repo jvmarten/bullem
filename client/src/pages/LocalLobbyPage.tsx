@@ -32,7 +32,7 @@ export function LocalLobbyPage() {
   const {
     roomState, gameState, playerId, startGame, createRoom, leaveRoom,
     addBot, removeBot, error, clearError, botDifficulty, setBotDifficulty,
-    gameSettings, setGameSettings,
+    gameSettings, setGameSettings, countdown,
   } = useGameContext();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -143,15 +143,14 @@ export function LocalLobbyPage() {
     startGame();
   }, [isQuickPlay, roomState, startGame]);
 
-  // Navigate to game when it starts — only if started from this lobby session.
-  // Use replace so the lobby doesn't stay in the history stack — pressing back
-  // from the game should return to the page before the lobby, not the lobby itself
-  // (which would destroy the in-progress game on mount).
+  // Navigate to game when it starts (or when countdown begins) — only if
+  // started from this lobby session. Use replace so the lobby doesn't stay
+  // in the history stack.
   useEffect(() => {
-    if (gameState && gameStartedRef.current) {
+    if (gameStartedRef.current && (gameState || countdown)) {
       navigate('/local/game', { replace: true });
     }
-  }, [gameState, navigate]);
+  }, [gameState, countdown, navigate]);
 
   const handleMaxCardsChange = (newMax: number) => {
     if (!setGameSettings || !gameSettings) return;

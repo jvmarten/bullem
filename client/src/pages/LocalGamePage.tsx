@@ -33,6 +33,7 @@ import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
 import { SeriesBanner } from '../components/SeriesBanner.js';
+import { CountdownOverlay } from '../components/CountdownOverlay.js';
 
 /** Tooltip areas that should suppress "tap outside to close" for the hand selector */
 const HAND_SELECTOR_AREAS = ['hand-selector', 'action-area', 'raise-area', 'my-cards', 'call-history', 'quick-draw'] as const;
@@ -49,7 +50,7 @@ export function LocalGamePage() {
     gameState, roundResult, roundTransition, winnerId, playerId,
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, isPaused, togglePause, error, clearError,
-    gameSettings,
+    gameSettings, countdown,
   } = useGameContext();
   useErrorToast(error, clearError);
   const { play } = useSound();
@@ -99,13 +100,13 @@ export function LocalGamePage() {
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
 
-  // If gameState is null, there's no active local game — redirect to the lobby.
-  // Game state is restored synchronously in LocalGameProvider, so after a
-  // browser refresh gameState is already set on the first render.
-  // Use replace so this redirect doesn't pollute the history stack.
+  // If gameState is null and no countdown is active, there's no active local
+  // game — redirect to the lobby. Game state is restored synchronously in
+  // LocalGameProvider, so after a browser refresh gameState is already set on
+  // the first render. Use replace so this redirect doesn't pollute the history stack.
   useEffect(() => {
-    if (!gameState) navigate('/local', { replace: true });
-  }, [gameState, navigate]);
+    if (!gameState && !countdown) navigate('/local', { replace: true });
+  }, [gameState, countdown, navigate]);
 
   // Show a one-time prominent notification when the player gets eliminated.
   // Skip when winnerId is set — the game-over flow handles that state.
@@ -275,7 +276,17 @@ export function LocalGamePage() {
   });
 
   // --- Early return AFTER all hooks ---
-  if (!gameState) return null;
+  if (!gameState) {
+    // Show countdown overlay while waiting for game to start
+    if (countdown) {
+      return (
+        <Layout>
+          <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+        </Layout>
+      );
+    }
+    return null;
+  }
 
   const handleLeave = () => {
     if (window.confirm('Leave this game?')) {
@@ -396,9 +407,12 @@ export function LocalGamePage() {
           />
 
           {/* Overlays */}
-          <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
+          <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused && !countdown} />
           {isAtMaxCards && <div className="max-cards-warning-glow" aria-hidden="true" />}
-          {roundTransition && !roundResult && (
+          {countdown && (
+            <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+          )}
+          {roundTransition && !roundResult && !countdown && (
             <div className="fixed inset-0 flex items-center justify-center z-50"
                  style={{ background: 'var(--overlay)' }}>
               <div className="text-center space-y-3 animate-fade-in">
@@ -614,15 +628,20 @@ export function LocalGamePage() {
         </div>
 
         {/* First-game contextual tooltips */}
-        <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused} />
+        <GameTooltips gameActive={!roundResult && !roundTransition && !isPaused && !countdown} />
 
         {/* Max cards warning */}
         {isAtMaxCards && (
           <div className="max-cards-warning-glow" aria-hidden="true" />
         )}
 
+        {/* Game countdown overlay (initial start or Bo3/Bo5 set transition) */}
+        {countdown && (
+          <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+        )}
+
         {/* Round transition overlay */}
-        {roundTransition && !roundResult && (
+        {roundTransition && !roundResult && !countdown && (
           <div className="fixed inset-0 flex items-center justify-center z-50"
                style={{ background: 'var(--overlay)' }}>
             <div className="text-center space-y-3 animate-fade-in">
