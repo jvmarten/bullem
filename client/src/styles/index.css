@@ -114,6 +114,16 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ── Auth link bottom-aligned in large header ────────── */
+.auth-link-bottom {
+  margin-bottom: -0.75rem;
+}
+.auth-link-bottom a,
+.auth-link-bottom > span {
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+
 /* ── Display Font ────────────────────────────────────── */
 .font-display {
   font-family: var(--font-display);
@@ -1728,6 +1738,11 @@ body {
   /* Reset portrait-only top padding on the header left group in landscape */
   .portrait-header-left {
     padding-top: 0 !important;
+  }
+
+  /* Adjust auth-link negative margin for reduced landscape header padding */
+  .layout-header-large .auth-link-bottom {
+    margin-bottom: -0.375rem;
   }
 
   /* -- Show floating overlay in landscape game mode (header already hidden globally) -- */
