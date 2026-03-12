@@ -1237,7 +1237,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-40 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.4.0
+          v1.5.0
         </button>
       </div>
       )}
@@ -1252,15 +1252,12 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.4.0</h3>
-            <p className="text-sm text-[var(--gold-dim)]">Released March 10, 2026</p>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.5.0</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 12, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Friends list with requests, online status, and game invites</li>
-              <li>Installable as an app — PWA offline support</li>
-              <li>Reorganized home menu with streamlined navigation</li>
-              <li>Configurable deck variants with joker cards</li>
-              <li>Rich match analytics and visualizations</li>
-              <li>Smarter CFR bots trained on 15M iterations</li>
+              <li>Full landscape mode redesign with cinematic card animations</li>
+              <li>Accessibility overhaul — screen readers, keyboard nav, WCAG AA contrast</li>
+              <li>Reorganized menus with minigames section and per-category volume controls</li>
             </ul>
           </div>
         </div>

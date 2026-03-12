@@ -183,6 +183,7 @@ Within the same hand category, standard poker value ordering applies (2 is lowes
 - **Lobby:** Waiting room with player management, settings, bot configuration
 - **Sound design:** Audio feedback for game events, with volume control and mute
 - **Online/Local parity:** All visual and layout changes must be applied to BOTH `GamePage.tsx` (online) and `LocalGamePage.tsx` (local) unless the context clearly requires mode-specific behavior. The in-game UI should look and feel identical regardless of game mode
+- **Patch notes:** Version patch notes displayed in the home page modal must always contain a **maximum of three items**. Keep entries concise and highlight only the most impactful changes per release
 
 ## Project Structure
 
