@@ -32,11 +32,9 @@ export function CountdownOverlay({ seconds, label }: CountdownOverlayProps) {
       style={{ background: 'var(--overlay)' }}
     >
       <div className="text-center space-y-4 animate-fade-in">
-        {label && (
-          <p className="text-[var(--gold-dim)] font-display text-lg font-semibold uppercase tracking-widest">
-            {label}
-          </p>
-        )}
+        <p className="text-[var(--gold-dim)] font-display text-lg font-semibold uppercase tracking-widest">
+          {label ?? 'Match starting in'}
+        </p>
         <p
           key={current}
           className="text-[var(--gold)] font-display font-bold animate-countdown-pop"
