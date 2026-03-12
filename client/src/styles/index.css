@@ -420,6 +420,8 @@ body {
 /* Suit colors */
 .suit-red { color: #c0392b; }
 .suit-black { color: #1a1a1a; }
+.suit-green { color: #16803c; }
+.suit-blue { color: #2563eb; }
 
 /* ── Card back (mini for counts) ─────────────────────── */
 .card-back-mini {
@@ -1145,6 +1147,8 @@ body {
 }
 .hs-suit-red { color: #dc2626; }
 .hs-suit-black { color: #1f2937; }
+.hs-suit-green { color: #16803c; }
+.hs-suit-blue { color: #2563eb; }
 
 /* ── Hand type strip ─────────────────────────────────── */
 .hs-type-strip {

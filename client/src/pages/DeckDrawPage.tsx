@@ -13,15 +13,15 @@ import {
   type DeckDrawStats, type DeckDrawResult, type Card, type HandCall,
   type Suit, type Rank,
 } from '@bull-em/shared';
+import { useUISettings } from '../components/VolumeControl.js';
+import { getSuitHex } from '../utils/cardUtils.js';
 
 const STORAGE_KEY = 'bull-em-deck-draw-stats';
 const SYNCED_KEY = 'bull-em-deck-draw-synced';
 
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
 
-function getSuitColor(suit: Suit): string {
-  return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
-}
+// Suit color resolved via getSuitHex() — supports four-color deck preference
 
 /** Returns indices of cards that form the identified hand */
 function getRelevantIndices(cards: Card[], hand: HandCall): Set<number> {
@@ -111,6 +111,7 @@ function getResultSound(handType: HandType): 'fanfare' | 'roundWin' | 'trueCalle
 }
 
 export function DeckDrawPage() {
+  const { fourColorDeckEnabled } = useUISettings();
   const { play } = useSound();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -538,17 +539,17 @@ export function DeckDrawPage() {
                         <>
                           <span style={{
                             fontSize: '11px', fontWeight: 700,
-                            color: getSuitColor(card.suit),
+                            color: getSuitHex(card.suit, fourColorDeckEnabled),
                             position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
                           }}>
                             {card.rank}
                           </span>
-                          <span style={{ fontSize: '20px', color: getSuitColor(card.suit), lineHeight: 1 }}>
+                          <span style={{ fontSize: '20px', color: getSuitHex(card.suit, fourColorDeckEnabled), lineHeight: 1 }}>
                             {SUIT_SYMBOLS[card.suit]}
                           </span>
                           <span style={{
                             fontSize: '11px', fontWeight: 700,
-                            color: getSuitColor(card.suit),
+                            color: getSuitHex(card.suit, fourColorDeckEnabled),
                             position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
                             transform: 'rotate(180deg)',
                           }}>

@@ -9,7 +9,8 @@ import { CardDisplay } from '../components/CardDisplay.js';
 import { TutorialOverlay } from '../components/TutorialOverlay.js';
 import { HandSelector } from '../components/HandSelector.js';
 import { useSound } from '../hooks/useSound.js';
-import { SUIT_SYMBOLS } from '../utils/cardUtils.js';
+import { SUIT_SYMBOLS, getSuitHex } from '../utils/cardUtils.js';
+import { useUISettings } from '../components/VolumeControl.js';
 import { markTutorialCompleted, setTutorialStepReached, clearTutorialStepProgress } from '../utils/tutorialProgress.js';
 
 /* ── Scripted game data ────────────────────────────────── */
@@ -37,6 +38,7 @@ function HandExample({ rank, name, cards, desc, highlight }: {
   desc: string;
   highlight?: boolean;
 }) {
+  const { fourColorDeckEnabled } = useUISettings();
   return (
     <div className="flex items-center gap-2">
       <span className={`text-[10px] font-mono w-5 text-right shrink-0 ${highlight ? 'text-[var(--gold)]' : 'text-[var(--gold-dim)]'}`}>
@@ -44,11 +46,11 @@ function HandExample({ rank, name, cards, desc, highlight }: {
       </span>
       <div className="flex gap-0.5 shrink-0">
         {cards.map((c, i) => {
-          const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
+          const sc = getSuitHex(c.suit, fourColorDeckEnabled);
           return (
             <div key={i} className="w-6 h-8 rounded-[3px] flex flex-col items-center justify-center" style={{ background: 'var(--card-face)', border: highlight ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)' }}>
-              <span className={`text-[8px] font-bold leading-none ${isRed ? 'text-red-500' : 'text-[#1a1a1a]'}`}>{c.rank}</span>
-              <span className={`text-[8px] leading-none ${isRed ? 'text-red-500' : 'text-[#1a1a1a]'}`}>{SUIT_SYMBOLS[c.suit]}</span>
+              <span className="text-[8px] font-bold leading-none" style={{ color: sc }}>{c.rank}</span>
+              <span className="text-[8px] leading-none" style={{ color: sc }}>{SUIT_SYMBOLS[c.suit]}</span>
             </div>
           );
         })}

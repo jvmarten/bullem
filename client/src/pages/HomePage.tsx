@@ -5,7 +5,8 @@ import { useSound } from '../hooks/useSound.js';
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
-import { loadMatchSettings } from '../components/VolumeControl.js';
+import { loadMatchSettings, useUISettings } from '../components/VolumeControl.js';
+import { getSuitHex } from '../utils/cardUtils.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { useFriends } from '../context/FriendsContext.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
@@ -92,9 +93,7 @@ function classifyHand(cards: DealCard[]): HandCall {
   return { type: HandType.HIGH_CARD, rank: groups[0]![0] };
 }
 
-function getSuitColor(suit: Suit): string {
-  return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
-}
+// Suit color resolved via getSuitHex() — supports four-color deck preference
 
 /** Approximate probability of being dealt this hand type from 5 random cards. */
 function getHandProbability(type: HandType): string {
@@ -302,6 +301,7 @@ function FriendsMenuLink() {
 }
 
 export function HomePage() {
+  const { fourColorDeckEnabled } = useUISettings();
   const { user } = useAuth();
   const [name, setName] = useState(() => {
     // Prefer the signed-in user's display name over the random Player1234
@@ -834,17 +834,17 @@ export function HomePage() {
                           <>
                             <span style={{
                               fontSize: '11px', fontWeight: 700,
-                              color: getSuitColor(card.suit),
+                              color: getSuitHex(card.suit, fourColorDeckEnabled),
                               position: 'absolute', top: '3px', left: '4px', lineHeight: 1,
                             }}>
                               {card.rank}
                             </span>
-                            <span style={{ fontSize: '20px', color: getSuitColor(card.suit), lineHeight: 1 }}>
+                            <span style={{ fontSize: '20px', color: getSuitHex(card.suit, fourColorDeckEnabled), lineHeight: 1 }}>
                               {SUIT_SYMBOLS[card.suit]}
                             </span>
                             <span style={{
                               fontSize: '11px', fontWeight: 700,
-                              color: getSuitColor(card.suit),
+                              color: getSuitHex(card.suit, fourColorDeckEnabled),
                               position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1,
                               transform: 'rotate(180deg)',
                             }}>

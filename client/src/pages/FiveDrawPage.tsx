@@ -25,6 +25,8 @@ import {
   type HandCall, type Card, type Suit, type ServerPlayer, type ClientGameState, type RoundResult,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
+import { useUISettings } from '../components/VolumeControl.js';
+import { getSuitHex } from '../utils/cardUtils.js';
 
 const STORAGE_KEY = 'bull-em-five-draw-balance';
 const PLAYER_ID = 'player';
@@ -48,9 +50,7 @@ const POST_REVEAL_PAUSE = 600;
 
 const SUIT_SYMBOLS: Record<Suit, string> = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
 
-function getSuitColor(suit: Suit): string {
-  return suit === 'hearts' || suit === 'diamonds' ? '#c0392b' : '#1a1a1a';
-}
+// Suit color resolved via getSuitHex() — supports four-color deck preference
 
 function loadGuestBalance(): number {
   try {
@@ -79,9 +79,11 @@ type GamePhaseLocal = 'idle' | 'dealing' | 'playing' | 'resolving' | 'result';
 
 /** A single face-up card using the Deck Draw visual style. */
 function FaceUpCard({ card, size = 42 }: { card: Card; size?: number }) {
+  const { fourColorDeckEnabled } = useUISettings();
   const h = Math.round(size * 58 / 42);
   const fontSize = size <= 36 ? '9px' : '11px';
   const suitSize = size <= 36 ? '16px' : '20px';
+  const sc = getSuitHex(card.suit, fourColorDeckEnabled);
   return (
     <div
       style={{
@@ -94,13 +96,13 @@ function FaceUpCard({ card, size = 42 }: { card: Card; size?: number }) {
         position: 'relative',
       }}
     >
-      <span style={{ fontSize, fontWeight: 700, color: getSuitColor(card.suit), position: 'absolute', top: '3px', left: '4px', lineHeight: 1 }}>
+      <span style={{ fontSize, fontWeight: 700, color: sc, position: 'absolute', top: '3px', left: '4px', lineHeight: 1 }}>
         {card.rank}
       </span>
-      <span style={{ fontSize: suitSize, color: getSuitColor(card.suit), lineHeight: 1 }}>
+      <span style={{ fontSize: suitSize, color: sc, lineHeight: 1 }}>
         {SUIT_SYMBOLS[card.suit]}
       </span>
-      <span style={{ fontSize, fontWeight: 700, color: getSuitColor(card.suit), position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1, transform: 'rotate(180deg)' }}>
+      <span style={{ fontSize, fontWeight: 700, color: sc, position: 'absolute', bottom: '3px', right: '4px', lineHeight: 1, transform: 'rotate(180deg)' }}>
         {card.rank}
       </span>
     </div>
