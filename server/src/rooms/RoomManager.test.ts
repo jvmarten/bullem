@@ -155,6 +155,7 @@ describe('RoomManager', () => {
     it('lists rooms in lobby phase with available spots', () => {
       const room = manager.createRoom();
       room.addPlayer('socket1', 'player1', 'Alice');
+      room.updateSettings({ ...room.settings, isPublic: true });
 
       const listings = manager.getAvailableRooms();
       expect(listings).toHaveLength(1);

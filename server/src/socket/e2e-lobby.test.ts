@@ -120,6 +120,9 @@ describe('E2E: Room lifecycle', () => {
   it('lists available rooms', async () => {
     const host = await ctx.connectClient();
     await createRoom(host, 'Alice');
+    // Rooms default to private — make it public so it appears in browse
+    updateSettings(host, { maxCards: 5, turnTimer: 30, isPublic: true });
+    await tick();
 
     const browser = await ctx.connectClient();
     const rooms = await new Promise<{ rooms: unknown[] }>((resolve) => {

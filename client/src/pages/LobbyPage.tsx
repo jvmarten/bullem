@@ -32,7 +32,7 @@ function botLevelDescription(category: BotLevelCategory): string {
 export function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings, countdown } = useGameContext();
+  const { roomState, gameState, playerId, startGame, joinRoom, leaveRoom, deleteRoom, addBot, removeBot, kickPlayer, error, clearError, updateSettings, setVisibility, countdown } = useGameContext();
   const { user } = useAuth();
   const { addToast } = useToast();
   const { play } = useSound();
@@ -681,6 +681,35 @@ export function LobbyPage() {
             </>
             )}
           </>
+        )}
+
+        {/* Room visibility — host can toggle at any time while in lobby (not locked with other settings) */}
+        {isHost && (
+          <div className="glass px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">
+              Room Visibility
+            </p>
+            <div className="flex gap-1.5">
+              {([false, true] as const).map(pub => (
+                <button
+                  key={String(pub)}
+                  onClick={() => { play('uiSoft'); setVisibility(pub); }}
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    (settings.isPublic ?? false) === pub
+                      ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
+                      : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
+                  }`}
+                >
+                  {pub ? 'Public' : 'Private'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
+              {settings.isPublic
+                ? 'Room is visible in the lobby browser'
+                : 'Only players with the room code can join'}
+            </p>
+          </div>
         )}
 
         {/* Settings display — shown when host settings are locked, or for non-host players */}

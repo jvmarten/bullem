@@ -924,6 +924,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
   const noopSpectate = useCallback(async () => {}, []);
   const noopWatchRandom = useCallback(async (): Promise<string> => { throw new Error('Not available offline'); }, []);
   const noopUpdateSettings = useCallback(() => {}, []);
+  const noopSetVisibility = useCallback(() => {}, []);
   const noopDeleteRoom = useCallback(() => {}, []);
   const noopKickPlayer = useCallback((): Promise<void> => Promise.resolve(), []);
 
@@ -968,6 +969,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     spectateGame: noopSpectate,
     watchRandomGame: noopWatchRandom,
     updateSettings: noopUpdateSettings,
+    setVisibility: noopSetVisibility,
     deleteRoom: noopDeleteRoom,
     kickPlayer: noopKickPlayer,
     reactions: EMPTY_REACTIONS,
@@ -992,7 +994,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     callTrue, lastChanceRaise, lastChancePass, clearErrorAction, clearRoundResult,
     addBot, removeBot, requestRematch, botDifficulty, setBotDifficulty, gameSettings,
     setGameSettings, isPaused, togglePause, lastReplay, onlinePlayerCount, onlinePlayerNames, countdown,
-    noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopDeleteRoom, noopKickPlayer,
+    noopListRooms, noopListLiveGames, noopSpectate, noopWatchRandom, noopUpdateSettings, noopSetVisibility, noopDeleteRoom, noopKickPlayer,
   ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

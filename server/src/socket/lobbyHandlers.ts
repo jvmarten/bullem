@@ -457,6 +457,8 @@ export function registerLobbyHandlers(
           ranked: true,
           // Ranked games always use standard deck (no jokers)
           jokerCount: 0,
+          // Ranked games are always public for matchmaking
+          isPublic: true,
           // bestOf is set server-side for ranked (Bo3 for 1v1)
           // rankedMode is set server-side at game start based on actual player count
         }
@@ -471,9 +473,30 @@ export function registerLobbyHandlers(
           lastChanceMode: (lastChanceMode as LastChanceMode | undefined) ?? 'classic',
           bestOf: bestOf as BestOf | undefined,
           jokerCount: (jokerCount as JokerCount | undefined) ?? 0,
+          isPublic: data.settings.isPublic === true,
         };
 
     room.updateSettings(validated);
+    broadcastRoomState(io, room);
+    roomManager.persistRoom(room);
+  });
+
+  // Separate event for toggling room visibility — allowed even after settings lock
+  // so the host can make the room public when ready for players to find it.
+  socket.on('room:setVisibility', (data: { isPublic: boolean }) => {
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (playerId !== room.hostId) {
+      socket.emit('room:error', 'Only the host can change room visibility');
+      return;
+    }
+    if (room.gamePhase !== GamePhase.LOBBY) {
+      socket.emit('room:error', 'Cannot change visibility after game has started');
+      return;
+    }
+    const isPublic = data.isPublic === true;
+    room.updateSettings({ ...room.settings, isPublic });
     broadcastRoomState(io, room);
     roomManager.persistRoom(room);
   });

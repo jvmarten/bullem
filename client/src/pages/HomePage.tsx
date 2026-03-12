@@ -499,12 +499,6 @@ export function HomePage() {
     }
   };
 
-  const handleHost = () => {
-    if (!isConnected) return addToast('Not connected to server — please wait and try again');
-    getOnlinePlayerName();
-    navigate('/host');
-  };
-
   const handleJoin = () => {
     if (!roomCode.trim()) return addToast('Enter a room code');
     if (!isConnected) return addToast('Not connected to server — please wait and try again');
@@ -619,7 +613,7 @@ export function HomePage() {
     <Layout largeTitle={mode === 'menu'} onTitleClick={mode !== 'menu' ? () => { play('uiBack'); setMode('menu'); } : undefined}>
       <div className="home-content flex flex-col items-center gap-4 pt-8">
         {/* Left panel in landscape: deck demo on main menu, submenu buttons on online/offline */}
-        {/* Landscape online left column: Lobby, Friends, Host Game, Join with Code */}
+        {/* Landscape online left column: Lobby, Friends, Join with Code */}
         {isLandscape && mode === 'online' && (
           <div className="home-left home-submenu-col">
             <div className="flex flex-col gap-3 w-full animate-fade-in">
@@ -627,9 +621,6 @@ export function HomePage() {
                 Lobby
               </button>
               <FriendsMenuLink />
-              <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
-                Host Game
-              </button>
               <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
                 Join with Code
               </button>
@@ -993,7 +984,7 @@ export function HomePage() {
               </button>
             ) : (
               <button onClick={() => { play('uiSoft'); handleQuickStart(); }} className="w-full btn-gold py-4 text-lg">
-                Quick Start
+                Create Game
               </button>
             )}
             {/* Ranked Play — expandable with 1v1 / Multiplayer sub-options */}
@@ -1064,9 +1055,6 @@ export function HomePage() {
               <>
                 <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
                   Lobby
-                </button>
-                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
-                  Host Game
                 </button>
                 <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
                   Join with Code
