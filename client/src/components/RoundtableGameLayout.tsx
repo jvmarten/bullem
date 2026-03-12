@@ -277,7 +277,7 @@ const SeatFaceUpCards = memo(function SeatFaceUpCards({ cards }: { cards: Card[]
   return (
     <div className="rt-card-backs-fan">
       {cards.map((card, i) => {
-        const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 8;
+        const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 5;
         return (
           <div
             key={`${card.rank}-${card.suit}`}
@@ -303,7 +303,7 @@ const SeatCardBacks = memo(function SeatCardBacks({ count, visibleCount }: { cou
   const showCount = visibleCount ?? count;
   const cards = [];
   for (let i = 0; i < count; i++) {
-    const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 8;
+    const angle = count === 1 ? 0 : (i - (count - 1) / 2) * 5;
     cards.push(
       <div
         key={i}
