@@ -264,6 +264,7 @@ export function FiveDrawPage() {
   const [wager, setWager] = useState(FIVE_DRAW_DEFAULT_WAGER);
   const [showCustomWager, setShowCustomWager] = useState(false);
   const [customWagerInput, setCustomWagerInput] = useState('');
+  const [showRules, setShowRules] = useState(false);
 
   // === Game state ===
   const [phase, setPhase] = useState<GamePhaseLocal>('idle');
@@ -909,13 +910,21 @@ export function FiveDrawPage() {
 
             {/* Rules */}
             <div className="glass rounded-xl px-4 py-3 w-full">
-              <h2 className="text-xs uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-2">How It Works</h2>
-              <ul className="text-xs text-[var(--gold-light)] space-y-1 list-disc list-inside">
-                <li>You and the Dealer each get 5 cards</li>
-                <li>Take turns calling poker hands — same rules as Bull &rsquo;Em</li>
-                <li>Call Bull if you think the hand doesn&rsquo;t exist in the combined 10 cards</li>
-                <li>Loser gets eliminated, winner takes {FIVE_DRAW_WIN_MULTIPLIER}x the wager</li>
-              </ul>
+              <button
+                onClick={() => { play('uiSoft'); setShowRules(prev => !prev); }}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <h2 className="text-xs uppercase tracking-widest text-[var(--gold-dim)] font-semibold">How It Works</h2>
+                <span className="text-xs text-[var(--gold-dim)]">{showRules ? '▲' : '▼'}</span>
+              </button>
+              {showRules && (
+                <ul className="text-xs text-[var(--gold-light)] space-y-1 list-disc list-inside mt-2 animate-fade-in">
+                  <li>You and the Dealer each get 5 cards</li>
+                  <li>Take turns calling poker hands — same rules as Bull &rsquo;Em</li>
+                  <li>Call Bull if you think the hand doesn&rsquo;t exist in the combined 10 cards</li>
+                  <li>Loser gets eliminated, winner takes {FIVE_DRAW_WIN_MULTIPLIER}x the wager</li>
+                </ul>
+              )}
             </div>
 
             <Link to="/" className="block text-center text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-8">
