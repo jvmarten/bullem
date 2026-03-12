@@ -293,7 +293,7 @@ const PlayerCard = memo(function PlayerCard({ p, i, isCurrent, isMe, maxCards, r
 
   return (
     <div
-      className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-all duration-500 ${
+      className={`relative flex items-center justify-between px-2 py-1 rounded-lg text-sm transition-[color,background-color,border-color,opacity] duration-500 ${
         p.isEliminated
           ? 'glass opacity-40'
           : isMe
