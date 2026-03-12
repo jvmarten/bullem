@@ -102,8 +102,9 @@ export function LocalGamePage() {
   // If gameState is null, there's no active local game — redirect to the lobby.
   // Game state is restored synchronously in LocalGameProvider, so after a
   // browser refresh gameState is already set on the first render.
+  // Use replace so this redirect doesn't pollute the history stack.
   useEffect(() => {
-    if (!gameState) navigate('/local');
+    if (!gameState) navigate('/local', { replace: true });
   }, [gameState, navigate]);
 
   // Show a one-time prominent notification when the player gets eliminated.
@@ -278,8 +279,11 @@ export function LocalGamePage() {
 
   const handleLeave = () => {
     if (window.confirm('Leave this game?')) {
-      leaveRoom();
+      // Navigate first so the route change is committed before leaveRoom()
+      // clears game state — prevents the "no gameState → /local" redirect
+      // from racing and overriding the intended destination.
       navigate('/');
+      leaveRoom();
     }
   };
 

@@ -21,9 +21,10 @@ export function LocalResultsPage() {
     if (winnerId) markFirstGamePlayed();
   }, [winnerId]);
 
-  // If state is gone (page refresh), redirect to lobby
+  // If state is gone (page refresh), redirect to lobby.
+  // Use replace so this redirect doesn't pollute the history stack.
   useEffect(() => {
-    if (!winnerId && !gameState) navigate('/local');
+    if (!winnerId && !gameState) navigate('/local', { replace: true });
   }, [winnerId, gameState, navigate]);
 
   const winnerIndex = gameState?.players.findIndex((p) => p.id === winnerId) ?? -1;
