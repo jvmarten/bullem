@@ -65,13 +65,23 @@ function AuthLink() {
     );
   }
 
+  if (!isHomePage) {
+    // Subpages show guest name as plain text — only the home page links to sign in
+    return (
+      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
+        {userIcon}
+        <span>{guestName}</span>
+      </span>
+    );
+  }
+
   return (
     <Link
       to="/login"
       className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
     >
       {userIcon}
-      <span>{isHomePage ? 'sign in' : guestName}</span>
+      <span>sign in</span>
     </Link>
   );
 }
