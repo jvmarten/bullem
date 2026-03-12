@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
-import type { User, PublicProfile, AvatarId } from '@bull-em/shared';
+import type { User, PublicProfile, AvatarId, AvatarBgColor } from '@bull-em/shared';
 import { socket } from '../socket.js';
 
 export interface AuthContextValue {
@@ -12,6 +12,8 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateAvatar: (avatar: AvatarId | null) => Promise<void>;
+  /** Update the avatar background color. Pass null to revert to index-based fallback. */
+  updateAvatarBgColor: (avatarBgColor: AvatarBgColor | null) => Promise<void>;
   /** Upload a profile photo from device (admin only). Pass null to remove. */
   uploadPhoto: (photoDataUrl: string | null) => Promise<void>;
   /** Change the current user's username. */
@@ -99,6 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(prev => prev ? { ...prev, avatar } : null);
   }, []);
 
+  const updateAvatarBgColor = useCallback(async (avatarBgColor: AvatarBgColor | null) => {
+    await apiFetch<{ ok: boolean; avatarBgColor: AvatarBgColor | null }>('/auth/avatar-bg-color', {
+      method: 'PATCH',
+      body: JSON.stringify({ avatarBgColor }),
+    });
+    setUser(prev => prev ? { ...prev, avatarBgColor } : null);
+    setProfile(prev => prev ? { ...prev, avatarBgColor } : null);
+  }, []);
+
   const uploadPhoto = useCallback(async (photoDataUrl: string | null) => {
     const data = await apiFetch<{ ok: boolean; photoUrl: string | null }>('/auth/upload-photo', {
       method: 'POST',
@@ -127,9 +138,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     refreshProfile,
     updateAvatar,
+    updateAvatarBgColor,
     uploadPhoto,
     updateUsername,
-  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar, uploadPhoto, updateUsername]);
+  }), [user, profile, loading, login, register, logout, refreshProfile, updateAvatar, updateAvatarBgColor, uploadPhoto, updateUsername]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

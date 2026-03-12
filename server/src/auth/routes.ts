@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import type { User, AuthResponse, PublicProfile, AvatarId } from '@bull-em/shared';
-import { AVATAR_OPTIONS } from '@bull-em/shared';
+import type { User, AuthResponse, PublicProfile, AvatarId, AvatarBgColor } from '@bull-em/shared';
+import { AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS } from '@bull-em/shared';
 import { hashPassword, verifyPassword } from './password.js';
 import { signToken } from './jwt.js';
 import { requireAuth, AUTH_COOKIE_NAME } from './middleware.js';
@@ -309,11 +309,12 @@ router.get('/me', requireAuth, async (req, res) => {
       role: string;
       avatar: string | null;
       photo_url: string | null;
+      avatar_bg_color: string | null;
       auth_provider: string;
       created_at: string;
       last_seen_at: string;
     }>(
-      'SELECT id, username, display_name, email, role, avatar, photo_url, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
+      'SELECT id, username, display_name, email, role, avatar, photo_url, avatar_bg_color, auth_provider, created_at, last_seen_at FROM users WHERE id = $1',
       [userId],
     );
 
@@ -351,12 +352,18 @@ router.get('/me', requireAuth, async (req, res) => {
     const callsMade = stats ? parseInt(stats.total_calls_made, 10) : 0;
     const bluffsSuccessful = stats ? parseInt(stats.total_bluffs_successful, 10) : 0;
 
+    const rawBgColor = row.avatar_bg_color;
+    const avatarBgColor: AvatarBgColor | null = rawBgColor && (AVATAR_BG_COLOR_OPTIONS as readonly string[]).includes(rawBgColor)
+      ? rawBgColor as AvatarBgColor
+      : null;
+
     const profile: PublicProfile = {
       id: row.id,
       username: row.username,
       displayName: row.display_name,
       avatar: row.avatar as AvatarId | null,
       photoUrl: row.photo_url,
+      avatarBgColor,
       createdAt: row.created_at,
       gamesPlayed: stats ? parseInt(stats.games_played, 10) : 0,
       gamesWon: stats ? parseInt(stats.games_won, 10) : 0,
@@ -374,6 +381,7 @@ router.get('/me', requireAuth, async (req, res) => {
       authProvider: row.auth_provider as User['authProvider'],
       avatar: row.avatar as AvatarId | null,
       photoUrl: row.photo_url,
+      avatarBgColor,
       createdAt: row.created_at,
       lastSeenAt: row.last_seen_at,
     };
@@ -409,6 +417,32 @@ router.patch('/avatar', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to update avatar');
     res.status(500).json({ error: 'Failed to update avatar' });
+  }
+});
+
+// ── PATCH /auth/avatar-bg-color ─────────────────────────────────────
+
+router.patch('/avatar-bg-color', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { avatarBgColor } = req.body as { avatarBgColor?: string | null };
+
+    if (avatarBgColor !== null && avatarBgColor !== undefined) {
+      if (!(AVATAR_BG_COLOR_OPTIONS as readonly string[]).includes(avatarBgColor)) {
+        res.status(400).json({ error: 'Invalid avatar background color' });
+        return;
+      }
+    }
+
+    await query(
+      'UPDATE users SET avatar_bg_color = $1 WHERE id = $2',
+      [avatarBgColor ?? null, userId],
+    );
+
+    res.json({ ok: true, avatarBgColor: avatarBgColor ?? null });
+  } catch (err) {
+    logger.error({ err }, 'Failed to update avatar background color');
+    res.status(500).json({ error: 'Failed to update avatar background color' });
   }
 });
 

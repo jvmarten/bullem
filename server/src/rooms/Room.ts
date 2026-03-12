@@ -4,7 +4,7 @@ import {
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
-  SeriesState, AvatarId,
+  SeriesState, AvatarId, AvatarBgColor,
 } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
@@ -59,7 +59,7 @@ export class Room {
     return this.players.get(this.hostId)?.name ?? '???';
   }
 
-  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; username?: string; avatar?: AvatarId | null; photoUrl?: string | null }): { player: ServerPlayer; reconnectToken: string } {
+  addPlayer(socketId: string, playerId: PlayerId, name: string, opts?: { userId?: string; username?: string; avatar?: AvatarId | null; photoUrl?: string | null; avatarBgColor?: AvatarBgColor | null }): { player: ServerPlayer; reconnectToken: string } {
     const player: ServerPlayer = {
       id: playerId,
       name,
@@ -72,6 +72,7 @@ export class Room {
       username: opts?.username,
       avatar: opts?.avatar,
       photoUrl: opts?.photoUrl,
+      avatarBgColor: opts?.avatarBgColor,
     };
     if (player.isHost) this.hostId = playerId;
     this.players.set(playerId, player);
@@ -578,5 +579,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     username: p.username,
     avatar: p.avatar,
     photoUrl: p.photoUrl,
+    avatarBgColor: p.avatarBgColor,
   };
 }

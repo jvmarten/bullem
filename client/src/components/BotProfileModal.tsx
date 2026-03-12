@@ -80,7 +80,7 @@ export function BotProfileModal({ player, playerIndex, stats, onClose }: Props) 
       >
         {/* Header */}
         <div className="text-center">
-          <div className={`w-16 h-16 rounded-full ${playerColor(playerIndex)} flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden`}>
+          <div className={`w-16 h-16 rounded-full ${playerColor(playerIndex, player.avatarBgColor)} flex items-center justify-center mx-auto mb-3 text-3xl overflow-hidden`}>
             <PlayerAvatarContent name={player.name} avatar={player.avatar} photoUrl={player.photoUrl} isBot={player.isBot} />
           </div>
           <h3 id="player-profile-title" className="text-xl font-bold text-[var(--gold)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
