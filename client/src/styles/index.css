@@ -38,9 +38,13 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html, body, #root {
-  height: 100vh;
-  height: 100dvh;
+/* body uses position:fixed + inset:0 so it always stretches to the true
+   viewport edges on initial load. 100dvh can be wrong on iOS Safari's
+   first paint, leaving a gap at the bottom that only resolves after a
+   viewport change (rotation, toolbar show/hide). inset:0 avoids this.
+   The gradient stays on .felt-bg — body only carries the matching solid
+   color so any sub-pixel gap at the edge is invisible. */
+html {
   overflow: hidden;
 }
 
@@ -50,10 +54,15 @@ body {
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  width: 100%;
+  inset: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
