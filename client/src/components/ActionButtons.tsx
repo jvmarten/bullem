@@ -36,7 +36,7 @@ export const ActionButtons = memo(function ActionButtons({
   if (roundPhase === RoundPhase.LAST_CHANCE && isLastChanceCaller) {
     return (
       <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons role="group" aria-label="Game actions">
-        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe action-btn-base font-bold action-btn-primary kbd-shortcut" data-kbd="P" aria-label="Pass (keyboard shortcut: P)">
+        <button onClick={() => handleClick(onLastChancePass)} className="btn-safe action-btn-base font-bold animate-pulse-glow-green action-btn-primary kbd-shortcut" data-kbd="P" aria-label="Pass (keyboard shortcut: P)">
           Pass
         </button>
       </div>
@@ -51,12 +51,12 @@ export const ActionButtons = memo(function ActionButtons({
   return (
     <div className="flex justify-start animate-slide-up action-btn-gap" data-action-buttons role="group" aria-label="Game actions">
       {showBull && (
-        <button onClick={() => handleClick(onBull)} className={`btn-danger action-btn-base font-bold ${showTrue ? 'action-btn-secondary' : 'action-btn-primary'} kbd-shortcut`} data-kbd="B" aria-label="Call bull (keyboard shortcut: B)">
+        <button onClick={() => handleClick(onBull)} className={`btn-danger action-btn-base font-bold animate-pulse-glow-red ${showTrue ? 'action-btn-secondary' : 'action-btn-primary'} kbd-shortcut`} data-kbd="B" aria-label="Call bull (keyboard shortcut: B)">
           BULL!
         </button>
       )}
       {showTrue && (
-        <button onClick={() => handleClick(onTrue)} className="btn-info action-btn-base font-bold action-btn-secondary kbd-shortcut" data-kbd="T" aria-label="Call true (keyboard shortcut: T)">
+        <button onClick={() => handleClick(onTrue)} className="btn-info action-btn-base font-bold animate-pulse-glow-blue action-btn-secondary kbd-shortcut" data-kbd="T" aria-label="Call true (keyboard shortcut: T)">
           TRUE
         </button>
       )}
