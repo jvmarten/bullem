@@ -401,7 +401,7 @@ if (isDevAuthActive()) {
 }
 
 // Stats routes
-import { getPlayerStats } from './db/stats.js';
+import { getPlayerStats, getRecentGamesPaginated } from './db/stats.js';
 import { getAdvancedStats } from './db/advancedStats.js';
 
 /** GET /api/stats/me — convenience endpoint using the authenticated user's ID. */
@@ -448,6 +448,31 @@ app.get('/api/stats/:userId', async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Failed to fetch player stats');
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/** GET /api/stats/:userId/games — paginated recent game history with ranked info. */
+app.get('/api/stats/:userId/games', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId || !UUID_REGEX.test(userId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+    const limitParam = parseInt(String(req.query.limit ?? '10'), 10);
+    const offsetParam = parseInt(String(req.query.offset ?? '0'), 10);
+    const limit = Math.max(1, Math.min(50, Number.isFinite(limitParam) ? limitParam : 10));
+    const offset = Math.max(0, Number.isFinite(offsetParam) ? offsetParam : 0);
+
+    const result = await getRecentGamesPaginated(userId, limit, offset);
+    if (!result) {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch paginated games');
+    res.status(500).json({ error: 'Failed to fetch games' });
   }
 });
 
