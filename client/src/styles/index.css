@@ -38,16 +38,17 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html, body, #root {
+/* html is NOT given overflow:hidden or a fixed height — its background
+   propagates to the canvas and must cover the entire viewport including
+   safe-area regions that 100dvh may exclude on initial iOS Safari load. */
+html {
+  background: var(--felt-dark);
+}
+
+body, #root {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-}
-
-/* Safe area bars match the felt green when viewport-fit=cover is active.
-   This is the colour visible behind notches, Dynamic Island, and home indicators. */
-html {
-  background: var(--felt-dark);
 }
 
 body {
