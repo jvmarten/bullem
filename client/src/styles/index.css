@@ -1719,6 +1719,17 @@ body {
   display: none;
 }
 
+/* ── Tutorial (portrait defaults) ────────────────────── */
+.tutorial-portrait {
+  display: flex;
+}
+.tutorial-landscape {
+  display: none;
+}
+.tutorial-mockup {
+  min-height: 280px;
+}
+
 /* ── Landscape & Desktop Layout ──────────────────────── */
 /* Unified breakpoint: landscape tablets/phones (>=600px wide) OR desktops (>=1024px).
    Activates: merged top bar, two-panel game layout, horizontal page layouts. */
@@ -2019,6 +2030,53 @@ body {
   .action-btn-hint {
     font-size: 0.625rem;
   }
+
+  /* -- Tutorial page: two-panel landscape -- */
+  .tutorial-portrait {
+    display: none !important;
+  }
+  .tutorial-landscape {
+    display: flex !important;
+  }
+  .tutorial-landscape-split {
+    flex-direction: row;
+    gap: 1.5rem;
+    align-items: flex-start;
+  }
+  .tutorial-landscape-centered {
+    flex-direction: row;
+    justify-content: center;
+  }
+  .tutorial-landscape-left {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .tutorial-landscape-right {
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow-y: auto;
+    max-height: calc(100dvh - 120px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+  /* When no game mockup, give text panel more room */
+  .tutorial-landscape-centered .tutorial-landscape-right {
+    max-width: 520px;
+  }
+  .tutorial-content {
+    max-width: 100%;
+  }
+  /* Remove portrait min-height on mockup in landscape */
+  .tutorial-mockup {
+    min-height: 0;
+  }
 }
 
 /* ── Phone landscape refinements ─────────────────────── */
@@ -2076,6 +2134,28 @@ body {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     font-size: 0.9375rem;
+  }
+
+  /* -- Tutorial: compact for phone landscape -- */
+  .tutorial-landscape-split {
+    gap: 0.75rem;
+  }
+  .tutorial-landscape-right {
+    max-height: calc(100dvh - 80px);
+    gap: 0.5rem;
+  }
+  .tutorial-landscape-right .glass-raised {
+    padding: 0.625rem 0.75rem;
+  }
+  .tutorial-landscape-right .glass-raised h3 {
+    font-size: 0.875rem;
+    margin-bottom: 0.375rem;
+  }
+  .tutorial-landscape-right .glass-raised p {
+    font-size: 0.75rem;
+  }
+  .tutorial-progress {
+    margin-bottom: 0.25rem;
   }
 }
 
