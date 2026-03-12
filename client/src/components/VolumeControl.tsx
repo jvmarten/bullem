@@ -121,6 +121,8 @@ export function useUISettings() {
   return { chatEnabled: chat, emojiEnabled: emoji, quickDrawEnabled: quickDraw, impossibleBotEnabled: impossibleBot, fourColorDeckEnabled: fourColorDeck };
 }
 
+const ADVANCED_SETTINGS_KEY = 'bull-em-advanced-settings-open';
+
 export function VolumeControl() {
   const { muted, toggleMute, volume, setVolume, categoryVolumes, setCategoryVolume, hapticsEnabled, toggleHaptics } = useSound();
   const chatOn = useSyncExternalStore(subscribeSettings, getChatEnabled);
@@ -129,6 +131,7 @@ export function VolumeControl() {
   const impossibleBotOn = useSyncExternalStore(subscribeSettings, getImpossibleBotEnabled);
   const fourColorDeckOn = useSyncExternalStore(subscribeSettings, getFourColorDeckEnabled);
   const [open, setOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(() => localStorage.getItem(ADVANCED_SETTINGS_KEY) === '1');
   const ref = useRef<HTMLDivElement>(null);
 
   // Track pre-mute volumes so tapping the label can restore them
@@ -137,15 +140,21 @@ export function VolumeControl() {
   const toggleCategoryMute = useCallback((category: SoundCategory) => {
     const current = categoryVolumes[category];
     if (current > 0) {
-      // Save current volume and mute
       preMuteVolumes.current[category] = current;
       setCategoryVolume(category, 0);
     } else {
-      // Restore previous volume (fall back to 1 if it was 0)
       const restore = preMuteVolumes.current[category] || 1;
       setCategoryVolume(category, restore);
     }
   }, [categoryVolumes, setCategoryVolume]);
+
+  const toggleAdvanced = useCallback(() => {
+    setAdvancedOpen(prev => {
+      const next = !prev;
+      localStorage.setItem(ADVANCED_SETTINGS_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -175,9 +184,10 @@ export function VolumeControl() {
 
       {open && (
         <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in" role="group" aria-label="Settings panel">
+          {/* ── Always-visible settings ──────────────────────────── */}
+
           {/* Master volume */}
           <div className="flex items-center gap-2">
-            {/* Speaker icon — tap to toggle mute */}
             <button
               onClick={toggleMute}
               className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors shrink-0 p-0"
@@ -217,82 +227,10 @@ export function VolumeControl() {
             />
           </div>
 
-          {/* Per-category volume sliders */}
-          <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20 flex flex-col gap-1.5">
-            {/* SFX volume */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggleCategoryMute('sfx')}
-                className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.sfx === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
-                title={categoryVolumes.sfx === 0 ? 'Unmute SFX' : 'Mute SFX'}
-                aria-label={categoryVolumes.sfx === 0 ? 'Unmute sound effects' : 'Mute sound effects'}
-              >SFX</button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={muted ? 0 : categoryVolumes.sfx}
-                onChange={(e) => setCategoryVolume('sfx', parseFloat(e.target.value))}
-                className="volume-slider flex-1"
-                aria-label="Sound effects volume"
-              />
-            </div>
-            {/* UI volume */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggleCategoryMute('ui')}
-                className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.ui === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
-                title={categoryVolumes.ui === 0 ? 'Unmute UI' : 'Mute UI'}
-                aria-label={categoryVolumes.ui === 0 ? 'Unmute UI sounds' : 'Mute UI sounds'}
-              >UI</button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={muted ? 0 : categoryVolumes.ui}
-                onChange={(e) => setCategoryVolume('ui', parseFloat(e.target.value))}
-                className="volume-slider flex-1"
-                aria-label="UI sounds volume"
-              />
-            </div>
-          </div>
-
-          {/* Haptics toggle */}
-          <button
-            onClick={toggleHaptics}
-            className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
-            aria-pressed={hapticsEnabled}
-            aria-label={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
-          >
-            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
-              Haptics
-            </span>
-            <span
-              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!hapticsEnabled ? 'opacity-40' : ''}`}
-              title={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
-            >
-              {hapticsEnabled ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 12h2m4-7v2m8-2v2m4 5h2" />
-                  <rect x="8" y="9" width="8" height="10" rx="2" />
-                  <path d="M5 8a9 9 0 0 1 2.6-4" />
-                  <path d="M19 8a9 9 0 0 0-2.6-4" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="8" y="9" width="8" height="10" rx="2" />
-                  <line x1="2" y1="2" x2="22" y2="22" />
-                </svg>
-              )}
-            </span>
-          </button>
-
           {/* Chat toggle */}
           <button
             onClick={toggleChatEnabled}
-            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
             aria-pressed={chatOn}
             aria-label={chatOn ? 'Hide chat' : 'Show chat'}
           >
@@ -355,53 +293,158 @@ export function VolumeControl() {
             </span>
           </button>
 
-          {/* Impossible Bot toggle */}
+          {/* ── More Settings toggle ────────────────────────────── */}
           <button
-            onClick={toggleImpossibleBotEnabled}
-            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
-            aria-pressed={impossibleBotOn}
-            aria-label={impossibleBotOn ? 'Disable impossible bot' : 'Enable impossible bot'}
+            onClick={toggleAdvanced}
+            className="flex items-center justify-center gap-1.5 mt-3 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
+            aria-expanded={advancedOpen}
+            aria-label={advancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
           >
-            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
-              Impossible Bot
+            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)]/60 font-semibold">
+              {advancedOpen ? 'Less' : 'More'}
             </span>
-            <span
-              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!impossibleBotOn ? 'opacity-40' : ''}`}
-              title={impossibleBotOn ? 'Disable impossible bot option' : 'Enable impossible bot option'}
+            <svg
+              width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+              className={`text-[var(--gold-dim)]/60 transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {/* Eye icon for The Oracle */}
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-                {!impossibleBotOn && <line x1="2" y1="2" x2="22" y2="22" />}
-              </svg>
-            </span>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
 
-          {/* Four-Color Deck toggle */}
-          <button
-            onClick={toggleFourColorDeckEnabled}
-            className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
-            aria-pressed={fourColorDeckOn}
-            aria-label={fourColorDeckOn ? 'Disable four-color deck' : 'Enable four-color deck'}
-          >
-            <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
-              4-Color Deck
-            </span>
-            <span
-              className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!fourColorDeckOn ? 'opacity-40' : ''}`}
-              title={fourColorDeckOn ? 'Switch to standard 2-color deck' : 'Switch to 4-color deck'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {/* Four-diamond grid representing four distinct colors */}
-                <rect x="3" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#1a1a1a' : 'none'} />
-                <rect x="14" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#c0392b' : 'none'} />
-                <rect x="3" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#16803c' : 'none'} />
-                <rect x="14" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#2563eb' : 'none'} />
-                {!fourColorDeckOn && <line x1="2" y1="2" x2="22" y2="22" />}
-              </svg>
-            </span>
-          </button>
+          {/* ── Advanced settings (collapsible) ─────────────────── */}
+          {advancedOpen && (
+            <div className="animate-fade-in">
+              {/* Volume category */}
+              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Volume</span>
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  {/* SFX volume */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleCategoryMute('sfx')}
+                      className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.sfx === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
+                      title={categoryVolumes.sfx === 0 ? 'Unmute SFX' : 'Mute SFX'}
+                      aria-label={categoryVolumes.sfx === 0 ? 'Unmute sound effects' : 'Mute sound effects'}
+                    >SFX</button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={muted ? 0 : categoryVolumes.sfx}
+                      onChange={(e) => setCategoryVolume('sfx', parseFloat(e.target.value))}
+                      className="volume-slider flex-1"
+                      aria-label="Sound effects volume"
+                    />
+                  </div>
+                  {/* UI volume */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleCategoryMute('ui')}
+                      className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.ui === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
+                      title={categoryVolumes.ui === 0 ? 'Unmute UI' : 'Mute UI'}
+                      aria-label={categoryVolumes.ui === 0 ? 'Unmute UI sounds' : 'Mute UI sounds'}
+                    >UI</button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={muted ? 0 : categoryVolumes.ui}
+                      onChange={(e) => setCategoryVolume('ui', parseFloat(e.target.value))}
+                      className="volume-slider flex-1"
+                      aria-label="UI sounds volume"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Haptics category */}
+              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Haptics</span>
+                <button
+                  onClick={toggleHaptics}
+                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  aria-pressed={hapticsEnabled}
+                  aria-label={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
+                >
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+                    Vibration
+                  </span>
+                  <span
+                    className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!hapticsEnabled ? 'opacity-40' : ''}`}
+                    title={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
+                  >
+                    {hapticsEnabled ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 12h2m4-7v2m8-2v2m4 5h2" />
+                        <rect x="8" y="9" width="8" height="10" rx="2" />
+                        <path d="M5 8a9 9 0 0 1 2.6-4" />
+                        <path d="M19 8a9 9 0 0 0-2.6-4" />
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="8" y="9" width="8" height="10" rx="2" />
+                        <line x1="2" y1="2" x2="22" y2="22" />
+                      </svg>
+                    )}
+                  </span>
+                </button>
+              </div>
+
+              {/* Impossible Bot category */}
+              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Bots</span>
+                <button
+                  onClick={toggleImpossibleBotEnabled}
+                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  aria-pressed={impossibleBotOn}
+                  aria-label={impossibleBotOn ? 'Disable impossible bot' : 'Enable impossible bot'}
+                >
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+                    Impossible Bot
+                  </span>
+                  <span
+                    className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!impossibleBotOn ? 'opacity-40' : ''}`}
+                    title={impossibleBotOn ? 'Disable impossible bot option' : 'Enable impossible bot option'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                      {!impossibleBotOn && <line x1="2" y1="2" x2="22" y2="22" />}
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              {/* 4-Color Deck category */}
+              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Cards</span>
+                <button
+                  onClick={toggleFourColorDeckEnabled}
+                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  aria-pressed={fourColorDeckOn}
+                  aria-label={fourColorDeckOn ? 'Disable four-color deck' : 'Enable four-color deck'}
+                >
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold">
+                    4-Color Deck
+                  </span>
+                  <span
+                    className={`text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors p-0.5 ${!fourColorDeckOn ? 'opacity-40' : ''}`}
+                    title={fourColorDeckOn ? 'Switch to standard 2-color deck' : 'Switch to 4-color deck'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#1a1a1a' : 'none'} />
+                      <rect x="14" y="3" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#c0392b' : 'none'} />
+                      <rect x="3" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#16803c' : 'none'} />
+                      <rect x="14" y="14" width="7" height="7" rx="1" fill={fourColorDeckOn ? '#2563eb' : 'none'} />
+                      {!fourColorDeckOn && <line x1="2" y1="2" x2="22" y2="22" />}
+                    </svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
