@@ -98,8 +98,14 @@ export const RoundtableDealingOverlay = memo(function RoundtableDealingOverlay({
 
     dealSequence.forEach((deal, i) => {
       const delay = i * CARD_DEAL_INTERVAL;
+      // Only play the deal sound for the first card in each round-robin pass
+      // (i.e. once per cardIndex) to avoid rapid-fire audio when many cards
+      // are being dealt across multiple players simultaneously.
+      const isFirstInPass = i === 0 || dealSequence[i - 1]?.cardIndex !== deal.cardIndex;
       const t = setTimeout(() => {
-        play('cardDeal');
+        if (isFirstInPass) {
+          play('cardDeal');
+        }
         setDealtCount(i + 1);
         setFlyingCards(prev => [
           ...prev,
