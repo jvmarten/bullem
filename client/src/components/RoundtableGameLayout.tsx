@@ -334,6 +334,7 @@ const RoundtableSeat = memo(function RoundtableSeat({
   turnDurationMs,
   visibleCardCount,
   spectatorFaceUpCards,
+  onPlayerClick,
 }: {
   player: Player;
   seatIndex: number;
@@ -348,6 +349,8 @@ const RoundtableSeat = memo(function RoundtableSeat({
   visibleCardCount?: number;
   /** When spectating, the player's cards shown face-up at the seat instead of card backs. */
   spectatorFaceUpCards?: Card[];
+  /** Callback when a player's avatar is clicked (opens stats modal). */
+  onPlayerClick?: (player: Player) => void;
 }) {
   const pos = getSeatPosition(playerCount, seatIndex);
   const colorClass = playerColor(seatIndex);
@@ -365,7 +368,14 @@ const RoundtableSeat = memo(function RoundtableSeat({
         ) : !player.isEliminated && (
           <SeatCardBacks count={player.cardCount} visibleCount={visibleCardCount} />
         )}
-        <div className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''} rt-avatar--overlap`}>
+        <div
+          className={`rt-avatar ${colorClass} ${isMe ? 'rt-avatar--me' : ''} rt-avatar--overlap ${onPlayerClick ? 'cursor-pointer' : ''}`}
+          onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(player); } : undefined}
+          role={onPlayerClick ? 'button' : undefined}
+          tabIndex={onPlayerClick ? 0 : undefined}
+          onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(player); } } : undefined}
+          aria-label={onPlayerClick ? `View ${player.name}'s profile` : undefined}
+        >
           <PlayerAvatarContent
             name={player.name}
             avatar={player.avatar}
@@ -425,6 +435,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     onBull, onTrue, onLastChancePass,
     onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
+    onPlayerClick,
   } = props;
 
   // ── Dealing animation: show when roundNumber changes ──
@@ -623,6 +634,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
               turnDurationMs={turnDurationMs}
               visibleCardCount={visCardCount}
               spectatorFaceUpCards={spectatorCardsByPlayerId?.get(player.id)}
+              onPlayerClick={onPlayerClick}
             />
           );
         })}
@@ -639,7 +651,14 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
               {!myPlayer.isEliminated && spectatorCardsByPlayerId?.get(myPlayer.id) && (
                 <SeatFaceUpCards cards={spectatorCardsByPlayerId.get(myPlayer.id)!} />
               )}
-              <div className={`rt-avatar ${playerColor(0)} rt-avatar--me rt-avatar--overlap`}>
+              <div
+                className={`rt-avatar ${playerColor(0)} rt-avatar--me rt-avatar--overlap ${onPlayerClick ? 'cursor-pointer' : ''}`}
+                onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(myPlayer); } : undefined}
+                role={onPlayerClick ? 'button' : undefined}
+                tabIndex={onPlayerClick ? 0 : undefined}
+                onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(myPlayer); } } : undefined}
+                aria-label={onPlayerClick ? `View ${myPlayer.name}'s profile` : undefined}
+              >
                 <PlayerAvatarContent
                   name={myPlayer.name}
                   avatar={myPlayer.avatar}
@@ -690,7 +709,14 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
             )}
             {myPlayer && (
               <div className="rt-seat-info">
-                <div className={`rt-avatar ${playerColor(0)} rt-avatar--me`}>
+                <div
+                  className={`rt-avatar ${playerColor(0)} rt-avatar--me ${onPlayerClick ? 'cursor-pointer' : ''}`}
+                  onClick={onPlayerClick ? (e) => { e.stopPropagation(); onPlayerClick(myPlayer); } : undefined}
+                  role={onPlayerClick ? 'button' : undefined}
+                  tabIndex={onPlayerClick ? 0 : undefined}
+                  onKeyDown={onPlayerClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlayerClick(myPlayer); } } : undefined}
+                  aria-label={onPlayerClick ? `View ${myPlayer.name}'s profile` : undefined}
+                >
                   <PlayerAvatarContent
                     name={myPlayer.name}
                     avatar={myPlayer.avatar}
