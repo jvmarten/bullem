@@ -24,6 +24,9 @@ interface Props {
   onDismiss: () => void;
   /** When false, no countdown timer is shown and auto-dismiss is disabled. Defaults to true. */
   autoCountdown?: boolean;
+  /** Anchor timestamp for the auto-dismiss countdown. When provided, the countdown is relative to this
+   *  time instead of the component mount time — so orientation changes don't reset the timer. */
+  startedAt?: number;
 }
 
 function actionLabel(entry: TurnEntry): string {
@@ -46,7 +49,7 @@ function actionLabel(entry: TurnEntry): string {
 // Memoized: props are stable for the duration of the overlay. Without memo,
 // parent re-renders (e.g. from the countdown timer in the game page) would
 // re-render the entire overlay including flip-card animations.
-export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true }: Props) {
+export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true, startedAt }: Props) {
   const focusTrapRef = useFocusTrap<HTMLDivElement>(true, onDismiss);
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
@@ -86,15 +89,18 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
 
   // Single interval instead of chained timeouts — avoids creating 30 timeout
   // closures and re-running the effect on every tick. Disabled when autoCountdown is false.
-  const mountedAtRef = useRef(Date.now());
+  // Uses startedAt (if provided) so orientation changes don't reset the timer.
+  const anchorRef = useRef(startedAt || Date.now());
   useEffect(() => {
     if (!autoCountdown) return;
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - mountedAtRef.current) / 1000);
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - anchorRef.current) / 1000);
       const remaining = Math.max(0, 30 - elapsed);
       setCountdown(remaining);
       if (remaining <= 0) clearInterval(interval);
-    }, 1000);
+    };
+    tick(); // sync immediately on mount so remount after rotation shows correct remaining time
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [autoCountdown]);
 

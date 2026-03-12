@@ -29,6 +29,7 @@ import { QuickDrawHint } from '../components/QuickDrawHint.js';
 import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { useRevealPhase } from '../hooks/useRevealPhase.js';
 import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
@@ -69,8 +70,9 @@ export function LocalGamePage() {
   const [tappedCard, setTappedCard] = useState<Card | null>(null);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  // Landscape reveal animation: 'cinematic' = card-by-card animation, 'results' = standard overlay
-  const [revealPhase, setRevealPhase] = useState<'cinematic' | 'results'>('cinematic');
+  // Orientation-independent reveal phase — survives landscape/portrait switches
+  const { cinematicComplete, revealStartedAt, markCinematicComplete } = useRevealPhase(roundResult);
+  const cinematicStartedRef = useRef(false);
 
   // All useRef hooks — unconditional
   const wasEliminatedRef = useRef(false);
@@ -130,10 +132,17 @@ export function LocalGamePage() {
     lastResultRef.current = roundResult;
   }, [roundResult, playerId, gameState, addToast]);
 
-  // Reset reveal phase to cinematic when new round result arrives
+  // Reset cinematicStarted tracking when new round result arrives
   useEffect(() => {
-    if (roundResult) setRevealPhase('cinematic');
+    if (roundResult) cinematicStartedRef.current = false;
   }, [roundResult]);
+
+  // Portrait mode skips the cinematic — mark complete so landscape won't replay if user rotates
+  useEffect(() => {
+    if (roundResult && !isLandscape && !cinematicComplete) {
+      markCinematicComplete();
+    }
+  }, [roundResult, isLandscape, cinematicComplete, markCinematicComplete]);
 
   // Ordered players for landscape reveal overlay
   const orderedPlayersForReveal = useMemo(() => {
@@ -393,7 +402,7 @@ export function LocalGamePage() {
             quickDrawEnabled={quickDrawEnabled}
             quickDrawSuggestions={quickDrawSuggestions}
             callHistoryVisible={callHistoryOpen}
-            revealInProgress={!!roundResult && revealPhase === 'cinematic'}
+            revealInProgress={!!roundResult && !cinematicComplete}
             onBull={callBull}
             onTrue={callTrue}
             onLastChancePass={lastChancePass}
@@ -423,22 +432,25 @@ export function LocalGamePage() {
               </div>
             </div>
           )}
-          {roundResult && revealPhase === 'cinematic' && (
+          {roundResult && !cinematicComplete && (
             <RoundtableRevealOverlay
               result={roundResult}
               orderedPlayers={orderedPlayersForReveal}
               playerCount={Math.min(gameState.players.length, 12)}
               myPlayerId={playerId ?? undefined}
-              onComplete={() => setRevealPhase('results')}
+              onComplete={markCinematicComplete}
+              skipToEnd={cinematicStartedRef.current}
+              onAnimationStart={() => { cinematicStartedRef.current = true; }}
             />
           )}
-          {roundResult && revealPhase === 'results' && (
+          {roundResult && cinematicComplete && (
             <RevealOverlay
               result={roundResult}
               players={gameState.players}
               myPlayerId={playerId ?? undefined}
               onDismiss={clearRoundResult}
               autoCountdown={false}
+              startedAt={revealStartedAt}
             />
           )}
           {isPaused && !roundResult && (
@@ -661,6 +673,7 @@ export function LocalGamePage() {
             myPlayerId={playerId ?? undefined}
             onDismiss={clearRoundResult}
             autoCountdown={false}
+            startedAt={revealStartedAt}
           />
         )}
 
