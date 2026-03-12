@@ -2686,6 +2686,9 @@ body {
 .rt-hand-selector .wheel-picker-mask {
   margin-top: -30px;
   flex: 1;
+  /* Extend top fade zone so it's still visible after overflow clips the negative margin */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 82%, transparent 100%);
 }
 
 /* The flex-1 wrappers around each wheel column must clip the negative-margin overflow */
@@ -2801,6 +2804,9 @@ body {
 
   .rt-hand-selector .wheel-picker-mask {
     margin-top: -40px;
+    /* Stronger top fade extension for the larger negative margin clip */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 82%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 82%, transparent 100%);
   }
 }
 
