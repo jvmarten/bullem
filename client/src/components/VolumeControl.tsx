@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { useSound } from '../hooks/useSound.js';
+import type { SoundCategory } from '../hooks/soundEngine.js';
 
 /* ── Persistent toggle settings (chat / emoji visibility) ──────── */
 
@@ -119,6 +120,22 @@ export function VolumeControl() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Track pre-mute volumes so tapping the label can restore them
+  const preMuteVolumes = useRef<Record<SoundCategory, number>>({ sfx: 1, ui: 1 });
+
+  const toggleCategoryMute = useCallback((category: SoundCategory) => {
+    const current = categoryVolumes[category];
+    if (current > 0) {
+      // Save current volume and mute
+      preMuteVolumes.current[category] = current;
+      setCategoryVolume(category, 0);
+    } else {
+      // Restore previous volume (fall back to 1 if it was 0)
+      const restore = preMuteVolumes.current[category] || 1;
+      setCategoryVolume(category, restore);
+    }
+  }, [categoryVolumes, setCategoryVolume]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     if (!open) return;
@@ -193,7 +210,12 @@ export function VolumeControl() {
           <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20 flex flex-col gap-1.5">
             {/* SFX volume */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold w-[28px] shrink-0">SFX</span>
+              <button
+                onClick={() => toggleCategoryMute('sfx')}
+                className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.sfx === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
+                title={categoryVolumes.sfx === 0 ? 'Unmute SFX' : 'Mute SFX'}
+                aria-label={categoryVolumes.sfx === 0 ? 'Unmute sound effects' : 'Mute sound effects'}
+              >SFX</button>
               <input
                 type="range"
                 min="0"
@@ -207,7 +229,12 @@ export function VolumeControl() {
             </div>
             {/* UI volume */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--gold-dim)] font-semibold w-[28px] shrink-0">UI</span>
+              <button
+                onClick={() => toggleCategoryMute('ui')}
+                className={`text-[10px] uppercase tracking-wider font-semibold w-[28px] shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${categoryVolumes.ui === 0 ? 'text-[var(--gold-dim)]/40 line-through' : 'text-[var(--gold-dim)] hover:text-[var(--gold)]'}`}
+                title={categoryVolumes.ui === 0 ? 'Unmute UI' : 'Mute UI'}
+                aria-label={categoryVolumes.ui === 0 ? 'Unmute UI sounds' : 'Mute UI sounds'}
+              >UI</button>
               <input
                 type="range"
                 min="0"
