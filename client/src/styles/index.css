@@ -38,34 +38,22 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html {
-  /* Solid background-color covers the entire viewport including safe-area
-     regions that percentage/dvh sizing might not reach on iOS standalone apps.
-     The color matches the outermost gradient stop so the safe area blends. */
-  background-color: var(--felt-dark);
-  height: 100%;
+html, body, #root {
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
-/* body uses position:fixed + inset:0 so it always stretches to the true
-   viewport edges (including safe areas with viewport-fit=cover), rather
-   than relying on 100dvh which may exclude the bottom safe area on
-   initial iOS Safari portrait load. */
 body {
   font-family: var(--font-body);
-  background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
+  background: var(--felt-dark);
   color: #e8e0d4;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  inset: 0;
-  overflow: hidden;
-}
-
-#root {
-  height: 100%;
-  overflow: hidden;
+  width: 100%;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
