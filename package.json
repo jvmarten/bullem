@@ -12,6 +12,9 @@
     "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
     "test": "vitest run --workspace vitest.workspace.ts"
   },
+  "overrides": {
+    "serialize-javascript": ">=7.0.3"
+  },
   "devDependencies": {
     "concurrently": "^9.1.0",
     "sharp": "^0.34.5",
