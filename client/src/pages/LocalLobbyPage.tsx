@@ -192,9 +192,6 @@ export function LocalLobbyPage() {
           <h2 className="font-display text-3xl font-bold text-[var(--gold)]">
             Play vs Bots
           </h2>
-          <p className="text-sm text-[var(--gold-dim)] mt-1.5">
-            {playerCount} player{playerCount !== 1 ? 's' : ''} at the table
-          </p>
         </div>
 
         {/* First-game banner — gentle nudge for new players */}
@@ -270,9 +267,6 @@ export function LocalLobbyPage() {
               </div>
             );
           })()}
-          <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-            {roomState.players.filter(p => p.isBot).length} bot{roomState.players.filter(p => p.isBot).length !== 1 ? 's' : ''} at the table
-          </p>
         </div>
 
         <div className="flex flex-col gap-3 lobby-start-actions">
