@@ -43,7 +43,7 @@ function AuthLink() {
     return (
       <Link
         to="/profile"
-        className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
+        className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
         title={user.username}
       >
         {userIcon}
@@ -58,7 +58,7 @@ function AuthLink() {
   if (inSession) {
     // Show guest label without navigation to avoid kicking from game
     return (
-      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px]">
+      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
         <span>{guestName}</span>
       </span>
@@ -68,7 +68,7 @@ function AuthLink() {
   return (
     <Link
       to="/login"
-      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
+      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
     >
       {userIcon}
       <span>{isHomePage ? 'sign in' : guestName}</span>
