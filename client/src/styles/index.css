@@ -1847,22 +1847,27 @@ body {
     display: grid !important;
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
-    align-items: start;
-    padding-top: 1.5rem;
+    align-items: center;
+    align-content: center;
+    padding-top: 0;
+    padding-bottom: 0;
+    min-height: 100%;
   }
   .home-left {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1rem;
+    justify-self: center;
   }
   .home-right {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1rem;
     width: 100%;
-    max-width: none;
+    max-width: 20rem;
+    justify-self: center;
   }
 
   /* -- Lobby page: two-panel -- */
@@ -2005,6 +2010,30 @@ body {
   }
   .hand-display-large .playing-card span:last-child {
     font-size: 1.375rem;
+  }
+
+  /* -- Home page: compact for phone landscape -- */
+  .home-content {
+    gap: 1rem;
+  }
+  .home-left {
+    transform: scale(0.85);
+    transform-origin: center;
+    gap: 0.5rem;
+  }
+  /* Hide tagline on very short screens to save vertical space */
+  .home-left > p {
+    display: none;
+  }
+  .home-right {
+    gap: 0.625rem;
+  }
+  .home-right .btn-gold,
+  .home-right .btn-ghost,
+  .home-right .btn-orange {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.9375rem;
   }
 }
 

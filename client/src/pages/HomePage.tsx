@@ -616,15 +616,12 @@ export function HomePage() {
   return (
     <Layout largeTitle={mode === 'menu'} onTitleClick={mode !== 'menu' ? () => { play('uiBack'); setMode('menu'); } : undefined}>
       <div className="home-content flex flex-col items-center gap-8 pt-8">
-        {/* Tagline — orients first-time visitors */}
-        {mode === 'menu' && (
-          <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in -mb-4" style={{ maxWidth: '320px' }}>
-            A multiplayer bluffing card game — call it or call bull.
-          </p>
-        )}
-
-        {/* Left panel in landscape: deck demo — only on main menu */}
+        {/* Left panel in landscape: deck demo + tagline — only on main menu */}
         {mode === 'menu' && <div className="home-left">
+        {/* Tagline — orients first-time visitors */}
+        <p className="text-sm text-[var(--gold-dim)] text-center animate-fade-in" style={{ maxWidth: '320px' }}>
+          A multiplayer bluffing card game — call it or call bull.
+        </p>
         {/* Interactive deck */}
         <div className="relative flex flex-col items-center mb-2">
           <div
