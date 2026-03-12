@@ -122,7 +122,7 @@ export function GameStartBanner() {
   const progress = countdown / REDIRECT_SECONDS;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down">
+    <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Progress bar */}
       <div className="h-1 bg-[rgba(255,255,255,0.1)]">
         <div
