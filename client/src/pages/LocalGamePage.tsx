@@ -55,12 +55,12 @@ export function LocalGamePage() {
   } = useGameContext();
   useErrorToast(error, clearError);
   const { play } = useSound();
-  useGameSounds(gameState, roundResult, winnerId, playerId);
+  const isLandscape = useIsLandscape();
+  useGameSounds(gameState, roundResult, winnerId, playerId, false, isLandscape);
   useGameAnnouncements(gameState, roundResult, playerId);
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult);
-  const isLandscape = useIsLandscape();
 
   // All useState hooks — must be called unconditionally (before any early return)
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
