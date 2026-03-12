@@ -1,6 +1,5 @@
 import { memo, useEffect, useState, useMemo, useRef } from 'react';
 import type { RoundResult, Player, OwnedCard } from '@bull-em/shared';
-import { handToString } from '@bull-em/shared';
 import { getSeatPosition } from '../utils/roundtablePositions.js';
 import { CardDisplay } from './CardDisplay.js';
 import { useSound } from '../hooks/useSound.js';
@@ -250,12 +249,7 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
 
   return (
     <div className="rt-reveal-overlay" onClick={canDismiss ? onComplete : undefined}>
-      {/* Called hand label at top */}
-      <div className="rt-reveal-header animate-fade-in">
-        <span className="rt-reveal-hand-label">
-          {handToString(result.calledHand)}
-        </span>
-      </div>
+      {/* Called hand label removed — already visible in the current-call tile on the table */}
 
       {/* Card slots — each card animates at its seat or flies to center */}
       {slots.map(slot => (
