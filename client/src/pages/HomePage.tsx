@@ -1059,7 +1059,22 @@ export function HomePage() {
             >
               Watch a Game
             </button>
-            {/* Recent Players — portrait only (in landscape it's in the left column) */}
+            {/* Portrait-only: Lobby, Host, Join, Friends (in landscape these are in the left column) */}
+            {!isLandscape && (
+              <>
+                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
+                  Lobby
+                </button>
+                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
+                  Host Game
+                </button>
+                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
+                  Join with Code
+                </button>
+                <FriendsMenuLink />
+              </>
+            )}
+            {/* Recent Players — portrait only, below Friends (in landscape it's in the left column) */}
             {!isLandscape && (
               <div className="w-full">
                 <button
@@ -1075,21 +1090,6 @@ export function HomePage() {
                 </button>
                 {showRecentPlayers && <RecentPlayers />}
               </div>
-            )}
-            {/* Portrait-only: Lobby, Host, Join, Friends (in landscape these are in the left column) */}
-            {!isLandscape && (
-              <>
-                <button onClick={() => { play('uiSoft'); handleBrowse(); }} className="w-full btn-ghost py-4 text-lg">
-                  Lobby
-                </button>
-                <button onClick={() => { play('uiSoft'); handleHost(); }} className="w-full btn-ghost py-4 text-lg">
-                  Host Game
-                </button>
-                <button onClick={() => { play('uiSoft'); setMode('join'); }} className="w-full btn-ghost py-4 text-lg">
-                  Join with Code
-                </button>
-                <FriendsMenuLink />
-              </>
             )}
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
