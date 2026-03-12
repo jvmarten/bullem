@@ -6,6 +6,7 @@ import {
   MATCHMAKING_MULTIPLAYER_MIN,
   MATCHMAKING_MULTIPLAYER_TARGET,
   MATCHMAKING_FOUND_COUNTDOWN_MS,
+  GAME_COUNTDOWN_SECONDS,
   RANKED_SETTINGS,
   ELO_DEFAULT,
   GamePhase,
@@ -535,8 +536,8 @@ describe('MatchmakingQueue', () => {
       const room = [...mockRoomManager._rooms.values()][0]!;
       expect(room.startGame).not.toHaveBeenCalled();
 
-      // Fast-forward past the countdown
-      vi.advanceTimersByTime(MATCHMAKING_FOUND_COUNTDOWN_MS + 100);
+      // Fast-forward past the matchmaking countdown + game countdown
+      vi.advanceTimersByTime(MATCHMAKING_FOUND_COUNTDOWN_MS + GAME_COUNTDOWN_SECONDS * 1000 + 100);
 
       // startGame gets called via startMatchedGame which calls room.startGame()
       // But since mockRoomManager.getRoom returns the mock room:

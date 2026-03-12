@@ -98,6 +98,8 @@ export interface ServerToClientEvents {
    *  transferred to a new connection (same userId, different socket).
    *  The old client should show a message and stop reconnecting. */
   'session:transferred': () => void;
+  /** Countdown before game starts or before a new set in Bo3/Bo5. */
+  'game:countdown': (data: { seconds: number; label?: string }) => void;
   /** A friend request was received. */
   'friends:requestReceived': (from: FriendEntry) => void;
   /** A friend request was accepted (by the other party). */

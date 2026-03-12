@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS, JOKER_COUNT_OPTIONS } from '@bull-em/shared';
+import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS, JOKER_COUNT_OPTIONS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, JokerCount } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -637,29 +637,41 @@ export function registerLobbyHandlers(
       room.seriesState = null;
     }
 
-    room.startGame();
-    recordRoundStart(room.roomCode);
-    log.info({ roomCode: room.roomCode, playerCount: room.playerCount, ranked: room.settings.ranked ?? false, bestOf }, 'Game started');
-    track('game:started', {
-      roomCode: room.roomCode,
-      playerCount: room.playerCount,
-      settings: { ...room.settings },
-      ranked: room.settings.ranked ?? false,
-    });
+    // Emit countdown before starting the game — gives players a "3… 2… 1…"
+    const seriesLabel = room.seriesState && room.seriesState.bestOf > 1
+      ? `Set ${room.seriesState.currentSet}` : undefined;
+    io.to(room.roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: seriesLabel });
 
-    // Capture initial turn order so we can track starting position vs win rate
-    // at game completion (when we know who won). Store on the room for later use.
-    if (room.game) {
-      room.initialTurnOrder = room.game.getActivePlayers().map(p => p.id);
-    }
+    const roomCode = room.roomCode;
+    setTimeout(() => {
+      const freshRoom = roomManager.getRoom(roomCode);
+      if (!freshRoom) return;
+      if (freshRoom.gamePhase !== GamePhase.LOBBY) return;
 
-    // Clear cross-round bot memory for this room's scope
-    BotPlayer.resetMemory(room.roomCode);
-    // Schedule turn first (sets deadline for human), then broadcast with correct deadline
-    botManager.scheduleBotTurn(room, io);
-    broadcastRoomState(io, room);
-    broadcastGameState(io, room);
-    roomManager.persistRoom(room);
+      freshRoom.startGame();
+      recordRoundStart(freshRoom.roomCode);
+      log.info({ roomCode: freshRoom.roomCode, playerCount: freshRoom.playerCount, ranked: freshRoom.settings.ranked ?? false, bestOf }, 'Game started');
+      track('game:started', {
+        roomCode: freshRoom.roomCode,
+        playerCount: freshRoom.playerCount,
+        settings: { ...freshRoom.settings },
+        ranked: freshRoom.settings.ranked ?? false,
+      });
+
+      // Capture initial turn order so we can track starting position vs win rate
+      // at game completion (when we know who won). Store on the room for later use.
+      if (freshRoom.game) {
+        freshRoom.initialTurnOrder = freshRoom.game.getActivePlayers().map(p => p.id);
+      }
+
+      // Clear cross-round bot memory for this room's scope
+      BotPlayer.resetMemory(freshRoom.roomCode);
+      // Schedule turn first (sets deadline for human), then broadcast with correct deadline
+      botManager.scheduleBotTurn(freshRoom, io);
+      broadcastRoomState(io, freshRoom);
+      broadcastGameState(io, freshRoom);
+      roomManager.persistRoom(freshRoom);
+    }, GAME_COUNTDOWN_SECONDS * 1000);
   });
 
   socket.on('game:rematch', () => {
@@ -703,10 +715,22 @@ export function registerLobbyHandlers(
     room.resetForRematch();
     recordRoundStart(room.roomCode);
     log.info({ roomCode: room.roomCode }, 'Rematch started');
-    BotPlayer.resetMemory(room.roomCode);
-    botManager.scheduleBotTurn(room, io);
-    broadcastRoomState(io, room);
-    broadcastGameState(io, room);
-    roomManager.persistRoom(room);
+
+    // Emit countdown before the rematch begins
+    const rematchSeriesLabel = room.seriesState && room.seriesState.bestOf > 1
+      ? `Set ${room.seriesState.currentSet}` : undefined;
+    io.to(room.roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: rematchSeriesLabel });
+
+    const rematchRoomCode = room.roomCode;
+    setTimeout(() => {
+      const freshRoom = roomManager.getRoom(rematchRoomCode);
+      if (!freshRoom || !freshRoom.game) return;
+
+      BotPlayer.resetMemory(freshRoom.roomCode);
+      botManager.scheduleBotTurn(freshRoom, io);
+      broadcastRoomState(io, freshRoom);
+      broadcastGameState(io, freshRoom);
+      roomManager.persistRoom(freshRoom);
+    }, GAME_COUNTDOWN_SECONDS * 1000);
   });
 }

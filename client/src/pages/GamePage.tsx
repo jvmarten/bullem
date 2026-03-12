@@ -41,6 +41,7 @@ import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
 import { RoundtableRevealOverlay } from '../components/RoundtableRevealOverlay.js';
 import { SeriesBanner } from '../components/SeriesBanner.js';
+import { CountdownOverlay } from '../components/CountdownOverlay.js';
 
 /** Tooltip areas that should suppress "tap outside to close" for the hand selector */
 const HAND_SELECTOR_AREAS = ['hand-selector', 'action-area', 'raise-area', 'my-cards', 'call-history', 'quick-draw'] as const;
@@ -94,6 +95,7 @@ export function GamePage() {
     chatMessages, sendChatMessage,
     spectatorInitialStats,
     sessionTransferred,
+    countdown,
   } = useGameContext();
   const { user } = useAuth();
   const spectatorCount = roomState?.spectatorCount ?? 0;
@@ -383,6 +385,14 @@ export function GamePage() {
 
   // ── Early return: loading state (all hooks called above) ──────────────
   if (!gameState) {
+    // Show countdown overlay while waiting for the game to start
+    if (countdown) {
+      return (
+        <Layout>
+          <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+        </Layout>
+      );
+    }
     // Show progressive status so users know the system is working, not stuck
     const loadingMessage = !hasConnected
       ? 'Connecting to server\u2026'
@@ -501,7 +511,10 @@ export function GamePage() {
 
           {/* Overlays still render on top */}
           <GameTooltips gameActive={!roundResult && !roundTransition} />
-          {roundTransition && !roundResult && (
+          {countdown && (
+            <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+          )}
+          {roundTransition && !roundResult && !countdown && (
             <TransitionOverlay deadline={roundTransitionDeadline} />
           )}
           {roundResult && revealPhase === 'cinematic' && (
@@ -720,8 +733,13 @@ export function GamePage() {
         {/* First-game contextual tooltips */}
         <GameTooltips gameActive={!roundResult && !roundTransition} />
 
+        {/* Game countdown overlay (initial start or Bo3/Bo5 set transition) */}
+        {countdown && (
+          <CountdownOverlay seconds={countdown.secondsLeft} label={countdown.label} />
+        )}
+
         {/* Round transition overlay */}
-        {roundTransition && !roundResult && (
+        {roundTransition && !roundResult && !countdown && (
           <TransitionOverlay deadline={roundTransitionDeadline} />
         )}
 

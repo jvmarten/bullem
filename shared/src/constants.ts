@@ -50,6 +50,8 @@ export const DEFAULT_BEST_OF = 1;
 export const RANKED_BEST_OF = 3;
 /** Delay between sets in a series (ms) — shows transition screen. */
 export const SERIES_TRANSITION_DELAY_MS = 5_000;
+/** Countdown duration (seconds) shown before the game starts and before each new set. */
+export const GAME_COUNTDOWN_SECONDS = 3;
 export const DEFAULT_GAME_SETTINGS: { maxCards: number; turnTimer: number; botLevelCategory: 'mixed' } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_TURN_TIMER, botLevelCategory: 'mixed' };
 export const DEFAULT_ONLINE_GAME_SETTINGS: { maxCards: number; turnTimer: number; maxPlayers: number; botLevelCategory: 'mixed' } = { maxCards: MAX_CARDS, turnTimer: DEFAULT_ONLINE_TURN_TIMER, maxPlayers: MAX_PLAYERS, botLevelCategory: 'mixed' };
 /** How long a disconnected player has to reconnect before being eliminated (ms).

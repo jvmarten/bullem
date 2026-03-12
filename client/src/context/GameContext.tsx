@@ -96,6 +96,8 @@ export interface GameContextValue {
   spectatorInitialStats: GameStats | null;
   /** True when this socket's session was transferred to another device/tab. */
   sessionTransferred: boolean;
+  /** Active countdown state (e.g. "3… 2… 1…" before game starts). */
+  countdown: { secondsLeft: number; label?: string } | null;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -170,6 +172,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const [spectatorInitialStats, setSpectatorInitialStats] = useState<GameStats | null>(null);
   const [sessionTransferred, setSessionTransferred] = useState(false);
+  const [countdown, setCountdown] = useState<{ secondsLeft: number; label?: string } | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reactionTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
@@ -466,6 +470,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // The seriesInfo is embedded in the next game:state broadcast, so no extra
       // state is needed here. This handler exists to prevent unhandled-event warnings.
     });
+    socket.on('game:countdown', (data: { seconds: number; label?: string }) => {
+      // Clear any existing countdown timer
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      setCountdown({ secondsLeft: data.seconds, label: data.label });
+      countdownTimerRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (!prev || prev.secondsLeft <= 1) {
+            if (countdownTimerRef.current) {
+              clearInterval(countdownTimerRef.current);
+              countdownTimerRef.current = null;
+            }
+            return null;
+          }
+          return { ...prev, secondsLeft: prev.secondsLeft - 1 };
+        });
+      }, 1000);
+    });
     socket.on('game:replay', (replay) => { setLastReplay(replay); saveReplay(replay); });
     socket.on('game:rematchStarting', () => {
       setWinnerId(null);
@@ -557,6 +581,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       for (const timer of reactionTimersRef.current) clearTimeout(timer);
       reactionTimersRef.current.clear();
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
       socket.off('connect');
       socket.off('disconnect');
       socket.off('room:state');
@@ -565,6 +593,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('game:roundResult');
       socket.off('game:over');
       socket.off('game:seriesSetResult');
+      socket.off('game:countdown');
       socket.off('game:replay');
       socket.off('game:rematchStarting');
       socket.off('room:error');
@@ -877,9 +906,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     clearPendingRejoinRoom,
     spectatorInitialStats,
     sessionTransferred,
+    countdown,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
-    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown,
     lastReplay, reactions, chatMessages,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,

@@ -21,6 +21,7 @@ import {
   BotPlayer,
   getRankTier,
   BOT_PROFILES,
+  GAME_COUNTDOWN_SECONDS,
 } from '@bull-em/shared';
 import type {
   RankedMode,
@@ -723,7 +724,7 @@ export class MatchmakingQueue {
     }, MATCHMAKING_FOUND_COUNTDOWN_MS);
   }
 
-  /** Start the game in a matched room. Called after the countdown. */
+  /** Start the game in a matched room. Called after the matchmaking countdown. */
   private startMatchedGame(roomCode: string): void {
     const room = this.roomManager.getRoom(roomCode);
     if (!room) return;
@@ -744,19 +745,30 @@ export class MatchmakingQueue {
       };
     }
 
-    room.startGame();
-    recordRoundStart(room.roomCode);
+    // Emit countdown before starting the game
+    const seriesLabel = room.seriesState && room.seriesState.bestOf > 1
+      ? `Set ${room.seriesState.currentSet}` : undefined;
+    this.io.to(roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: seriesLabel });
 
-    // Clear cross-round bot memory
-    BotPlayer.resetMemory(room.roomCode);
+    setTimeout(() => {
+      const freshRoom = this.roomManager.getRoom(roomCode);
+      if (!freshRoom) return;
+      if (freshRoom.gamePhase !== GamePhase.LOBBY) return;
 
-    // Schedule turn first (sets deadline for human), then broadcast
-    this.botManager.scheduleBotTurn(room, this.io);
-    broadcastRoomState(this.io, room);
-    broadcastGameState(this.io, room);
-    this.roomManager.persistRoom(room);
+      freshRoom.startGame();
+      recordRoundStart(freshRoom.roomCode);
 
-    logger.info({ roomCode, playerCount: room.playerCount }, 'Matched game started');
+      // Clear cross-round bot memory
+      BotPlayer.resetMemory(freshRoom.roomCode);
+
+      // Schedule turn first (sets deadline for human), then broadcast
+      this.botManager.scheduleBotTurn(freshRoom, this.io);
+      broadcastRoomState(this.io, freshRoom);
+      broadcastGameState(this.io, freshRoom);
+      this.roomManager.persistRoom(freshRoom);
+
+      logger.info({ roomCode, playerCount: freshRoom.playerCount }, 'Matched game started');
+    }, GAME_COUNTDOWN_SECONDS * 1000);
   }
 
   // ── Queue status broadcasts ───────────────────────────────────────────
