@@ -21,6 +21,10 @@ interface Props {
   playerCount: number;
   myPlayerId?: string;
   onComplete: () => void;
+  /** When true, skip the cinematic animation and show the final state immediately (e.g. after orientation change mid-animation). */
+  skipToEnd?: boolean;
+  /** Called when the cinematic animation first begins, so the parent can track whether it was started. */
+  onAnimationStart?: () => void;
 }
 
 /** Each slot in the reveal sequence — one per card in every player's hand. */
@@ -57,6 +61,8 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   playerCount,
   myPlayerId,
   onComplete,
+  skipToEnd = false,
+  onAnimationStart,
 }: Props) {
   const { play } = useSound();
   const [slots, setSlots] = useState<RevealSlot[]>([]);
@@ -183,6 +189,21 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     timerRefs.current = timers;
+
+    // Skip-to-end mode: show final state immediately (e.g. after orientation change mid-animation)
+    if (skipToEnd) {
+      const final: RevealSlot[] = slotSequence.map(s => ({
+        ...s,
+        phase: s.isRelevant ? 'settled' as const : 'burned' as const,
+      }));
+      setSlots(final);
+      setShowResult(true);
+      setShowBeat2(true);
+      setCanDismiss(true);
+      return;
+    }
+
+    onAnimationStart?.();
 
     // Initialize all slots as "showing" (card backs visible at seats)
     const initial: RevealSlot[] = slotSequence.map(s => ({ ...s, phase: 'showing' as const }));
