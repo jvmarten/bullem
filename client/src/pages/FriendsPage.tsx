@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useFriends } from '../context/FriendsContext.js';
 import { useAuth } from '../context/AuthContext.js';
@@ -123,6 +123,8 @@ export function FriendsPage() {
   const [tab, setTab] = useState<Tab>('friends');
   const [addUsername, setAddUsername] = useState('');
   const [sending, setSending] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+  const spinKeyRef = useRef(0);
 
   const handleSendRequest = useCallback(async () => {
     if (!addUsername.trim()) return;
@@ -206,15 +208,15 @@ export function FriendsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => { play('uiSoft'); navigate(-1); }} className="text-[var(--gold-dim)] hover:text-[var(--gold)]">
+            <button onClick={() => { play('uiSoft'); navigate('/', { state: { mode: 'online' } }); }} className="text-[var(--gold-dim)] hover:text-[var(--gold)]">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
             <h1 className="text-xl font-bold text-[var(--gold)]">Friends</h1>
           </div>
-          <button onClick={() => { play('uiSoft'); refresh(); }} className="text-[var(--gold-dim)] hover:text-[var(--gold)] p-1" title="Refresh">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={loading ? 'animate-spin' : ''}>
+          <button onClick={() => { play('uiSoft'); refresh(); setSpinning(true); spinKeyRef.current += 1; }} className="text-[var(--gold-dim)] hover:text-[var(--gold)] p-1" title="Refresh">
+            <svg key={spinKeyRef.current} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={spinning ? 'animate-spin-once' : ''} onAnimationEnd={() => setSpinning(false)}>
               <polyline points="23 4 23 10 17 10" />
               <polyline points="1 20 1 14 7 14" />
               <path d="m3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />

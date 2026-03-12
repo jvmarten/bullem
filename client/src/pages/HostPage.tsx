@@ -76,7 +76,7 @@ export function HostPage() {
 
         <div className="host-actions">
           <button onClick={handleCreate} disabled={loading} className="w-full btn-gold py-3 text-lg">{loading ? 'Creating…' : 'Create Room'}</button>
-          <button onClick={() => { play('uiBack'); navigate('/'); }} className="w-full btn-ghost py-2">Back</button>
+          <button onClick={() => { play('uiBack'); navigate('/', { state: { mode: 'online' } }); }} className="w-full btn-ghost py-2">Back</button>
         </div>
 
         <div className="host-left">
