@@ -675,6 +675,7 @@ body {
 .animate-shake { animation: shake 0.4s ease-out; }
 .animate-timer-tick { animation: timer-tick 0.3s ease-out; }
 .animate-spin { animation: spin 1s linear infinite; }
+.animate-spin-once { animation: spin 0.5s ease-in-out; }
 
 /* ── Quick Draw Chips ─────────────────────────────────── */
 @keyframes quick-draw-in {
