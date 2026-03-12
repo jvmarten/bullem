@@ -1756,6 +1756,11 @@ body {
 .landscape-header-hidden main {
   padding-top: 0 !important;
 }
+/* With the header hidden, the game layout needs its own top safe area inset
+   so content doesn't overlap the notch/status bar in portrait. */
+.landscape-header-hidden .game-layout {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
 /* Hide landscape game overlay in portrait — rendered in DOM but only visible in landscape */
 .game-header-overlay {
