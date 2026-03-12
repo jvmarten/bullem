@@ -4,8 +4,15 @@ import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst, StaleWhileRevalidate, NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { clientsClaim } from 'workbox-core';
 
 declare const self: ServiceWorkerGlobalScope;
+
+// Activate new service worker immediately instead of waiting for all tabs to
+// close. Without this, users see the old cached version until they close every
+// tab — the exact "works in incognito but not normal browser" symptom.
+self.skipWaiting();
+clientsClaim();
 
 // ─── Precache & Route ────────────────────────────────────────────────
 // vite-plugin-pwa injects the precache manifest here at build time.
