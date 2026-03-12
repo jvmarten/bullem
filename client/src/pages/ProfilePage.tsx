@@ -188,6 +188,11 @@ export function ProfilePage() {
   const [ratings, setRatings] = useState<UserRatings | null>(null);
   const [deckDrawBalance, setDeckDrawBalance] = useState<number | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>('all');
+  const GAMES_PER_PAGE = 10;
+  const [games, setGames] = useState<GameHistoryEntry[]>([]);
+  const [gamesTotal, setGamesTotal] = useState(0);
+  const [gamesPage, setGamesPage] = useState(0);
+  const [gamesLoading, setGamesLoading] = useState(false);
 
   const fetchRatings = useCallback(async (userId: string) => {
     try {
@@ -221,6 +226,25 @@ export function ProfilePage() {
     }
   }, []);
 
+  const fetchGames = useCallback(async (userId: string, page: number) => {
+    setGamesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/stats/${userId}/games?limit=${GAMES_PER_PAGE}&offset=${page * GAMES_PER_PAGE}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) return;
+      const data = await res.json() as { games: GameHistoryEntry[]; total: number };
+      setGames(data.games);
+      setGamesTotal(data.total);
+      setGamesPage(page);
+    } catch {
+      // Non-critical — games list may fail independently
+    } finally {
+      setGamesLoading(false);
+    }
+  }, []);
+
   // Fetch deck draw balance
   useEffect(() => {
     if (!profile) return;
@@ -232,13 +256,14 @@ export function ProfilePage() {
       .catch(() => {});
   }, [profile]);
 
-  // Fetch stats and ratings when profile loads
+  // Fetch stats, ratings, and games when profile loads
   useEffect(() => {
     if (profile && !statsLoaded) {
       fetchStats();
       fetchRatings(profile.id);
+      fetchGames(profile.id, 0);
     }
-  }, [profile, statsLoaded, fetchStats, fetchRatings]);
+  }, [profile, statsLoaded, fetchStats, fetchRatings, fetchGames]);
 
   if (loading) {
     return (
@@ -669,28 +694,62 @@ export function ProfilePage() {
             <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
               Recent Games
             </p>
-            {stats && stats.recentGames.length > 0 && (
+            {games.length > 0 && (
               <GameFilterTabs filter={gameFilter} onChange={setGameFilter} />
             )}
           </div>
-          {statsLoading && !stats ? (
+          {(statsLoading && !stats) || (gamesLoading && games.length === 0) ? (
             <GameHistorySkeleton />
-          ) : stats && stats.recentGames.length > 0 ? (() => {
-            const filtered = stats.recentGames.filter(g =>
+          ) : games.length > 0 ? (() => {
+            const filtered = games.filter(g =>
               gameFilter === 'all' ? true : gameFilter === 'ranked' ? g.isRanked : !g.isRanked,
             );
-            return filtered.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {filtered.map(game => (
-                  <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
-                ))}
-              </div>
-            ) : (
-              <div className="glass px-4 py-4 text-center">
-                <p className="text-[var(--gold-dim)] text-xs">
-                  No {gameFilter} games yet
-                </p>
-              </div>
+            const totalPages = Math.ceil(gamesTotal / GAMES_PER_PAGE);
+            return (
+              <>
+                {filtered.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {filtered.map(game => (
+                      <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass px-4 py-4 text-center">
+                    <p className="text-[var(--gold-dim)] text-xs">
+                      No {gameFilter} games on this page
+                    </p>
+                  </div>
+                )}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-3 mt-3">
+                    <button
+                      onClick={() => profile && fetchGames(profile.id, gamesPage - 1)}
+                      disabled={gamesPage === 0 || gamesLoading}
+                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                        gamesPage === 0 || gamesLoading
+                          ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
+                          : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <span className="text-[10px] text-[var(--gold-dim)]">
+                      {gamesPage + 1} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => profile && fetchGames(profile.id, gamesPage + 1)}
+                      disabled={gamesPage >= totalPages - 1 || gamesLoading}
+                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                        gamesPage >= totalPages - 1 || gamesLoading
+                          ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
+                          : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             );
           })() : (
             <div className="glass px-4 py-4 text-center">

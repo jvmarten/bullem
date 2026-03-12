@@ -185,3 +185,75 @@ export async function getPlayerStats(userId: string): Promise<PlayerStatsRespons
     recentGames,
   };
 }
+
+/** Response shape for paginated recent games. */
+export interface PaginatedGamesResponse {
+  games: GameHistoryEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Fetch paginated recent game history for a user, including ranked status and rating changes.
+ * Returns null if the database is unavailable.
+ */
+export async function getRecentGamesPaginated(
+  userId: string,
+  limit: number,
+  offset: number,
+): Promise<PaginatedGamesResponse | null> {
+  const countResult = await query<{ total: string }>(
+    'SELECT COUNT(*)::text AS total FROM game_players WHERE user_id = $1',
+    [userId],
+  );
+  if (!countResult) return null;
+  const total = parseInt(countResult.rows[0]?.total ?? '0', 10);
+
+  const result = await query<RecentGameRow>(
+    `SELECT
+      g.id,
+      g.room_code,
+      g.winner_name,
+      g.player_count::text,
+      g.settings,
+      g.started_at,
+      g.ended_at,
+      g.duration_seconds::text,
+      gp.finish_position::text,
+      gp.player_name,
+      gp.final_card_count::text,
+      gp.stats,
+      (rm.id IS NOT NULL) AS is_ranked,
+      (rh.rating_after - rh.rating_before)::text AS rating_change
+    FROM game_players gp
+    JOIN games g ON g.id = gp.game_id
+    LEFT JOIN ranked_matches rm ON rm.game_id = g.id
+    LEFT JOIN rating_history rh ON rh.game_id = g.id AND rh.user_id = gp.user_id
+    WHERE gp.user_id = $1
+    ORDER BY g.ended_at DESC
+    LIMIT $2 OFFSET $3`,
+    [userId, limit, offset],
+  );
+
+  if (!result) return null;
+
+  const games: GameHistoryEntry[] = result.rows.map((r: RecentGameRow) => ({
+    id: r.id,
+    roomCode: r.room_code,
+    winnerName: r.winner_name,
+    playerCount: parseInt(r.player_count, 10),
+    settings: r.settings,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+    durationSeconds: parseInt(r.duration_seconds, 10),
+    finishPosition: parseInt(r.finish_position, 10),
+    playerName: r.player_name,
+    finalCardCount: parseInt(r.final_card_count, 10),
+    stats: r.stats,
+    isRanked: r.is_ranked,
+    ratingChange: r.rating_change !== null ? parseFloat(r.rating_change) : null,
+  }));
+
+  return { games, total, limit, offset };
+}
