@@ -1725,6 +1725,11 @@ body {
     padding-bottom: 0.375rem !important;
   }
 
+  /* Reset portrait-only top padding on the header left group in landscape */
+  .portrait-header-left {
+    padding-top: 0 !important;
+  }
+
   /* -- Show floating overlay in landscape game mode (header already hidden globally) -- */
 
   .game-header-overlay {
