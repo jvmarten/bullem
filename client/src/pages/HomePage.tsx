@@ -371,9 +371,16 @@ export function HomePage() {
   // roomState and gameState. If we detect an active in-progress game, navigate
   // directly to the game page instead of showing the home menu.
   // Skip redirect for spectators — they should be able to navigate back freely.
+  // Also require an active player session in sessionStorage: when the spectator
+  // cleanup effect above calls leaveRoom(), sessionStorage is cleared
+  // synchronously but setRoomState(null) is queued asynchronously. Without
+  // this check, roomState is still truthy here and the redirect fires before
+  // the state update commits, bouncing the spectator back to GamePage where
+  // joinRoom() fails with "Game not found or already ended".
   useEffect(() => {
     const isSpectator = !!sessionStorage.getItem('bull-em-spectator-room');
-    if (roomState && roomState.gamePhase !== 'lobby' && !isSpectator) {
+    const hasActiveSession = !!sessionStorage.getItem('bull-em-player-id');
+    if (roomState && roomState.gamePhase !== 'lobby' && !isSpectator && hasActiveSession) {
       navigate(`/game/${roomState.roomCode}`);
     }
   }, [roomState, navigate]);
