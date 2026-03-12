@@ -7,7 +7,7 @@ import { useSound } from '../hooks/useSound.js';
 /** Timing constants (ms) */
 const CARD_FLIP_DURATION = 450;    // 3D card flip animation time
 const FLY_TO_CENTER_DURATION = 400; // fly from seat to center of table
-const CARD_BURN_DURATION = 500;    // non-hand card fade/burn
+const CARD_BURN_DURATION = 300;    // non-hand card fade/burn
 const CARD_INTERVAL = 300;         // delay between cards within same player
 const PLAYER_PAUSE = 500;          // pause between players for narrative pacing
 const POST_FLIP_PAUSE = 150;       // brief pause after flip before fly/burn

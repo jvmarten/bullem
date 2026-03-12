@@ -444,16 +444,18 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
       setShowDealing(true);
       setDealtPerSeat({}); // reset dealt counts for new round
       // Auto-hide after animation completes (safety net — overlay also self-removes)
-      const maxPlayerCards = Math.max(...players.filter(p => !p.isEliminated).map(p => p.cardCount), 0);
-      const totalPlayers = players.filter(p => !p.isEliminated).length;
-      const totalCards = maxPlayerCards * totalPlayers;
+      const activePlayers = players.filter(p => !p.isEliminated);
+      const maxPlayerCards = Math.max(...activePlayers.map(p => p.cardCount), 0);
+      const totalCards = maxPlayerCards * activePlayers.length;
       const timeout = totalCards * 180 + 350 + 300 + 400; // deal + fly + fade + buffer
       const t = setTimeout(() => setShowDealing(false), timeout);
       prevRoundRef.current = roundNumber;
       return () => clearTimeout(t);
     }
     prevRoundRef.current = roundNumber;
-  }, [roundNumber, players]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on roundNumber change;
+    // players is read inside the round-change branch and will have the correct value in that render.
+  }, [roundNumber]);
 
   // Whether seat card backs should be suppressed (dealing or cinematic reveal in progress)
   const suppressSeatCards = showDealing || !!revealInProgress;
@@ -591,6 +593,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
         {/* Dealing animation overlay — shows deck + flying cards at round start */}
         {showDealing && (
           <RoundtableDealingOverlay
+            key={roundNumber}
             myPlayerId={myPlayerId}
             myCards={myCards}
             playerCount={playerCount}
