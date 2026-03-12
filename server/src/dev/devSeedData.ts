@@ -307,6 +307,7 @@ function generateRecentGames(userId: string, count: number): GameHistoryEntry[] 
       rankedMode: playerCount === 2 ? 'heads_up' : 'multiplayer',
     };
 
+    const isRanked = settings.ranked === true;
     games.push({
       id: uuidFromSeed(`dev-game-${userId}-${i}`),
       roomCode: `DEV${rand(1000, 9999)}`,
@@ -320,6 +321,8 @@ function generateRecentGames(userId: string, count: number): GameHistoryEntry[] 
       playerName: 'You',
       finalCardCount: finishPosition === 1 ? rand(1, 3) : 5,
       stats: gameStats,
+      isRanked,
+      ratingChange: isRanked ? (finishPosition === 1 ? rand(10, 30) : -rand(5, 25)) : null,
     });
   }
 

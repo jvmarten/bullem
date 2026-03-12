@@ -127,6 +127,9 @@ function positionLabel(position: number): string {
   return `${position}th`;
 }
 
+/** Filter for recent games list. */
+type GameFilter = 'all' | 'ranked' | 'normal';
+
 function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
   const navigate = useNavigate();
   const isWin = game.finishPosition === 1;
@@ -150,13 +153,44 @@ function GameHistoryItem({ game }: { game: GameHistoryEntry }) {
           </p>
           <p className="text-[10px] text-[var(--gold-dim)]">
             {is1v1 ? '1v1' : `${game.playerCount} players`} &middot; {formatDuration(game.durationSeconds)}
+            {game.isRanked && <span> &middot; Ranked</span>}
           </p>
         </div>
       </div>
       <div className="text-right shrink-0">
+        {game.isRanked && game.ratingChange !== null && (
+          <p className={`text-xs font-semibold ${game.ratingChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {game.ratingChange >= 0 ? '+' : ''}{Math.round(game.ratingChange)}
+          </p>
+        )}
         <p className="text-[10px] text-[var(--gold-dim)]">{formatDate(game.endedAt)}</p>
       </div>
     </button>
+  );
+}
+
+function GameFilterTabs({ filter, onChange }: { filter: GameFilter; onChange: (f: GameFilter) => void }) {
+  const tabs: { key: GameFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'ranked', label: 'Ranked' },
+    { key: 'normal', label: 'Normal' },
+  ];
+  return (
+    <div className="flex gap-1">
+      {tabs.map(tab => (
+        <button
+          key={tab.key}
+          onClick={() => onChange(tab.key)}
+          className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors min-h-[28px] ${
+            filter === tab.key
+              ? 'bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]'
+              : 'text-[var(--gold-dim)] border border-transparent hover:text-[var(--gold)] hover:border-white/10'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -177,6 +211,7 @@ export function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminViewNormal, setAdminViewNormal] = useState(false);
+  const [gameFilter, setGameFilter] = useState<GameFilter>('all');
 
   const fetchProfile = useCallback(async () => {
     if (!username) return;
@@ -663,14 +698,30 @@ export function PublicProfilePage() {
         {/* Recent Games — admin only */}
         {isAdmin && stats && stats.recentGames.length > 0 && (
           <div className="w-full mb-6">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-3 px-1">
-              Recent Games ({stats.recentGames.length})
-            </p>
-            <div className="flex flex-col gap-2">
-              {stats.recentGames.map(game => (
-                <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
-              ))}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold">
+                Recent Games
+              </p>
+              <GameFilterTabs filter={gameFilter} onChange={setGameFilter} />
             </div>
+            {(() => {
+              const filtered = stats.recentGames.filter(g =>
+                gameFilter === 'all' ? true : gameFilter === 'ranked' ? g.isRanked : !g.isRanked,
+              );
+              return filtered.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {filtered.map(game => (
+                    <GameHistoryItem key={`${game.id}-${game.endedAt}`} game={game} />
+                  ))}
+                </div>
+              ) : (
+                <div className="glass px-4 py-4 text-center">
+                  <p className="text-[var(--gold-dim)] text-xs">
+                    No {gameFilter} games yet
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 
