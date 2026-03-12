@@ -53,6 +53,7 @@ function AuthLink() {
   }
 
   const guestName = getGuestDisplayName();
+  const isHomePage = location.pathname === '/';
 
   if (inSession) {
     // Show guest label without navigation to avoid kicking from game
@@ -70,7 +71,7 @@ function AuthLink() {
       className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px]"
     >
       {userIcon}
-      <span>{guestName}</span>
+      <span>{isHomePage ? 'sign in' : guestName}</span>
     </Link>
   );
 }
