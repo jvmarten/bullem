@@ -418,9 +418,11 @@ export class GameEngine {
     return this.gameStats;
   }
 
-  /** Get all round snapshots recorded during this game (for building a replay). */
+  /** Get all round snapshots recorded during this game (for building a replay).
+   *  Returns a copy sorted by roundNumber to guarantee correct ordering,
+   *  even after engine restore (which may lose earlier snapshots). */
   getRoundSnapshots(): RoundSnapshot[] {
-    return this._roundSnapshots;
+    return [...this._roundSnapshots].sort((a, b) => a.roundNumber - b.roundNumber);
   }
 
   getActivePlayers(): ServerPlayer[] {
@@ -798,6 +800,8 @@ export class GameEngine {
       respondedPlayers: [...this.respondedPlayers],
       lastChanceUsed: this.lastChanceUsed,
       gameStats: JSON.parse(JSON.stringify(this.gameStats)),
+      roundSnapshots: JSON.parse(JSON.stringify(this._roundSnapshots)),
+      roundStartCards: this._roundStartCards.map(pc => ({ ...pc, cards: [...pc.cards] })),
     };
   }
 
@@ -865,6 +869,12 @@ export class GameEngine {
     engine.respondedPlayers = new Set(snapshot.respondedPlayers);
     engine.lastChanceUsed = snapshot.lastChanceUsed;
     engine.gameStats = JSON.parse(JSON.stringify(snapshot.gameStats));
+    if (snapshot.roundSnapshots) {
+      engine._roundSnapshots = JSON.parse(JSON.stringify(snapshot.roundSnapshots));
+    }
+    if (snapshot.roundStartCards) {
+      engine._roundStartCards = snapshot.roundStartCards.map(pc => ({ ...pc, cards: [...pc.cards] }));
+    }
     return engine;
   }
 }

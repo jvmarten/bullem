@@ -87,7 +87,12 @@ export async function getReplayByGameId(gameId: string): Promise<GameReplay | nu
 
   if (!roundsResult || roundsResult.rows.length === 0) return null;
 
-  const rounds: RoundSnapshot[] = roundsResult.rows.map(r => r.snapshot);
+  // Sort by roundNumber inside the snapshot as a defensive measure — the SQL
+  // ORDER BY round_number ASC should already return rows in order, but the
+  // snapshot's embedded roundNumber is the canonical source of truth.
+  const rounds: RoundSnapshot[] = roundsResult.rows
+    .map(r => r.snapshot)
+    .sort((a, b) => a.roundNumber - b.roundNumber);
 
   // Reconstruct player list from the first round's playerCards
   // (round snapshots contain SpectatorPlayerCards with playerId, playerName, cards)
