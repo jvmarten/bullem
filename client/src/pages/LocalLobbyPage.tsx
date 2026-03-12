@@ -309,9 +309,6 @@ export function LocalLobbyPage() {
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-[var(--gold-dim)] mt-1.5">
-              Eliminated after {maxCards + 1} cards &middot; Max {dynamicMaxPlayers} players
-            </p>
           </div>
         )}
 
