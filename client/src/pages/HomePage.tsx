@@ -617,7 +617,7 @@ export function HomePage() {
 
   return (
     <Layout largeTitle={mode === 'menu'} onTitleClick={mode !== 'menu' ? () => { play('uiBack'); setMode('menu'); } : undefined}>
-      <div className="home-content flex flex-col items-center gap-8 pt-8">
+      <div className="home-content flex flex-col items-center gap-4 pt-8">
         {/* Left panel in landscape: deck demo on main menu, submenu buttons on online/offline */}
         {/* Landscape online left column: Lobby, Friends, Host Game, Join with Code */}
         {isLandscape && mode === 'online' && (
