@@ -1181,7 +1181,8 @@ export function HomePage() {
         </div>
       )}
 
-      {/* Version — bottom right, scrolls with page content */}
+      {/* Version — bottom right, scrolls with page content, only on main menu */}
+      {mode === 'menu' && (
       <div className="flex justify-end mt-4 pb-4 pr-2">
         <button
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
@@ -1190,6 +1191,7 @@ export function HomePage() {
           v1.4.0
         </button>
       </div>
+      )}
 
       {/* Version info modal */}
       {showVersion && (
