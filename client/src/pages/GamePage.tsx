@@ -194,13 +194,14 @@ export function GamePage() {
     rejoinAttemptedRef.current = true;
 
     let settled = false;
+    // Allow enough time for reconnection retries (up to 2 retries with 1-2s backoff)
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true;
         addToast('Game not found or already ended');
         navigate('/');
       }
-    }, 8000);
+    }, 15000);
 
     joinRoom(roomCode, storedName, user?.avatar)
       .then(() => { settled = true; clearTimeout(timeout); })

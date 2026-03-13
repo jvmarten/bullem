@@ -1,21 +1,10 @@
 import type {
-  PlayerId, Card, HandCall, TurnEntry, RoundResult, GameSettings, SpectatorPlayerCards,
+  PlayerId, HandCall, TurnEntry, RoundResult, GameSettings, SpectatorPlayerCards,
+  RoundSnapshot,
 } from './types.js';
 
-/**
- * Snapshot of a single round for replay purposes.
- * Captured at round resolution — contains all players' cards (visible in replay)
- * plus the full turn history and resolution outcome.
- */
-export interface RoundSnapshot {
-  roundNumber: number;
-  /** All players' cards at the start of the round (full visibility for replay). */
-  playerCards: SpectatorPlayerCards[];
-  /** Complete turn-by-turn history for the round. */
-  turnHistory: TurnEntry[];
-  /** Round resolution result (called hand, penalties, eliminations, revealed cards). */
-  result: RoundResult;
-}
+// Re-export RoundSnapshot so existing imports from './replay.js' keep working.
+export type { RoundSnapshot };
 
 /** Full game replay — everything needed to step through a completed game. */
 export interface GameReplay {
