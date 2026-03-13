@@ -75,5 +75,12 @@ export function validateGameSettings(settings: Record<string, unknown>): Setting
     return { ok: false, error: 'Invalid joker count (must be 0, 1, or 2)' };
   }
 
+  // ── Boolean fields — reject non-boolean values from untrusted input ──
+  for (const field of ['isPublic', 'ranked', 'allowSpectators', 'spectatorsCanSeeCards'] as const) {
+    if (settings[field] !== undefined && typeof settings[field] !== 'boolean') {
+      return { ok: false, error: `Invalid ${field} setting (must be boolean)` };
+    }
+  }
+
   return { ok: true };
 }

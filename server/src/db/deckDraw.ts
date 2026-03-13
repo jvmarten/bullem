@@ -104,6 +104,25 @@ export async function atomicDeductBalance(
   return parseInt(result.rows[0]!.balance, 10);
 }
 
+/** Atomically add winnings to balance. Returns the new balance, or null if
+ *  the row doesn't exist. Prevents TOCTOU race conditions when concurrent
+ *  requests both try to add winnings after a wagered draw. */
+export async function atomicAddBalance(
+  userId: string,
+  amount: number,
+): Promise<number | null> {
+  const result = await query<{ balance: string }>(
+    `UPDATE deck_draw_stats
+     SET balance = balance + $2, updated_at = NOW()
+     WHERE user_id = $1
+     RETURNING balance`,
+    [userId, amount],
+  );
+
+  if (!result || result.rows.length === 0) return null;
+  return parseInt(result.rows[0]!.balance, 10);
+}
+
 /** Sync guest localStorage stats into a user's DB record.
  *  Merges by taking the maximum of each stat and summing hand counts. */
 export async function syncGuestStats(
