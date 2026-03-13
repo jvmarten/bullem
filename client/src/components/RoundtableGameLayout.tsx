@@ -544,7 +544,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
   const myAtMax = myPlayer ? myPlayer.cardCount >= maxCards && !myPlayer.isEliminated : false;
 
   return (
-    <div className="rt-layout">
+    <div className={`rt-layout ${isMyTurn ? 'rt-layout--my-turn' : ''}`}>
       {/* Table area with oval and player seats */}
       <div className={`rt-table-area ${playerCount >= 9 ? 'rt-table-area--crowded' : ''}`}>
         {/* Poker table surface */}
