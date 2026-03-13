@@ -11,11 +11,42 @@ import type { Room } from '../rooms/Room.js';
 import { persistGameResult } from '../db/games.js';
 import type { GameRecord } from '../db/games.js';
 import { persistReplayRounds } from '../db/replays.js';
-import { updateRatingsAfterGame, getRating } from '../db/ratings.js';
+import { updateRatingsAfterGame, getRating, BOT_MATCH_WEIGHT } from '../db/ratings.js';
 import { persistRankedMatch } from '../db/rankedMatches.js';
 import type { RankedMatchPlayerData } from '../db/rankedMatches.js';
 import { track } from '../analytics/track.js';
 import logger from '../logger.js';
+
+/**
+ * Calculate finish positions from elimination order:
+ * Winner = 1, last eliminated = 2nd, first eliminated = last.
+ * Players not in the elimination order (and not the winner) get the trailing positions.
+ */
+function calculateFinishPositions(
+  winnerId: PlayerId,
+  eliminationOrder: PlayerId[],
+  playerIds: Iterable<PlayerId>,
+): Map<PlayerId, number> {
+  const positionMap = new Map<PlayerId, number>();
+  positionMap.set(winnerId, 1);
+
+  // Reverse elimination order: last eliminated is 2nd place
+  for (let i = eliminationOrder.length - 1; i >= 0; i--) {
+    const playerId = eliminationOrder[i]!;
+    const position = eliminationOrder.length - i + 1;
+    positionMap.set(playerId, position);
+  }
+
+  // Any players not in elimination order and not the winner get trailing positions
+  let nextPosition = positionMap.size + 1;
+  for (const playerId of playerIds) {
+    if (!positionMap.has(playerId)) {
+      positionMap.set(playerId, nextPosition++);
+    }
+  }
+
+  return positionMap;
+}
 
 /**
  * Build a GameRecord from room state and persist it to the database.
@@ -28,28 +59,8 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
   const playerCount = room.players.size;
   const winnerPlayer = room.players.get(winnerId);
 
-  // Calculate finish positions:
-  // Winner = 1, others based on reverse elimination order
-  // (last eliminated = 2nd place, first eliminated = last place)
   const totalPlayers = room.players.size;
-  const positionMap = new Map<PlayerId, number>();
-  positionMap.set(winnerId, 1);
-
-  // Reverse elimination order: last eliminated is 2nd place
-  for (let i = room.eliminationOrder.length - 1; i >= 0; i--) {
-    const playerId = room.eliminationOrder[i]!;
-    // Position 2 for last eliminated, 3 for second-to-last, etc.
-    const position = room.eliminationOrder.length - i + 1;
-    positionMap.set(playerId, position);
-  }
-
-  // Any players not in elimination order and not the winner get the last positions
-  let nextPosition = positionMap.size + 1;
-  for (const [playerId] of room.players) {
-    if (!positionMap.has(playerId)) {
-      positionMap.set(playerId, nextPosition++);
-    }
-  }
+  const positionMap = calculateFinishPositions(winnerId, room.eliminationOrder, room.players.keys());
 
   const record: GameRecord = {
     roomCode: room.roomCode,
@@ -223,8 +234,7 @@ export async function computeRatingChanges(
   const rankedMode = room.settings.rankedMode;
   const result: Record<PlayerId, RatingChange> = {};
 
-  // Calculate bot weight for preview deltas (same logic as persistCompletedGame)
-  const BOT_MATCH_WEIGHT = 0.5;
+  // Calculate bot weight for preview deltas (same formula as updateRatingsAfterGame)
   const totalPlayerCount = room.players.size;
   const authenticatedCount = [...room.players.keys()].filter(pid => room.playerUserIds.get(pid)).length;
   const botCount = totalPlayerCount - authenticatedCount;
@@ -232,16 +242,7 @@ export async function computeRatingChanges(
   const weight = botFraction > 0 ? 1 - botFraction * (1 - BOT_MATCH_WEIGHT) : 1;
 
   try {
-    // Build finish positions
-    const positionMap = new Map<PlayerId, number>();
-    positionMap.set(winnerId, 1);
-    for (let i = room.eliminationOrder.length - 1; i >= 0; i--) {
-      positionMap.set(room.eliminationOrder[i]!, room.eliminationOrder.length - i + 1);
-    }
-    let nextPos = positionMap.size + 1;
-    for (const [pid] of room.players) {
-      if (!positionMap.has(pid)) positionMap.set(pid, nextPos++);
-    }
+    const positionMap = calculateFinishPositions(winnerId, room.eliminationOrder, room.players.keys());
 
     // Only authenticated players
     const rankedPlayers = [...room.players.entries()]

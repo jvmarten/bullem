@@ -14,6 +14,7 @@ import { BotPlayer } from './BotPlayer.js';
 import { broadcastGameState, broadcastGameReplay } from '../socket/broadcast.js';
 import { beginRoundResultPhase, handleSetOver } from '../socket/roundTransition.js';
 import { persistCompletedGame } from '../socket/persistGame.js';
+import logger from '../logger.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -384,6 +385,16 @@ export class BotManager {
               this.handleBotResult(io, room, passFallback);
               return;
             }
+            // Last resort: call the lowest possible hand (handles first-move-of-round
+            // case where bull/pass are both invalid)
+            const callFallback = room.game.handleCall(currentId, { type: HandType.HIGH_CARD, rank: '2' });
+            if (callFallback.type !== 'error') {
+              this.handleBotResult(io, room, callFallback);
+              return;
+            }
+            // All fallback actions failed — game engine is in an unexpected state.
+            // Log but don't re-schedule to avoid an infinite retry loop.
+            logger.error({ roomCode: room.roomCode, botId: currentId }, 'Bot exhausted all fallback actions — game may stall');
           }
         }
         break;
