@@ -1272,7 +1272,7 @@ export function HomePage() {
           onClick={() => { play('uiSoft'); setShowVersion(true); }}
           className="text-[10px] text-[var(--gold-dim)] opacity-40 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          v1.5.0
+          v1.5.1
         </button>
       </div>
       )}
@@ -1287,12 +1287,12 @@ export function HomePage() {
             className="glass p-6 rounded-xl max-w-xs text-center space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.5.0</h3>
-            <p className="text-sm text-[var(--gold-dim)]">Released March 12, 2026</p>
+            <h3 className="text-lg font-bold text-[var(--gold)]">Bull &apos;Em v1.5.1</h3>
+            <p className="text-sm text-[var(--gold-dim)]">Released March 13, 2026</p>
             <ul className="text-xs text-left text-[var(--gold-dim)] space-y-1 mt-2 list-disc list-inside">
-              <li>Full landscape mode redesign with cinematic card animations</li>
-              <li>Accessibility overhaul — screen readers, keyboard nav, WCAG AA contrast</li>
-              <li>Reorganized menus with minigames section and per-category volume controls</li>
+              <li>Native iOS app support via Capacitor for App Store builds</li>
+              <li>Smoother match reconnection with resume banner for dropped connections</li>
+              <li>Stability fixes for match reveal, settings layout, and sound timing</li>
             </ul>
           </div>
         </div>
