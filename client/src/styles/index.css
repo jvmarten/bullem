@@ -2284,6 +2284,32 @@ body {
   position: relative;
 }
 
+/* ── "Your turn" focus dimming — dims non-essential elements so the player
+   focuses on their cards, action buttons, current call, and hand selector ── */
+.rt-layout--my-turn .rt-seat:not(.rt-seat--me-cards) {
+  opacity: 0.4;
+}
+/* Eliminated seats are already dim — keep them as-is */
+.rt-layout--my-turn .rt-seat--eliminated {
+  opacity: 0.35;
+}
+/* Dim the table felt surface via a dark overlay so child content (rt-table-center)
+   is unaffected — filter on the parent would dim children too */
+.rt-layout--my-turn .rt-table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+/* Smooth transitions for opponent seat dimming */
+.rt-layout .rt-seat:not(.rt-seat--me-cards) {
+  transition: opacity 0.4s ease;
+}
+
 /* Table area — oval + seats, fills entire layout height (controls overlay on top) */
 .rt-table-area {
   position: relative;
