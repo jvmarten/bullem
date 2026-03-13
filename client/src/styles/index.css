@@ -1686,6 +1686,16 @@ body {
   font-size: 2.42vw;      /* 10px at 414pt */
 }
 
+/* Raise/Call ghost button: solid background so it pops against the felt */
+[data-tooltip="action-area"] .btn-ghost {
+  background: rgba(20, 18, 30, 0.85);
+  border-color: var(--gold-dim);
+}
+[data-tooltip="action-area"] .btn-ghost:hover,
+[data-tooltip="action-area"] .btn-ghost:active {
+  background: rgba(30, 28, 45, 0.95);
+}
+
 /* ── Current Call Hand Name ─────────────────────────── */
 /* Original font size; long names wrap naturally to two lines.
    At narrow widths (<390px) use a slightly smaller size so typical
