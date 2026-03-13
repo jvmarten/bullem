@@ -10,3 +10,5 @@ export * from './botProfiles.js';
 export * from './deckDraw.js';
 export * from './fiveDraw.js';
 export { decideCFR } from './cfr/index.js';
+export { validateGameSettings, BOT_LEVEL_CATEGORIES } from './validation.js';
+export type { SettingsValidationResult } from './validation.js';

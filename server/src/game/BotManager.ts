@@ -340,7 +340,8 @@ export class BotManager {
     // Use profile config for ranked bots, undefined for casual bots (preserves default behavior)
     const profileConfig = this.botProfileConfigs.get(botId);
     const isCFR = this.cfrBotIds.has(botId);
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, room.roomCode, profileConfig, isCFR, room.settings);
+    const memoryScope = room.currentGameId ?? room.roomCode;
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, memoryScope, profileConfig, isCFR, room.settings);
 
     let result: TurnResult;
     switch (decision.action) {

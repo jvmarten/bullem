@@ -53,8 +53,9 @@ function authRateLimit(req: Request, res: Response, next: NextFunction): void {
     }
     next();
   }).catch((err) => {
-    // Fail-open: if rate limit check fails, allow the request
-    logger.warn({ err, ip }, 'Auth rate limit check failed — allowing request');
+    // RateLimiter's circuit breaker handles Redis failures internally (falls
+    // back to in-memory). This catch only fires on unexpected non-Redis errors.
+    logger.warn({ err, ip }, 'Auth rate limit check failed — allowing request (circuit breaker handles Redis)');
     next();
   });
 }

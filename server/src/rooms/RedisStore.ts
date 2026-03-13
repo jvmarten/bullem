@@ -37,6 +37,8 @@ export interface RoomSnapshot {
   eliminationOrder?: PlayerId[];
   /** Series state for best-of matches. Null for single games. */
   seriesState?: SeriesState | null;
+  /** Unique ID for the current game instance (prevents bot memory cross-game leakage). */
+  currentGameId?: string | null;
 }
 
 function roomKey(roomCode: string): string {

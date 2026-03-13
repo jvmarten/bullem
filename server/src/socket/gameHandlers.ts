@@ -182,14 +182,18 @@ export function registerGameHandlers(
         emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
       });
     } else {
-      // Fallback: in-memory chat rate limiting (single-instance only)
+      // Fallback: in-memory chat rate limiting (single-instance only).
+      // Uses LRU eviction: delete-then-set moves the key to the end of Map
+      // iteration order, so the first key is always the least-recently-used.
       const lastChatTime = chatTimestamps.get(chatCooldownKey) ?? 0;
       if (Date.now() - lastChatTime < CHAT_RATE_LIMIT_MS) return;
-      // Evict oldest entry if at capacity (Map iterates in insertion order)
+      // Evict LRU entry if at capacity
       if (chatTimestamps.size >= MAX_CHAT_TIMESTAMP_ENTRIES) {
-        const oldest = chatTimestamps.keys().next().value;
-        if (oldest !== undefined) chatTimestamps.delete(oldest);
+        const lru = chatTimestamps.keys().next().value;
+        if (lru !== undefined) chatTimestamps.delete(lru);
       }
+      // Delete first to refresh insertion order (LRU touch)
+      chatTimestamps.delete(chatCooldownKey);
       chatTimestamps.set(chatCooldownKey, Date.now());
       emitChat(io, room, senderIsSpectator, senderName, trimmed, channel);
     }
@@ -238,8 +242,11 @@ function emitChat(
   }
 }
 
-/** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Cleaned up periodically.
- *  Capped at MAX_CHAT_TIMESTAMP_ENTRIES to prevent unbounded growth under load. */
+/** Per-sender chat rate limit timestamps (fallback when no RateLimiter). Uses LRU
+ *  eviction: entries are reordered on access (delete + re-insert) so the Map's
+ *  iteration order reflects recency. On eviction, the first key (least-recently-used)
+ *  is removed. Combined with periodic stale cleanup, this keeps memory bounded and
+ *  prioritizes active senders over stale ones. */
 const chatTimestamps = new Map<string, number>();
 const MAX_CHAT_TIMESTAMP_ENTRIES = 10_000;
 
