@@ -268,10 +268,13 @@ function getAppleRedirectUri(): string {
  * See: https://developer.apple.com/documentation/sign_in_with_apple/generate_and_validate_tokens
  */
 function generateAppleClientSecret(): string {
-  const teamId = process.env.APPLE_TEAM_ID!;
-  const clientId = process.env.APPLE_CLIENT_ID!;
-  const keyId = process.env.APPLE_KEY_ID!;
-  const privateKey = process.env.APPLE_PRIVATE_KEY!;
+  const teamId = process.env.APPLE_TEAM_ID;
+  const clientId = process.env.APPLE_CLIENT_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const privateKey = process.env.APPLE_PRIVATE_KEY;
+  if (!teamId || !clientId || !keyId || !privateKey) {
+    throw new Error('Apple OAuth environment variables not configured');
+  }
 
   const now = Math.floor(Date.now() / 1000);
   return jwt.sign(

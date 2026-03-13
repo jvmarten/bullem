@@ -58,12 +58,19 @@ function loadLocalGame(): LocalGameSave | null {
     // Validate required fields to guard against format changes between versions.
     // Without this, a stale save could produce a partially-valid object that
     // crashes deep in GameEngine.restore or during state reconstruction.
+    const p = parsed as Record<string, unknown>;
+    const gs = p.gameSettings as Record<string, unknown> | undefined;
     if (
       typeof parsed !== 'object' || parsed === null
-      || !('engineSnapshot' in parsed) || typeof (parsed as Record<string, unknown>).engineSnapshot !== 'object'
-      || !('players' in parsed) || !Array.isArray((parsed as Record<string, unknown>).players)
-      || !('botDifficulty' in parsed)
-      || !('gameSettings' in parsed) || typeof (parsed as Record<string, unknown>).gameSettings !== 'object'
+      || !('engineSnapshot' in p) || typeof p.engineSnapshot !== 'object'
+      || !('players' in p) || !Array.isArray(p.players) || p.players.length === 0
+      || !('botDifficulty' in p)
+      || !('gameSettings' in p) || typeof gs !== 'object' || gs === null
+      // Validate required GameSettings fields to prevent crashes in
+      // GameEngine.restore and getDeckSize when fields are missing
+      // (e.g., format changes between versions).
+      || typeof gs.maxCards !== 'number' || gs.maxCards < 1 || gs.maxCards > 5
+      || typeof gs.turnTimer !== 'number'
     ) {
       localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
       return null;

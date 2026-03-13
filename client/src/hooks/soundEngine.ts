@@ -489,6 +489,9 @@ export function createSoundController(): SoundController {
   }
 
   const activeLoops = new Map<SoundName, ActiveLoop>();
+  /** Tracks loops whose audio buffer is still loading. When stopLoop is called
+   *  while loading, the name is removed so the load callback knows to abort. */
+  const pendingLoops = new Set<SoundName>();
 
   const controller: SoundController = {
     get muted() { return muted; },
@@ -575,17 +578,22 @@ export function createSoundController(): SoundController {
         return;
       }
 
+      pendingLoops.add(name);
       loadAudioBuffer(audioEntry.url).then(buf => {
+        // If stopLoop ran while we were loading, our name was removed from
+        // pendingLoops — don't start playback.
+        if (!pendingLoops.has(name)) return;
+        pendingLoops.delete(name);
         if (!buf) return;
-        // Check we haven't been stopped while loading
-        if (!activeLoops.has(name)) return;
         startPlayback(buf);
+      }).catch(() => {
+        pendingLoops.delete(name);
       });
-      // Set a placeholder so stopLoop knows a load is pending
-      // (will be overwritten by startPlayback or cleaned up by stopLoop)
     },
 
     stopLoop(name: SoundName) {
+      // Cancel any in-flight load so the callback doesn't start playback
+      pendingLoops.delete(name);
       const loop = activeLoops.get(name);
       if (!loop) {
         activeLoops.delete(name);
