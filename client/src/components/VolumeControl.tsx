@@ -183,7 +183,7 @@ export function VolumeControl() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] max-h-[calc(100dvh-3rem)] overflow-y-auto animate-fade-in" role="group" aria-label="Settings panel">
+        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] settings-dropdown overflow-y-auto animate-fade-in" role="group" aria-label="Settings panel">
           {/* ── Always-visible settings ──────────────────────────── */}
 
           {/* Master volume */}

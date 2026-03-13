@@ -449,6 +449,12 @@ body {
   border-radius: 1px;
 }
 
+/* ── Settings dropdown ──────────────────────────────── */
+/* Default: generous max-height for portrait mode */
+.settings-dropdown {
+  max-height: calc(100dvh - 3.5rem);
+}
+
 /* ── Volume slider ───────────────────────────────────── */
 .volume-slider {
   -webkit-appearance: none;
@@ -1831,6 +1837,13 @@ body {
   .game-header-overlay-volume {
     margin-left: 0.5rem;
     opacity: 1;
+  }
+
+  /* Settings dropdown: short viewport in landscape — the panel starts ~4rem
+     from the viewport top (overlay padding + button + top-8 offset), so
+     subtract enough to keep it on-screen with a small bottom margin. */
+  .settings-dropdown {
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom, 0px));
   }
 
   /* Reclaim header space for game layouts when header is hidden.
