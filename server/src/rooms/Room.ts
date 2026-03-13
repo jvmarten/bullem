@@ -41,6 +41,9 @@ export class Room {
   gameStartedAt: Date | null = null;
   /** Tracks elimination order for finish position calculation. First eliminated = last place. */
   eliminationOrder: PlayerId[] = [];
+  /** O(1) lookup for eliminationOrder dedup — mirrors the array to avoid
+   *  Array.includes() scans in recordEliminations(). */
+  private _eliminationSet = new Set<PlayerId>();
   /** Series state for best-of matches. Null for single games. */
   seriesState: SeriesState | null = null;
   /** Initial turn order captured at game start, used for starting-position analytics. */
@@ -444,6 +447,7 @@ export class Room {
     }
     room.gameStartedAt = snapshot.gameStartedAt ? new Date(snapshot.gameStartedAt) : null;
     room.eliminationOrder = snapshot.eliminationOrder ? [...snapshot.eliminationOrder] : [];
+    room._eliminationSet = new Set(room.eliminationOrder);
     room.seriesState = snapshot.seriesState ?? null;
     room.currentGameId = snapshot.currentGameId ?? null;
 
@@ -475,6 +479,7 @@ export class Room {
     this.gameStartedAt = new Date();
     this.currentGameId = randomUUID();
     this.eliminationOrder = [];
+    this._eliminationSet.clear();
     this.lastRoundResult = null;
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     // Shuffle seating order — positions stay fixed for the entire game
@@ -585,7 +590,8 @@ export class Room {
    *  Called from socket handlers when a round result includes eliminations. */
   recordEliminations(playerIds: PlayerId[]): void {
     for (const id of playerIds) {
-      if (!this.eliminationOrder.includes(id)) {
+      if (!this._eliminationSet.has(id)) {
+        this._eliminationSet.add(id);
         this.eliminationOrder.push(id);
       }
     }

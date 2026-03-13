@@ -364,14 +364,36 @@ export class GameEngine {
 
     // Spectators (eliminated players) can see all active players' cards
     if (isEliminated) {
-      state.spectatorCards = this.getActivePlayers().map(p => ({
-        playerId: p.id,
-        playerName: p.name,
-        cards: [...p.cards],
-      }));
+      state.spectatorCards = this.getSpectatorCards();
     }
 
     return state;
+  }
+
+  /** Cached spectator cards — avoids rebuilding the array (with spread copies)
+   *  for every eliminated player per broadcast cycle. Invalidated when the round
+   *  number or eliminated count changes (i.e., when cards are re-dealt or a
+   *  player is eliminated). */
+  private _spectatorCardsCache: SpectatorPlayerCards[] | null = null;
+  private _spectatorCardsCacheKey = '';
+
+  private getSpectatorCards(): SpectatorPlayerCards[] {
+    const active = this.getActivePlayers();
+    // Cache key: round number + eliminated count + total card count.
+    // Cards only change at deal time (new round) or elimination.
+    let totalCards = 0;
+    for (const p of active) totalCards += p.cards.length;
+    const key = `${this.roundNumber}:${this._activePlayersEliminatedCount}:${totalCards}`;
+    if (this._spectatorCardsCache && this._spectatorCardsCacheKey === key) {
+      return this._spectatorCardsCache;
+    }
+    this._spectatorCardsCache = active.map(p => ({
+      playerId: p.id,
+      playerName: p.name,
+      cards: [...p.cards],
+    }));
+    this._spectatorCardsCacheKey = key;
+    return this._spectatorCardsCache;
   }
 
   /** Cached shared state for getClientState — avoids re-computing public
@@ -558,13 +580,24 @@ export class GameEngine {
 
     const activePlayers = this.getActivePlayers();
 
+    // Build a lookup of each player's last action once, rather than doing an
+    // O(turnHistory) reverse scan per player per loop (previously 2× scans per
+    // player across the pre-check and scoring loops below).
+    const lastActionByPlayer = new Map<PlayerId, TurnAction>();
+    for (let i = this.turnHistory.length - 1; i >= 0; i--) {
+      const entry = this.turnHistory[i]!;
+      if (!lastActionByPlayer.has(entry.playerId)) {
+        lastActionByPlayer.set(entry.playerId, entry.action);
+      }
+    }
+
     // Pre-check: if every active player would be penalized AND all would exceed
     // maxCards, skip penalties entirely so the game continues instead of ending
     // in a mass elimination (draw). This can happen when the last-chance raise
     // results in everyone being wrong simultaneously.
     const wouldBePenalized: PlayerId[] = [];
     for (const p of activePlayers) {
-      const lastAction = this.getPlayerLastAction(p.id);
+      const lastAction = lastActionByPlayer.get(p.id) ?? null;
       let incorrect = false;
       if (p.id === this.lastCallerId) {
         incorrect = !handExists;
@@ -582,7 +615,7 @@ export class GameEngine {
       activePlayers.every(p => (p.cardCount ?? STARTING_CARDS) + 1 > this.settings.maxCards);
 
     for (const p of activePlayers) {
-      const lastAction = this.getPlayerLastAction(p.id);
+      const lastAction = lastActionByPlayer.get(p.id) ?? null;
       let incorrect = false;
       let stats = this.gameStats.playerStats[p.id];
       if (!stats) {

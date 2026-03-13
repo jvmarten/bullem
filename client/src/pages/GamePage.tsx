@@ -19,15 +19,18 @@ import { ChatPanel } from '../components/ChatPanel.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
 import { BotProfileModal } from '../components/BotProfileModal.js';
-import { InGameStats } from '../components/InGameStats.js';
 
 import { useGameContext, useReactions, useChatMessages } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
-import { Component, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { ReactNode, ErrorInfo } from 'react';
+
+/** Lazy-load InGameStats (and its recharts dependency ~150KB gzipped) — only
+ *  rendered for eliminated players and spectators, not during active gameplay. */
+const InGameStats = lazy(() => import('../components/InGameStats.js').then(m => ({ default: m.InGameStats })));
 import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -177,11 +180,25 @@ export function GamePage() {
   // extend the reconnect overlay grace period. Mobile browsers suspend JS
   // when backgrounded, causing ping timeouts and socket disconnects that
   // resolve quickly once the tab is foregrounded again.
+  //
+  // Also unsticks the "next round starting" transition overlay if the deadline
+  // passed while the page was backgrounded. Previously two separate
+  // visibilitychange handlers — merged to avoid duplicate listener overhead.
   const lastVisibleAtRef = useRef(Date.now());
+  const roundTransitionRef = useRef(roundTransition);
+  const roundTransitionDeadlineRef = useRef(roundTransitionDeadline);
+  const clearRoundResultRef = useRef(clearRoundResult);
+  roundTransitionRef.current = roundTransition;
+  roundTransitionDeadlineRef.current = roundTransitionDeadline;
+  clearRoundResultRef.current = clearRoundResult;
+
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        lastVisibleAtRef.current = Date.now();
+      if (document.visibilityState !== 'visible') return;
+      lastVisibleAtRef.current = Date.now();
+      // Unstick transition overlay if its deadline passed while backgrounded
+      if (roundTransitionRef.current && roundTransitionDeadlineRef.current && Date.now() > roundTransitionDeadlineRef.current) {
+        clearRoundResultRef.current();
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
@@ -205,18 +222,6 @@ export function GamePage() {
 
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
-
-  // Unstick "next round starting" overlay after app switch
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (roundTransition && roundTransitionDeadline && Date.now() > roundTransitionDeadline) {
-        clearRoundResult();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [roundTransition, roundTransitionDeadline, clearRoundResult]);
 
   // Defer navigation to results if a round result overlay is still showing
   useEffect(() => {
@@ -464,7 +469,7 @@ export function GamePage() {
     overlayActive,
   });
 
-  const handleLeave = () => {
+  const handleLeave = useCallback(() => {
     const message = gameState?.ranked
       ? 'Forfeit this match? You will receive a loss and your rating will be affected.'
       : 'Forfeit this game? You will be eliminated and cannot rejoin.';
@@ -472,7 +477,7 @@ export function GamePage() {
       leaveRoom();
       navigate('/');
     }
-  };
+  }, [gameState?.ranked, leaveRoom, navigate]);
 
   // ── Early return: loading state (all hooks called above) ──────────────
   if (!gameState) {
@@ -890,7 +895,9 @@ export function GamePage() {
       {(isEliminated || isSpectator) && (
         <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none">
           <div className="pointer-events-auto">
-            <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
+            <Suspense fallback={null}>
+              <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} label="Match Stats" />
+            </Suspense>
           </div>
         </div>
       )}
