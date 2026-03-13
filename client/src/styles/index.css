@@ -44,10 +44,8 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html, body, #root {
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
+html {
+  height: 100%;
 }
 
 body {
@@ -59,7 +57,13 @@ body {
   /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  width: 100%;
+  inset: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
