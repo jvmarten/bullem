@@ -26,7 +26,8 @@ import { useAuth } from '../context/AuthContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { handToString } from '@bull-em/shared';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Component, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
 import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -82,6 +83,30 @@ function TransitionOverlay({ deadline }: { deadline: number | null }) {
       </div>
     </div>
   );
+}
+
+/** Lightweight error boundary for overlay components (reveal, countdown, etc.).
+ *  Instead of crashing the whole game page, catches the error and calls
+ *  onError so the parent can dismiss the overlay gracefully. */
+class OverlayErrorBoundary extends Component<
+  { children: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[OverlayErrorBoundary] Caught error in overlay:', error);
+    if (info.componentStack) {
+      console.error('[OverlayErrorBoundary] Component stack:', info.componentStack);
+    }
+    this.props.onError();
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
 }
 
 export function GamePage() {
@@ -552,24 +577,28 @@ export function GamePage() {
             <TransitionOverlay deadline={roundTransitionDeadline} />
           )}
           {roundResult && !cinematicComplete && (
-            <RoundtableRevealOverlay
-              result={roundResult}
-              orderedPlayers={orderedPlayersForReveal}
-              playerCount={Math.min(gameState.players.length, 12)}
-              myPlayerId={playerId ?? undefined}
-              onComplete={markCinematicComplete}
-              skipToEnd={cinematicStartedRef.current}
-              onAnimationStart={() => { cinematicStartedRef.current = true; }}
-            />
+            <OverlayErrorBoundary onError={clearRoundResult}>
+              <RoundtableRevealOverlay
+                result={roundResult}
+                orderedPlayers={orderedPlayersForReveal}
+                playerCount={Math.min(gameState.players.length, 12)}
+                myPlayerId={playerId ?? undefined}
+                onComplete={markCinematicComplete}
+                skipToEnd={cinematicStartedRef.current}
+                onAnimationStart={() => { cinematicStartedRef.current = true; }}
+              />
+            </OverlayErrorBoundary>
           )}
           {roundResult && cinematicComplete && (
-            <RevealOverlay
-              result={roundResult}
-              players={gameState.players}
-              myPlayerId={playerId ?? undefined}
-              onDismiss={clearRoundResult}
-              startedAt={revealStartedAt}
-            />
+            <OverlayErrorBoundary onError={clearRoundResult}>
+              <RevealOverlay
+                result={roundResult}
+                players={gameState.players}
+                myPlayerId={playerId ?? undefined}
+                onDismiss={clearRoundResult}
+                startedAt={revealStartedAt}
+              />
+            </OverlayErrorBoundary>
           )}
           {isAtMaxCards && (
             <div className="max-cards-warning-glow" aria-hidden="true" />
@@ -782,13 +811,15 @@ export function GamePage() {
 
         {/* Round result overlay */}
         {roundResult && (
-          <RevealOverlay
-            result={roundResult}
-            players={gameState.players}
-            myPlayerId={playerId ?? undefined}
-            onDismiss={clearRoundResult}
-            startedAt={revealStartedAt}
-          />
+          <OverlayErrorBoundary onError={clearRoundResult}>
+            <RevealOverlay
+              result={roundResult}
+              players={gameState.players}
+              myPlayerId={playerId ?? undefined}
+              onDismiss={clearRoundResult}
+              startedAt={revealStartedAt}
+            />
+          </OverlayErrorBoundary>
         )}
 
         {/* Max cards warning — steady (non-pulsating) edge glow when one loss away from elimination */}

@@ -748,9 +748,13 @@ export class MatchmakingQueue {
       };
     }
 
-    // Emit countdown before starting the game
+    // Emit countdown before starting the game.
+    // Also set countdownDeadline/countdownLabel on the room so reconnecting
+    // clients receive the countdown (lobbyHandlers re-sends it on rejoin).
     const seriesLabel = room.seriesState && room.seriesState.bestOf > 1
       ? `Set ${room.seriesState.currentSet}` : undefined;
+    room.countdownDeadline = Date.now() + GAME_COUNTDOWN_SECONDS * 1000;
+    room.countdownLabel = seriesLabel;
     this.io.to(roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: seriesLabel });
 
     setTimeout(() => {
@@ -758,6 +762,8 @@ export class MatchmakingQueue {
       if (!freshRoom) return;
       if (freshRoom.gamePhase !== GamePhase.LOBBY) return;
 
+      freshRoom.countdownDeadline = null;
+      freshRoom.countdownLabel = undefined;
       freshRoom.startGame();
       recordRoundStart(freshRoom.roomCode);
 
