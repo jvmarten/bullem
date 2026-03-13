@@ -72,6 +72,9 @@ async function enrichWithOnlineStatus(
 
 /**
  * Notify a user's accepted friends that their online status changed.
+ *
+ * Uses a single io.fetchSockets() call (instead of the previous two) and
+ * converts friendIds to a Set for O(1) lookup instead of O(m) Array.includes.
  */
 async function broadcastStatusChange(
   io: TypedServer,
@@ -82,20 +85,24 @@ async function broadcastStatusChange(
   const friendIds = await getAcceptedFriendIds(userId);
   if (friendIds.length === 0) return;
 
-  // Determine current room code (if online)
+  // Single fetchSockets call — previously called twice (once in
+  // findSocketByUserId, once here), doubling network cost with Redis adapter.
+  const sockets = await io.fetchSockets();
+  const friendIdSet = new Set(friendIds);
+
+  // Determine current room code (if online) from the fetched sockets
   let currentRoomCode: string | null = null;
   if (isOnline) {
-    const userSocket = await findSocketByUserId(io, userId);
+    const userSocket = sockets.find(s => s.data.userId === userId);
     if (userSocket) {
       const room = roomManager.getRoomForSocket(userSocket.id);
       if (room) currentRoomCode = room.roomCode;
     }
   }
 
-  // Emit to each online friend
-  const sockets = await io.fetchSockets();
+  // Emit to each online friend — O(1) Set lookup instead of O(m) Array.includes
   for (const s of sockets) {
-    if (s.data.userId && friendIds.includes(s.data.userId)) {
+    if (s.data.userId && friendIdSet.has(s.data.userId)) {
       s.emit('friends:statusChanged', { userId, isOnline, currentRoomCode });
     }
   }

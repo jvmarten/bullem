@@ -228,16 +228,7 @@ export class MatchmakingQueue {
 
     const { userId, mode } = mapping;
     try {
-      // Find and remove the entry from the sorted set. Since the value contains
-      // the socketId, we need to scan members to find the right one.
-      const members = await this.redis.zrange(queueKey(mode), 0, -1);
-      for (const raw of members) {
-        const entry = deserializeEntry(raw);
-        if (entry?.userId === userId) {
-          await this.redis.zrem(queueKey(mode), raw);
-          break;
-        }
-      }
+      await this.removeUserFromQueue(queueKey(mode), userId);
       this.userSockets.delete(userId);
       this.socketUsers.delete(socketId);
       logger.info({ userId, mode }, 'Player left matchmaking queue');
@@ -262,6 +253,44 @@ export class MatchmakingQueue {
   /** Check if a user is currently in a matchmaking queue. */
   isInQueue(userId: string): boolean {
     return this.userSockets.has(userId);
+  }
+
+  /**
+   * Remove a single user from a Redis sorted set queue by scanning members once.
+   * Extracted to avoid duplicating the scan-and-remove pattern across methods.
+   */
+  private async removeUserFromQueue(redisKey: string, userId: string): Promise<void> {
+    const members = await this.redis.zrange(redisKey, 0, -1);
+    for (const raw of members) {
+      const entry = deserializeEntry(raw);
+      if (entry?.userId === userId) {
+        await this.redis.zrem(redisKey, raw);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Remove multiple users from a Redis sorted set queue in a single scan.
+   * Fetches all members once and removes matching entries, avoiding the O(n²)
+   * pattern of fetching all members per player.
+   */
+  private async removeUsersFromQueue(redisKey: string, userIds: Set<string>): Promise<void> {
+    if (userIds.size === 0) return;
+    const members = await this.redis.zrange(redisKey, 0, -1);
+    const toRemove: string[] = [];
+    for (const raw of members) {
+      const entry = deserializeEntry(raw);
+      if (entry && userIds.has(entry.userId)) {
+        toRemove.push(raw);
+        if (toRemove.length === userIds.size) break; // found all
+      }
+    }
+    // Remove each matched entry individually — ioredis supports variadic zrem
+    // but we use individual calls for compatibility with test mocks.
+    for (const raw of toRemove) {
+      await this.redis.zrem(redisKey, raw);
+    }
   }
 
   // ── Matching algorithm ────────────────────────────────────────────────
@@ -443,16 +472,11 @@ export class MatchmakingQueue {
     players: QueueEntry[],
     redisKey: string,
   ): Promise<void> {
-    // Remove matched players from the queue
+    // Remove all matched players from the queue in a single scan (O(n) instead
+    // of O(n × players) — previously each player triggered a full zrange).
+    const matchedUserIds = new Set(players.map(e => e.userId));
+    await this.removeUsersFromQueue(redisKey, matchedUserIds);
     for (const entry of players) {
-      const members = await this.redis.zrange(redisKey, 0, -1);
-      for (const raw of members) {
-        const parsed = deserializeEntry(raw);
-        if (parsed?.userId === entry.userId) {
-          await this.redis.zrem(redisKey, raw);
-          break;
-        }
-      }
       this.userSockets.delete(entry.userId);
       this.socketUsers.delete(entry.socketId);
     }
@@ -526,14 +550,7 @@ export class MatchmakingQueue {
     redisKey: string,
   ): Promise<void> {
     // Remove the player from the queue
-    const members = await this.redis.zrange(redisKey, 0, -1);
-    for (const raw of members) {
-      const parsed = deserializeEntry(raw);
-      if (parsed?.userId === player.userId) {
-        await this.redis.zrem(redisKey, raw);
-        break;
-      }
-    }
+    await this.removeUserFromQueue(redisKey, player.userId);
     this.userSockets.delete(player.userId);
     this.socketUsers.delete(player.socketId);
 
@@ -608,16 +625,11 @@ export class MatchmakingQueue {
     humanPlayers: QueueEntry[],
     redisKey: string,
   ): Promise<void> {
-    // Remove all matched players from the queue
+    // Remove all matched players from the queue in a single scan (O(n) instead
+    // of O(n × players) — previously each player triggered a full zrange).
+    const matchedUserIds = new Set(humanPlayers.map(e => e.userId));
+    await this.removeUsersFromQueue(redisKey, matchedUserIds);
     for (const entry of humanPlayers) {
-      const members = await this.redis.zrange(redisKey, 0, -1);
-      for (const raw of members) {
-        const parsed = deserializeEntry(raw);
-        if (parsed?.userId === entry.userId) {
-          await this.redis.zrem(redisKey, raw);
-          break;
-        }
-      }
       this.userSockets.delete(entry.userId);
       this.socketUsers.delete(entry.socketId);
     }
