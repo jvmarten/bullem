@@ -296,10 +296,23 @@ export function HomePage() {
   const [mode, setMode] = useState<'menu' | 'online' | 'offline' | 'join' | 'browse'>(
     () => {
       const stateMode = (location.state as { mode?: string } | null)?.mode;
-      if (stateMode === 'online' || stateMode === 'offline' || stateMode === 'browse') return stateMode;
+      if (stateMode === 'online' || stateMode === 'offline' || stateMode === 'browse' || stateMode === 'join') return stateMode;
       return 'menu';
     },
   );
+
+  // Sync mode to browser history so back-swipe restores the correct submenu
+  useEffect(() => {
+    const currentState = window.history.state;
+    const existingUsr = currentState?.usr ?? {};
+    if (existingUsr.mode !== mode) {
+      window.history.replaceState(
+        { ...currentState, usr: { ...existingUsr, mode: mode === 'menu' ? undefined : mode } },
+        '',
+      );
+    }
+  }, [mode]);
+
   const [roomCode, setRoomCode] = useState('');
   const { addToast } = useToast();
   const [isHovered, setIsHovered] = useState(false);
