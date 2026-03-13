@@ -63,7 +63,7 @@ export const CallHistoryToggleButton = memo(function CallHistoryToggleButton({
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold px-1"
+      className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold call-history-toggle-btn"
       aria-expanded={isOpen}
       aria-label={`${isOpen ? 'Hide' : 'Show'} call history (${count} entries)`}
     >
