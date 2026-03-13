@@ -256,7 +256,16 @@ export function beginRoundResultPhase(
     startNextRound(io, room, roomManager, botManager);
   });
 
-  if (room.isRoundContinueComplete) {
+  // Only advance immediately if all remaining active players are bots.
+  // When human players exist (even disconnected ones), always give them the
+  // full continue window so they can see the round result after reconnecting.
+  // Without this guard, a brief network blip that marks a human as disconnected
+  // causes isRoundContinueComplete to skip them → the round advances instantly
+  // and the player never sees the reveal overlay.
+  const hasActiveHuman = [...room.players.values()].some(
+    p => !p.isEliminated && !p.isBot,
+  );
+  if (!hasActiveHuman && room.isRoundContinueComplete) {
     startNextRound(io, room, roomManager, botManager);
   }
 

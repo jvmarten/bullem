@@ -487,7 +487,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
     socket.on('game:state', handleNewGameState);
     socket.on('game:newRound', handleNewGameState);
-    socket.on('game:roundResult', setRoundResult);
+    socket.on('game:roundResult', (result: RoundResult) => {
+      // Update the ref synchronously so that handleNewGameState (which may
+      // fire in the same microtask for game:newRound) sees it immediately.
+      // The useEffect sync runs after the render, which is too late to guard
+      // against rapid event sequences (e.g., server starts next round before
+      // React re-renders).
+      roundResultRef.current = result;
+      roundResultReceivedAtRef.current = Date.now();
+      setRoundResult(result);
+    });
     socket.on('game:over', (wId, stats, rChanges) => {
       setWinnerId(wId);
       setGameStats(stats);

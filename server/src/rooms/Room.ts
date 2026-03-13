@@ -245,6 +245,44 @@ export class Room {
     return newToken;
   }
 
+  /** Force-reconnect a player who still appears connected (stale socket).
+   *  This handles the case where a browser is fully closed and reopened before
+   *  Socket.io's ping timeout detects the stale connection. The reconnect token
+   *  is validated to prevent hijacking. Returns the old socket ID and new token
+   *  on success, or null if the token is invalid or the player is not found. */
+  handleStaleSocketReconnect(newSocketId: string, playerId: PlayerId, reconnectToken?: string): { oldSocketId: string; reconnectToken: string } | null {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+
+    // Only applies when the player appears connected (stale socket scenario).
+    if (!player.isConnected) return null;
+
+    // Verify the reconnect token — same security requirement as normal reconnect.
+    const storedToken = this.reconnectTokens.get(playerId);
+    if (!storedToken || storedToken !== reconnectToken) return null;
+
+    const oldSocketId = this.playerToSocket.get(playerId);
+    if (!oldSocketId || oldSocketId === newSocketId) return null;
+
+    // Clear any pending disconnect timer for the old socket
+    const timer = this.disconnectTimers.get(playerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(playerId);
+    }
+
+    // Swap to the new socket
+    this.socketToPlayer.delete(oldSocketId);
+    this.socketToPlayer.set(newSocketId, playerId);
+    this.playerToSocket.set(playerId, newSocketId);
+
+    // Rotate the reconnect token
+    const newToken = randomUUID();
+    this.reconnectTokens.set(playerId, newToken);
+    this.touch();
+    return { oldSocketId, reconnectToken: newToken };
+  }
+
 
   /** Transfer an existing player's session to a new socket. Used when an
    *  authenticated user connects from a different device/tab while they already
