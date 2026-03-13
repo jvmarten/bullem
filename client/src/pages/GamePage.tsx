@@ -484,6 +484,12 @@ export function GamePage() {
   });
 
   const handleLeave = useCallback(() => {
+    // Spectators and eliminated players aren't in the game — no forfeit penalty
+    if (isSpectator || isEliminated) {
+      leaveRoom();
+      navigate('/');
+      return;
+    }
     const message = gameState?.ranked
       ? 'Forfeit this match? You will receive a loss and your rating will be affected.'
       : 'Forfeit this game? You will be eliminated and cannot rejoin.';
@@ -491,7 +497,7 @@ export function GamePage() {
       leaveRoom();
       navigate('/');
     }
-  }, [gameState?.ranked, leaveRoom, navigate]);
+  }, [isSpectator, isEliminated, gameState?.ranked, leaveRoom, navigate]);
 
   // ── Early return: loading state (all hooks called above) ──────────────
   if (!gameState) {

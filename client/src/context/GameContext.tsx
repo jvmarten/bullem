@@ -275,6 +275,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const clearRoomState = () => {
       setRoomState(null);
       setGameState(null);
+      setPlayerId(null);
       setRoundResult(null);
       setRoundTransition(false);
       setWinnerId(null);
@@ -787,6 +788,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit('room:leave');
     setRoomState(null);
     setGameState(null);
+    setPlayerId(null);
     setRoundResult(null);
     setRoundTransition(false);
     setWinnerId(null);
