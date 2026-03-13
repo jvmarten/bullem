@@ -4,6 +4,12 @@ import { useGameContext } from '../context/GameContext.js';
 import { GamePhase } from '@bull-em/shared';
 import { useSound } from '../hooks/useSound.js';
 
+// localStorage keys — must match GameContext definitions
+const LS_ACTIVE_ROOM = 'bull-em-active-room';
+const LS_ACTIVE_PLAYER_ID = 'bull-em-active-player-id';
+const LS_ACTIVE_PLAYER_NAME = 'bull-em-active-player-name';
+const LS_ACTIVE_RECONNECT_TOKEN = 'bull-em-active-reconnect-token';
+
 /**
  * Invisible component that auto-navigates to an active game after the player
  * reopens the browser (localStorage recovery). When the GameContext connect
@@ -153,6 +159,181 @@ export function GameStartBanner() {
             </button>
             <button
               onClick={handleLeaveMatch}
+              className="px-3 py-2 text-sm rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white transition-all min-h-[44px]"
+            >
+              Leave
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Banner shown when the player has an active match they can resume.
+ * Covers two scenarios:
+ *   1. Browser closed and reopened — localStorage has session data, reconnect
+ *      is in progress or has succeeded, but the user hasn't navigated to the
+ *      game page yet.
+ *   2. Player navigated away from an active game — roomState exists but they're
+ *      on a different page.
+ * Shows "Reconnecting..." while the server reconnect is pending, then "Resume"
+ * once room state is received. Briefly shows "Match ended" if reconnect fails.
+ */
+export function ResumeMatchBanner(): React.ReactElement | null {
+  const { roomState, pendingRejoinRoom, leaveRoom, playerId, gameState } = useGameContext();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { play } = useSound();
+
+  // Read localStorage for active match data (survives browser close)
+  const [activeRoom, setActiveRoom] = useState<string | null>(() =>
+    localStorage.getItem(LS_ACTIVE_ROOM),
+  );
+  const [showEnded, setShowEnded] = useState(false);
+  const endedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Poll localStorage to detect when it's cleared (reconnect failure / game over)
+  useEffect(() => {
+    if (!activeRoom) return;
+    const interval = setInterval(() => {
+      const current = localStorage.getItem(LS_ACTIVE_ROOM);
+      if (!current) {
+        setActiveRoom(null);
+        setShowEnded(true);
+        endedTimerRef.current = setTimeout(() => setShowEnded(false), 3000);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [activeRoom]);
+
+  // Sync activeRoom if localStorage is updated with a new room (e.g. new game created)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = localStorage.getItem(LS_ACTIVE_ROOM);
+      if (current && current !== activeRoom) {
+        setActiveRoom(current);
+        setShowEnded(false);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [activeRoom]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (endedTimerRef.current) clearTimeout(endedTimerRef.current);
+    };
+  }, []);
+
+  // Determine the room code: prefer roomState (confirmed), fall back to localStorage
+  const roomCode = roomState?.roomCode ?? activeRoom;
+  const reconnected = roomState !== null;
+
+  // Check if user is already on the game/lobby/results page for this room
+  const isOnRoomPage = roomCode != null && (
+    location.pathname === `/game/${roomCode}` ||
+    location.pathname === `/room/${roomCode}` ||
+    location.pathname === `/results/${roomCode}`
+  );
+
+  // Check if the user is an active player (not a spectator)
+  const isPlayer = playerId !== null && gameState
+    ? gameState.players.some(p => p.id === playerId)
+    : false;
+
+  // Determine visibility: show when there's an active match and user is not on that page
+  const hasActiveMatch = (
+    // Scenario A: localStorage has data (reconnecting or just reconnected)
+    activeRoom != null ||
+    // Scenario B: connected to a room with an active game, navigated away
+    (reconnected && isPlayer && roomState.gamePhase !== GamePhase.LOBBY)
+  );
+
+  const shouldShow = hasActiveMatch && !isOnRoomPage && !pendingRejoinRoom;
+
+  const handleResume = useCallback(() => {
+    play('uiSoft');
+    const code = roomCode;
+    if (!code) return;
+    if (roomState && roomState.gamePhase === GamePhase.LOBBY) {
+      navigate(`/room/${code}`);
+    } else {
+      navigate(`/game/${code}`);
+    }
+  }, [roomCode, roomState, navigate, play]);
+
+  const handleLeave = useCallback(() => {
+    const confirmed = window.confirm(
+      'Are you sure you want to leave this match? You will be removed from the game.',
+    );
+    if (!confirmed) return;
+    play('uiSoft');
+    if (reconnected) {
+      leaveRoom();
+    } else {
+      // Not yet reconnected — clear storage so we stop trying
+      localStorage.removeItem(LS_ACTIVE_ROOM);
+      localStorage.removeItem(LS_ACTIVE_PLAYER_ID);
+      localStorage.removeItem(LS_ACTIVE_PLAYER_NAME);
+      localStorage.removeItem(LS_ACTIVE_RECONNECT_TOKEN);
+      sessionStorage.removeItem('bull-em-room-code');
+      sessionStorage.removeItem('bull-em-player-id');
+      sessionStorage.removeItem('bull-em-player-name');
+      sessionStorage.removeItem('bull-em-reconnect-token');
+    }
+    setActiveRoom(null);
+  }, [reconnected, leaveRoom, play]);
+
+  // Brief "match ended" notification
+  if (showEnded) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down">
+        <div className="bg-[rgba(0,0,0,0.85)] backdrop-blur-sm border-b border-[var(--gold-dim)] px-4 py-3">
+          <div className="max-w-lg mx-auto text-center">
+            <p className="text-sm text-[var(--gold-dim)]">Your match has ended</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!shouldShow) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down">
+      <div className="bg-[rgba(0,0,0,0.85)] backdrop-blur-sm border-b border-[var(--gold)] px-4 py-3">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          {/* Pulsing dot — green when reconnected, amber when reconnecting */}
+          <div
+            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+              reconnected
+                ? 'bg-[var(--safe)]'
+                : 'bg-[var(--gold)] animate-pulse'
+            }`}
+          />
+
+          {/* Message */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--gold)]">
+              {reconnected ? 'You have an active match' : 'Reconnecting to match\u2026'}
+            </p>
+            <p className="text-xs text-[var(--gold-dim)]">
+              Room {roomCode}
+            </p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={handleResume}
+              className="px-4 py-2 text-sm font-semibold rounded bg-[var(--gold)] text-[var(--felt-dark)] hover:brightness-110 transition-all min-h-[44px]"
+            >
+              Resume
+            </button>
+            <button
+              onClick={handleLeave}
               className="px-3 py-2 text-sm rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white transition-all min-h-[44px]"
             >
               Leave
