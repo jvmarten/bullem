@@ -4,7 +4,7 @@ import {
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
-  SeriesState, AvatarId, AvatarBgColor,
+  SeriesState, AvatarId, AvatarBgColor, RoundResult,
 } from '@bull-em/shared';
 import { randomUUID } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
@@ -48,6 +48,12 @@ export class Room {
   /** Unique ID for the current game instance. Used to scope bot memory so that
    *  reused room codes don't leak opponent profiles across separate games. */
   currentGameId: string | null = null;
+  /** Cached round result for re-sending to reconnecting players during ROUND_RESULT phase. */
+  lastRoundResult: RoundResult | null = null;
+  /** Countdown state for re-sending to reconnecting players during the pre-game countdown.
+   *  Stores the absolute deadline (Date.now() + seconds*1000) and optional label. */
+  countdownDeadline: number | null = null;
+  countdownLabel: string | undefined = undefined;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -431,6 +437,7 @@ export class Room {
     this.gameStartedAt = new Date();
     this.currentGameId = randomUUID();
     this.eliminationOrder = [];
+    this.lastRoundResult = null;
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     // Shuffle seating order — positions stay fixed for the entire game
     for (let i = activePlayers.length - 1; i > 0; i--) {

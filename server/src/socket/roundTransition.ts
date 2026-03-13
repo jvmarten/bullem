@@ -47,6 +47,7 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   if (room.gamePhase !== GamePhase.ROUND_RESULT) return;
   if (!room.game) return;
   room.cancelRoundContinueWindow();
+  room.lastRoundResult = null;
   const nextResult = room.game.startNextRound();
   if (nextResult.type === 'game_over') {
     handleSetOver(io, room, roomManager, botManager, nextResult.winnerId);
@@ -145,6 +146,8 @@ export function handleSetOver(
     const midRoom = roomManager.getRoom(roomCode);
     if (!midRoom || !midRoom.game) return;
     if (midRoom.gamePhase === GamePhase.GAME_OVER || midRoom.gamePhase === GamePhase.FINISHED) return;
+    midRoom.countdownDeadline = Date.now() + GAME_COUNTDOWN_SECONDS * 1000;
+    midRoom.countdownLabel = `Set ${series.currentSet}`;
     io.to(roomCode).emit('game:countdown', {
       seconds: GAME_COUNTDOWN_SECONDS,
       label: `Set ${series.currentSet}`,
@@ -156,6 +159,8 @@ export function handleSetOver(
     if (!freshRoom || !freshRoom.game) return;
     if (freshRoom.gamePhase === GamePhase.GAME_OVER || freshRoom.gamePhase === GamePhase.FINISHED) return;
 
+    freshRoom.countdownDeadline = null;
+    freshRoom.countdownLabel = undefined;
     // Reset for next set — resetForRematch handles player reset
     freshRoom.resetForRematch();
     recordRoundStart(freshRoom.roomCode);
@@ -177,6 +182,7 @@ function finalizeGameOver(
   winnerId: PlayerId,
 ): void {
   room.gamePhase = GamePhase.GAME_OVER;
+  room.lastRoundResult = null;
   broadcastGameReplay(io, room, winnerId);
   if (!room.game) return;
   const stats = room.game.getGameStats();
@@ -207,6 +213,7 @@ export function beginRoundResultPhase(
   broadcastGameState(io, room);
 
   room.gamePhase = GamePhase.ROUND_RESULT;
+  room.lastRoundResult = result;
   room.recordEliminations(result.eliminatedPlayerIds);
   io.to(room.roomCode).emit('game:roundResult', result);
 

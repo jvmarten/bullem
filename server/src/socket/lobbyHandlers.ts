@@ -139,6 +139,21 @@ export function registerLobbyHandlers(
         broadcastRoomState(io, room);
         if (room.game) broadcastGameState(io, room);
         broadcastPlayerNames(io, roomManager);
+
+        // Re-send phase-specific state to the new socket
+        if (room.gamePhase === GamePhase.ROUND_RESULT && room.lastRoundResult) {
+          socket.emit('game:roundResult', room.lastRoundResult);
+        }
+        if (room.countdownDeadline) {
+          const remainingMs = room.countdownDeadline - Date.now();
+          if (remainingMs > 0) {
+            socket.emit('game:countdown', {
+              seconds: Math.ceil(remainingMs / 1000),
+              label: room.countdownLabel,
+            });
+          }
+        }
+
         roomManager.persistRoom(room);
         return callback({ playerId: transfer.playerId, reconnectToken: transfer.reconnectToken });
       }
@@ -157,6 +172,24 @@ export function registerLobbyHandlers(
         if (room.game) broadcastGameState(io, room);
         io.to(room.roomCode).emit('player:reconnected', data.playerId);
         broadcastPlayerNames(io, roomManager);
+
+        // Re-send phase-specific state that was emitted before the disconnect
+        // and won't be included in broadcastGameState:
+        // 1. Round result — so the reconnecting player sees the reveal overlay
+        if (room.gamePhase === GamePhase.ROUND_RESULT && room.lastRoundResult) {
+          socket.emit('game:roundResult', room.lastRoundResult);
+        }
+        // 2. Countdown — so the reconnecting player sees "3… 2… 1…"
+        if (room.countdownDeadline) {
+          const remainingMs = room.countdownDeadline - Date.now();
+          if (remainingMs > 0) {
+            socket.emit('game:countdown', {
+              seconds: Math.ceil(remainingMs / 1000),
+              label: room.countdownLabel,
+            });
+          }
+        }
+
         roomManager.persistRoom(room);
         // Return the rotated reconnect token so the client stores it for future reconnects
         return callback({ playerId: data.playerId, reconnectToken: newToken });
@@ -629,6 +662,8 @@ export function registerLobbyHandlers(
     // Emit countdown before starting the game — gives players a "3… 2… 1…"
     const seriesLabel = room.seriesState && room.seriesState.bestOf > 1
       ? `Set ${room.seriesState.currentSet}` : undefined;
+    room.countdownDeadline = Date.now() + GAME_COUNTDOWN_SECONDS * 1000;
+    room.countdownLabel = seriesLabel;
     io.to(room.roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: seriesLabel });
 
     const roomCode = room.roomCode;
@@ -637,6 +672,8 @@ export function registerLobbyHandlers(
       if (!freshRoom) return;
       if (freshRoom.gamePhase !== GamePhase.LOBBY) return;
 
+      freshRoom.countdownDeadline = null;
+      freshRoom.countdownLabel = undefined;
       freshRoom.startGame();
       recordRoundStart(freshRoom.roomCode);
       log.info({ roomCode: freshRoom.roomCode, playerCount: freshRoom.playerCount, ranked: freshRoom.settings.ranked ?? false, bestOf }, 'Game started');
@@ -710,12 +747,17 @@ export function registerLobbyHandlers(
     // Emit countdown before the rematch begins
     const rematchSeriesLabel = room.seriesState && room.seriesState.bestOf > 1
       ? `Set ${room.seriesState.currentSet}` : undefined;
+    room.countdownDeadline = Date.now() + GAME_COUNTDOWN_SECONDS * 1000;
+    room.countdownLabel = rematchSeriesLabel;
     io.to(room.roomCode).emit('game:countdown', { seconds: GAME_COUNTDOWN_SECONDS, label: rematchSeriesLabel });
 
     const rematchRoomCode = room.roomCode;
     setTimeout(() => {
       const freshRoom = roomManager.getRoom(rematchRoomCode);
       if (!freshRoom || !freshRoom.game) return;
+
+      freshRoom.countdownDeadline = null;
+      freshRoom.countdownLabel = undefined;
 
       BotPlayer.resetMemory(freshRoom.currentGameId ?? freshRoom.roomCode);
       botManager.scheduleBotTurn(freshRoom, io);
