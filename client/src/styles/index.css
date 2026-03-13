@@ -44,11 +44,9 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-/* --vh-real is set by useViewportHeight() from window.innerHeight.
-   iOS Safari reports innerHeight accurately with viewport-fit=cover,
-   unlike 100dvh which can be wrong on first paint / orientation change. */
 html, body, #root {
-  height: var(--vh-real, 100dvh);
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -107,9 +105,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Portrait: push content below notch/status bar only.
-     No bottom padding — gradient fills behind home indicator. */
-  padding-top: var(--safe-top);
+  /* Portrait: no safe area padding needed — viewport-fit=cover is only
+     active in landscape, so the browser handles portrait safe areas natively. */
 }
 
 /* ── Layout shell — fixed viewport, inner scroll only ─ */
@@ -1768,7 +1765,6 @@ body {
      left/right so content avoids the notch while the gradient bleeds
      behind it seamlessly. */
   .felt-bg {
-    padding-top: 0;
     padding-left: var(--safe-left);
     padding-right: var(--safe-right);
   }
