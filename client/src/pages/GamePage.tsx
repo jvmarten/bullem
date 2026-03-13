@@ -21,7 +21,7 @@ import { GameTooltips } from '../components/GameTooltips.js';
 import { BotProfileModal } from '../components/BotProfileModal.js';
 import { InGameStats } from '../components/InGameStats.js';
 
-import { useGameContext } from '../context/GameContext.js';
+import { useGameContext, useReactions, useChatMessages } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
@@ -117,12 +117,16 @@ export function GamePage() {
     callHand, callBull, callTrue, lastChanceRaise, lastChancePass,
     clearRoundResult, leaveRoom, joinRoom, error, clearError,
     isConnected, hasConnected, disconnectDeadlines,
-    reactions, sendReaction,
-    chatMessages, sendChatMessage,
+    sendReaction,
+    sendChatMessage,
     spectatorInitialStats,
     sessionTransferred,
     countdown,
   } = useGameContext();
+  // Reactions and chat from dedicated contexts — prevents game UI re-renders
+  // on every emoji event (2s lifecycle) or incoming chat message.
+  const { reactions } = useReactions();
+  const { chatMessages } = useChatMessages();
   const { user } = useAuth();
   const spectatorCount = roomState?.spectatorCount ?? 0;
   useErrorToast(error, clearError);
@@ -334,6 +338,14 @@ export function GamePage() {
     if (myIdx <= 0) return ps;
     return [...ps.slice(myIdx), ...ps.slice(0, myIdx)];
   }, [gameState, playerId]);
+
+  // Spectator reactions whose playerId doesn't match any player in the game
+  // (spectators use socket.id which has no PlayerCard) — shown as floating emojis.
+  const orphanReactions = useMemo(() => {
+    if (!reactions.length || !gameState) return [];
+    const playerIds = new Set(gameState.players.map(p => p.id));
+    return reactions.filter(r => !playerIds.has(r.playerId));
+  }, [reactions, gameState]);
 
   const handlePlayerClick = useCallback((player: Player) => {
     // All players (human, bot, guest) → show in-game overlay with stats
@@ -864,20 +876,15 @@ export function GamePage() {
           {/* Spectator reactions that don't match any player tile (spectators use socket.id
               as playerId which has no corresponding PlayerCard) — render as floating emojis
               near the emoji bar so the sender gets visual feedback. */}
-          {(() => {
-            const playerIds = new Set(gameState?.players.map(p => p.id) ?? []);
-            const orphans = reactions.filter(r => !playerIds.has(r.playerId));
-            if (orphans.length === 0) return null;
-            return (
-              <div className="fixed bottom-16 left-4 z-40 pointer-events-none flex gap-1">
-                {orphans.map(r => (
-                  <span key={`${r.playerId}-${r.timestamp}`} className="emoji-bubble">
-                    {r.emoji}
-                  </span>
-                ))}
-              </div>
-            );
-          })()}
+          {orphanReactions.length > 0 && (
+            <div className="fixed bottom-16 left-4 z-40 pointer-events-none flex gap-1">
+              {orphanReactions.map(r => (
+                <span key={`${r.playerId}-${r.timestamp}`} className="emoji-bubble">
+                  {r.emoji}
+                </span>
+              ))}
+            </div>
+          )}
         </>
       )}
       {(isEliminated || isSpectator) && (

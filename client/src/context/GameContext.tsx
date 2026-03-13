@@ -14,6 +14,33 @@ export interface PresenceContextValue {
 
 export const PresenceContext = createContext<PresenceContextValue>({ onlinePlayerCount: 0, onlinePlayerNames: [] });
 
+/** Ephemeral emoji reactions — split into a separate context so that rapid
+ *  reaction events (2s lifecycle each) don't re-render the entire game UI.
+ *  Only EmojiReactionBar and PlayerList subscribe to this. */
+export interface ReactionsContextValue {
+  reactions: EmojiReaction[];
+}
+
+const EMPTY_REACTIONS: EmojiReaction[] = [];
+export const ReactionsContext = createContext<ReactionsContextValue>({ reactions: EMPTY_REACTIONS });
+
+export function useReactions(): ReactionsContextValue {
+  return useContext(ReactionsContext);
+}
+
+/** Chat messages — split into a separate context so that incoming messages
+ *  don't re-render game components that don't display chat. */
+export interface ChatContextValue {
+  chatMessages: ChatMessage[];
+}
+
+const EMPTY_CHAT: ChatMessage[] = [];
+export const ChatContext = createContext<ChatContextValue>({ chatMessages: EMPTY_CHAT });
+
+export function useChatMessages(): ChatContextValue {
+  return useContext(ChatContext);
+}
+
 /** Map of playerId → Unix timestamp (ms) when their disconnect timer expires. */
 export type DisconnectDeadlines = ReadonlyMap<string, number>;
 
@@ -954,10 +981,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     onlinePlayerNames,
   }), [onlinePlayerCount, onlinePlayerNames]);
 
-  // onlinePlayerCount and onlinePlayerNames live in PresenceContext.
-  // They are included here for interface compatibility but intentionally
-  // excluded from the useMemo deps — no game component consumes them from
-  // GameContext (Layout uses PresenceContext instead).
+  // Reactions context — split so emoji events (2s lifecycle, rapid-fire)
+  // don't re-render game components. Only EmojiReactionBar and PlayerList
+  // subscribe via useReactions().
+  const reactionsValue: ReactionsContextValue = useMemo(() => ({
+    reactions,
+  }), [reactions]);
+
+  // Chat context — split so incoming messages don't re-render the game UI.
+  // Only ChatPanel subscribes via useChatMessages().
+  const chatValue: ChatContextValue = useMemo(() => ({
+    chatMessages,
+  }), [chatMessages]);
+
+  // onlinePlayerCount, onlinePlayerNames, reactions, and chatMessages are
+  // provided via their own dedicated contexts. They are included in the
+  // GameContext value for interface compatibility (LocalGameProvider uses
+  // the same GameContextValue type) but intentionally excluded from the
+  // useMemo deps — game components consume them from their dedicated
+  // contexts instead.
   const value: GameContextValue = useMemo(() => ({
     roomState,
     gameState,
@@ -1016,7 +1058,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown,
-    lastReplay, reactions, chatMessages,
+    lastReplay,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,
     spectateGame, watchRandomGame, updateSettings, setVisibility, startGame, callHand, callBull, callTrue,
@@ -1028,7 +1070,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <PresenceContext.Provider value={presenceValue}>
+    <ReactionsContext.Provider value={reactionsValue}>
+    <ChatContext.Provider value={chatValue}>
       <GameContext.Provider value={value}>{children}</GameContext.Provider>
+    </ChatContext.Provider>
+    </ReactionsContext.Provider>
     </PresenceContext.Provider>
   );
 }
