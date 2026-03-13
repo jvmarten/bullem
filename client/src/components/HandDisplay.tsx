@@ -21,7 +21,7 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap }
 
   // In landscape/wide viewports, spread the fan wider (less overlap, more rotation)
   const fanAngle = isWide ? 7 : 5;
-  const overlap = isWide ? 0 : -6;
+  const overlap = -6;
   const arcScale = isWide ? 3 : 2;
 
   // Memoize card styles to avoid recalculating on every render
