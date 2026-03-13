@@ -39,7 +39,7 @@ import { CountdownOverlay } from '../components/CountdownOverlay.js';
 /** Tooltip areas that should suppress "tap outside to close" for the hand selector */
 const HAND_SELECTOR_AREAS = ['hand-selector', 'action-area', 'raise-area', 'my-cards', 'call-history', 'quick-draw'] as const;
 /** Tooltip areas that should suppress "tap outside to close" for quick draw */
-const QUICK_DRAW_AREAS = ['quick-draw', 'my-cards', 'action-area'] as const;
+const QUICK_DRAW_AREAS = ['quick-draw', 'my-cards', 'action-area', 'call-history'] as const;
 
 function isInsideTooltipArea(target: HTMLElement, areas: readonly string[]): boolean {
   return areas.some(area => target.closest(`[data-tooltip="${area}"]`) !== null);
@@ -348,7 +348,7 @@ export function LocalGamePage() {
       <CallHistoryToggleButton
         count={gameState.turnHistory.length}
         isOpen={callHistoryOpen}
-        onToggle={() => setCallHistoryOpen(v => !v)}
+        onToggle={() => { setCallHistoryOpen(v => !v); setQuickDrawOpen(false); }}
       />
     </div>
   );
