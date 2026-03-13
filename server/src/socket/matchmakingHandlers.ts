@@ -30,24 +30,34 @@ export function registerMatchmakingHandlers(
 
     const mode = data.mode as RankedMode;
 
-    const error = await matchmakingQueue.joinQueue(socket, mode);
-    if (error) {
-      log.info({ mode, error }, 'Matchmaking join rejected');
-      return callback({ error });
-    }
+    try {
+      const error = await matchmakingQueue.joinQueue(socket, mode);
+      if (error) {
+        log.info({ mode, error }, 'Matchmaking join rejected');
+        return callback({ error });
+      }
 
-    log.info({ mode }, 'Player joined matchmaking queue');
-    callback({ ok: true });
+      log.info({ mode }, 'Player joined matchmaking queue');
+      callback({ ok: true });
+    } catch (err) {
+      log.error({ err, mode }, 'Matchmaking join failed');
+      callback({ error: 'Matchmaking unavailable' });
+    }
   });
 
   socket.on('matchmaking:leave', async (callback) => {
     if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
-    const left = await matchmakingQueue.leaveQueue(socket.id);
-    if (left) {
-      log.info('Player left matchmaking queue');
-      socket.emit('matchmaking:cancelled');
+    try {
+      const left = await matchmakingQueue.leaveQueue(socket.id);
+      if (left) {
+        log.info('Player left matchmaking queue');
+        socket.emit('matchmaking:cancelled');
+      }
+      callback({ ok: true });
+    } catch (err) {
+      log.error({ err }, 'Matchmaking leave failed');
+      callback({ ok: true }); // Best-effort — don't block client
     }
-    callback({ ok: true });
   });
 }
