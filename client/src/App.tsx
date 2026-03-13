@@ -17,36 +17,61 @@ import { useViewportHeight } from './hooks/useViewportHeight.js';
 // Eagerly loaded — the home page is the entry point most users hit first
 import { HomePage } from './pages/HomePage.js';
 
+// Auto-reload once when a lazy chunk fails to load (e.g. stale hash after deploy).
+// Uses sessionStorage to prevent infinite reload loops.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyWithRetry<T extends Record<string, any>>(
+  factory: () => Promise<T>,
+  pick: keyof T,
+): ReturnType<typeof lazy> {
+  return lazy(() =>
+    factory().then(
+      m => ({ default: m[pick] }),
+      (err: unknown) => {
+        const key = 'bull-em-chunk-retry';
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, '1');
+          window.location.reload();
+        }
+        throw err;
+      },
+    ),
+  );
+}
+
+// Clear the chunk-retry flag on successful page load so future deploys can retry
+sessionStorage.removeItem('bull-em-chunk-retry');
+
 // Lazy-loaded pages — deferred until the user navigates to them.
 // This keeps the initial bundle small: lobby/game/results code (plus the
 // entire LocalGameContext + GameEngine) is only fetched when needed.
 // HostPage removed — game creation now goes directly to lobby via "Create Game"
-const LobbyPage = lazy(() => import('./pages/LobbyPage.js').then(m => ({ default: m.LobbyPage })));
-const GamePage = lazy(() => import('./pages/GamePage.js').then(m => ({ default: m.GamePage })));
-const ResultsPage = lazy(() => import('./pages/ResultsPage.js').then(m => ({ default: m.ResultsPage })));
-const HowToPlayPage = lazy(() => import('./pages/HowToPlayPage.js').then(m => ({ default: m.HowToPlayPage })));
-const TutorialPage = lazy(() => import('./pages/TutorialPage.js').then(m => ({ default: m.TutorialPage })));
+const LobbyPage = lazyWithRetry(() => import('./pages/LobbyPage.js'), 'LobbyPage');
+const GamePage = lazyWithRetry(() => import('./pages/GamePage.js'), 'GamePage');
+const ResultsPage = lazyWithRetry(() => import('./pages/ResultsPage.js'), 'ResultsPage');
+const HowToPlayPage = lazyWithRetry(() => import('./pages/HowToPlayPage.js'), 'HowToPlayPage');
+const TutorialPage = lazyWithRetry(() => import('./pages/TutorialPage.js'), 'TutorialPage');
 
 // Local game routes — the entire local game context + engine is only loaded
 // when the user enters the local game flow.
-const LocalLobbyPage = lazy(() => import('./pages/LocalLobbyPage.js').then(m => ({ default: m.LocalLobbyPage })));
-const LocalGamePage = lazy(() => import('./pages/LocalGamePage.js').then(m => ({ default: m.LocalGamePage })));
-const LocalResultsPage = lazy(() => import('./pages/LocalResultsPage.js').then(m => ({ default: m.LocalResultsPage })));
-const LazyLocalGameProvider = lazy(() => import('./context/LocalGameContext.js').then(m => ({ default: m.LocalGameProvider })));
-const ReplayPage = lazy(() => import('./pages/ReplayPage.js').then(m => ({ default: m.ReplayPage })));
-const ReplaysPage = lazy(() => import('./pages/ReplaysPage.js').then(m => ({ default: m.ReplaysPage })));
-const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage.js').then(m => ({ default: m.LeaderboardPage })));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage.js').then(m => ({ default: m.NotFoundPage })));
-const DeckDrawPage = lazy(() => import('./pages/DeckDrawPage.js').then(m => ({ default: m.DeckDrawPage })));
-const FiveDrawPage = lazy(() => import('./pages/FiveDrawPage.js').then(m => ({ default: m.FiveDrawPage })));
+const LocalLobbyPage = lazyWithRetry(() => import('./pages/LocalLobbyPage.js'), 'LocalLobbyPage');
+const LocalGamePage = lazyWithRetry(() => import('./pages/LocalGamePage.js'), 'LocalGamePage');
+const LocalResultsPage = lazyWithRetry(() => import('./pages/LocalResultsPage.js'), 'LocalResultsPage');
+const LazyLocalGameProvider = lazyWithRetry(() => import('./context/LocalGameContext.js'), 'LocalGameProvider');
+const ReplayPage = lazyWithRetry(() => import('./pages/ReplayPage.js'), 'ReplayPage');
+const ReplaysPage = lazyWithRetry(() => import('./pages/ReplaysPage.js'), 'ReplaysPage');
+const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage.js'), 'LeaderboardPage');
+const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage.js'), 'NotFoundPage');
+const DeckDrawPage = lazyWithRetry(() => import('./pages/DeckDrawPage.js'), 'DeckDrawPage');
+const FiveDrawPage = lazyWithRetry(() => import('./pages/FiveDrawPage.js'), 'FiveDrawPage');
 
 // Auth pages
-const LoginPage = lazy(() => import('./pages/LoginPage.js').then(m => ({ default: m.LoginPage })));
-const ProfilePage = lazy(() => import('./pages/ProfilePage.js').then(m => ({ default: m.ProfilePage })));
-const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage.js').then(m => ({ default: m.PublicProfilePage })));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.js').then(m => ({ default: m.ForgotPasswordPage })));
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.js').then(m => ({ default: m.ResetPasswordPage })));
-const FriendsPage = lazy(() => import('./pages/FriendsPage.js').then(m => ({ default: m.FriendsPage })));
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage.js'), 'LoginPage');
+const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage.js'), 'ProfilePage');
+const PublicProfilePage = lazyWithRetry(() => import('./pages/PublicProfilePage.js'), 'PublicProfilePage');
+const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage.js'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage.js'), 'ResetPasswordPage');
+const FriendsPage = lazyWithRetry(() => import('./pages/FriendsPage.js'), 'FriendsPage');
 
 
 function OnlineLayout() {

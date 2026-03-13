@@ -1024,12 +1024,20 @@ if (process.env.NODE_ENV === 'production') {
     },
   }));
 
-  // SPA catch-all: only serve index.html for non-API paths. Without this guard,
-  // requests to non-existent API endpoints (e.g. GET /auth/foo) would return
-  // HTML with a 200 instead of a proper 404, confusing API clients.
+  // SPA catch-all: only serve index.html for navigation requests. Without this
+  // guard, requests to non-existent API endpoints or missing static assets would
+  // return HTML with a 200 instead of a proper 404.
   app.get('*', (req, res) => {
+    // API / internal routes → proper 404
     if (req.path.startsWith('/auth/') || req.path.startsWith('/api/') || req.path.startsWith('/admin/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
       res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    // Static asset requests that fell through express.static (e.g. stale chunk
+    // hashes after a deployment) must NOT get index.html — the browser would
+    // reject HTML with "'text/html' is not a valid JavaScript MIME type".
+    if (/\.(js|css|map|json|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|webp|webm|mp3|ogg|wav)$/i.test(req.path)) {
+      res.status(404).type('text').send('Not found');
       return;
     }
     res.setHeader('Cache-Control', 'no-cache');
