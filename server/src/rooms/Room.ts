@@ -611,8 +611,13 @@ export class Room {
   }
 
   get isEmpty(): boolean {
-    // Only count human players — bots alone don't keep a room alive
-    return [...this.players.values()].every(p => p.isBot);
+    // Only count human players — bots alone don't keep a room alive.
+    // However, during an active game, disconnected humans with pending
+    // reconnect timers still count — don't delete the room while they
+    // can still rejoin (e.g., player vs bots who closed the browser).
+    return [...this.players.values()].every(p => p.isBot || (
+      !p.isConnected && !this.disconnectTimers.has(p.id)
+    ));
   }
 }
 

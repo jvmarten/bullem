@@ -160,25 +160,22 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     const timings: number[] = [];
     let currentTime = 200; // brief initial delay
     let lastPlayerId = '';
-    let burnGroupStarted = false;
 
     for (const slot of slotSequence) {
       // Add player pause when switching to a new player
       if (slot.playerId !== lastPlayerId && lastPlayerId !== '') {
         currentTime += PLAYER_PAUSE;
-        burnGroupStarted = false;
       }
       timings.push(currentTime);
-      // Revealed cards take longer (flip + fly), non-revealed cards just burn
+      // Revealed cards take longer (flip + fly), non-revealed cards burn one by one
       if (slot.isRelevant) {
         currentTime += CARD_FLIP_DURATION + POST_FLIP_PAUSE + FLY_TO_CENTER_DURATION + CARD_INTERVAL;
-        burnGroupStarted = false;
-      } else if (!burnGroupStarted) {
-        // First non-relevant card in a group: advance time once for all of them
-        burnGroupStarted = true;
+      } else {
+        // Each non-relevant card gets its own staggered start time so they
+        // burn one by one instead of all at once (visible when a player has
+        // multiple cards and none are part of the called hand).
         currentTime += CARD_BURN_DURATION + CARD_INTERVAL;
       }
-      // Subsequent non-relevant cards for the same player share the same start time
       lastPlayerId = slot.playerId;
     }
 
@@ -252,7 +249,20 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
       : CARD_BURN_DURATION;
     const totalTime = lastTime + lastDuration + RESULT_DELAY;
 
-    const resultTimer = setTimeout(() => setShowResult(true), totalTime);
+    const resultTimer = setTimeout(() => {
+      setShowResult(true);
+      // Play the round result sound now — synced with the SAFE/WRONG/BUSTED
+      // banner appearing, so it doesn't spoil the outcome during the card
+      // reveal animation. useGameSounds skips this sound in landscape mode.
+      if (myPlayerId) {
+        if (result.eliminatedPlayerIds.includes(myPlayerId)) {
+          play('eliminated');
+        } else if (result.penalties[myPlayerId] !== undefined) {
+          const wasPenalized = result.penalizedPlayerIds?.includes(myPlayerId) ?? false;
+          play(wasPenalized ? 'roundLose' : 'roundWin');
+        }
+      }
+    }, totalTime);
     timers.push(resultTimer);
 
     // Transition from beat 1 (SAFE/WRONG/BUSTED) to beat 2 (hand exists/fake) after 1.5s
