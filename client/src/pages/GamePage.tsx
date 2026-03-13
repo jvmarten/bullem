@@ -133,7 +133,7 @@ export function GamePage() {
   const isSpectator = gameState ? !myPlayer : false;
 
   const isLandscape = useIsLandscape();
-  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated, isLandscape);
+  useGameSounds(gameState, roundResult, winnerId, playerId, isSpectator || isEliminated, isLandscape, isConnected);
   useGameAnnouncements(gameState, roundResult, playerId);
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
@@ -169,16 +169,33 @@ export function GamePage() {
   );
   const canRaise = canCallHand || isLastChanceCaller;
 
-  // Delay showing ReconnectOverlay by 4s to avoid flashing on brief
-  // network blips. Most Socket.io reconnections complete within 1–3s,
-  // so a 4s delay means the overlay only appears for genuinely prolonged
-  // disconnects — keeping the game UI visible and feeling smooth.
+  // Track when the page becomes visible (returns from background) so we can
+  // extend the reconnect overlay grace period. Mobile browsers suspend JS
+  // when backgrounded, causing ping timeouts and socket disconnects that
+  // resolve quickly once the tab is foregrounded again.
+  const lastVisibleAtRef = useRef(Date.now());
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        lastVisibleAtRef.current = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  // Delay showing ReconnectOverlay to avoid flashing on brief network blips
+  // or background-tab ping timeouts. Use a longer delay (8s) if the page just
+  // came back from being hidden, since the disconnect is almost certainly
+  // caused by the browser suspending the socket while backgrounded.
   useEffect(() => {
     if (isConnected || !hasConnected) {
       setShowReconnectOverlay(false);
       return;
     }
-    const timer = setTimeout(() => setShowReconnectOverlay(true), 4000);
+    const msSinceVisible = Date.now() - lastVisibleAtRef.current;
+    const delay = msSinceVisible < 2000 ? 8000 : 4000;
+    const timer = setTimeout(() => setShowReconnectOverlay(true), delay);
     return () => clearTimeout(timer);
   }, [isConnected, hasConnected]);
 
@@ -436,7 +453,10 @@ export function GamePage() {
   });
 
   const handleLeave = () => {
-    if (window.confirm('Leave this game? You will lose your spot.')) {
+    const message = gameState?.ranked
+      ? 'Forfeit this match? You will receive a loss and your rating will be affected.'
+      : 'Forfeit this game? You will be eliminated and cannot rejoin.';
+    if (window.confirm(message)) {
       leaveRoom();
       navigate('/');
     }

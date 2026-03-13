@@ -94,6 +94,7 @@ export function useGameSounds(
   playerId: string | null,
   isSpectator = false,
   isLandscape = false,
+  isConnected = true,
 ) {
   const { play } = useSound();
   // Use -1 as sentinel: "not yet initialized from game state". On the first
@@ -220,6 +221,23 @@ export function useGameSounds(
 
     prevCurrentPlayerRef.current = currentPlayer;
   }, [currentPlayer, playerId, play]);
+
+  // After reconnection, play "your turn" sound if it's the player's turn.
+  // Without this, the sound is missed when the turn didn't change during
+  // disconnect (prevCurrentPlayerRef already equals playerId) or when
+  // currentPlayer briefly became null during the reconnection.
+  const wasConnectedRef = useRef(isConnected);
+  useEffect(() => {
+    const justReconnected = isConnected && !wasConnectedRef.current;
+    wasConnectedRef.current = isConnected;
+
+    if (justReconnected && currentPlayer && currentPlayer === playerId && !isSpectator) {
+      // Reset the ref so the normal turn-change effect doesn't suppress the
+      // sound on the next turn transition after reconnection.
+      prevCurrentPlayerRef.current = currentPlayer;
+      play('yourTurn');
+    }
+  }, [isConnected, currentPlayer, playerId, play, isSpectator]);
 
   // React to round result
   useEffect(() => {
