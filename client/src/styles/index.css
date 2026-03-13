@@ -2650,7 +2650,8 @@ body {
   font-size: 0.75rem;
 }
 
-/* Bottom controls strip — overlays the bottom of the table area */
+/* Bottom controls strip — overlays the bottom of the table area.
+   pointer-events: none when empty so it doesn't block table button taps. */
 .rt-controls {
   position: absolute;
   bottom: 0;
@@ -2663,6 +2664,10 @@ body {
   max-height: 55%;
   overflow-y: auto;
   z-index: 5;
+  pointer-events: none;
+}
+.rt-controls > * {
+  pointer-events: auto;
 }
 
 /* When hand selector is open, stretch from near table center to bottom */
@@ -2873,6 +2878,54 @@ body {
   font-size: 0.75rem;
   padding: 2px 8px;
   max-width: 130px;
+}
+
+/* ── Call history toggle: generous touch target ─────── */
+.call-history-toggle-btn {
+  padding: 0.5rem 0.75rem;
+  min-height: 44px;
+  min-width: 44px;
+  margin: -0.25rem;
+}
+
+/* ── Landscape action button fixes ────────────────── */
+
+/* Remove partial opacity from action button containers — buttons must be fully opaque */
+.rt-center-left,
+.rt-center-right {
+  opacity: 1;
+}
+
+/* Raise/Call ghost button: solid background so it's clearly visible, not see-through */
+.rt-center-right .btn-ghost {
+  background: rgba(20, 18, 30, 0.85);
+  border-color: var(--gold-dim);
+}
+.rt-center-right .btn-ghost:hover,
+.rt-center-right .btn-ghost:active {
+  background: rgba(30, 28, 45, 0.95);
+}
+
+/* Ensure all action buttons have solid, opaque backgrounds */
+.rt-center-left .action-btn-base,
+.rt-center-right .action-btn-base {
+  opacity: 1;
+}
+
+/* Generous touch targets for landscape action buttons — min 44px tap area */
+.rt-center-left .action-btn-base,
+.rt-center-right .action-btn-base {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Avatar z-index: always above card backs ──────── */
+/* Card backs fan creates its own stacking context so its children's
+   inline z-indexes (0, 1, 2…) don't compete with the avatar overlay. */
+.rt-card-backs-fan {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
 }
 
 /* ── Wider desktop: larger seats and table ─────────── */
