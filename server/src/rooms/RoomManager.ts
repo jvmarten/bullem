@@ -193,13 +193,13 @@ export class RoomManager {
     for (const room of this.rooms.values()) {
       if (room.gamePhase !== GamePhase.PLAYING && room.gamePhase !== GamePhase.ROUND_RESULT) continue;
       if (!room.settings.allowSpectators) continue;
-      const state = room.getSpectatorGameState();
-      // O(1) host name via Room.hostName getter instead of scanning player map
+      // Use lightweight getter instead of building a full spectator game state
+      // (which constructs player arrays, turn history, etc.) just for roundNumber.
       listings.push({
         roomCode: room.roomCode,
         playerCount: room.playerCount,
         hostName: room.hostName,
-        roundNumber: state?.roundNumber ?? 0,
+        roundNumber: room.game?.currentRoundNumber ?? 0,
         spectatorsCanSeeCards: room.settings.spectatorsCanSeeCards ?? false,
         spectatorCount: room.spectatorSockets.size,
       });
