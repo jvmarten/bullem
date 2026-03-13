@@ -5,6 +5,11 @@
  * can't bypass cooldowns by reconnecting to a different server instance.
  * Falls back to in-memory Maps when Redis is not configured (local dev).
  *
+ * Includes a circuit breaker that automatically switches to in-memory limiting
+ * when Redis errors accumulate, preventing abuse during Redis outages. The
+ * breaker resets after a cooldown period, resuming Redis-backed limiting once
+ * the connection recovers.
+ *
  * Two strategies are provided:
  * - **Sliding window counter** — used for connection-level event limits and
  *   HTTP endpoint rate limiting (N requests per window).
@@ -14,6 +19,66 @@
 
 import type { Redis } from 'ioredis';
 import logger from './logger.js';
+
+// ── Circuit breaker ─────────────────────────────────────────────────────
+
+/** Number of consecutive Redis failures before the circuit opens. */
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+/** How long (ms) the circuit stays open before attempting Redis again. */
+const CIRCUIT_BREAKER_RESET_MS = 30_000;
+
+enum CircuitState {
+  CLOSED = 'closed',       // Normal — Redis is used
+  OPEN = 'open',           // Redis failed too many times — using in-memory only
+  HALF_OPEN = 'half_open', // Testing if Redis has recovered
+}
+
+class CircuitBreaker {
+  private state = CircuitState.CLOSED;
+  private failureCount = 0;
+  private lastFailureTime = 0;
+
+  /** Record a successful Redis call — resets failure count and closes the circuit. */
+  onSuccess(): void {
+    this.failureCount = 0;
+    if (this.state !== CircuitState.CLOSED) {
+      logger.info('Rate limiter circuit breaker closed — Redis recovered');
+      this.state = CircuitState.CLOSED;
+    }
+  }
+
+  /** Record a Redis failure. Opens the circuit if the threshold is exceeded. */
+  onFailure(): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    if (this.failureCount >= CIRCUIT_BREAKER_THRESHOLD && this.state === CircuitState.CLOSED) {
+      this.state = CircuitState.OPEN;
+      logger.warn(
+        { failureCount: this.failureCount },
+        'Rate limiter circuit breaker opened — falling back to in-memory limiting',
+      );
+    }
+  }
+
+  /** Returns true if Redis should be attempted for this request. */
+  shouldAttemptRedis(): boolean {
+    switch (this.state) {
+      case CircuitState.CLOSED:
+        return true;
+      case CircuitState.OPEN:
+        // After the reset period, allow one probe request
+        if (Date.now() - this.lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
+          this.state = CircuitState.HALF_OPEN;
+          logger.info('Rate limiter circuit breaker half-open — probing Redis');
+          return true;
+        }
+        return false;
+      case CircuitState.HALF_OPEN:
+        // Only one probe at a time — additional requests use in-memory
+        return false;
+    }
+  }
+}
 
 // ── Sliding window rate limiter ──────────────────────────────────────────
 
@@ -126,12 +191,16 @@ setInterval(pruneInMemoryState, 60_000).unref();
 
 // ── Public API ───────────────────────────────────────────────────────────
 
-/** Rate limiter that uses Redis when available, falling back to in-memory. */
+/** Rate limiter that uses Redis when available, falling back to in-memory.
+ *  Includes a circuit breaker to avoid hammering a failing Redis and to
+ *  ensure rate limiting remains enforced via in-memory during outages. */
 export class RateLimiter {
   private redis: Redis | null;
+  private breaker: CircuitBreaker;
 
   constructor(redis: Redis | null) {
     this.redis = redis;
+    this.breaker = new CircuitBreaker();
     if (!redis) {
       // TODO(scale): In-memory rate limiting only works on a single instance.
       // At multi-instance scale, REDIS_URL must be set for rate limits to be
@@ -149,11 +218,13 @@ export class RateLimiter {
    * @param windowMs  Window duration in milliseconds
    */
   async checkWindow(key: string, max: number, windowMs: number): Promise<boolean> {
-    if (this.redis) {
+    if (this.redis && this.breaker.shouldAttemptRedis()) {
       try {
-        return await redisSlidingWindowCheck(this.redis, `rl:win:${key}`, max, windowMs);
+        const result = await redisSlidingWindowCheck(this.redis, `rl:win:${key}`, max, windowMs);
+        this.breaker.onSuccess();
+        return result;
       } catch (err) {
-        // Redis failure — fall back to in-memory to avoid blocking the game
+        this.breaker.onFailure();
         logger.warn({ err, key }, 'Redis rate limit check failed — falling back to in-memory');
         return inMemorySlidingWindowCheck(key, max, windowMs);
       }
@@ -169,10 +240,13 @@ export class RateLimiter {
    * @param cooldownMs  Minimum interval in milliseconds
    */
   async checkCooldown(key: string, cooldownMs: number): Promise<boolean> {
-    if (this.redis) {
+    if (this.redis && this.breaker.shouldAttemptRedis()) {
       try {
-        return await redisCooldownCheck(this.redis, `rl:cd:${key}`, cooldownMs);
+        const result = await redisCooldownCheck(this.redis, `rl:cd:${key}`, cooldownMs);
+        this.breaker.onSuccess();
+        return result;
       } catch (err) {
+        this.breaker.onFailure();
         logger.warn({ err, key }, 'Redis cooldown check failed — falling back to in-memory');
         return inMemoryCooldownCheck(key, cooldownMs);
       }

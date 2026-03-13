@@ -323,7 +323,7 @@ export class CalibrationManager {
     };
 
     room.startGame();
-    BotPlayer.resetMemory(room.roomCode);
+    BotPlayer.resetMemory(room.currentGameId ?? room.roomCode);
     this.botManager.scheduleBotTurn(room, this.io);
 
     this.registerActiveGame(room.roomCode, 'heads_up');
@@ -360,7 +360,7 @@ export class CalibrationManager {
     }
 
     room.startGame();
-    BotPlayer.resetMemory(room.roomCode);
+    BotPlayer.resetMemory(room.currentGameId ?? room.roomCode);
     this.botManager.scheduleBotTurn(room, this.io);
 
     this.registerActiveGame(room.roomCode, 'multiplayer');

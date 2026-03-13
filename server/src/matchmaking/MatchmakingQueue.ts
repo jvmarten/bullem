@@ -761,8 +761,8 @@ export class MatchmakingQueue {
       freshRoom.startGame();
       recordRoundStart(freshRoom.roomCode);
 
-      // Clear cross-round bot memory
-      BotPlayer.resetMemory(freshRoom.roomCode);
+      // Clear cross-round bot memory (scoped by game ID to prevent cross-game leakage)
+      BotPlayer.resetMemory(freshRoom.currentGameId ?? freshRoom.roomCode);
 
       // Schedule turn first (sets deadline for human), then broadcast
       this.botManager.scheduleBotTurn(freshRoom, this.io);

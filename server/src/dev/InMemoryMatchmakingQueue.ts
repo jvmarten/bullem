@@ -485,7 +485,7 @@ export class InMemoryMatchmakingQueue {
 
     room.startGame();
     recordRoundStart(room.roomCode);
-    BotPlayer.resetMemory(room.roomCode);
+    BotPlayer.resetMemory(room.currentGameId ?? room.roomCode);
 
     this.botManager.scheduleBotTurn(room, this.io);
     broadcastRoomState(this.io, room);

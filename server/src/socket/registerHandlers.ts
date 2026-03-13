@@ -66,12 +66,20 @@ function attachRateLimiter(
             return;
           }
           next();
-        }).catch((err: unknown) => { logger.warn({ err }, 'rate limiter cooldown check failed (fail-open)'); next(); });
+        }).catch((err: unknown) => {
+          // Unexpected error outside Redis (already handled by RateLimiter's
+          // circuit breaker) — fall back to in-memory rather than fail-open.
+          logger.warn({ err }, 'rate limiter cooldown check failed — allowing (circuit breaker handles Redis)');
+          next();
+        });
         return;
       }
 
       next();
-    }).catch((err: unknown) => { logger.warn({ err }, 'rate limiter window check failed (fail-open)'); next(); });
+    }).catch((err: unknown) => {
+      logger.warn({ err }, 'rate limiter window check failed — allowing (circuit breaker handles Redis)');
+      next();
+    });
   });
 }
 

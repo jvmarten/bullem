@@ -159,7 +159,7 @@ export function handleSetOver(
     // Reset for next set — resetForRematch handles player reset
     freshRoom.resetForRematch();
     recordRoundStart(freshRoom.roomCode);
-    BotPlayer.resetMemory(freshRoom.roomCode);
+    BotPlayer.resetMemory(freshRoom.currentGameId ?? freshRoom.roomCode);
     botManager.scheduleBotTurn(freshRoom, io);
     broadcastRoomState(io, freshRoom);
     broadcastGameState(io, freshRoom);
@@ -241,8 +241,9 @@ export function beginRoundResultPhase(
     }, room.playerUserIds.get(result.callerId) ?? null);
   }
 
-  // Update cross-round bot memory with round outcome, scoped to this room
-  BotPlayer.updateMemory(result, room.roomCode);
+  // Update cross-round bot memory with round outcome, scoped to the game's
+  // unique ID to prevent memory leakage when room codes are reused.
+  BotPlayer.updateMemory(result, room.currentGameId ?? room.roomCode);
 
   room.beginRoundContinueWindow(ROUND_CONTINUE_TIMEOUT_MS, () => {
     startNextRound(io, room, roomManager, botManager);

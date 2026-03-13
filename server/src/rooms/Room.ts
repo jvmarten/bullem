@@ -45,6 +45,9 @@ export class Room {
   seriesState: SeriesState | null = null;
   /** Initial turn order captured at game start, used for starting-position analytics. */
   initialTurnOrder: PlayerId[] = [];
+  /** Unique ID for the current game instance. Used to scope bot memory so that
+   *  reused room codes don't leak opponent profiles across separate games. */
+  currentGameId: string | null = null;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -333,8 +336,8 @@ export class Room {
     }
     this.disconnectTimers.clear();
     this.cancelRoundContinueWindow();
-    // Free bot memory scoped to this room
-    BotPlayer.resetMemory(this.roomCode);
+    // Free bot memory scoped to this game instance
+    BotPlayer.resetMemory(this.currentGameId ?? this.roomCode);
   }
 
   /** Serialize the room to a JSON-safe snapshot for Redis persistence.
@@ -355,6 +358,7 @@ export class Room {
       gameStartedAt: this.gameStartedAt?.toISOString() ?? null,
       eliminationOrder: [...this.eliminationOrder],
       seriesState: this.seriesState ? { ...this.seriesState, wins: { ...this.seriesState.wins } } : null,
+      currentGameId: this.currentGameId,
     };
   }
 
@@ -397,6 +401,7 @@ export class Room {
     room.gameStartedAt = snapshot.gameStartedAt ? new Date(snapshot.gameStartedAt) : null;
     room.eliminationOrder = snapshot.eliminationOrder ? [...snapshot.eliminationOrder] : [];
     room.seriesState = snapshot.seriesState ?? null;
+    room.currentGameId = snapshot.currentGameId ?? null;
 
     // Restore game engine if a game was in progress
     if (snapshot.gameSnapshot) {
@@ -424,6 +429,7 @@ export class Room {
   startGame(): GameEngine {
     this.gamePhase = GamePhase.PLAYING;
     this.gameStartedAt = new Date();
+    this.currentGameId = randomUUID();
     this.eliminationOrder = [];
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     // Shuffle seating order — positions stay fixed for the entire game

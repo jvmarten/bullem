@@ -181,7 +181,7 @@ export class BackgroundGameManager {
 
     // Start the game
     room.startGame();
-    BotPlayer.resetMemory(room.roomCode);
+    BotPlayer.resetMemory(room.currentGameId ?? room.roomCode);
 
     // Schedule the first bot turn
     this.botManager.scheduleBotTurn(room, this.io);

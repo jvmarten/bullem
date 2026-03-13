@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { MIN_PLAYERS, MAX_PLAYERS, MAX_CARDS, MIN_MAX_CARDS, ONLINE_TURN_TIMER_OPTIONS, MAX_PLAYERS_OPTIONS, LAST_CHANCE_MODES, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, BEST_OF_OPTIONS, AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS, JOKER_COUNT_OPTIONS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
+import { MIN_PLAYERS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS, GAME_COUNTDOWN_SECONDS, validateGameSettings } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, AvatarBgColor, JokerCount } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
@@ -396,61 +396,15 @@ export function registerLobbyHandlers(
       return;
     }
 
-    // Validate required fields
-    const { maxCards, turnTimer } = data.settings;
-    if (typeof maxCards !== 'number' || maxCards < MIN_MAX_CARDS || maxCards > MAX_CARDS || !Number.isInteger(maxCards)) {
-      socket.emit('room:error', 'Invalid max cards setting');
-      return;
-    }
-    if (typeof turnTimer !== 'number' || !(ONLINE_TURN_TIMER_OPTIONS as readonly number[]).includes(turnTimer)) {
-      socket.emit('room:error', 'Invalid turn timer setting');
+    // Validate all settings fields via the centralized validator
+    const validation = validateGameSettings(data.settings as unknown as Record<string, unknown>);
+    if (!validation.ok) {
+      socket.emit('room:error', validation.error);
       return;
     }
 
-    // Validate maxPlayers against the allowlist of supported values
-    const maxPlayers = data.settings.maxPlayers;
-    if (maxPlayers !== undefined) {
-      if (typeof maxPlayers !== 'number' || !(MAX_PLAYERS_OPTIONS as readonly number[]).includes(maxPlayers)) {
-        socket.emit('room:error', 'Invalid max players setting');
-        return;
-      }
-    }
-
-    // Validate botSpeed against enum values
-    const botSpeed = data.settings.botSpeed;
-    if (botSpeed !== undefined && !Object.values(BotSpeed).includes(botSpeed as BotSpeed)) {
-      socket.emit('room:error', 'Invalid bot speed setting');
-      return;
-    }
-
-    // Validate lastChanceMode against the shared constant
-    const lastChanceMode = data.settings.lastChanceMode;
-    if (lastChanceMode !== undefined && !(LAST_CHANCE_MODES as readonly string[]).includes(lastChanceMode)) {
-      socket.emit('room:error', 'Invalid last chance mode setting');
-      return;
-    }
-
-    // Validate bestOf against allowed values (only relevant for 1v1)
-    const bestOf = data.settings.bestOf;
-    if (bestOf !== undefined && !(BEST_OF_OPTIONS as readonly number[]).includes(bestOf)) {
-      socket.emit('room:error', 'Invalid best-of setting');
-      return;
-    }
-
-    // Validate botLevelCategory against the known literal values
-    const VALID_BOT_LEVEL_CATEGORIES = ['easy', 'normal', 'hard', 'mixed'] as const;
-    const botLevelCategory = data.settings.botLevelCategory;
-    if (botLevelCategory !== undefined && !VALID_BOT_LEVEL_CATEGORIES.includes(botLevelCategory)) {
-      socket.emit('room:error', 'Invalid bot level category');
-      return;
-    }
-
-    // Validate jokerCount against allowed values (0, 1, or 2)
-    const jokerCount = data.settings.jokerCount;
-    if (jokerCount !== undefined && !(JOKER_COUNT_OPTIONS as readonly number[]).includes(jokerCount)) {
-      socket.emit('room:error', 'Invalid joker count (must be 0, 1, or 2)');
-      return;
-    }
+    // Destructure validated fields for building the settings object.
+    const { maxCards, turnTimer, maxPlayers, botSpeed, lastChanceMode, bestOf, botLevelCategory, jokerCount } = data.settings;
 
     // Build a validated settings object — only pick known fields to prevent
     // unexpected properties from leaking into game state.
@@ -699,8 +653,10 @@ export function registerLobbyHandlers(
         freshRoom.initialTurnOrder = freshRoom.game.getActivePlayers().map(p => p.id);
       }
 
-      // Clear cross-round bot memory for this room's scope
-      BotPlayer.resetMemory(freshRoom.roomCode);
+      // Clear cross-round bot memory for the previous game scope (if any)
+      // and scope new memory to the game's unique ID to prevent cross-game leakage
+      // when room codes are reused.
+      BotPlayer.resetMemory(freshRoom.currentGameId ?? freshRoom.roomCode);
       // Schedule turn first (sets deadline for human), then broadcast with correct deadline
       botManager.scheduleBotTurn(freshRoom, io);
       broadcastRoomState(io, freshRoom);
@@ -761,7 +717,7 @@ export function registerLobbyHandlers(
       const freshRoom = roomManager.getRoom(rematchRoomCode);
       if (!freshRoom || !freshRoom.game) return;
 
-      BotPlayer.resetMemory(freshRoom.roomCode);
+      BotPlayer.resetMemory(freshRoom.currentGameId ?? freshRoom.roomCode);
       botManager.scheduleBotTurn(freshRoom, io);
       broadcastRoomState(io, freshRoom);
       broadcastGameState(io, freshRoom);
