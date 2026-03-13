@@ -62,7 +62,7 @@ export function RivalryStats({ rivalries }: Props) {
             >
               {/* Top row: avatar, name, W-L */}
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-base shrink-0 overflow-hidden">
+                <div className="relative w-10 h-10 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-base shrink-0 overflow-hidden">
                   <PlayerAvatarContent name={rival.opponentName} avatar={rival.opponentAvatar} photoUrl={rival.opponentPhotoUrl} />
                 </div>
                 <div className="flex-1 min-w-0">
