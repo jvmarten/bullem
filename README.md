@@ -17,22 +17,27 @@ No `.env` file or external services are required for local development. The serv
 
 ## Project Structure
 
-npm workspaces monorepo with three packages:
+npm workspaces monorepo with four packages:
 
 ```
 ├── shared/              # Types, constants, game engine, hand logic (pure functions)
-│   └── src/engine/      # GameEngine, HandChecker, Deck, BotPlayer
+│   ├── src/engine/      # GameEngine, HandChecker, Deck, BotPlayer
+│   └── src/cfr/         # CFR-trained bot strategy (level 9 bots)
 ├── server/              # Express + Socket.io backend
 │   ├── src/socket/      # Thin WebSocket handlers (validate → engine → broadcast)
 │   ├── src/rooms/       # Room lifecycle, RoomManager, Redis persistence
-│   ├── src/game/        # BotManager, BackgroundGameManager
-│   ├── src/auth/        # JWT auth, bcrypt passwords, middleware
-│   └── src/db/          # PostgreSQL pool, migrations
+│   ├── src/game/        # BotManager, BackgroundGameManager, CalibrationManager
+│   ├── src/auth/        # JWT auth, bcrypt passwords, Google/Apple OAuth
+│   ├── src/matchmaking/  # Ranked matchmaking queue (Elo/OpenSkill-based)
+│   ├── src/push/        # Web Push notifications (VAPID)
+│   ├── src/admin/       # Admin panel API routes
+│   └── src/db/          # PostgreSQL pool, auto-migrations
 ├── client/              # React 19 + Vite frontend (Tailwind CSS 4)
 │   ├── src/pages/       # Route pages (online + local variants)
 │   ├── src/components/  # Reusable UI (HandSelector, RevealOverlay, etc.)
 │   ├── src/context/     # GameContext (socket), LocalGameContext (offline engine)
 │   └── src/hooks/       # Sound engine (Web Audio API), navigation guard
+├── training/            # Bot AI training scripts (evolution, CFR, simulation)
 ├── docs/                # Architecture docs, roadmap
 ├── Dockerfile           # Multi-stage production build (Node 22 Alpine)
 ├── fly.toml             # Fly.io deployment config
@@ -95,6 +100,20 @@ npm test -w server       # room management, socket handlers, input validation
 npm test -w client       # component tests (jsdom)
 ```
 
+### Training workspace
+
+The `training/` workspace contains bot AI training scripts (genetic evolution, CFR training, simulation). These are not part of the main build.
+
+```bash
+npm run evolve -w training -- --generations 80 --population 30   # evolve heuristic bot parameters
+npm run evaluate-evolved -w training                             # evaluate evolved strategy vs all lvl8 bots
+npm run evaluate -w training                                     # evaluate CFR strategy vs heuristic bots
+npm run simulate -w training                                     # run game simulations
+npm run train -w training                                        # train CFR strategy
+```
+
+Training runs can take 20-30+ minutes. Output goes to `training/strategies/` (gitignored). See CLAUDE.md for how to integrate evolved parameters.
+
 ## Environment Variables
 
 All variables are optional for local development. The server runs fully in-memory by default.
@@ -104,9 +123,21 @@ All variables are optional for local development. The server runs fully in-memor
 | `PORT` | `3001` | Server listen port |
 | `NODE_ENV` | `development` | Set to `production` to serve built client, restrict CORS, use JSON logging |
 | `CORS_ORIGINS` | *(same-origin)* | Comma-separated allowed origins in production (e.g. `https://bullem.fly.dev,https://bullem.com`) |
-| `REDIS_URL` | *(none)* | Redis connection URL. Enables: Socket.io pub/sub adapter (multi-instance), session persistence (rooms survive restarts) |
-| `DATABASE_URL` | *(none)* | PostgreSQL connection string. Enables: user accounts, persistent stats, game history |
+| `REDIS_URL` | *(none)* | Redis connection URL. Enables: Socket.io pub/sub adapter (multi-instance), session persistence (rooms survive restarts), rate limiting |
+| `DATABASE_URL` | *(none)* | PostgreSQL connection string. Enables: user accounts, persistent stats, game history, leaderboards |
+| `READ_DATABASE_URL` | *(none)* | PostgreSQL read replica connection string. Falls back to `DATABASE_URL` if unset |
 | `SESSION_SECRET` | *(required for auth)* | Secret for signing JWT auth tokens. Must be set if `DATABASE_URL` is configured |
+| `GOOGLE_CLIENT_ID` | *(none)* | Google OAuth client ID. Enables Google sign-in |
+| `GOOGLE_CLIENT_SECRET` | *(none)* | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | *(auto-detected)* | Google OAuth redirect URI. Auto-detected from request if omitted |
+| `APPLE_CLIENT_ID` | *(none)* | Apple Services ID (e.g. `com.example.bullem`). Enables Sign in with Apple |
+| `APPLE_TEAM_ID` | *(none)* | 10-char Apple Developer Team ID |
+| `APPLE_KEY_ID` | *(none)* | Key ID from Apple Developer portal |
+| `APPLE_PRIVATE_KEY` | *(none)* | ES256 private key contents (use literal `\n` for newlines) |
+| `APPLE_REDIRECT_URI` | *(auto-detected)* | Apple OAuth redirect URI. Auto-detected from request if omitted |
+| `VAPID_PUBLIC_KEY` | *(none)* | Web Push VAPID public key. Generate with `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | *(none)* | Web Push VAPID private key |
+| `VAPID_SUBJECT` | *(none)* | VAPID subject (e.g. `mailto:you@example.com`) |
 | `SENTRY_DSN` | *(none)* | Sentry error tracking DSN. When set, errors are reported automatically |
 | `LOG_LEVEL` | `info` | Pino log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`) |
 
@@ -202,4 +233,6 @@ Both modes share the same UI components and game engine. The local mode is a ful
 - **Reconnection** — 30s disconnect window with token rotation to prevent session hijacking
 - See `CLAUDE.md` for the full engineering philosophy, coding standards, and game rules detail
 - See [docs/architecture.md](docs/architecture.md) for system design and data flows
-- See [docs/roadmap.md](docs/roadmap.md) for planned features and priorities
+- See [docs/api.md](docs/api.md) for HTTP endpoint and WebSocket event reference
+- See [docs/database.md](docs/database.md) for PostgreSQL schema documentation
+- See [docs/FEATURE_ROADMAP.md](docs/FEATURE_ROADMAP.md) for planned features and priorities
