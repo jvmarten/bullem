@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
-import { GameStartBanner, ActiveGameRedirect } from './components/GameStartBanner.js';
+import { GameStartBanner, ActiveGameRedirect, ResumeMatchBanner } from './components/GameStartBanner.js';
 import { AuthProvider } from './context/AuthContext.js';
 import { ToastProvider } from './context/ToastContext.js';
 import { FriendsProvider } from './context/FriendsContext.js';
@@ -78,6 +78,7 @@ function OnlineLayout() {
   return (
     <GameProvider>
       <GameStartBanner />
+      <ResumeMatchBanner />
       <ActiveGameRedirect />
       <Outlet />
     </GameProvider>
