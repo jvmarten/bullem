@@ -857,11 +857,22 @@ app.post('/api/five-draw/result', requireAuth, async (req, res) => {
       return;
     }
 
-    // Atomically add winnings back if won (prevents concurrent-win race)
+    // Atomically add winnings back if won (prevents concurrent-win race).
+    // If addBalance fails, refund the wager to avoid silently eating it.
     let finalBalance = postDeductBalance;
     if (won) {
       const newBalance = await atomicAddBalance(req.user!.userId, payout);
-      if (newBalance !== null) finalBalance = newBalance;
+      if (newBalance !== null) {
+        finalBalance = newBalance;
+      } else {
+        // DB failed to credit winnings — refund the wager so the player
+        // doesn't lose money due to a transient DB error.
+        const refunded = await atomicAddBalance(req.user!.userId, wager);
+        if (refunded !== null) finalBalance = refunded;
+        logger.error({ userId: req.user!.userId, wager, payout }, 'Five Draw: failed to credit winnings, refunded wager');
+        res.status(503).json({ error: 'Failed to process winnings — wager refunded' });
+        return;
+      }
     }
 
     res.json({ balance: finalBalance });
