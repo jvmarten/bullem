@@ -255,9 +255,6 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           {headerRightExtra && (
             <div className="game-header-overlay-right">{headerRightExtra}</div>
           )}
-          <div className="game-header-overlay-volume">
-            <VolumeControl />
-          </div>
         </div>
       )}
       {showReconnectBanner && (

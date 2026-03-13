@@ -355,8 +355,9 @@ export function LocalGamePage() {
 
   const headerRightExtra = (
     <>
-      {pauseButton}
       {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
+      {pauseButton}
+      <VolumeControl />
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"

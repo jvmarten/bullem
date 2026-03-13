@@ -183,7 +183,7 @@ export function VolumeControl() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] animate-fade-in" role="group" aria-label="Settings panel">
+        <div className="absolute right-0 top-8 z-50 glass-raised rounded-lg p-3 min-w-[180px] max-h-[calc(100dvh-3rem)] overflow-y-auto animate-fade-in" role="group" aria-label="Settings panel">
           {/* ── Always-visible settings ──────────────────────────── */}
 
           {/* Master volume */}
@@ -316,8 +316,7 @@ export function VolumeControl() {
             <div className="animate-fade-in">
               {/* Volume category */}
               <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
-                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Volume</span>
-                <div className="mt-1.5 flex flex-col gap-1.5">
+                <div className="mt-0 flex flex-col gap-1.5">
                   {/* SFX volume */}
                   <div className="flex items-center gap-2">
                     <button
@@ -359,12 +358,10 @@ export function VolumeControl() {
                 </div>
               </div>
 
-              {/* Haptics category */}
-              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
-                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Haptics</span>
-                <button
+              {/* Haptics toggle */}
+              <button
                   onClick={toggleHaptics}
-                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
                   aria-pressed={hapticsEnabled}
                   aria-label={hapticsEnabled ? 'Disable haptics' : 'Enable haptics'}
                 >
@@ -390,14 +387,11 @@ export function VolumeControl() {
                     )}
                   </span>
                 </button>
-              </div>
 
-              {/* Impossible Bot category */}
-              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
-                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Bots</span>
-                <button
+              {/* Impossible Bot toggle */}
+              <button
                   onClick={toggleImpossibleBotEnabled}
-                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
                   aria-pressed={impossibleBotOn}
                   aria-label={impossibleBotOn ? 'Disable impossible bot' : 'Enable impossible bot'}
                 >
@@ -415,14 +409,11 @@ export function VolumeControl() {
                     </svg>
                   </span>
                 </button>
-              </div>
 
-              {/* 4-Color Deck category */}
-              <div className="mt-2 pt-2 border-t border-[var(--gold-dim)]/20">
-                <span className="text-[9px] uppercase tracking-widest text-[var(--gold-dim)]/40 font-bold">Cards</span>
-                <button
+              {/* 4-Color Deck toggle */}
+              <button
                   onClick={toggleFourColorDeckEnabled}
-                  className="flex items-center justify-between mt-1 w-full bg-transparent border-0 p-0 cursor-pointer"
+                  className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--gold-dim)]/20 w-full bg-transparent border-x-0 border-b-0 p-0 cursor-pointer"
                   aria-pressed={fourColorDeckOn}
                   aria-label={fourColorDeckOn ? 'Disable four-color deck' : 'Enable four-color deck'}
                 >
@@ -442,7 +433,6 @@ export function VolumeControl() {
                     </svg>
                   </span>
                 </button>
-              </div>
             </div>
           )}
         </div>
