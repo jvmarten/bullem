@@ -239,7 +239,10 @@ export function useGameSounds(
     }
   }, [isConnected, currentPlayer, playerId, play, isSpectator]);
 
-  // React to round result
+  // React to round result.
+  // In landscape mode, the cinematic reveal animation plays first — defer
+  // the result sound until RoundtableRevealOverlay shows the SAFE/WRONG/BUSTED
+  // banner so the sound doesn't spoil the outcome before cards are revealed.
   useEffect(() => {
     if (!roundResult || roundResult === prevRoundResultRef.current) return;
     prevRoundResultRef.current = roundResult;
@@ -253,13 +256,17 @@ export function useGameSounds(
     if (fp === lastPlayedRoundResultFingerprint) return;
     lastPlayedRoundResultFingerprint = fp;
 
+    // In landscape mode, RoundtableRevealOverlay handles the result sound
+    // after the card reveal animation completes — skip here to avoid spoiling.
+    if (isLandscape) return;
+
     if (roundResult.eliminatedPlayerIds.includes(playerId)) {
       play('eliminated');
     } else if (roundResult.penalties[playerId] !== undefined) {
       const wasPenalized = roundResult.penalizedPlayerIds?.includes(playerId) ?? false;
       play(wasPenalized ? 'roundLose' : 'roundWin');
     }
-  }, [roundResult, playerId, play]);
+  }, [roundResult, playerId, play, isLandscape]);
 
   // Track winnerId changes (no sound here — victory/gameOver audio is played
   // on the ResultsPage so it coincides with the "You Win!" screen, not the
