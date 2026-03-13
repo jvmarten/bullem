@@ -54,7 +54,21 @@ function loadLocalGame(): LocalGameSave | null {
   try {
     const raw = localStorage.getItem(LOCAL_GAME_STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as LocalGameSave;
+    const parsed: unknown = JSON.parse(raw);
+    // Validate required fields to guard against format changes between versions.
+    // Without this, a stale save could produce a partially-valid object that
+    // crashes deep in GameEngine.restore or during state reconstruction.
+    if (
+      typeof parsed !== 'object' || parsed === null
+      || !('engineSnapshot' in parsed) || typeof (parsed as Record<string, unknown>).engineSnapshot !== 'object'
+      || !('players' in parsed) || !Array.isArray((parsed as Record<string, unknown>).players)
+      || !('botDifficulty' in parsed)
+      || !('gameSettings' in parsed) || typeof (parsed as Record<string, unknown>).gameSettings !== 'object'
+    ) {
+      localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
+      return null;
+    }
+    return parsed as LocalGameSave;
   } catch {
     localStorage.removeItem(LOCAL_GAME_STORAGE_KEY);
     return null;
@@ -95,6 +109,7 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isHost: p.isHost,
     isBot: p.isBot,
     avatar: p.avatar,
+    avatarBgColor: p.avatarBgColor,
   };
 }
 
