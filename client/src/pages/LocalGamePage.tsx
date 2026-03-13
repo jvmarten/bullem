@@ -13,7 +13,6 @@ import { SpectatorPill } from '../components/SpectatorPill.js';
 import { GameTooltips } from '../components/GameTooltips.js';
 
 import { BotProfileModal } from '../components/BotProfileModal.js';
-import { InGameStats } from '../components/InGameStats.js';
 
 import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
@@ -21,7 +20,11 @@ import { useErrorToast } from '../hooks/useErrorToast.js';
 import { useSound, useGameSounds } from '../hooks/useSound.js';
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js';
 import { useGameKeyboardShortcuts } from '../hooks/useGameKeyboardShortcuts.js';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+
+/** Lazy-load InGameStats (and its recharts dependency ~150KB gzipped) — only
+ *  rendered for eliminated players and spectators, not during active gameplay. */
+const InGameStats = lazy(() => import('../components/InGameStats.js').then(m => ({ default: m.InGameStats })));
 import type { HandCall, Card, Player } from '@bull-em/shared';
 import { getQuickDrawSuggestions, type QuickDrawSuggestion } from '@bull-em/shared';
 import { QuickDrawChips } from '../components/QuickDrawChips.js';
@@ -355,7 +358,7 @@ export function LocalGamePage() {
 
   const headerRightExtra = (
     <>
-      {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
+      {isEliminated && <Suspense fallback={null}><InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} /></Suspense>}
       {pauseButton}
       <VolumeControl />
       <button
@@ -483,7 +486,7 @@ export function LocalGamePage() {
           </div>
           <div className="flex items-center gap-3">
             {pauseButton}
-            {isEliminated && <InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} />}
+            {isEliminated && <Suspense fallback={null}><InGameStats stats={inGameStats} players={gameState.players} myPlayerId={playerId} /></Suspense>}
             <VolumeControl />
             <button
               onClick={handleLeave}
