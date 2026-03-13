@@ -253,7 +253,7 @@ export function ReplayPage() {
       <Layout>
         <div className="flex flex-col items-center gap-4 pt-12 text-center">
           <p className="text-[var(--gold-dim)]">No replay data available.</p>
-          <button onClick={() => navigate('/')} className="btn-gold px-6 py-2">
+          <button onClick={() => navigate('/')} className="btn-gold px-6 py-2 min-h-[44px]">
             Back to Home
           </button>
         </div>
@@ -278,7 +278,7 @@ export function ReplayPage() {
           {/* Share button — copies a deep-link to the current round/turn position */}
           <button
             onClick={handleShare}
-            className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors px-3 py-1.5 glass rounded-full"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors px-3 py-1.5 glass rounded-full min-h-[44px]"
             title="Copy shareable link to current position"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -298,7 +298,7 @@ export function ReplayPage() {
             <button
               key={i}
               onClick={() => { engine.seekToRound(i); setIsPlaying(false); rerender(); }}
-              className={`w-7 h-7 rounded-full text-xs font-bold transition-all ${
+              className={`w-11 h-11 rounded-full text-xs font-bold transition-all ${
                 i === viewState.roundIndex
                   ? 'bg-[var(--gold)] text-[var(--surface)]'
                   : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'

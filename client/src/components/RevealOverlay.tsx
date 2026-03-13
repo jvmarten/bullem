@@ -201,7 +201,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
           <div>
             <button
               onClick={() => setActionsExpanded(v => !v)}
-              className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 bg-transparent border-none p-0 cursor-pointer"
+              className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold mb-1 bg-transparent border-none py-2 px-1 cursor-pointer min-h-[44px]"
               aria-expanded={actionsExpanded}
               aria-label={actionsExpanded ? 'Hide round actions' : 'Show round actions'}
             >

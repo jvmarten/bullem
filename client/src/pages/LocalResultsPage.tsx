@@ -125,13 +125,13 @@ export function LocalResultsPage() {
           )}
           <button
             onClick={() => { leaveRoom(); navigate('/local'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
           >
             New Game
           </button>
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
           >
             Back to Home
           </button>

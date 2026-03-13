@@ -228,7 +228,7 @@ function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; po
         )}
         <button
           onClick={onCancel}
-          className="btn-ghost px-6 py-2 text-sm"
+          className="btn-ghost px-6 py-2 text-sm min-h-[44px]"
         >
           Cancel
         </button>
@@ -618,7 +618,7 @@ export function HomePage() {
               <div className="w-full mt-2">
                 <button
                   onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2 min-h-[44px]"
                 >
                   <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -931,7 +931,7 @@ export function HomePage() {
             )}
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
             >
               Back
             </button>
@@ -1022,7 +1022,7 @@ export function HomePage() {
                 {joiningRanked && (
                   <button
                     onClick={() => { play('uiBack'); setJoiningRanked(null); leaveMatchmaking().catch(() => {}); }}
-                    className="btn-ghost text-sm py-2"
+                    className="btn-ghost text-sm py-2 min-h-[44px]"
                   >
                     Cancel
                   </button>
@@ -1058,7 +1058,7 @@ export function HomePage() {
               <div className="w-full">
                 <button
                   onClick={() => { play('uiSoft'); setShowRecentPlayers(prev => !prev); }}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2"
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--gold-dim)] font-semibold py-2 min-h-[44px]"
                 >
                   <span>{showRecentPlayers ? 'Hide' : 'Show'} Recent Players</span>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1072,7 +1072,7 @@ export function HomePage() {
             )}
             <button
               onClick={() => { play('uiBack'); setMode('menu'); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
             >
               Back
             </button>
@@ -1098,7 +1098,7 @@ export function HomePage() {
             </button>
             <button
               onClick={() => { play('uiBack'); setMode('online');}}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
             >
               Back
             </button>
@@ -1186,13 +1186,13 @@ export function HomePage() {
             )}
             <button
               onClick={() => { play('uiSoft'); handleBrowse(); }}
-              className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+              className="w-full glass px-4 py-2 text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] flex items-center justify-center"
             >
               Refresh
             </button>
             <button
               onClick={() => { play('uiBack'); setMode('online');}}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
             >
               Back
             </button>
@@ -1256,7 +1256,7 @@ export function HomePage() {
                   localStorage.setItem('bull-em-welcome-dismissed', 'true');
                   setShowWelcome(false);
                 }}
-                className="btn-ghost px-6 py-2 text-sm"
+                className="btn-ghost px-6 py-2 text-sm min-h-[44px]"
               >
                 Skip — I know how to play
               </button>

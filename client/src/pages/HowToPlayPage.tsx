@@ -132,7 +132,7 @@ export function HowToPlayPage() {
         {/* Back button */}
         <button
           onClick={() => navigate('/')}
-          className="btn-ghost px-10 py-2 text-base self-center"
+          className="btn-ghost px-10 py-2 text-base self-center min-h-[44px]"
         >
           Back to Home
         </button>

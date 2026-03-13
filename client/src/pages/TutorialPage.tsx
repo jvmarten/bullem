@@ -672,11 +672,11 @@ export function TutorialPage() {
           {step.body}
           <div className="flex justify-between items-center mt-3">
             {stepIndex > 0 && (
-              <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+              <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                 Back
               </button>
             )}
-            <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+            <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto min-h-[44px]">
               {isLastStep ? 'Finish' : 'Next'}
             </button>
           </div>
@@ -748,11 +748,11 @@ export function TutorialPage() {
                   )}
                   <div className="flex justify-between items-center mt-3">
                     {stepIndex > 0 && (
-                      <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                      <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                         Back
                       </button>
                     )}
-                    <button onClick={() => { setQuizAnswer(null); advance(); }} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                    <button onClick={() => { setQuizAnswer(null); advance(); }} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto min-h-[44px]">
                       Next
                     </button>
                   </div>
@@ -766,7 +766,7 @@ export function TutorialPage() {
               {!step.interactive && (
                 <div className="flex justify-between items-center mt-3">
                   {stepIndex > 0 && (
-                    <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors">
+                    <button onClick={goBack} className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                       Back
                     </button>
                   )}
@@ -796,7 +796,7 @@ export function TutorialPage() {
                       )}
                     </div>
                   ) : (
-                    <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto">
+                    <button onClick={advance} className="btn-gold px-4 py-1.5 text-sm font-semibold ml-auto min-h-[44px]">
                       Next
                     </button>
                   )}
@@ -812,7 +812,7 @@ export function TutorialPage() {
         {!(isQuickDone || (section === 'advanced' && isLastStep)) && (
           <button
             onClick={() => { clearTutorialStepProgress(); navigate('/'); }}
-            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             Skip Tutorial
           </button>
@@ -820,7 +820,7 @@ export function TutorialPage() {
         {(isQuickDone || (section === 'advanced' && isLastStep)) && (
           <button
             onClick={() => { markTutorialCompleted(); clearTutorialStepProgress(); navigate('/'); }}
-            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+            className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             Back to Home
           </button>

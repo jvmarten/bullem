@@ -241,7 +241,7 @@ export function LocalLobbyPage() {
                 }
               }
             };
-            const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
+            const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors min-h-[44px] ${
               currentBotCount === n
                 ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                 : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -280,7 +280,7 @@ export function LocalLobbyPage() {
           </button>
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
           >
             Back to Home
           </button>
@@ -299,7 +299,7 @@ export function LocalLobbyPage() {
                 <button
                   key={n}
                   onClick={() => { play('uiSoft'); handleMaxCardsChange(n); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                     maxCards === n
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -322,7 +322,7 @@ export function LocalLobbyPage() {
                 <button
                   key={seconds}
                   onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, turnTimer: seconds }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                     (gameSettings.turnTimer ?? 0) === seconds
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -401,7 +401,7 @@ export function LocalLobbyPage() {
                 <button
                   key={n}
                   onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, jokerCount: n }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                     (gameSettings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -463,7 +463,7 @@ export function LocalLobbyPage() {
                 <button
                   key={mode}
                   onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, lastChanceMode: mode }); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                     (gameSettings.lastChanceMode ?? 'classic') === mode
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -491,7 +491,7 @@ export function LocalLobbyPage() {
                   <button
                     key={bo}
                     onClick={() => { play('uiSoft'); setGameSettings({ ...gameSettings, bestOf: bo as BestOf }); }}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       (gameSettings.bestOf ?? DEFAULT_BEST_OF) === bo
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'

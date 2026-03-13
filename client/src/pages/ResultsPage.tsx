@@ -320,7 +320,7 @@ export function ResultsPage() {
           )}
           <button
             onClick={() => { leaveRoom(); navigate('/'); }}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
           >
             Leave Game
           </button>

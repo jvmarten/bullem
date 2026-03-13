@@ -162,7 +162,7 @@ export function LobbyPage() {
             </button>
             <button
               onClick={() => navigate('/')}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
             >
               Back to Home
             </button>
@@ -314,7 +314,7 @@ export function LobbyPage() {
               }
             }
           };
-          const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors ${
+          const btnClass = (n: number) => `flex-1 px-1.5 py-2 text-sm rounded transition-colors min-h-[44px] ${
             bots.length === n
               ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
               : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -365,7 +365,7 @@ export function LobbyPage() {
                   <button
                     key={n}
                     onClick={() => handleMaxCardsChange(n)}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       maxCards === n
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -387,7 +387,7 @@ export function LobbyPage() {
                   <button
                     key={n}
                     onClick={() => handleMaxPlayersChange(n)}
-                    className={`flex-1 min-w-[2.5rem] px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 min-w-[2.5rem] px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       maxPlayersSetting === n
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -409,7 +409,7 @@ export function LobbyPage() {
                   <button
                     key={seconds}
                     onClick={() => handleTimerChange(seconds)}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       turnTimer === seconds
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -467,7 +467,7 @@ export function LobbyPage() {
             {/* Advanced Settings toggle */}
             <button
               onClick={() => { play('uiSoft'); setShowAdvanced(v => !v); }}
-              className="w-full flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors font-semibold"
+              className="w-full flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors font-semibold min-h-[44px]"
             >
               Advanced Settings
               <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
@@ -485,7 +485,7 @@ export function LobbyPage() {
                   <button
                     key={n}
                     onClick={() => { play('uiSoft'); updateSettings({ ...settings, jokerCount: n }); }}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       (settings.jokerCount ?? DEFAULT_JOKER_COUNT) === n
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -535,7 +535,7 @@ export function LobbyPage() {
                     <button
                       key={bo}
                       onClick={() => { play('uiSoft'); updateSettings({ ...settings, bestOf: bo as BestOf }); }}
-                      className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                      className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                         (settings.bestOf ?? DEFAULT_BEST_OF) === bo
                           ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                           : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -562,7 +562,7 @@ export function LobbyPage() {
                 <button
                   type="button"
                   onClick={() => setShowLcrInfo(v => !v)}
-                  className="w-4 h-4 rounded-full border border-[var(--gold-dim)] text-[var(--gold-dim)] text-[9px] leading-none flex items-center justify-center hover:border-[var(--gold)] hover:text-[var(--gold)] transition-colors"
+                  className="w-7 h-7 rounded-full border border-[var(--gold-dim)] text-[var(--gold-dim)] text-[9px] leading-none flex items-center justify-center hover:border-[var(--gold)] hover:text-[var(--gold)] transition-colors"
                   aria-label="What is LCR?"
                 >
                   ?
@@ -578,7 +578,7 @@ export function LobbyPage() {
                   <button
                     key={mode}
                     onClick={() => { play('uiSoft'); updateSettings({ ...settings, lastChanceMode: mode }); }}
-                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                    className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                       (settings.lastChanceMode ?? 'classic') === mode
                         ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                         : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -691,7 +691,7 @@ export function LobbyPage() {
                 <button
                   key={String(pub)}
                   onClick={() => { play('uiSoft'); setVisibility(pub); }}
-                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors ${
+                  className={`flex-1 px-2 py-2 text-sm rounded transition-colors min-h-[44px] ${
                     (settings.isPublic ?? false) === pub
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -803,13 +803,13 @@ export function LobbyPage() {
             <>
               <button
                 onClick={() => navigate('/', { state: { mode: 'online' } })}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
               >
                 Back to Menu
               </button>
               <button
                 onClick={handleCloseRoom}
-                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center min-h-[44px] flex items-center justify-center"
               >
                 Close Room
               </button>
@@ -818,13 +818,13 @@ export function LobbyPage() {
             <>
               <button
                 onClick={() => navigate('/', { state: { mode: 'online' } })}
-                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+                className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
               >
                 Browse while waiting
               </button>
               <button
                 onClick={() => { leaveRoom(); navigate('/'); }}
-                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center"
+                className="text-[var(--danger)] hover:text-red-400 text-xs transition-colors text-center min-h-[44px] flex items-center justify-center"
               >
                 Leave Room
               </button>

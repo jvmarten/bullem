@@ -191,7 +191,7 @@ export function LeaderboardPage() {
             <button
               key={p}
               onClick={() => handlePeriodChange(p)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors min-h-[44px] ${
                 period === p
                   ? 'bg-[var(--gold)] text-[#1a1a1a]'
                   : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -212,7 +212,7 @@ export function LeaderboardPage() {
             <button
               key={f}
               onClick={() => handlePlayerFilterChange(f)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors min-h-[44px] ${
                 playerFilter === f
                   ? 'bg-[var(--gold)] text-[#1a1a1a]'
                   : 'glass text-[var(--gold-dim)] hover:text-[var(--gold)]'
