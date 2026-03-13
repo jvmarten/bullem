@@ -10,7 +10,7 @@ export const EmojiReactionBar = memo(function EmojiReactionBar({ onReaction }: P
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex flex-col items-start" style={{ maxWidth: '340px' }}>
+    <div className="emoji-reaction-bar fixed bottom-4 left-4 z-40 flex flex-col items-start" style={{ maxWidth: '340px' }}>
       {/* Emoji picker panel */}
       {open && (
         <div
