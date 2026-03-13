@@ -10,6 +10,8 @@ interface Props {
   onBull: () => void;
   onTrue: () => void;
   onLastChancePass: () => void;
+  /** When true, the TRUE button is never shown (e.g. 5 Draw uses strict LCR rules). */
+  hideTrue?: boolean;
 }
 
 // Memoized: skips re-renders when parent state changes (e.g. timer ticks,
@@ -23,6 +25,7 @@ export const ActionButtons = memo(function ActionButtons({
   onBull,
   onTrue,
   onLastChancePass,
+  hideTrue,
 }: Props) {
   const { play } = useSound();
 
@@ -44,7 +47,7 @@ export const ActionButtons = memo(function ActionButtons({
   }
 
   const showBull = hasCurrentHand && (roundPhase === RoundPhase.CALLING || roundPhase === RoundPhase.BULL_PHASE);
-  const showTrue = roundPhase === RoundPhase.BULL_PHASE;
+  const showTrue = !hideTrue && roundPhase === RoundPhase.BULL_PHASE;
 
   if (!showBull && !showTrue) return null;
 

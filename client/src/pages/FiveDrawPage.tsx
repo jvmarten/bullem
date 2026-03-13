@@ -377,7 +377,7 @@ export function FiveDrawPage() {
     if (!dealer) return;
 
     const state = engine.getClientState(DEALER_ID);
-    const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.HARD, undefined, undefined, undefined, true);
+    const decision = BotPlayer.decideAction(state, DEALER_ID, dealer.cards, BotDifficulty.HARD, undefined, undefined, undefined, true, { lastChanceMode: 'strict' });
 
     // Play appropriate sound for dealer action
     switch (decision.action) {
@@ -505,7 +505,7 @@ export function FiveDrawPage() {
     const players = [dealerPlayer, humanPlayer];
     playersRef.current = players;
 
-    const engine = new GameEngine(players, { maxCards: 5, turnTimer: 0 });
+    const engine = new GameEngine(players, { maxCards: 5, turnTimer: 0, lastChanceMode: 'strict' });
     engineRef.current = engine;
     engine.startRound();
 
@@ -808,6 +808,7 @@ export function FiveDrawPage() {
               onBull={callBull}
               onTrue={callTrue}
               onLastChancePass={lastChancePass}
+              hideTrue
             />
             {canRaise && !handSelectorOpen && (
               <div className="flex justify-end animate-slide-up ml-auto action-btn-gap">
