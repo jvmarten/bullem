@@ -509,6 +509,7 @@ export function GamePage() {
         </span>
       )}
       {roomCode && <ShareButton roomCode={roomCode} variant="compact" />}
+      <VolumeControl />
       <button
         onClick={handleLeave}
         className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors text-xs min-h-[44px] min-w-[44px] flex items-center justify-center"
