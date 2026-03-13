@@ -97,7 +97,7 @@ interface RankedPlayerResult {
 /** Weight applied to rating changes when the match is entirely against bots.
  *  A value of 0.5 means the rating change is halved — bot matches still count
  *  but are less impactful than human-vs-human games. */
-const BOT_MATCH_WEIGHT = 0.5;
+export const BOT_MATCH_WEIGHT = 0.5;
 
 /**
  * Update ratings after a ranked game completes. Handles both Elo (heads-up)
