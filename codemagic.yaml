@@ -1,0 +1,59 @@
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Bull Em
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: cards.bullem.app
+      vars:
+        XCODE_WORKSPACE: client/ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+        APP_STORE_APP_ID: "6760539765"
+        BUNDLE_ID: cards.bullem.app
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm ci
+      - name: Build web assets
+        script: |
+          npm run build
+      - name: Sync Capacitor iOS project
+        script: |
+          cd client
+          npx cap sync ios
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Resolve Swift Package Manager dependencies
+        script: |
+          cd client/ios/App
+          xcodebuild -resolvePackageDependencies \
+            -workspace App.xcworkspace \
+            -scheme App
+      - name: Increment build number
+        script: |
+          cd client/ios/App
+          LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
+          agvtool new-version -all $((LATEST_BUILD + 1))
+      - name: Build iOS app
+        script: |
+          cd client/ios/App
+          xcode-project build-ipa \
+            --workspace App.xcworkspace \
+            --scheme App
+    artifacts:
+      - client/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        expire_build_submitted_for_review: true
