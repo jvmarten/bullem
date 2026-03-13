@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { GameProvider } from './context/GameContext.js';
 import { GameStartBanner, ActiveGameRedirect } from './components/GameStartBanner.js';
@@ -8,6 +8,7 @@ import { FriendsProvider } from './context/FriendsContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { GameErrorBoundary } from './components/GameErrorBoundary.js';
+import { useGameContext } from './context/GameContext.js';
 import { ScreenReaderAnnouncerProvider } from './components/ScreenReaderAnnouncer.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 import { waitForAudioReady } from './hooks/soundEngine.js';
@@ -61,6 +62,16 @@ function OnlineLayout() {
 /** Wraps a lazy-loaded route element with a Suspense boundary showing a named loading state. */
 function SuspenseRoute({ label, children }: { label: string; children: React.ReactNode }) {
   return <Suspense fallback={<RouteLoadingFallback label={label} />}>{children}</Suspense>;
+}
+
+/** Connects GameErrorBoundary's onRecover to GameContext so stale overlay
+ *  state is cleared on error recovery, preventing repeated rendering crashes. */
+function GamePageWithRecovery({ children }: { children: ReactNode }) {
+  const { clearOverlayStateForRecovery } = useGameContext();
+  const handleRecover = useCallback(() => {
+    clearOverlayStateForRecovery();
+  }, [clearOverlayStateForRecovery]);
+  return <GameErrorBoundary onRecover={handleRecover}>{children}</GameErrorBoundary>;
 }
 
 function LocalLayout() {
@@ -154,7 +165,7 @@ export default function App() {
             {/* /host removed — game creation goes directly to lobby via "Create Game" */}
             <Route path="/host" element={<Navigate to="/" replace />} />
             <Route path="/room/:roomCode" element={<SuspenseRoute label="lobby"><LobbyPage /></SuspenseRoute>} />
-            <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GameErrorBoundary><GamePage /></GameErrorBoundary></SuspenseRoute>} />
+            <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GamePageWithRecovery><GamePage /></GamePageWithRecovery></SuspenseRoute>} />
             <Route path="/results/:roomCode" element={<SuspenseRoute label="results"><ResultsPage /></SuspenseRoute>} />
             <Route path="/replay/:gameId?" element={<SuspenseRoute label="replay"><ReplayPage /></SuspenseRoute>} />
           </Route>

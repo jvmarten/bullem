@@ -73,6 +73,16 @@ export function useSound() {
 
 export type { SoundCategory } from './soundEngine.js';
 
+// Module-level: survives component remounts (e.g. error boundary recovery).
+// Tracks which round result already had its sound played so we don't replay
+// the same roundWin/roundLose/eliminated sound after GamePage remounts.
+let lastPlayedRoundResultFingerprint = '';
+
+/** Compute a fingerprint for a RoundResult to detect same-result replays. */
+function roundResultFingerprint(result: RoundResult, roundNumber: number): string {
+  return `${roundNumber}:${result.callerId}:${result.handExists}:${result.penalizedPlayerIds.join(',')}`;
+}
+
 /**
  * Hook that watches game state changes and plays appropriate sounds.
  * Must be called inside a component that has access to game state.
@@ -217,6 +227,13 @@ export function useGameSounds(
     prevRoundResultRef.current = roundResult;
 
     if (!playerId) return;
+
+    // Prevent replaying the same round result sound after a component remount
+    // (e.g. error boundary recovery). The module-level fingerprint survives
+    // across React remounts while the ref-based guard only survives re-renders.
+    const fp = roundResultFingerprint(roundResult, gameStateRef.current?.roundNumber ?? 0);
+    if (fp === lastPlayedRoundResultFingerprint) return;
+    lastPlayedRoundResultFingerprint = fp;
 
     if (roundResult.eliminatedPlayerIds.includes(playerId)) {
       play('eliminated');
