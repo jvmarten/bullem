@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { RoundResult } from '@bull-em/shared';
 
 /**
@@ -16,14 +16,18 @@ export function useRevealPhase(roundResult: RoundResult | null): {
 } {
   const [cinematicComplete, setCinematicComplete] = useState(false);
   const revealStartedAtRef = useRef<number>(0);
+  const prevRoundResultRef = useRef<RoundResult | null>(null);
 
-  // Reset when a new round result arrives
-  useEffect(() => {
+  // Set timestamp synchronously during render so the first render with a new
+  // roundResult already has the correct startedAt (effects run *after* render,
+  // which caused RevealOverlay to receive a stale/old timestamp on mount).
+  if (roundResult !== prevRoundResultRef.current) {
+    prevRoundResultRef.current = roundResult;
     if (roundResult) {
       setCinematicComplete(false);
       revealStartedAtRef.current = Date.now();
     }
-  }, [roundResult]);
+  }
 
   const markCinematicComplete = useCallback(() => {
     setCinematicComplete(true);

@@ -67,7 +67,7 @@ export const CallHistoryToggleButton = memo(function CallHistoryToggleButton({
       aria-expanded={isOpen}
       aria-label={`${isOpen ? 'Hide' : 'Show'} call history (${count} entries)`}
     >
-      <span>{isOpen ? 'Hide' : 'Show'} History ({count})</span>
+      <span>Call History ({count})</span>
       <svg
         width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -106,7 +106,7 @@ export const CallHistory = memo(function CallHistory({ history, cardCounts, forc
         aria-expanded={visible}
         aria-label={`${visible ? 'Hide' : 'Show'} call history (${history.length} entries)`}
       >
-        <span>{visible ? 'Hide' : 'Show'} Call History ({history.length})</span>
+        <span>Call History ({history.length})</span>
         <svg
           width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
