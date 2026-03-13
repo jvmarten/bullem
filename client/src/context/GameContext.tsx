@@ -185,6 +185,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   /** Tracks the latest game state for use in the game:over handler (which
    *  runs inside a static useEffect and can't read React state directly). */
   const gameStateRef = useRef<ClientGameState | null>(null);
+  /** Tracks winnerId for use in the round result auto-dismiss callback. */
+  const winnerIdRef = useRef<PlayerId | null>(null);
 
   // Keep roundResultRef in sync with roundResult state
   useEffect(() => {
@@ -194,6 +196,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Keep gameStateRef in sync so the game:over handler can read player names
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { winnerIdRef.current = winnerId; }, [winnerId]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {
@@ -209,6 +212,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.emit('game:continue');
       setRoundResult(null);
       roundResultRef.current = null;
+      // If the game is already over (winnerId set), don't apply pending state
+      // or show a transition overlay — the winnerId + !roundResult navigation
+      // effect in GamePage will redirect to results.
+      if (winnerIdRef.current) return;
       // If the server already sent the next round state while the overlay was
       // showing, apply it immediately instead of showing the transition overlay.
       const pending = pendingGameStateRef.current;
@@ -501,16 +508,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setWinnerId(wId);
       setGameStats(stats);
       setRatingChanges(rChanges ?? null);
-      // Clear round result overlay so the navigation to results page fires
-      // immediately. Without this, eliminated spectators who haven't clicked
-      // "Continue" on the round result overlay would stay stuck on GamePage —
-      // their game:continue is ignored by the server (eliminated), so no
-      // pending game state clears the overlay for them.
-      setRoundResult(null);
-      roundResultRef.current = null;
-      if (roundResultTimerRef.current) {
-        clearTimeout(roundResultTimerRef.current);
-        roundResultTimerRef.current = null;
+      // If a round result overlay is currently visible, keep it so the player
+      // can see the final reveal before navigating to results. The existing
+      // auto-dismiss timer (30s) or the player's Continue/dismiss action will
+      // clear roundResult, which triggers the winnerId + !roundResult navigation
+      // effect in GamePage. Without this, the reveal overlay is skipped when the
+      // server emits game:roundResult and game:over in rapid succession (e.g.,
+      // the last human is eliminated and only bots remain).
+      if (roundResultRef.current === null) {
+        // No round result overlay showing — nothing to preserve.
+        // Clear the timer just in case.
+        if (roundResultTimerRef.current) {
+          clearTimeout(roundResultTimerRef.current);
+          roundResultTimerRef.current = null;
+        }
       }
       // Discard any stale pending game state — the game is over, don't apply
       // a buffered mid-game state after navigating to results.
@@ -817,6 +828,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearTimeout(roundResultTimerRef.current);
       roundResultTimerRef.current = null;
     }
+    // If the game is already over (winnerId set), don't apply pending state
+    // or show transition — navigation to results is handled by the
+    // winnerId + !roundResult effect in GamePage.
+    if (winnerIdRef.current) return;
     // If the server already sent the next round state while the overlay was
     // showing, apply it immediately instead of showing the transition overlay.
     const pending = pendingGameStateRef.current;

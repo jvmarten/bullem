@@ -116,7 +116,7 @@ export function GameStartBanner() {
   }, [roomCode, navigate, play]);
 
   const handleLeaveMatch = useCallback(() => {
-    const confirmed = window.confirm('Are you sure you want to leave this match? You will be removed from the game.');
+    const confirmed = window.confirm('Forfeit this match? You will be eliminated and cannot rejoin.');
     if (!confirmed) return;
     play('uiSoft');
     leaveRoom();
@@ -194,6 +194,20 @@ export function ResumeMatchBanner(): React.ReactElement | null {
   const [showEnded, setShowEnded] = useState(false);
   const endedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // React immediately when roomState transitions to null (player left/was kicked)
+  // and localStorage has been cleared. This prevents the stale banner from
+  // showing for up to 500ms between leaveRoom() clearing storage and the poll
+  // detecting it.
+  const prevRoomStateRef = useRef(roomState);
+  useEffect(() => {
+    if (prevRoomStateRef.current && !roomState && activeRoom) {
+      if (!localStorage.getItem(LS_ACTIVE_ROOM)) {
+        setActiveRoom(null);
+      }
+    }
+    prevRoomStateRef.current = roomState;
+  }, [roomState, activeRoom]);
+
   // Poll localStorage to detect when it's cleared (reconnect failure / game over)
   useEffect(() => {
     if (!activeRoom) return;
@@ -266,7 +280,7 @@ export function ResumeMatchBanner(): React.ReactElement | null {
 
   const handleLeave = useCallback(() => {
     const confirmed = window.confirm(
-      'Are you sure you want to leave this match? You will be removed from the game.',
+      'Forfeit this match? You will be eliminated and cannot rejoin.',
     );
     if (!confirmed) return;
     play('uiSoft');
