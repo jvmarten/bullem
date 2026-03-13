@@ -203,11 +203,14 @@ if (typeof document !== 'undefined') {
 
     if (!audioCtx) return;
 
-    if (wasHiddenMs > 500) {
+    if (wasHiddenMs > 5000) {
       // App was backgrounded for a meaningful duration — proactively recreate
       // the AudioContext to avoid zombie states where the context reports
       // 'running' but produces no audio (common on iOS Safari after phone
       // calls / Siri, and on some Android OEM browsers after app switch).
+      // Threshold raised from 500ms to 5s to avoid unnecessary AudioContext
+      // recreation and full audio re-decode on quick interactions like pulling
+      // down the notification shade or switching apps briefly.
       try { audioCtx.close(); } catch { /* already closed */ }
       audioCtx = null;
       audioBufferCache.clear();

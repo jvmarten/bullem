@@ -418,6 +418,9 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
     }
     return map;
   }, [reactions]);
+  // Memoize clockwise grid reordering — avoids creating new wrapper objects
+  // for every player on each render when the players array hasn't changed.
+  const orderedPlayers = useMemo(() => clockwiseGridOrder(players), [players]);
 
   if (collapsible && collapsed) {
     const currentPlayer = players.find(p => p.id === currentPlayerId);
@@ -505,7 +508,7 @@ export const PlayerList = memo(function PlayerList({ players, currentPlayerId, m
         </button>
       )}
       <div className="grid grid-cols-2 gap-1">
-        {clockwiseGridOrder(players).map(({ item: p, originalIndex }) => (
+        {orderedPlayers.map(({ item: p, originalIndex }) => (
           <PlayerCard
             key={p.id}
             p={p}

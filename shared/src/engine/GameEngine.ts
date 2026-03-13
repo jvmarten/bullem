@@ -87,6 +87,12 @@ export class GameEngine {
     return this.roundPhase;
   }
 
+  /** Current round number — lightweight accessor to avoid building full client
+   *  state when callers only need the round number (e.g. live game listings). */
+  get currentRoundNumber(): number {
+    return this.roundNumber;
+  }
+
   setTurnDeadline(deadline: number | null, durationMs?: number | null): void {
     this._turnDeadline = deadline;
     this._turnDurationMs = durationMs ?? null;
