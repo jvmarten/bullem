@@ -25,6 +25,7 @@ export function registerGameHandlers(
     const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    if (!data || typeof data !== 'object') { socket.emit('room:error', 'Invalid data'); return; }
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
     const hand = sanitizeHandCall(data.hand as Record<string, unknown>);
@@ -61,6 +62,7 @@ export function registerGameHandlers(
     const log = getCorrelatedLogger();
     const ctx = getGameContext(socket, roomManager);
     if (!ctx) return;
+    if (!data || typeof data !== 'object') { socket.emit('room:error', 'Invalid data'); return; }
     const handError = validateHandCall(data.hand);
     if (handError) { socket.emit('room:error', handError); return; }
     const hand = sanitizeHandCall(data.hand as Record<string, unknown>);
@@ -94,6 +96,7 @@ export function registerGameHandlers(
   });
 
   socket.on('game:reaction', (data) => {
+    if (!data || typeof data !== 'object') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room || !room.game) return;
     // Validate emoji is in the allowed set
@@ -130,6 +133,7 @@ export function registerGameHandlers(
   });
 
   socket.on('chat:send', (data) => {
+    if (!data || typeof data !== 'object') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
 

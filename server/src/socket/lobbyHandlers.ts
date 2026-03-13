@@ -410,6 +410,10 @@ export function registerLobbyHandlers(
     const roomCode = sanitizeRoomCode(data.roomCode);
     if (!roomCode) return callback({ error: 'Invalid room code' });
 
+    // Prevent spectating while already in a room (as a player or spectator)
+    const existingRoom = roomManager.getRoomForSocket(socket.id);
+    if (existingRoom) return callback({ error: 'Already in a room — leave first' });
+
     const room = roomManager.getRoom(roomCode);
     if (!room) return callback({ error: 'Room not found' });
     if (!room.settings.allowSpectators) return callback({ error: 'Spectating not allowed' });
@@ -440,6 +444,11 @@ export function registerLobbyHandlers(
 
   socket.on('room:watchRandom', (callback) => {
     if (typeof callback !== 'function') return;
+
+    // Prevent spectating while already in a room
+    const existingRoom = roomManager.getRoomForSocket(socket.id);
+    if (existingRoom) return callback({ error: 'Already in a room — leave first' });
+
     const roomCode = roomManager.getRandomLiveGame();
     if (!roomCode) return callback({ error: 'No live games available' });
 
@@ -469,6 +478,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:updateSettings', (data) => {
+    if (!data || typeof data !== 'object') { socket.emit('room:error', 'Invalid data'); return; }
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
@@ -542,6 +552,7 @@ export function registerLobbyHandlers(
   // Separate event for toggling room visibility — allowed even after settings lock
   // so the host can make the room public when ready for players to find it.
   socket.on('room:setVisibility', (data: { isPublic: boolean }) => {
+    if (!data || typeof data !== 'object') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
     const playerId = room.getPlayerId(socket.id);
@@ -646,6 +657,7 @@ export function registerLobbyHandlers(
   });
 
   socket.on('room:removeBot', (data) => {
+    if (!data || typeof data !== 'object') return;
     const room = roomManager.getRoomForSocket(socket.id);
     if (!room) return;
 

@@ -197,9 +197,11 @@ export class HandChecker {
       }
     }
 
-    // Include jokers in the relevant cards when the hand actually uses them
-    // (i.e. the normal cards alone don't satisfy the hand requirement).
-    if (jokerCards.length > 0 && this.exists(allCards, hand)) {
+    // Include jokers only when the hand requires them to exist — i.e. the
+    // normal cards alone don't satisfy the requirement. Previously this checked
+    // `this.exists(allCards, hand)` which is always true at resolution time and
+    // incorrectly highlighted jokers even when they weren't needed.
+    if (jokerCards.length > 0 && !this.exists(normal, hand)) {
       return [...relevantNormal, ...jokerCards];
     }
     return relevantNormal;

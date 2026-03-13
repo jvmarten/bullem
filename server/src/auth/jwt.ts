@@ -29,7 +29,10 @@ export function signToken(payload: JwtPayload): string {
 export function verifyToken(token: string): JwtPayload | null {
   try {
     const decoded = jwt.verify(token, getSecret()) as jwt.JwtPayload & JwtPayload;
-    return { userId: decoded.userId, username: decoded.username, role: decoded.role ?? 'user' };
+    // Validate role is a known value to prevent unexpected privilege escalation
+    // if the JWT payload is tampered with (e.g., via a compromised secret).
+    const role = decoded.role === 'admin' ? 'admin' : 'user';
+    return { userId: decoded.userId, username: decoded.username, role };
   } catch (err) {
     logger.debug({ err }, 'JWT verification failed');
     return null;

@@ -217,8 +217,10 @@ export function beginRoundResultPhase(
   room.recordEliminations(result.eliminatedPlayerIds);
   io.to(room.roomCode).emit('game:roundResult', result);
 
-  // Track bull:called for each player who called bull this round
-  const roundNumber = room.game.getRoundSnapshots().length + 1;
+  // Track bull:called for each player who called bull this round.
+  // getRoundSnapshots() already includes the current round (pushed by resolveRound),
+  // so its length IS the current round number.
+  const roundNumber = room.game.getRoundSnapshots().length;
   if (result.turnHistory) {
     for (const entry of result.turnHistory) {
       if (entry.action === TurnAction.BULL) {

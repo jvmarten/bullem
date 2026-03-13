@@ -307,7 +307,10 @@ export class GameEngine {
     // In strict mode, re-enter CALLING so the first responder can only bull/raise
     // (true is unavailable until someone calls bull, which transitions to BULL_PHASE).
     // In classic mode (default), go straight to BULL_PHASE where true is always available.
-    this.roundPhase = this.settings.lastChanceMode === 'strict'
+    // Exception: if the raised hand is unraiseable (e.g. royal flush), go straight to
+    // BULL_PHASE even in strict mode — otherwise players can only call bull with no
+    // option to call true, which is functionally broken.
+    this.roundPhase = this.settings.lastChanceMode === 'strict' && getMinimumRaise(hand) !== null
       ? RoundPhase.CALLING
       : RoundPhase.BULL_PHASE;
 
