@@ -31,7 +31,12 @@ Contains everything both sides need:
 - **`engine/GameEngine.ts`** — Core game state machine (deals cards, handles turns, resolves rounds, tracks stats)
 - **`engine/HandChecker.ts`** — Checks if a called hand exists in a set of cards, finds matching/relevant cards for reveal
 - **`engine/Deck.ts`** — Standard 52-card deck with Fisher-Yates shuffle
-- **`engine/BotPlayer.ts`** — Bot AI with three difficulty levels (normal, hard, impossible), cross-round opponent memory
+- **`engine/BotPlayer.ts`** — Bot AI: heuristic decision engine (levels 1-8) + CFR dispatch (level 9), cross-round opponent memory
+- **`botProfiles.ts`** — 81 bot profile definitions (9 personalities × 9 levels), evolved parameter configs
+- **`cfr/`** — CFR-trained strategy data and evaluation for level 9 bots
+- **`rating.ts`** — Pure Elo and OpenSkill rating calculation functions
+- **`validation.ts`** — Server-side game settings validation against known allowlists
+- **`replay.ts`** — `GameReplay` type, `ReplayEngine` (step-through viewer), localStorage persistence
 
 ### `server/` — Authoritative Game Server
 
@@ -44,7 +49,12 @@ Contains everything both sides need:
 - **`socket/broadcast.ts`** — Per-player state broadcasting (each player gets only their own cards)
 - **`socket/roundTransition.ts`** — Round result phase, continue-window management, next round transitions
 - **`game/BotManager.ts`** — Bot turn scheduling with human-like delays, turn timers for humans, auto-actions for disconnected players
-- **`game/GameEngine.ts`** — Re-exports from shared (server uses the same engine)
+- **`game/BackgroundGameManager.ts`** — Always-running bot-only game for home page spectating
+- **`game/CalibrationManager.ts`** — Round-robin bot calibration pipeline with convergence detection
+- **`matchmaking/MatchmakingQueue.ts`** — Ranked matchmaking: Elo-based for 1v1, OpenSkill for multiplayer, bot backfill
+- **`push/PushManager.ts`** — Web Push notification delivery via VAPID
+- **`admin/routes.ts`** — Admin panel API (user management, analytics, bot management)
+- **`auth/oauth.ts`** — Google and Apple OAuth flows (redirect → callback → JWT)
 
 ### `client/` — React Frontend
 
@@ -129,29 +139,66 @@ CALLING ──► BULL_PHASE ──► LAST_CHANCE ──► RESOLVING
 
 ## Bot System
 
-Three difficulty levels in `BotPlayer`:
+**81 total bot profiles** organized into two tiers:
 
-- **Normal** — basic probability estimation using own cards only
-- **Hard** — considers opponent patterns, call history, bluff likelihood
-- **Impossible** — sees all human players' cards (but not other bots')
+### Heuristic Bots (72 profiles — levels 1-8)
 
-Bots have cross-round opponent memory scoped per room (`OpponentProfile`), with human-like think delays (1.5–7s for calls, 0.4–1.2s for bull/true). Delay varies by: round depth, total cards in play, speed setting (slow/normal/fast multiplier), and random jitter.
+9 personalities × 8 levels. Each personality has "signature parameters" that define its play style (e.g., Rock has low riskTolerance, Bluffer has low bullThreshold). Non-signature parameters use evolved baseline values from genetic algorithm training.
 
-`BotManager` handles turn scheduling with generation-based stale detection — if two rapid events both trigger scheduling, the older callback detects it's been superseded and bails out. It also manages human turn timers and auto-actions for disconnected players.
+- **Easy** (lvl 1-3): beginner-friendly, lerps from unskilled baseline toward personality config
+- **Normal** (lvl 4-6): standard difficulty
+- **Hard** (lvl 7-8): strong play, personality-specific deviations from evolved champion
 
-A `BackgroundGameManager` maintains an always-running bot-only game visible on the home page for spectating.
+Decision logic uses hypergeometric probability estimation, opponent memory (`OpponentProfile`), and situational context (position, card count, escalation patterns). All decisions route through the same code path — difficulty is controlled entirely by `BotProfileConfig` parameter interpolation.
+
+### CFR Bots (9 profiles — level 9)
+
+Trained via Counterfactual Regret Minimization. Bypass the heuristic system entirely and use `decideCFR()` from `shared/src/cfr/cfrEval.ts`. These are the strongest tier, providing game-theory-optimal play.
+
+Profiles: Viper, Ghost, Reaper, Specter, Raptor, Havoc, Phantom, Sentinel, Vanguard.
+
+### Bot Infrastructure
+
+- `BotManager` handles turn scheduling with generation-based stale detection — if two rapid events both trigger scheduling, the older callback detects it's been superseded and bails out. Also manages human turn timers and auto-actions for disconnected players.
+- `BackgroundGameManager` maintains an always-running bot-only game visible on the home page for spectating.
+- `CalibrationManager` runs round-robin calibration pipelines with convergence detection.
+- Human-like think delays: 1.5–7s for calls, 0.4–1.2s for bull/true. Varies by round depth, total cards, speed setting (slow/normal/fast multiplier), and random jitter.
 
 ## Authentication (Optional)
 
 When `DATABASE_URL` is set, the server enables user accounts:
 
-- **Registration/Login** — email + password (bcrypt cost 12)
+- **Registration/Login** — email + password (bcrypt cost 12), or OAuth (Google, Apple)
 - **JWT tokens** — 7-day expiry, stored in HTTP-only cookies
 - **Socket middleware** — extracts JWT from cookie header during handshake, attaches `userId`/`username` to `socket.data`
-- **Profile** — win/loss stats aggregated from `game_players` table
+- **Profile** — win/loss stats, rating history, hand-type breakdown, rivalries, career trajectory
+- **Avatar system** — 11 emoji templates + custom profile photo upload (Tigris S3 object storage)
 - Auth is fully optional — unauthenticated users play as guests
 
-Routes: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
+Routes: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /auth/google`, `GET /auth/google/callback`, `GET /auth/apple`, `POST /auth/apple/callback`
+
+## Matchmaking & Ranked Play
+
+Redis-backed matchmaking queue with dual rating system:
+
+- **Heads-up (1v1)** — Elo rating (K=32 provisional, K=16 established). Always Bo3 in ranked.
+- **Multiplayer (3-9)** — OpenSkill (Bayesian mu/sigma). Target 4 players, min 3 with bot backfill.
+- **Queue mechanics** — 2.5s matching interval, ±150 Elo window (widens after 15s), bot backfill after 30s.
+- **Rank tiers** — Bronze (<1000), Silver (1000-1199), Gold (1200-1399), Platinum (1400-1599), Diamond (1600+).
+- **Ranked settings locked** — maxCards=5, turnTimer=30s, lastChanceMode=classic. Cannot be overridden.
+
+Leaderboards: paginated, time-filtered (all-time/month/week), per-mode, with rank tier display.
+
+## Friends System
+
+Real-time friend management over WebSocket:
+
+- **Friend requests** — send by username, accept/reject, remove
+- **Online status** — tracked via socket connections, broadcast to friends on connect/disconnect
+- **Game invites** — invite friends to your current room
+- **Room awareness** — see which room a friend is in
+
+Socket events: `friends:request`, `friends:respond`, `friends:remove`, `friends:invite`, `friends:list` (client→server). `friends:requestReceived`, `friends:requestAccepted`, `friends:statusChanged`, `friends:invited`, `friends:roomCreated` (server→client).
 
 ## Persistence Layers
 
@@ -166,9 +213,15 @@ Routes: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /au
 
 ### PostgreSQL (optional, set `DATABASE_URL`)
 
-- **Users** — accounts, password hashes, display names
-- **Game history** — `game_players` table for per-player stats
-- **Migrations** — run automatically on startup (`server/src/db/migrate.ts`)
+- **Users** — accounts, password hashes, display names, avatars, OAuth linked accounts
+- **Game history** — `games` + `game_players` tables for per-player stats, finish positions, rating changes
+- **Ratings** — `player_ratings` for Elo (heads-up) and OpenSkill (multiplayer), `ranked_matches` for full match history
+- **Friends** — `friendships` table with pending/accepted/blocked states
+- **Replays** — `game_rounds` table for server-side replay persistence
+- **Push subscriptions** — `push_subscriptions` table for Web Push endpoints
+- **Analytics** — `analytics_balance_snapshot` for game balance tracking
+- **Migrations** — run automatically on startup (`server/src/db/migrate.ts`), 18+ migrations
+- **Read replicas** — `READ_DATABASE_URL` support via `readPool` in `pool.ts`, falls back to primary
 
 Without Redis/PostgreSQL, the server runs fully in-memory. All game state is still serializable for when these are added.
 
@@ -200,7 +253,11 @@ Current bottleneck: `RoomManager` holds all rooms in memory on one instance. Wit
 /replay              Replay viewer (step through recorded games)
 /login               Login page
 /register            Registration page
-/profile             Player profile + stats
+/profile             Player profile + stats + advanced analytics
+/profile/:userId     Public profile page (other players / bot profiles)
+/leaderboard         Ranked leaderboard (heads-up / multiplayer, time filters)
+/friends             Friends list, requests, online status
+/deck-draw           Deck Draw minigame (5-card draw with wagering)
 ```
 
 Online routes use `GameContext` (socket-based). Local routes use `LocalGameContext` (runs GameEngine directly in the browser, persists to localStorage).
@@ -215,8 +272,17 @@ Games are recorded automatically via round snapshots captured in `GameEngine`:
 2. Turn history accumulates during play
 3. At resolution, a `RoundSnapshot` (cards + history + result) is saved
 4. On game over, a `GameReplay` is built and emitted to all clients
-5. Clients can save replays to localStorage (max 10, LRU eviction)
-6. `ReplayEngine` provides pure step-forward/backward/seek navigation
+5. **Server-side**: replays persisted to PostgreSQL (`game_rounds` table), served via `GET /api/replays/:gameId`
+6. **Client-side**: replays also saved to localStorage (max 10, LRU eviction) as offline fallback
+7. `ReplayEngine` provides pure step-forward/backward/seek navigation with auto-play and keyboard shortcuts
+
+## Observability
+
+- **Structured logging** — Pino with JSON output in production, pretty-print in dev. Configurable via `LOG_LEVEL`.
+- **Error tracking** — Sentry integration (`SENTRY_DSN`). Errors reported automatically with context.
+- **Prometheus metrics** — `GET /metrics` endpoint. Room count, active players, round duration, error rates.
+- **Health check** — `GET /health` returns `{ status, db, rooms, players }`.
+- **Database resilience** — exponential backoff with jitter on connection failures, degraded mode fallback, auto-reconnection.
 
 ## Key Design Decisions
 

@@ -283,6 +283,8 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a last-chance raise — the original caller raises after everyone called bull.
+   *  Only the last caller can raise, and the hand must be higher than the current call. */
   handleLastChanceRaise(playerId: PlayerId, hand: HandCall): TurnResult {
     if (this.roundPhase !== RoundPhase.LAST_CHANCE) {
       return { type: 'error', message: 'Not in last chance phase' };
@@ -320,6 +322,7 @@ export class GameEngine {
     return { type: 'continue' };
   }
 
+  /** Process a last-chance pass — the original caller declines to raise, triggering resolution. */
   handleLastChancePass(playerId: PlayerId): TurnResult {
     if (this.roundPhase !== RoundPhase.LAST_CHANCE) {
       return { type: 'error', message: 'Not in last chance phase' };
@@ -414,6 +417,7 @@ export class GameEngine {
     return shared;
   }
 
+  /** Get accumulated game statistics (per-player bulls, trues, bluffs, hand breakdown). */
   getGameStats(): GameStats {
     return this.gameStats;
   }
@@ -425,6 +429,7 @@ export class GameEngine {
     return [...this._roundSnapshots].sort((a, b) => a.roundNumber - b.roundNumber);
   }
 
+  /** Get all non-eliminated players. Uses a cache that invalidates when the eliminated count changes. */
   getActivePlayers(): ServerPlayer[] {
     // Count eliminated players to detect changes (including external mutations
     // in tests). Only rebuilds the filtered array when the count changes.

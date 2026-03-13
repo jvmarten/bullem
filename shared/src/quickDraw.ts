@@ -1,3 +1,10 @@
+/**
+ * Quick Draw — suggested hand raises ("chips") shown above the hand selector.
+ *
+ * Analyzes the player's own cards and the current call to generate 2-3
+ * contextual raise suggestions at different aggression tiers (safe, ambitious, bold).
+ * Pure functions — no I/O, no game state mutation.
+ */
 import { RANK_VALUES, ALL_RANKS, ALL_SUITS } from './constants.js';
 import { isHigherHand, handToString } from './hands.js';
 import type { Card, HandCall, Rank, Suit } from './types.js';
