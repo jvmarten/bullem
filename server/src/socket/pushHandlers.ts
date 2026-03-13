@@ -41,9 +41,14 @@ export function registerPushHandlers(
       return;
     }
 
-    await pushManager.subscribe(playerId, subscription);
-    log.info({ playerId }, 'Player subscribed to push notifications');
-    callback({ ok: true });
+    try {
+      await pushManager.subscribe(playerId, subscription);
+      log.info({ playerId }, 'Player subscribed to push notifications');
+      callback({ ok: true });
+    } catch (err) {
+      log.error({ err, playerId }, 'Failed to subscribe to push notifications');
+      callback({ error: 'Subscription failed' });
+    }
   });
 
   socket.on('push:unsubscribe', async (callback) => {
@@ -56,8 +61,13 @@ export function registerPushHandlers(
       return;
     }
 
-    await pushManager.unsubscribe(playerId);
-    log.info({ playerId }, 'Player unsubscribed from push notifications');
-    callback({ ok: true });
+    try {
+      await pushManager.unsubscribe(playerId);
+      log.info({ playerId }, 'Player unsubscribed from push notifications');
+      callback({ ok: true });
+    } catch (err) {
+      log.error({ err, playerId }, 'Failed to unsubscribe from push notifications');
+      callback({ error: 'Unsubscribe failed' });
+    }
   });
 }
