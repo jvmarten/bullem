@@ -988,6 +988,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     spectatorInitialStats: null,
     sessionTransferred: false,
     countdown,
+    clearOverlayStateForRecovery: () => {},
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

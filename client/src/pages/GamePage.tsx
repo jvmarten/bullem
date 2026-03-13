@@ -126,6 +126,8 @@ export function GamePage() {
   const [tappedCard, setTappedCard] = useState<Card | null>(null);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  // Delay showing ReconnectOverlay to avoid flashing on brief disconnects
+  const [showReconnectOverlay, setShowReconnectOverlay] = useState(false);
   // Orientation-independent reveal phase — survives landscape/portrait switches
   const { cinematicComplete, revealStartedAt, markCinematicComplete } = useRevealPhase(roundResult);
   const cinematicStartedRef = useRef(false);
@@ -141,6 +143,19 @@ export function GamePage() {
     || gameState.roundPhase === RoundPhase.BULL_PHASE
   );
   const canRaise = canCallHand || isLastChanceCaller;
+
+  // Delay showing ReconnectOverlay by 1.5s to avoid flashing on brief
+  // network blips. Most brief disconnects (app switch, quick network dip)
+  // resolve within 1–2s, so this prevents an unnecessary "Reconnecting..."
+  // flash that feels like a "rejoin" screen.
+  useEffect(() => {
+    if (isConnected || !hasConnected) {
+      setShowReconnectOverlay(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowReconnectOverlay(true), 1500);
+    return () => clearTimeout(timer);
+  }, [isConnected, hasConnected]);
 
   // Prevent accidental tab close / refresh during an active game
   useNavigationGuard(!!gameState && !winnerId);
@@ -558,7 +573,7 @@ export function GamePage() {
             <div className="max-cards-warning-glow" aria-hidden="true" />
           )}
           {sessionTransferred && <SessionTransferredOverlay />}
-          {!isConnected && hasConnected && !sessionTransferred && <ReconnectOverlay />}
+          {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay />}
         </div>
       ) : (
       /* ── Portrait layout (existing) ── */
@@ -783,7 +798,7 @@ export function GamePage() {
         {sessionTransferred && <SessionTransferredOverlay />}
 
         {/* Reconnecting overlay — shown when own connection drops */}
-        {!isConnected && hasConnected && !sessionTransferred && <ReconnectOverlay />}
+        {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay />}
       </div>
       )}
 

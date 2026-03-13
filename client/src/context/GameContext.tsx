@@ -99,6 +99,8 @@ export interface GameContextValue {
   sessionTransferred: boolean;
   /** Active countdown state (e.g. "3… 2… 1…" before game starts). */
   countdown: { secondsLeft: number; label?: string } | null;
+  /** Clear stale overlay state locally (no server emit). Used by error boundary recovery. */
+  clearOverlayStateForRecovery: () => void;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -890,6 +892,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
   const clearPendingRejoinRoom = useCallback(() => setPendingRejoinRoom(null), []);
 
+  /** Clear stale overlay state locally without notifying the server.
+   *  Used by the error boundary's onRecover to prevent rendering crashes
+   *  caused by inconsistent overlay state (roundResult/roundTransition). */
+  const clearOverlayStateForRecovery = useCallback(() => {
+    setRoundResult(null);
+    roundResultRef.current = null;
+    pendingGameStateRef.current = null;
+    setRoundTransition(false);
+    setRoundTransitionDeadline(null);
+    if (roundResultTimerRef.current) {
+      clearTimeout(roundResultTimerRef.current);
+      roundResultTimerRef.current = null;
+    }
+  }, []);
+
   const startGame = useCallback(() => socket.emit('game:start'), []);
   const requestRematch = useCallback(() => socket.emit('game:rematch'), []);
   const callHand = useCallback((hand: HandCall) => socket.emit('game:call', { hand }), []);
@@ -965,6 +982,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     spectatorInitialStats,
     sessionTransferred,
     countdown,
+    clearOverlayStateForRecovery,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown,
@@ -975,6 +993,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastChanceRaiseAction, lastChancePassAction, clearErrorAction, clearRoundResult,
     addBot, removeBot, kickPlayer, requestRematch, sendReaction, sendChatMessage,
     joinMatchmaking, leaveMatchmaking, clearMatchmakingFound, resetForMatchedGame, clearPendingRejoinRoom,
+    clearOverlayStateForRecovery,
   ]);
 
   return (
