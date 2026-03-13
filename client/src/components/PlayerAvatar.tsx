@@ -51,7 +51,7 @@ export function PlayerAvatarContent({ name, avatar, photoUrl, isBot }: PlayerAva
       <img
         src={photoUrl}
         alt={name}
-        className="w-full h-full object-cover rounded-full"
+        className="absolute inset-0 w-full h-full object-cover rounded-full"
         draggable={false}
       />
     );

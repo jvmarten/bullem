@@ -120,16 +120,19 @@ export function LeaderboardPage() {
   }, [mode, period, offset, playerFilter, fetchLeaderboard]);
 
   const handleModeChange = (newMode: RankedMode) => {
+    play('uiSoft');
     setMode(newMode);
     setOffset(0);
   };
 
   const handlePeriodChange = (newPeriod: LeaderboardPeriod) => {
+    play('uiSoft');
     setPeriod(newPeriod);
     setOffset(0);
   };
 
   const handlePlayerFilterChange = (newFilter: LeaderboardPlayerFilter) => {
+    play('uiSoft');
     setPlayerFilter(newFilter);
     setOffset(0);
   };
@@ -246,7 +249,7 @@ export function LeaderboardPage() {
           <div className="glass w-full px-4 py-6 text-center rounded-xl">
             <p className="text-sm text-red-400">{error}</p>
             <button
-              onClick={() => fetchLeaderboard(mode, period, offset, playerFilter)}
+              onClick={() => { play('uiSoft'); void fetchLeaderboard(mode, period, offset, playerFilter); }}
               className="mt-2 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
             >
               Retry
@@ -293,7 +296,7 @@ export function LeaderboardPage() {
             {totalPages > 1 && (
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                  onClick={() => { play('uiSoft'); setOffset(Math.max(0, offset - PAGE_SIZE)); }}
                   disabled={offset === 0}
                   className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-30"
                 >
@@ -303,7 +306,7 @@ export function LeaderboardPage() {
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
-                  onClick={() => setOffset(offset + PAGE_SIZE)}
+                  onClick={() => { play('uiSoft'); setOffset(offset + PAGE_SIZE); }}
                   disabled={currentPage >= totalPages}
                   className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-30"
                 >
@@ -322,13 +325,14 @@ export function LeaderboardPage() {
 
 function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isCurrentUser: boolean }) {
   const navigate = useNavigate();
+  const { play } = useSound();
   const bgStyle = isCurrentUser
     ? { background: 'rgba(212,168,67,0.08)', borderLeft: '3px solid var(--gold)' }
     : {};
 
   return (
     <button
-      onClick={() => navigate(`/u/${encodeURIComponent(entry.username)}`)}
+      onClick={() => { play('uiSoft'); navigate(`/u/${encodeURIComponent(entry.username)}`); }}
       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/5 w-full text-left cursor-pointer bg-transparent border-none active:scale-[0.99] min-h-[44px]"
       style={{
         borderBottom: '1px solid rgba(212,168,67,0.06)',
@@ -341,7 +345,7 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardEntry; isC
       </div>
 
       {/* Avatar */}
-      <div className="w-7 h-7 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-xs shrink-0 overflow-hidden">
+      <div className="relative w-7 h-7 rounded-full bg-[var(--gold)]/10 border border-white/10 flex items-center justify-center text-xs shrink-0 overflow-hidden">
         <PlayerAvatarContent name={entry.displayName} avatar={entry.avatar} photoUrl={entry.photoUrl} isBot={entry.isBot} />
       </div>
 
