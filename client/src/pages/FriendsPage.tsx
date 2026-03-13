@@ -81,27 +81,27 @@ function FriendCard({
       <div className="flex gap-1.5 flex-shrink-0">
         {friend.status === 'pending' && friend.isIncoming && (
           <>
-            <button onClick={onAccept} className="btn-gold px-2.5 py-1.5 text-xs min-h-[36px]">
+            <button onClick={onAccept} className="btn-gold px-2.5 py-1.5 text-xs min-h-[44px]">
               Accept
             </button>
-            <button onClick={onReject} className="btn-outline px-2.5 py-1.5 text-xs min-h-[36px]">
+            <button onClick={onReject} className="btn-outline px-2.5 py-1.5 text-xs min-h-[44px]">
               Decline
             </button>
           </>
         )}
         {friend.status === 'pending' && !friend.isIncoming && (
-          <button onClick={onRemove} className="btn-outline px-2.5 py-1.5 text-xs min-h-[36px] text-[var(--danger)]">
+          <button onClick={onRemove} className="btn-outline px-2.5 py-1.5 text-xs min-h-[44px] text-[var(--danger)]">
             Cancel
           </button>
         )}
         {friend.status === 'accepted' && (
           <>
             {friend.isOnline && (
-              <button onClick={onInvite} className="btn-gold px-2.5 py-1.5 text-xs min-h-[36px]">
+              <button onClick={onInvite} className="btn-gold px-2.5 py-1.5 text-xs min-h-[44px]">
                 Invite
               </button>
             )}
-            <button onClick={onRemove} className="btn-outline px-2.5 py-1.5 text-xs min-h-[36px]">
+            <button onClick={onRemove} className="btn-outline px-2.5 py-1.5 text-xs min-h-[44px]">
               Remove
             </button>
           </>

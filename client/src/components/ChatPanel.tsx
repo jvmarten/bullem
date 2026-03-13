@@ -75,7 +75,7 @@ export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps)
             </span>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center -mr-2"
               aria-label="Close chat"
             >
               &times;
@@ -121,14 +121,14 @@ export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps)
                 onChange={(e) => setInput(e.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
                 placeholder="Type a message..."
                 maxLength={CHAT_MESSAGE_MAX_LENGTH}
-                className="flex-1 bg-[var(--surface)] text-[var(--text)] text-xs rounded px-2 py-1.5 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none placeholder:text-[var(--gold-dim)]/50 min-h-[36px]"
+                className="flex-1 bg-[var(--surface)] text-[var(--text)] text-xs rounded px-2 py-1.5 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none placeholder:text-[var(--gold-dim)]/50 min-h-[44px]"
                 autoComplete="off"
                 aria-label="Chat message"
               />
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="btn-ghost text-xs px-3 py-1.5 min-h-[36px] min-w-[44px] disabled:opacity-30"
+                className="btn-ghost text-xs px-3 py-1.5 min-h-[44px] min-w-[44px] disabled:opacity-30"
               >
                 Send
               </button>

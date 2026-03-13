@@ -340,7 +340,7 @@ export function LoginPage() {
 
         <Link
           to="/"
-          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-6"
+          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-6 min-h-[44px] flex items-center justify-center"
         >
           Back to Home
         </Link>

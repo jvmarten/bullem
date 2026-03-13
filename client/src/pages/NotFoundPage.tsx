@@ -8,7 +8,7 @@ export function NotFoundPage() {
         <p className="text-[var(--gold-dim)] text-sm">
           Page not found. The URL you followed may be outdated or mistyped.
         </p>
-        <Link to="/" className="btn-gold px-6 py-2 inline-block">
+        <Link to="/" className="btn-gold px-6 py-2 inline-block min-h-[44px]">
           Go Home
         </Link>
       </div>

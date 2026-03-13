@@ -157,7 +157,7 @@ function GameFilterTabs({ filter, onChange }: { filter: GameFilter; onChange: (f
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors min-h-[28px] ${
+          className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors min-h-[44px] ${
             filter === tab.key
               ? 'bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]'
               : 'text-[var(--gold-dim)] border border-transparent hover:text-[var(--gold)] hover:border-white/10'
@@ -289,7 +289,7 @@ export function ProfilePage() {
           </Link>
           <Link
             to="/"
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-4"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mt-4 min-h-[44px] flex items-center justify-center"
           >
             Back to Home
           </Link>
@@ -770,7 +770,7 @@ export function ProfilePage() {
                     <button
                       onClick={() => profile && fetchGames(profile.id, gamesPage - 1)}
                       disabled={gamesPage === 0 || gamesLoading}
-                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[44px] ${
                         gamesPage === 0 || gamesLoading
                           ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
                           : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
@@ -784,7 +784,7 @@ export function ProfilePage() {
                     <button
                       onClick={() => profile && fetchGames(profile.id, gamesPage + 1)}
                       disabled={gamesPage >= totalPages - 1 || gamesLoading}
-                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                      className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[44px] ${
                         gamesPage >= totalPages - 1 || gamesLoading
                           ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
                           : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
@@ -822,7 +822,7 @@ export function ProfilePage() {
           </button>
           <Link
             to="/"
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors text-center min-h-[44px] flex items-center justify-center"
           >
             Back to Home
           </Link>

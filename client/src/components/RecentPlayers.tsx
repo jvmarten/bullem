@@ -148,7 +148,7 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
                 <button
                   onClick={() => handleAddFriend(player)}
                   disabled={addingFriend !== null}
-                  className="btn-outline px-2.5 py-1.5 text-xs min-h-[36px] whitespace-nowrap"
+                  className="btn-outline px-2.5 py-1.5 text-xs min-h-[44px] whitespace-nowrap"
                   title="Send friend request"
                 >
                   {addingFriend === player.name ? '...' : '+ Friend'}
@@ -157,7 +157,7 @@ export function RecentPlayers({ onCreateRoom }: RecentPlayersProps) {
               <button
                 onClick={() => { play('uiSoft'); handleInvite(player); }}
                 disabled={invitingPlayer !== null}
-                className="btn-gold px-3 py-1.5 text-xs min-h-[36px] whitespace-nowrap"
+                className="btn-gold px-3 py-1.5 text-xs min-h-[44px] whitespace-nowrap"
               >
                 {invitingPlayer === player.name ? 'Creating...' : 'Invite'}
               </button>

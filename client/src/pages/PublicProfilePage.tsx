@@ -181,7 +181,7 @@ function GameFilterTabs({ filter, onChange }: { filter: GameFilter; onChange: (f
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors min-h-[28px] ${
+          className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors min-h-[44px] ${
             filter === tab.key
               ? 'bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]'
               : 'text-[var(--gold-dim)] border border-transparent hover:text-[var(--gold)] hover:border-white/10'
@@ -322,12 +322,12 @@ export function PublicProfilePage() {
           {error && error !== 'Player not found' && (
             <button
               onClick={() => { setError(null); void fetchProfile(); }}
-              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-4"
+              className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-4 min-h-[44px] flex items-center justify-center"
             >
               Try Again
             </button>
           )}
-          <Link to="/" className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors">
+          <Link to="/" className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center">
             Back to Home
           </Link>
         </div>
@@ -499,7 +499,7 @@ export function PublicProfilePage() {
           {/* Back link */}
           <Link
             to="/"
-            className="text-sm transition-colors"
+            className="text-sm transition-colors min-h-[44px] flex items-center justify-center"
             style={{ color: 'rgba(220,53,69,0.5)' }}
           >
             {zalgoify('Back to Home', 1)}
@@ -752,7 +752,7 @@ export function PublicProfilePage() {
                       <button
                         onClick={() => profile && fetchGames(profile.id, gamesPage - 1)}
                         disabled={gamesPage === 0 || gamesLoading}
-                        className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[44px] ${
                           gamesPage === 0 || gamesLoading
                             ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
                             : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
@@ -766,7 +766,7 @@ export function PublicProfilePage() {
                       <button
                         onClick={() => profile && fetchGames(profile.id, gamesPage + 1)}
                         disabled={gamesPage >= totalPages - 1 || gamesLoading}
-                        className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors min-h-[44px] ${
                           gamesPage >= totalPages - 1 || gamesLoading
                             ? 'text-[var(--gold-dim)]/30 cursor-not-allowed'
                             : 'text-[var(--gold)] hover:bg-white/5 cursor-pointer'
@@ -808,7 +808,7 @@ export function PublicProfilePage() {
         {/* Back link */}
         <Link
           to="/"
-          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
         >
           Back to Home
         </Link>

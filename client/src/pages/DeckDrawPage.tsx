@@ -619,7 +619,7 @@ export function DeckDrawPage() {
                 <button
                   key={preset}
                   onClick={() => { play('uiSoft'); setWager(preset); setShowCustomWager(false); }}
-                  className={`px-2 py-1 rounded text-xs transition-colors min-h-[32px] ${
+                  className={`px-2 py-1 rounded text-xs transition-colors min-h-[44px] ${
                     wager === preset && !showCustomWager
                       ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                       : 'bg-[var(--felt-light)] text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -631,7 +631,7 @@ export function DeckDrawPage() {
               ))}
               <button
                 onClick={() => { play('uiSoft'); setShowCustomWager(prev => !prev); }}
-                className={`px-2 py-1 rounded text-xs transition-colors min-h-[32px] ${
+                className={`px-2 py-1 rounded text-xs transition-colors min-h-[44px] ${
                   showCustomWager
                     ? 'bg-[var(--gold)] text-[var(--felt-dark)] font-semibold'
                     : 'bg-[var(--felt-light)] text-[var(--gold-dim)] hover:text-[var(--gold)]'
@@ -659,7 +659,7 @@ export function DeckDrawPage() {
                   }
                 }}
                 placeholder={`${DECK_DRAW_MIN_WAGER}–${formatNumber(DECK_DRAW_MAX_WAGER)}`}
-                className="flex-1 bg-[var(--surface)] text-[var(--gold)] text-xs rounded px-3 py-2 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none min-h-[36px]"
+                className="flex-1 bg-[var(--surface)] text-[var(--gold)] text-xs rounded px-3 py-2 border border-[var(--gold-dim)]/30 focus:border-[var(--gold)] focus:outline-none min-h-[44px]"
                 autoComplete="off"
               />
               <button
@@ -670,7 +670,7 @@ export function DeckDrawPage() {
                     play('uiSoft');
                   }
                 }}
-                className="btn-ghost text-xs px-3 py-2 min-h-[36px]"
+                className="btn-ghost text-xs px-3 py-2 min-h-[44px]"
               >
                 Set
               </button>
@@ -775,7 +775,7 @@ export function DeckDrawPage() {
         {/* Back link */}
         <Link
           to="/"
-          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-8"
+          className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors mb-8 min-h-[44px] flex items-center justify-center"
         >
           Back to Home
         </Link>

@@ -245,7 +245,7 @@ export function ReplaysPage() {
         <div className="text-center">
           <button
             onClick={() => navigate('/')}
-            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors"
+            className="text-[var(--gold-dim)] hover:text-[var(--gold)] text-sm transition-colors min-h-[44px] flex items-center justify-center"
           >
             Back to Home
           </button>
