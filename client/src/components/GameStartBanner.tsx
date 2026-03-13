@@ -257,12 +257,16 @@ export function ResumeMatchBanner(): React.ReactElement | null {
     ? gameState.players.some(p => p.id === playerId)
     : false;
 
+  // If we're connected and know the room is still in lobby, there's no active
+  // match to resume — suppress the banner even if localStorage has session data.
+  const inLobby = reconnected && roomState.gamePhase === GamePhase.LOBBY;
+
   // Determine visibility: show when there's an active match and user is not on that page
-  const hasActiveMatch = (
+  const hasActiveMatch = !inLobby && (
     // Scenario A: localStorage has data (reconnecting or just reconnected)
     activeRoom != null ||
     // Scenario B: connected to a room with an active game, navigated away
-    (reconnected && isPlayer && roomState.gamePhase !== GamePhase.LOBBY)
+    (reconnected && isPlayer)
   );
 
   const shouldShow = hasActiveMatch && !isOnRoomPage && !pendingRejoinRoom;

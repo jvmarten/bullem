@@ -706,7 +706,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(ROOM_CODE_KEY, response.roomCode);
         sessionStorage.setItem(PLAYER_NAME_KEY, playerName);
         sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
-        // playerId is set via room:state — persist after it's available
+        // playerId is set via room:state (which fires before this callback
+        // because the server broadcasts before calling ack). Persist the
+        // active session to localStorage so the resume banner and browser-
+        // close recovery work for room hosts — not just joiners.
+        const pid = sessionStorage.getItem(PLAYER_ID_KEY);
+        if (pid) {
+          persistActiveSession(response.roomCode, pid, playerName, response.reconnectToken);
+        }
         resolve(response.roomCode);
       });
     }));

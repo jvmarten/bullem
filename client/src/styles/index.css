@@ -3209,13 +3209,13 @@ body {
   transform-style: preserve-3d;
   /* Start face-down (back visible) */
   transform: rotateY(180deg);
-  transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 0.38s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Flipping: rotate to show front face */
 .rt-reveal-card--flipping .rt-reveal-card-flipper {
   transform: rotateY(0deg);
-  animation: rt-card-flip-3d 0.45s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: rt-card-flip-3d 0.38s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
 /* ── Flying to center — card slides from seat to table center ────── */
@@ -3224,9 +3224,9 @@ body {
   top: var(--center-y) !important;
   transform: translate(-50%, -50%) rotate(var(--center-rotation, 0deg));
   filter: drop-shadow(0 0 8px rgba(212, 168, 67, 0.8));
-  transition: left var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
-              top var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
-              transform var(--fly-duration, 400ms) cubic-bezier(0.23, 1, 0.32, 1),
+  transition: left var(--fly-duration, 350ms) cubic-bezier(0.23, 1, 0.32, 1),
+              top var(--fly-duration, 350ms) cubic-bezier(0.23, 1, 0.32, 1),
+              transform var(--fly-duration, 350ms) cubic-bezier(0.23, 1, 0.32, 1),
               filter 0.3s ease-out;
   z-index: 21;
 }
