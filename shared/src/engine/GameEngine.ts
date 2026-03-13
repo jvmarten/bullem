@@ -244,10 +244,7 @@ export class GameEngine {
     // Check if all non-callers have responded
     if (this.allNonCallersResponded()) {
       // Check if everyone called bull (no one called true)
-      const hasTrue = this.turnHistory.some(
-        t => t.action === TurnAction.TRUE && this.isAfterLastCall(t)
-      );
-      if (!hasTrue) {
+      if (!this.hasTrueAfterLastCall()) {
         if (!this.lastChanceUsed) {
           // Last chance for original caller (first time only)
           this.roundPhase = RoundPhase.LAST_CHANCE;
@@ -493,10 +490,7 @@ export class GameEngine {
 
     // Check if all remaining non-callers have now responded
     if (this.allNonCallersResponded()) {
-      const hasTrue = this.turnHistory.some(
-        t => t.action === TurnAction.TRUE && this.isAfterLastCall(t),
-      );
-      if (!hasTrue) {
+      if (!this.hasTrueAfterLastCall()) {
         const callerStillActive = active.some(p => p.id === this.lastCallerId);
         if (!this.lastChanceUsed && callerStillActive) {
           this.roundPhase = RoundPhase.LAST_CHANCE;
@@ -689,10 +683,16 @@ export class GameEngine {
     return active.every(p => p.id === this.lastCallerId || this.respondedPlayers.has(p.id));
   }
 
-  private isAfterLastCall(entry: TurnEntry): boolean {
+  /** Check if any TRUE action exists after the last CALL/LAST_CHANCE_RAISE.
+   *  Replaces the old isAfterLastCall(entry) + .some() pattern which was O(n²)
+   *  due to indexOf inside the loop. This does a single O(n) scan. */
+  private hasTrueAfterLastCall(): boolean {
     const lastCallIdx = this.getLastCallIndex();
     if (lastCallIdx === -1) return false;
-    return this.turnHistory.indexOf(entry) > lastCallIdx;
+    for (let i = lastCallIdx + 1; i < this.turnHistory.length; i++) {
+      if (this.turnHistory[i]!.action === TurnAction.TRUE) return true;
+    }
+    return false;
   }
 
   /** Cached index of the last CALL/LAST_CHANCE_RAISE in turnHistory.
@@ -892,5 +892,6 @@ function toPublicPlayer(p: ServerPlayer): Player {
     username: p.username,
     avatar: p.avatar,
     photoUrl: p.photoUrl,
+    avatarBgColor: p.avatarBgColor,
   };
 }
