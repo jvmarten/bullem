@@ -357,12 +357,25 @@ export function GamePage() {
     setSelectedPlayer(player);
   }, []);
 
+  // Cache suggestions from handleCardTap so the useMemo below doesn't
+  // recompute getQuickDrawSuggestions with the same inputs on the next render.
+  const cachedSuggestionsRef = useRef<QuickDrawSuggestion[]>([]);
+
   const quickDrawSuggestions = useMemo(() => {
     if (!quickDrawOpen || !canRaise || !gameState) return [];
+    // If handleCardTap already computed suggestions for this exact state,
+    // return the cached result instead of recomputing.
+    if (cachedSuggestionsRef.current.length > 0) {
+      const cached = cachedSuggestionsRef.current;
+      cachedSuggestionsRef.current = [];
+      return cached;
+    }
     return getQuickDrawSuggestions(gameState.myCards, gameState.currentHand, tappedCard ?? undefined);
   }, [quickDrawOpen, canRaise, gameState, tappedCard]);
 
-  // Tapping own cards: toggle Quick Draw chips (biased toward the tapped card)
+  // Tapping own cards: toggle Quick Draw chips (biased toward the tapped card).
+  // Computes suggestions once and caches the result so the useMemo above can
+  // skip recomputing with the same inputs on the triggered re-render.
   const handleCardTap = useCallback((card: Card) => {
     if (!quickDrawEnabled || !canRaise || !gameState) return;
     play('uiClick');
@@ -370,6 +383,7 @@ export function GamePage() {
     if (suggestions.length === 0) {
       setHandSelectorOpen(true);
     } else {
+      cachedSuggestionsRef.current = suggestions;
       setTappedCard(card);
       setQuickDrawOpen(true);
     }

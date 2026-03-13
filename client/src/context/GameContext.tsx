@@ -628,10 +628,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('server:playerNames', setOnlinePlayerNames);
     socket.on('game:reaction', (reaction: EmojiReaction) => {
       setReactions(prev => [...prev, reaction]);
-      // Auto-remove after 2 seconds; track timer for cleanup on unmount
+      // Auto-remove after 2 seconds; track timer for cleanup on unmount.
+      // Uses splice-by-reference instead of filter to avoid O(n) scans on
+      // every expiration — with rapid emoji spam, filter ran O(n²) total.
       const timer = setTimeout(() => {
         reactionTimersRef.current.delete(timer);
-        setReactions(prev => prev.filter(r => r.timestamp !== reaction.timestamp || r.playerId !== reaction.playerId));
+        setReactions(prev => {
+          const idx = prev.indexOf(reaction);
+          if (idx === -1) return prev;
+          const next = [...prev];
+          next.splice(idx, 1);
+          return next;
+        });
       }, 2000);
       reactionTimersRef.current.add(timer);
     });

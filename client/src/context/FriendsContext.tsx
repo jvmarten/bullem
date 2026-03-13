@@ -81,13 +81,22 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     };
 
     const handleStatusChanged = (data: { userId: string; isOnline: boolean; currentRoomCode?: string | null }) => {
-      setFriends((prev) =>
-        prev.map((f) =>
-          f.userId === data.userId
-            ? { ...f, isOnline: data.isOnline, currentRoomCode: data.currentRoomCode ?? null }
-            : f,
-        ),
-      );
+      setFriends((prev) => {
+        const idx = prev.findIndex((f) => f.userId === data.userId);
+        // If the friend isn't in the list, return the same reference to avoid
+        // re-rendering all consumers + recomputing derived memos.
+        if (idx === -1) return prev;
+        const existing = prev[idx]!;
+        const newRoomCode = data.currentRoomCode ?? null;
+        // Skip update if nothing actually changed — avoids allocating a new
+        // array and triggering downstream re-renders for no-op status events.
+        if (existing.isOnline === data.isOnline && existing.currentRoomCode === newRoomCode) {
+          return prev;
+        }
+        const next = [...prev];
+        next[idx] = { ...existing, isOnline: data.isOnline, currentRoomCode: newRoomCode };
+        return next;
+      });
     };
 
     const handleInvited = (data: { fromUserId: string; fromUsername: string; roomCode: string }) => {
