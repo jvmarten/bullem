@@ -5,13 +5,13 @@ import { CardDisplay } from './CardDisplay.js';
 import { useSound } from '../hooks/useSound.js';
 
 /** Timing constants (ms) */
-const CARD_FLIP_DURATION = 450;    // 3D card flip animation time
-const FLY_TO_CENTER_DURATION = 400; // fly from seat to center of table
+const CARD_FLIP_DURATION = 380;    // 3D card flip animation time
+const FLY_TO_CENTER_DURATION = 350; // fly from seat to center of table
 const CARD_BURN_DURATION = 300;    // non-hand card fade/burn
-const CARD_INTERVAL = 300;         // delay between cards within same player
-const PLAYER_PAUSE = 500;          // pause between players for narrative pacing
-const POST_FLIP_PAUSE = 150;       // brief pause after flip before fly/burn
-const RESULT_DELAY = 700;          // delay after last card before showing result
+const CARD_INTERVAL = 200;         // delay between cards within same player
+const PLAYER_PAUSE = 350;          // pause between players for narrative pacing
+const POST_FLIP_PAUSE = 100;       // brief pause after flip before fly/burn
+const RESULT_DELAY = 500;          // delay after last card before showing result
 const MIN_DISPLAY_TIME = 1500;     // minimum time to show result before allowing dismiss
 
 interface Props {
@@ -155,6 +155,15 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
     [slotSequence],
   );
 
+  // Pre-compute which players have at least one relevant card
+  const playerHasRelevant = useMemo(() => {
+    const set = new Set<string>();
+    for (const slot of slotSequence) {
+      if (slot.isRelevant) set.add(slot.playerId);
+    }
+    return set;
+  }, [slotSequence]);
+
   // Calculate timing for each slot
   const slotTimings = useMemo(() => {
     const timings: number[] = [];
@@ -170,17 +179,23 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
       // Revealed cards take longer (flip + fly), non-revealed cards burn one by one
       if (slot.isRelevant) {
         currentTime += CARD_FLIP_DURATION + POST_FLIP_PAUSE + FLY_TO_CENTER_DURATION + CARD_INTERVAL;
+      } else if (!playerHasRelevant.has(slot.playerId)) {
+        // Player has NO relevant cards — all their cards burn simultaneously.
+        // Only advance time after the last card in this player's hand so
+        // subsequent cards share the same start time.
+        if (slot.cardSlotIndex === slot.playerCardTotal - 1) {
+          currentTime += CARD_BURN_DURATION + CARD_INTERVAL;
+        }
       } else {
-        // Each non-relevant card gets its own staggered start time so they
-        // burn one by one instead of all at once (visible when a player has
-        // multiple cards and none are part of the called hand).
+        // Player has some relevant cards — stagger non-relevant card burns
+        // one by one for narrative pacing.
         currentTime += CARD_BURN_DURATION + CARD_INTERVAL;
       }
       lastPlayerId = slot.playerId;
     }
 
     return timings;
-  }, [slotSequence]);
+  }, [slotSequence, playerHasRelevant]);
 
   // Run the reveal animation
   useEffect(() => {
