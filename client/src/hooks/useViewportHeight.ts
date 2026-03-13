@@ -1,33 +1,51 @@
 import { useEffect } from 'react';
 
+const LANDSCAPE_MQ = '(orientation: landscape) and (min-width: 600px), (min-width: 1024px)';
+
 /**
- * Sets a CSS custom property `--vh-real` on the document element equal to
- * `window.innerHeight` in pixels. Updates on resize and orientation change.
+ * Dynamically toggles `viewport-fit=cover` on the viewport meta tag based on
+ * orientation. This sidesteps an iOS Safari bug where `viewport-fit=cover`
+ * causes the bottom safe area to render incorrectly on first portrait paint.
  *
- * iOS Safari reports `window.innerHeight` accurately even with
- * `viewport-fit=cover`, unlike CSS viewport units (`100dvh`, `100vh`)
- * which can be wrong on first paint or during orientation transitions —
- * leaving a visible gap at the bottom of the screen.
+ * - **Portrait:** no `viewport-fit=cover` → browser handles safe areas
+ *   natively (no bottom bar, top status bar works)
+ * - **Landscape:** `viewport-fit=cover` enabled → app extends behind side
+ *   safe areas so the gradient bleeds behind the notch seamlessly
  *
- * Usage in CSS: `height: var(--vh-real, 100dvh);`
+ * iOS Safari supports dynamic viewport meta changes — the page re-layouts
+ * during the orientation change animation, so there's no visible flash.
  */
 export function useViewportHeight(): void {
   useEffect(() => {
-    function update() {
-      document.documentElement.style.setProperty(
-        '--vh-real',
-        `${window.innerHeight}px`,
-      );
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!meta) return;
+
+    const mql = window.matchMedia(LANDSCAPE_MQ);
+
+    function update(isLandscape: boolean) {
+      const content = meta!.getAttribute('content') ?? '';
+      if (isLandscape) {
+        // Add viewport-fit=cover if not already present
+        if (!content.includes('viewport-fit=cover')) {
+          meta!.setAttribute('content', content + ', viewport-fit=cover');
+        }
+      } else {
+        // Remove viewport-fit=cover
+        meta!.setAttribute(
+          'content',
+          content.replace(/,?\s*viewport-fit=cover/g, ''),
+        );
+      }
     }
 
-    update();
+    // Set initial state
+    update(mql.matches);
 
-    window.addEventListener('resize', update);
-    window.addEventListener('orientationchange', update);
+    const handler = (e: MediaQueryListEvent) => update(e.matches);
+    mql.addEventListener('change', handler);
 
     return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('orientationchange', update);
+      mql.removeEventListener('change', handler);
     };
   }, []);
 }
