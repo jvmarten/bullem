@@ -1,6 +1,4 @@
-import type { CapacitorConfig } from '@capacitor/cli';
-
-const config: CapacitorConfig = {
+const config = {
   appId: 'cards.bullem.app',
   appName: "Bull 'Em",
   webDir: 'dist',
