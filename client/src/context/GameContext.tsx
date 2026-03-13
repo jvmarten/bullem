@@ -318,16 +318,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem(RECONNECT_TOKEN_KEY, token);
         }
 
-        // Clear stale overlay state — server will send fresh state on rejoin
-        setRoundResult(null);
-        roundResultRef.current = null;
-        pendingGameStateRef.current = null;
-        setRoundTransition(false);
-        if (roundResultTimerRef.current) {
-          clearTimeout(roundResultTimerRef.current);
-          roundResultTimerRef.current = null;
-        }
+        clearStaleOverlayState();
 
+        // Use retry-capable rejoin with extra handling for page-load recovery
         socket.emit('room:join', {
           roomCode,
           playerName,
@@ -335,12 +328,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
           reconnectToken: token,
         }, (response) => {
           if ('error' in response) {
-            // Room gone or token expired — clean up
-            clearActiveSession();
-            sessionStorage.removeItem(PLAYER_ID_KEY);
-            sessionStorage.removeItem(PLAYER_NAME_KEY);
-            sessionStorage.removeItem(ROOM_CODE_KEY);
-            sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+            // Retry once after 1s — the server may not have processed the
+            // disconnect yet if the page reload happened quickly.
+            setTimeout(() => {
+              if (!socket.connected) return;
+              socket.emit('room:join', {
+                roomCode: roomCode!,
+                playerName: playerName!,
+                playerId: storedPlayerId!,
+                reconnectToken: token!,
+              }, (retryResponse) => {
+                if ('error' in retryResponse) {
+                  clearActiveSession();
+                  sessionStorage.removeItem(PLAYER_ID_KEY);
+                  sessionStorage.removeItem(PLAYER_NAME_KEY);
+                  sessionStorage.removeItem(ROOM_CODE_KEY);
+                  sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+                } else {
+                  setPlayerId(retryResponse.playerId);
+                  sessionStorage.setItem(RECONNECT_TOKEN_KEY, retryResponse.reconnectToken);
+                  persistActiveSession(roomCode!, retryResponse.playerId, playerName!, retryResponse.reconnectToken);
+                  setPendingRejoinRoom(roomCode!);
+                }
+              });
+            }, 1000);
           } else {
             // Reconnection succeeded — update token and player ID
             setPlayerId(response.playerId);
@@ -361,6 +372,75 @@ export function GameProvider({ children }: { children: ReactNode }) {
     //
     // The 'reconnect' event fires on the Manager BEFORE the Socket's 'connect'
     // event. We set reconnectHandled so connect doesn't double-join.
+    /** Whether we had a round result showing before the reconnection cleared it.
+     *  Used to emit game:continue AFTER the room:join succeeds (the emit would be
+     *  ignored if sent before the server maps the new socket). */
+    let hadPendingRoundResult = false;
+
+    /** Clear all stale overlay / transition state. Called on reconnection
+     *  so the UI doesn't get stuck showing a stale reveal or transition overlay
+     *  while the server sends fresh state. */
+    const clearStaleOverlayState = () => {
+      hadPendingRoundResult = roundResultRef.current !== null;
+      setRoundResult(null);
+      roundResultRef.current = null;
+      pendingGameStateRef.current = null;
+      setRoundTransition(false);
+      setRoundTransitionDeadline(null);
+      if (roundResultTimerRef.current) {
+        clearTimeout(roundResultTimerRef.current);
+        roundResultTimerRef.current = null;
+      }
+    };
+
+    /** Attempt to rejoin a room, retrying up to maxRetries times on failure
+     *  with exponential backoff. Permanent failures (room gone) clean up state. */
+    const emitRejoin = (
+      roomCode: string,
+      playerName: string,
+      playerId: string | undefined,
+      reconnectToken: string | undefined,
+      retriesLeft = 2,
+    ) => {
+      socket.emit('room:join', {
+        roomCode,
+        playerName,
+        playerId,
+        reconnectToken,
+      }, (response) => {
+        if ('error' in response) {
+          // Retry on transient failures (timeout, brief server hiccup)
+          if (retriesLeft > 0 && socket.connected) {
+            const delay = (3 - retriesLeft) * 1000; // 1s, 2s
+            setTimeout(() => {
+              if (socket.connected) {
+                emitRejoin(roomCode, playerName, playerId, reconnectToken, retriesLeft - 1);
+              }
+            }, delay);
+            return;
+          }
+          // Permanent failure — room gone or token expired
+          sessionStorage.removeItem(PLAYER_ID_KEY);
+          sessionStorage.removeItem(PLAYER_NAME_KEY);
+          sessionStorage.removeItem(ROOM_CODE_KEY);
+          sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+          clearActiveSession();
+          setRoomState(null);
+          setGameState(null);
+        } else {
+          // Update rotated token in both storages
+          sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
+          persistActiveSession(roomCode, response.playerId, playerName, response.reconnectToken);
+          // If the player was viewing a round result before the disconnect,
+          // tell the server they've moved on now that the new socket is mapped.
+          if (hadPendingRoundResult) {
+            socket.emit('game:continue');
+            hadPendingRoundResult = false;
+          }
+        }
+      });
+    };
+
     const handleReconnect = () => {
       reconnectHandled = true;
 
@@ -382,38 +462,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const storedId = sessionStorage.getItem(PLAYER_ID_KEY);
 
       if (storedRoomCode && storedName) {
-        // Clear stale overlay state — server will send fresh state on rejoin
-        setRoundResult(null);
-        roundResultRef.current = null;
-        pendingGameStateRef.current = null;
-        setRoundTransition(false);
-        if (roundResultTimerRef.current) {
-          clearTimeout(roundResultTimerRef.current);
-          roundResultTimerRef.current = null;
-        }
+        clearStaleOverlayState();
 
         const storedToken = sessionStorage.getItem(RECONNECT_TOKEN_KEY) ?? undefined;
-        socket.emit('room:join', {
-          roomCode: storedRoomCode,
-          playerName: storedName,
-          playerId: storedId ?? undefined,
-          reconnectToken: storedToken,
-        }, (response) => {
-          if ('error' in response) {
-            // Room no longer exists — clean up
-            sessionStorage.removeItem(PLAYER_ID_KEY);
-            sessionStorage.removeItem(PLAYER_NAME_KEY);
-            sessionStorage.removeItem(ROOM_CODE_KEY);
-            sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
-            clearActiveSession();
-            setRoomState(null);
-            setGameState(null);
-          } else {
-            // Update rotated token in both storages
-            sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
-            persistActiveSession(storedRoomCode, response.playerId, storedName, response.reconnectToken);
-          }
-        });
+        emitRejoin(storedRoomCode, storedName, storedId ?? undefined, storedToken);
       }
     };
     socket.io.on('reconnect', handleReconnect);

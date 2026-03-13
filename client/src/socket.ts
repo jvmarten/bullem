@@ -14,7 +14,7 @@ export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(URL
   // sticky once the TCP upgrade completes.
   transports: ['websocket'],
   reconnection: true,
-  reconnectionAttempts: 10,
+  reconnectionAttempts: 20,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   withCredentials: true,

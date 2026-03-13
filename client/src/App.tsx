@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext.js';
 import { FriendsProvider } from './context/FriendsContext.js';
 import { ToastContainer } from './components/ToastContainer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { GameErrorBoundary } from './components/GameErrorBoundary.js';
 import { ScreenReaderAnnouncerProvider } from './components/ScreenReaderAnnouncer.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 import { waitForAudioReady } from './hooks/soundEngine.js';
@@ -153,7 +154,7 @@ export default function App() {
             {/* /host removed — game creation goes directly to lobby via "Create Game" */}
             <Route path="/host" element={<Navigate to="/" replace />} />
             <Route path="/room/:roomCode" element={<SuspenseRoute label="lobby"><LobbyPage /></SuspenseRoute>} />
-            <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GamePage /></SuspenseRoute>} />
+            <Route path="/game/:roomCode" element={<SuspenseRoute label="game"><GameErrorBoundary><GamePage /></GameErrorBoundary></SuspenseRoute>} />
             <Route path="/results/:roomCode" element={<SuspenseRoute label="results"><ResultsPage /></SuspenseRoute>} />
             <Route path="/replay/:gameId?" element={<SuspenseRoute label="replay"><ReplayPage /></SuspenseRoute>} />
           </Route>

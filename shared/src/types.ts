@@ -289,6 +289,21 @@ export interface GameStats {
   playerStats: Record<PlayerId, PlayerGameStats>;
 }
 
+/**
+ * Snapshot of a single round for replay purposes.
+ * Captured at round resolution — contains all players' cards (visible in replay)
+ * plus the full turn history and resolution outcome.
+ */
+export interface RoundSnapshot {
+  roundNumber: number;
+  /** All players' cards at the start of the round (full visibility for replay). */
+  playerCards: SpectatorPlayerCards[];
+  /** Complete turn-by-turn history for the round. */
+  turnHistory: TurnEntry[];
+  /** Round resolution result (called hand, penalties, eliminations, revealed cards). */
+  result: RoundResult;
+}
+
 /** Serializable snapshot of a GameEngine for persistence (e.g., local game save/restore). */
 export interface GameEngineSnapshot {
   players: ServerPlayer[];
@@ -309,7 +324,7 @@ export interface GameEngineSnapshot {
   gameStats: GameStats;
   /** Round snapshots captured so far (for replay). Optional for backwards
    *  compatibility with snapshots created before this field existed. */
-  roundSnapshots?: import('./replay.js').RoundSnapshot[];
+  roundSnapshots?: RoundSnapshot[];
   /** Cards dealt at the start of the current round. Optional for backwards compat. */
   roundStartCards?: SpectatorPlayerCards[];
 }
