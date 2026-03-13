@@ -144,16 +144,16 @@ export function GamePage() {
   );
   const canRaise = canCallHand || isLastChanceCaller;
 
-  // Delay showing ReconnectOverlay by 1.5s to avoid flashing on brief
-  // network blips. Most brief disconnects (app switch, quick network dip)
-  // resolve within 1–2s, so this prevents an unnecessary "Reconnecting..."
-  // flash that feels like a "rejoin" screen.
+  // Delay showing ReconnectOverlay by 4s to avoid flashing on brief
+  // network blips. Most Socket.io reconnections complete within 1–3s,
+  // so a 4s delay means the overlay only appears for genuinely prolonged
+  // disconnects — keeping the game UI visible and feeling smooth.
   useEffect(() => {
     if (isConnected || !hasConnected) {
       setShowReconnectOverlay(false);
       return;
     }
-    const timer = setTimeout(() => setShowReconnectOverlay(true), 1500);
+    const timer = setTimeout(() => setShowReconnectOverlay(true), 4000);
     return () => clearTimeout(timer);
   }, [isConnected, hasConnected]);
 
@@ -193,11 +193,12 @@ export function GamePage() {
     // just wait for the server to send game:state when the game starts.
     if (playerId) {
       rejoinAttemptedRef.current = true;
-      // Safety timeout: if game state never arrives, redirect home
+      // Safety timeout: if game state never arrives, redirect home.
+      // 30s is generous enough for slow reconnections with retries.
       const timeout = setTimeout(() => {
-        addToast('Game not found or already ended');
+        addToast('Could not rejoin game');
         navigate('/');
-      }, 15000);
+      }, 30000);
       return () => clearTimeout(timeout);
     }
 
@@ -209,14 +210,15 @@ export function GamePage() {
     rejoinAttemptedRef.current = true;
 
     let settled = false;
-    // Allow enough time for reconnection retries (up to 2 retries with 1-2s backoff)
+    // Allow enough time for reconnection retries (up to 2 retries with 1-2s backoff).
+    // 30s is generous enough for slow networks and Socket.io reconnection cycles.
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true;
-        addToast('Game not found or already ended');
+        addToast('Could not rejoin game');
         navigate('/');
       }
-    }, 15000);
+    }, 30000);
 
     joinRoom(roomCode, storedName, user?.avatar)
       .then(() => { settled = true; clearTimeout(timeout); })
@@ -224,7 +226,7 @@ export function GamePage() {
         if (!settled) {
           settled = true;
           clearTimeout(timeout);
-          addToast('Game not found or already ended');
+          addToast('Could not rejoin game');
           navigate('/');
         }
       });

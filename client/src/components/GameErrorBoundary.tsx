@@ -86,10 +86,10 @@ export class GameErrorBoundary extends Component<Props, State> {
              style={{ background: 'var(--felt)' }}>
           <div className="text-center space-y-4 glass p-8 max-w-sm">
             <h1 className="font-display text-2xl font-bold text-[var(--gold)]">
-              Connection hiccup
+              Oops!
             </h1>
             <p className="text-[var(--gold-dim)] text-sm">
-              Something went wrong during gameplay. Tap below to rejoin your match.
+              Couldn&apos;t load the game. Tap below to get back in.
             </p>
             <button
               onClick={() => window.location.reload()}

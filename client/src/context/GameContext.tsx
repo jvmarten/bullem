@@ -420,14 +420,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
             }, delay);
             return;
           }
-          // Permanent failure — room gone or token expired
+          // Permanent failure — room gone or token expired.
+          // Clear session data but preserve gameState/roomState so the
+          // GamePage keeps rendering the last known state instead of
+          // flashing a loading spinner. The user will see the reconnect
+          // overlay and can choose to refresh or go home.
           sessionStorage.removeItem(PLAYER_ID_KEY);
           sessionStorage.removeItem(PLAYER_NAME_KEY);
           sessionStorage.removeItem(ROOM_CODE_KEY);
           sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
           clearActiveSession();
-          setRoomState(null);
-          setGameState(null);
         } else {
           // Update rotated token in both storages
           sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);

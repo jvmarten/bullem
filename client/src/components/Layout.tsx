@@ -90,6 +90,18 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
   const ctx = useContext(GameContext);
   const isConnected = ctx?.isConnected ?? true;
   const hasConnected = ctx?.hasConnected ?? true;
+  // Delay showing the "Reconnecting..." banner by 3s to avoid flashing on
+  // brief network blips (app switch, quick network dip). Most reconnections
+  // complete within 1-3s, so this keeps the UI clean during normal operation.
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  useEffect(() => {
+    if (isConnected || !hasConnected) {
+      setShowReconnectBanner(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowReconnectBanner(true), 3000);
+    return () => clearTimeout(timer);
+  }, [isConnected, hasConnected]);
   // Read presence from the dedicated PresenceContext — this prevents game
   // components from re-rendering when the global online count changes.
   const { onlinePlayerCount, onlinePlayerNames } = useContext(PresenceContext);
@@ -248,10 +260,10 @@ export function Layout({ children, largeTitle, headerLeftExtra, headerRightExtra
           </div>
         </div>
       )}
-      {!isConnected && (
+      {showReconnectBanner && (
         <div role="alert" className="flex items-center justify-center gap-1.5 text-xs text-[var(--gold)] py-1.5 border-b border-[var(--felt-border)] shrink-0">
           <span className="dot-disconnected" aria-hidden="true" />
-          {hasConnected ? 'Reconnecting\u2026' : 'Connecting\u2026'}
+          Reconnecting&hellip;
         </div>
       )}
       {!isOnline && (
