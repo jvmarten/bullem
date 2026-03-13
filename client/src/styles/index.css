@@ -35,6 +35,12 @@
   --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-title:   'Big Shoulders Display', 'Impact', sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
+
+  /* Safe area insets — only meaningful with viewport-fit=cover */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
 }
 
 /* ── Base ────────────────────────────────────────────── */
@@ -99,6 +105,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Portrait: push content below notch/status bar. No bottom padding —
+     gradient naturally fills behind home indicator (no visible bar). */
+  padding-top: var(--safe-top);
 }
 
 /* ── Layout shell — fixed viewport, inner scroll only ─ */
@@ -1752,6 +1761,16 @@ body {
 /* Unified breakpoint: landscape tablets/phones (>=600px wide) OR desktops (>=1024px).
    Activates: merged top bar, two-panel game layout, horizontal page layouts. */
 @media (orientation: landscape) and (min-width: 600px), (min-width: 1024px) {
+  /* -- Safe area: landscape overrides -- */
+  /* In landscape, notch is on the left or right side. Swap top padding
+     for left/right padding so content avoids the notch while the gradient
+     background extends behind it seamlessly (blended). */
+  .felt-bg {
+    padding-top: 0;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
   /* -- Visibility toggles -- */
   .landscape-only {
     display: flex !important;
@@ -1791,6 +1810,8 @@ body {
     z-index: 40;
     pointer-events: none;
     padding: 0.375rem 0.75rem;
+    padding-left: max(0.75rem, var(--safe-left));
+    padding-right: max(0.75rem, var(--safe-right));
   }
   .game-header-overlay-left,
   .game-header-overlay-right,
@@ -2104,6 +2125,14 @@ body {
   /* Remove portrait min-height on mockup in landscape */
   .tutorial-mockup {
     min-height: 0;
+  }
+
+  /* -- Safe area offsets for fixed-edge game UI in landscape -- */
+  .chat-panel {
+    right: calc(1rem + var(--safe-right));
+  }
+  .emoji-reaction-bar {
+    left: calc(1rem + var(--safe-left));
   }
 }
 
@@ -2931,7 +2960,7 @@ body {
 /* ── Landscape Turn Timer (player's own vertical bar, right edge) ── */
 .rt-turn-timer-track {
   position: fixed;
-  right: 4px;
+  right: calc(4px + var(--safe-right));
   top: 60px;  /* below header */
   bottom: 8px;
   width: 6px;
@@ -2959,7 +2988,7 @@ body {
 /* Auto-bull/auto-pass countdown label next to the vertical timer */
 .rt-autobull-label {
   position: fixed;
-  right: 16px;
+  right: calc(16px + var(--safe-right));
   top: 60px;
   z-index: 40;
   font-size: 0.65rem;

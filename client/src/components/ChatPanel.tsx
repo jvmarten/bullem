@@ -61,7 +61,7 @@ export function ChatPanel({ messages, onSend, disabled, label }: ChatPanelProps)
   const visibleMessages = messages.slice(-MAX_VISIBLE_MESSAGES);
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end" style={{ maxWidth: '340px' }}>
+    <div className="chat-panel fixed bottom-4 right-4 z-40 flex flex-col items-end" style={{ maxWidth: '340px' }}>
       {/* Chat messages panel */}
       {isOpen && (
         <div
