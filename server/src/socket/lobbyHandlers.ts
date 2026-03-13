@@ -163,6 +163,44 @@ export function registerLobbyHandlers(
     // Type-check playerId and reconnectToken since they come from untrusted client data.
     if (data.playerId && typeof data.playerId === 'string') {
       const reconnectToken = typeof data.reconnectToken === 'string' ? data.reconnectToken : undefined;
+
+      // If the player appears still connected (stale socket from browser close),
+      // force-replace the old socket. This runs before handleReconnect because
+      // handleReconnect requires isConnected === false.
+      const staleResult = room.handleStaleSocketReconnect(socket.id, data.playerId, reconnectToken);
+      if (staleResult) {
+        const oldSocket = io.sockets.sockets.get(staleResult.oldSocketId);
+        if (oldSocket) {
+          oldSocket.emit('session:transferred');
+          oldSocket.leave(room.roomCode);
+        }
+        roomManager.removeSocketMapping(staleResult.oldSocketId);
+        roomManager.assignSocketToRoom(socket.id, room.roomCode);
+        socket.join(room.roomCode);
+        log.info({ roomCode, playerId: data.playerId, oldSocketId: staleResult.oldSocketId }, 'Stale socket replaced on reconnect');
+        broadcastRoomState(io, room);
+        if (room.game) broadcastGameState(io, room);
+        io.to(room.roomCode).emit('player:reconnected', data.playerId);
+        broadcastPlayerNames(io, roomManager);
+
+        // Re-send phase-specific state
+        if (room.gamePhase === GamePhase.ROUND_RESULT && room.lastRoundResult) {
+          socket.emit('game:roundResult', room.lastRoundResult);
+        }
+        if (room.countdownDeadline) {
+          const remainingMs = room.countdownDeadline - Date.now();
+          if (remainingMs > 0) {
+            socket.emit('game:countdown', {
+              seconds: Math.ceil(remainingMs / 1000),
+              label: room.countdownLabel,
+            });
+          }
+        }
+
+        roomManager.persistRoom(room);
+        return callback({ playerId: data.playerId, reconnectToken: staleResult.reconnectToken });
+      }
+
       const newToken = room.handleReconnect(socket.id, data.playerId, reconnectToken);
       if (newToken) {
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
