@@ -273,8 +273,8 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
             Results
           </p>
           {players.filter(p => result.penalties[p.id] !== undefined).map((p) => {
-            const newCardCount = result.penalties[p.id];
-            const wasWrong = result.penalizedPlayerIds?.includes(p.id) ?? newCardCount! > p.cardCount;
+            const newCardCount = result.penalties[p.id] ?? p.cardCount;
+            const wasWrong = result.penalizedPlayerIds.includes(p.id);
             const isEliminated = result.eliminatedPlayerIds.includes(p.id);
             return (
               <div key={p.id} className={`flex justify-between items-center text-sm px-3 py-1.5 rounded-lg ${

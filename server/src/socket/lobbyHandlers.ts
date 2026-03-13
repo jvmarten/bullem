@@ -10,6 +10,21 @@ import { getCorrelatedLogger } from '../logger.js';
 import { roomsCreatedTotal, playersJoinedTotal } from '../metrics.js';
 import { track } from '../analytics/track.js';
 import { getAcceptedFriendIds } from '../db/friends.js';
+import { getUserAvatarAndPhoto } from '../db/users.js';
+
+/** Re-fetch the user's photoUrl and avatarBgColor from the database and update
+ *  socket.data. The socket middleware sets these at connection time, but they can
+ *  become stale if the user updates their profile after connecting. */
+async function refreshSocketUserData(socket: TypedSocket): Promise<void> {
+  if (!socket.data.userId) return;
+  try {
+    const { photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(socket.data.userId);
+    socket.data.photoUrl = photoUrl ?? undefined;
+    socket.data.avatarBgColor = avatarBgColor ?? undefined;
+  } catch {
+    // Non-fatal — use whatever socket.data already has
+  }
+}
 
 /** Validate and sanitize a player name. Returns the cleaned name or null if invalid. */
 function sanitizeName(raw: unknown): string | null {
@@ -56,7 +71,7 @@ export function registerLobbyHandlers(
   roomManager: RoomManager,
   botManager: BotManager,
 ): void {
-  socket.on('room:create', (data, callback) => {
+  socket.on('room:create', async (data, callback) => {
     if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
@@ -65,6 +80,9 @@ export function registerLobbyHandlers(
     // Prevent creating a room when already in one
     const existingRoom = roomManager.getRoomForSocket(socket.id);
     if (existingRoom) return callback({ error: 'Already in a room — leave or close it first' });
+
+    // Refresh photo/avatar from DB in case it changed since socket connected
+    await refreshSocketUserData(socket);
 
     const room = roomManager.createRoom();
     const playerId = randomUUID();
@@ -107,7 +125,7 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on('room:join', (data, callback) => {
+  socket.on('room:join', async (data, callback) => {
     if (typeof callback !== 'function') return;
     const log = getCorrelatedLogger();
     const name = sanitizeName(data.playerName);
@@ -247,6 +265,9 @@ export function registerLobbyHandlers(
       p => p.name.toLowerCase() === nameLower && p.isConnected,
     );
     if (nameExists) return callback({ error: 'Name already taken in this room' });
+
+    // Refresh photo/avatar from DB in case it changed since socket connected
+    await refreshSocketUserData(socket);
 
     const playerId = randomUUID();
     const avatar = sanitizeAvatar(data.avatar);

@@ -147,39 +147,20 @@ export function ResultsPage() {
     }
   }, [matchmakingStatus, matchmakingFound]);
 
-  // Track whether the new matched game's state has arrived (server starts
-  // the game after MATCHMAKING_FOUND_COUNTDOWN_MS ≈ 4s).
-  const matchedGameReady = !!matchmakingFound && !!gameState && gameState.ranked === true;
-  const [matchDisplayDone, setMatchDisplayDone] = useState(false);
-
-  // Minimum display time for the "Match Found" screen so players see opponents
-  useEffect(() => {
-    if (!matchmakingFound) { setMatchDisplayDone(false); return; }
-    const timer = setTimeout(() => setMatchDisplayDone(true), 2500);
-    return () => clearTimeout(timer);
-  }, [matchmakingFound]);
-
-  // Navigate to the new game when both display timer elapsed AND game is ready,
-  // or after a 5s fallback so the user isn't stuck indefinitely.
+  // Navigate to the new game after a minimum display time so the player sees
+  // their opponent(s). Don't wait for gameState — the countdown is emitted
+  // after this screen and GamePage will show CountdownOverlay while waiting.
   useEffect(() => {
     if (!matchmakingFound) return;
-    if (matchDisplayDone && matchedGameReady) {
-      const newRoomCode = matchmakingFound.roomCode;
-      resetForMatchedGame();
-      clearMatchmakingFound();
-      navigate(`/game/${newRoomCode}`);
-      return;
-    }
-    // Fallback: navigate after 5s even if game state hasn't arrived yet
-    const fallback = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (!matchmakingFound) return;
       const newRoomCode = matchmakingFound.roomCode;
       resetForMatchedGame();
       clearMatchmakingFound();
       navigate(`/game/${newRoomCode}`);
-    }, 5000);
-    return () => clearTimeout(fallback);
-  }, [matchmakingFound, matchDisplayDone, matchedGameReady, resetForMatchedGame, clearMatchmakingFound, navigate]);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [matchmakingFound, resetForMatchedGame, clearMatchmakingFound, navigate]);
 
   const handleRankedPlayAgain = useCallback(() => {
     if (rankedQueuing) return;

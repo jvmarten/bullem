@@ -46,9 +46,14 @@ export class GameErrorBoundary extends Component<Props, State> {
     }
 
     if (this.state.retryCount < MAX_AUTO_RETRIES) {
-      // Auto-retry: clear stale state and try re-rendering after a brief delay
+      // Auto-retry after a brief delay. On the first retry, just re-render
+      // without clearing state — the error may be transient (e.g. TDZ race).
+      // Only clear overlay state on subsequent retries so the reveal overlay
+      // isn't needlessly discarded on a single transient glitch.
       this.setState({ recovering: true });
-      this.props.onRecover?.();
+      if (this.state.retryCount > 0) {
+        this.props.onRecover?.();
+      }
 
       this.retryTimer = setTimeout(() => {
         this.setState(prev => ({
