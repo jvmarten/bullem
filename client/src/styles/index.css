@@ -2348,7 +2348,7 @@ body {
   text-align: center;
   position: relative;
   z-index: 10;
-  transform: translateY(28px);
+  margin-top: 28px;
 }
 
 /* Left side of center — bull/true/pass buttons */
