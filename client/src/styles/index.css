@@ -44,8 +44,12 @@
 }
 
 /* ── Base ────────────────────────────────────────────── */
-html {
-  height: 100%;
+/* --vh-real is set by useViewportHeight() from window.innerHeight.
+   iOS Safari reports innerHeight accurately with viewport-fit=cover,
+   unlike 100dvh which can be wrong on first paint / orientation change. */
+html, body, #root {
+  height: var(--vh-real, 100dvh);
+  overflow: hidden;
 }
 
 body {
@@ -57,13 +61,7 @@ body {
   /* Prevent pull-to-refresh and rubber-banding on mobile */
   overscroll-behavior-y: none;
   position: fixed;
-  inset: 0;
-  overflow: hidden;
-}
-
-#root {
-  height: 100%;
-  overflow: hidden;
+  width: 100%;
 }
 
 /* ── Focus Indicators (keyboard accessibility) ──────── */
@@ -109,8 +107,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Portrait: push content below notch/status bar. No bottom padding —
-     gradient naturally fills behind home indicator (no visible bar). */
+  /* Portrait: push content below notch/status bar only.
+     No bottom padding — gradient fills behind home indicator. */
   padding-top: var(--safe-top);
 }
 
@@ -1766,9 +1764,9 @@ body {
    Activates: merged top bar, two-panel game layout, horizontal page layouts. */
 @media (orientation: landscape) and (min-width: 600px), (min-width: 1024px) {
   /* -- Safe area: landscape overrides -- */
-  /* In landscape, notch is on the left or right side. Swap top padding
-     for left/right padding so content avoids the notch while the gradient
-     background extends behind it seamlessly (blended). */
+  /* Notch is on the left or right in landscape. Swap top padding for
+     left/right so content avoids the notch while the gradient bleeds
+     behind it seamlessly. */
   .felt-bg {
     padding-top: 0;
     padding-left: var(--safe-left);

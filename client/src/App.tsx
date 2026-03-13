@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ScreenReaderAnnouncerProvider } from './components/ScreenReaderAnnouncer.js';
 import { ScrollToTop } from './components/ScrollToTop.js';
 import { waitForAudioReady } from './hooks/soundEngine.js';
+import { useViewportHeight } from './hooks/useViewportHeight.js';
 
 // Eagerly loaded — the home page is the entry point most users hit first
 import { HomePage } from './pages/HomePage.js';
@@ -106,6 +107,7 @@ function SplashScreen({ progress }: { progress: number }) {
 }
 
 export default function App() {
+  useViewportHeight();
   const [assetsReady, setAssetsReady] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
 
