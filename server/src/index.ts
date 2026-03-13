@@ -65,6 +65,12 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
+  // Increase ping timeout for mobile resilience — mobile browsers throttle
+  // timers when backgrounded (app switch, screen lock, notification shade),
+  // causing the default 20s pingTimeout to expire on brief interruptions.
+  // 60s gives mobile clients time to resume and respond to the ping.
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Attach Redis adapter for multi-instance pub/sub when REDIS_URL is set.

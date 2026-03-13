@@ -379,20 +379,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
      *  ignored if sent before the server maps the new socket). */
     let hadPendingRoundResult = false;
 
-    /** Clear all stale overlay / transition state. Called on reconnection
-     *  so the UI doesn't get stuck showing a stale reveal or transition overlay
-     *  while the server sends fresh state. */
+    /** Clear stale transition state on reconnection. The round result is
+     *  intentionally NOT cleared here because the server re-sends it during
+     *  the ROUND_RESULT phase. Clearing it preemptively would cause the reveal
+     *  overlay to flash away and then re-appear (or be skipped entirely if the
+     *  server re-send races with a game:state that follows). The pending game
+     *  state ref is also preserved — if the server already sent a next-round
+     *  state, we still want to apply it after the reveal overlay dismisses. */
     const clearStaleOverlayState = () => {
       hadPendingRoundResult = roundResultRef.current !== null;
-      setRoundResult(null);
-      roundResultRef.current = null;
-      pendingGameStateRef.current = null;
+      // Only clear the transition overlay — the round result will be re-sent
+      // by the server if still in ROUND_RESULT phase.
       setRoundTransition(false);
       setRoundTransitionDeadline(null);
-      if (roundResultTimerRef.current) {
-        clearTimeout(roundResultTimerRef.current);
-        roundResultTimerRef.current = null;
-      }
     };
 
     /** Attempt to rejoin a room, retrying up to maxRetries times on failure
@@ -433,12 +432,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // Update rotated token in both storages
           sessionStorage.setItem(RECONNECT_TOKEN_KEY, response.reconnectToken);
           persistActiveSession(roomCode, response.playerId, playerName, response.reconnectToken);
-          // If the player was viewing a round result before the disconnect,
-          // tell the server they've moved on now that the new socket is mapped.
-          if (hadPendingRoundResult) {
-            socket.emit('game:continue');
-            hadPendingRoundResult = false;
-          }
+          // The round result is preserved across reconnections (the server re-sends
+          // it if still in ROUND_RESULT phase). The player will press Continue
+          // themselves when ready — don't auto-emit game:continue here.
+          hadPendingRoundResult = false;
         }
       });
     };

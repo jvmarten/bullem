@@ -406,6 +406,7 @@ export class BotManager {
           // Show the final round result before ending the game
           if (room.game) room.game.setTurnDeadline(null);
           broadcastGameState(io, room);
+          room.lastRoundResult = result.finalRoundResult;
           io.to(room.roomCode).emit('game:roundResult', result.finalRoundResult);
           room.recordEliminations(result.finalRoundResult.eliminatedPlayerIds);
         }
