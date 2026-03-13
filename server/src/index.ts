@@ -709,7 +709,7 @@ app.get('/api/leaderboard/:mode/nearby', requireAuth, async (req, res) => {
 });
 
 // ── Deck Draw minigame endpoints ─────────────────────────────────────────
-import { getDeckDrawStats, updateDeckDrawStats, syncGuestStats, atomicDeductBalance } from './db/deckDraw.js';
+import { getDeckDrawStats, updateDeckDrawStats, syncGuestStats, atomicDeductBalance, atomicAddBalance } from './db/deckDraw.js';
 import {
   executeDraw, isFreeDrawAvailable,
   DECK_DRAW_MIN_WAGER, DECK_DRAW_MAX_WAGER,
@@ -857,17 +857,14 @@ app.post('/api/five-draw/result', requireAuth, async (req, res) => {
       return;
     }
 
-    // Add winnings back if won
+    // Atomically add winnings back if won (prevents concurrent-win race)
+    let finalBalance = postDeductBalance;
     if (won) {
-      const stats = await getDeckDrawStats(req.user!.userId);
-      if (stats) {
-        stats.balance = postDeductBalance + payout;
-        await updateDeckDrawStats(req.user!.userId, stats);
-      }
+      const newBalance = await atomicAddBalance(req.user!.userId, payout);
+      if (newBalance !== null) finalBalance = newBalance;
     }
 
-    const finalStats = await getDeckDrawStats(req.user!.userId);
-    res.json({ balance: finalStats?.balance ?? postDeductBalance + (won ? payout : 0) });
+    res.json({ balance: finalBalance });
   } catch (err) {
     logger.error({ err }, 'Failed to persist 5 Draw result');
     res.status(500).json({ error: 'Failed to persist result' });
@@ -1075,8 +1072,10 @@ function scheduleBroadcastPlayerCount(): void {
     })();
   }, 100);
 }
-io.on('connection', () => scheduleBroadcastPlayerCount());
-io.engine.on('close', () => scheduleBroadcastPlayerCount());
+io.on('connection', (socket) => {
+  scheduleBroadcastPlayerCount();
+  socket.on('disconnect', () => scheduleBroadcastPlayerCount());
+});
 
 // Graceful shutdown — clean up timers and close connections
 function shutdown(): void {

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { Server } from 'socket.io';
 import {
   ROOM_CODE_LENGTH, ROOM_CLEANUP_INTERVAL_MS, ROOM_MAX_INACTIVE_MS,
@@ -244,7 +245,7 @@ export class RoomManager {
     const names: string[] = [];
     for (const room of this.rooms.values()) {
       for (const player of room.players.values()) {
-        if (!player.isBot) names.push(player.name);
+        if (!player.isBot && player.isConnected) names.push(player.name);
       }
     }
     this.cachedPlayerNames = names;
@@ -294,9 +295,10 @@ export class RoomManager {
 
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const bytes = crypto.randomBytes(ROOM_CODE_LENGTH);
   let code = '';
   for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[bytes[i]! % chars.length];
   }
   return code;
 }
