@@ -14,6 +14,12 @@ const LANDSCAPE_MQ = '(orientation: landscape) and (min-width: 600px), (min-widt
  *
  * iOS Safari supports dynamic viewport meta changes — the page re-layouts
  * during the orientation change animation, so there's no visible flash.
+ *
+ * After modifying the viewport meta, we force a layout reflow to ensure the
+ * browser recalculates hit-test regions for all interactive elements. Without
+ * this, mobile Safari can desync visual rendering from touch targets after
+ * orientation changes (especially with position:fixed on body), causing button
+ * hitboxes to shift right of their visual position.
  */
 export function useViewportHeight(): void {
   useEffect(() => {
@@ -36,6 +42,16 @@ export function useViewportHeight(): void {
           content.replace(/,?\s*viewport-fit=cover/g, ''),
         );
       }
+
+      // Force the browser to recalculate layout and hit-test regions.
+      // Mobile Safari can desync touch targets from visual positions after
+      // viewport meta changes — reading offsetHeight triggers a synchronous
+      // reflow, and the follow-up rAF ensures the composited layer tree is
+      // fully updated before the next frame paints.
+      void document.documentElement.offsetHeight;
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+      });
     }
 
     // Set initial state
