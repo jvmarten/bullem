@@ -159,7 +159,7 @@ describe('classifyFiveCardHand', () => {
 
 describe('calculatePayout', () => {
   it('returns correct payout for royal flush', () => {
-    expect(calculatePayout({ type: HandType.ROYAL_FLUSH, suit: 'spades' }, 100)).toBe(25_000_000);
+    expect(calculatePayout({ type: HandType.ROYAL_FLUSH, suit: 'spades' }, 100)).toBe(2_170_000);
   });
 
   it('returns 0 for high card', () => {

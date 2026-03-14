@@ -12,31 +12,31 @@ import { handToString } from './hands.js';
 // ── Payout table ─────────────────────────────────────────────────────────
 // Based on exact 5-card poker combination counts from a 52-card deck.
 // Total combinations = C(52,5) = 2,598,960.
+// Multipliers are chosen so that sum(combos × multiplier) = 2,598,960,
+// giving exactly 100% RTP (no house edge).
 //
-// Hand              | Combos  | Probability       | Payout (1/p rounded)
-// Royal flush       |       4 | 1 in 649,740      | 250,000
-// Straight flush    |      36 | 1 in 72,193       | 50,000
-// Four of a kind    |     624 | 1 in 4,165        | 4,000
-// Full house        |   3,744 | 1 in 694          | 600
-// Straight          |  10,200 | 1 in 255          | 200
-// Three of a kind   |  54,912 | 1 in 47.3         | 40
-// Flush             |   5,108 | 1 in 509          | 400
-// Two pair          | 123,552 | 1 in 21.0         | 15
-// Pair              |1,098,240| 1 in 2.37         | 1
-// High card         |1,302,540| 1 in 2.00         | 0
-//
-// Note: In Bull 'Em's custom ordering, flush ranks below three of a kind,
-// but payouts are based on actual rarity (flush is rarer than three of a kind).
+// Hand              | Combos  | Probability       | Multiplier | Contribution
+// Royal flush       |       4 | 1 in 649,740      |     21,700 |       86,800
+// Straight flush    |      36 | 1 in 72,193       |      2,000 |       72,000
+// Four of a kind    |     624 | 1 in 4,165        |        150 |       93,600
+// Full house        |   3,744 | 1 in 694          |         50 |      187,200
+// Straight          |  10,200 | 1 in 255          |         25 |      255,000
+// Flush             |   5,108 | 1 in 509          |         10 |       51,080
+// Three of a kind   |  54,912 | 1 in 47.3         |          7 |      384,384
+// Two pair          | 123,552 | 1 in 21.0         |          3 |      370,656
+// Pair              |1,098,240| 1 in 2.37         |          1 |    1,098,240
+// High card         |1,302,540| 1 in 2.00         |          0 |            0
+//                                                        Total = 2,598,960 ✓
 
 export const DECK_DRAW_PAYOUTS: Record<HandType, number> = {
-  [HandType.ROYAL_FLUSH]:     250_000,
-  [HandType.STRAIGHT_FLUSH]:   50_000,
-  [HandType.FOUR_OF_A_KIND]:    4_000,
-  [HandType.FULL_HOUSE]:          600,
-  [HandType.STRAIGHT]:            200,
-  [HandType.THREE_OF_A_KIND]:      40,
-  [HandType.FLUSH]:               400,
-  [HandType.TWO_PAIR]:             15,
+  [HandType.ROYAL_FLUSH]:      21_700,
+  [HandType.STRAIGHT_FLUSH]:    2_000,
+  [HandType.FOUR_OF_A_KIND]:      150,
+  [HandType.FULL_HOUSE]:           50,
+  [HandType.STRAIGHT]:             25,
+  [HandType.THREE_OF_A_KIND]:       7,
+  [HandType.FLUSH]:                10,
+  [HandType.TWO_PAIR]:              3,
   [HandType.PAIR]:                  1,
   [HandType.HIGH_CARD]:             0,
 };
@@ -266,14 +266,14 @@ export function executeDraw(
 
 /** Format a payout table entry for display. */
 export function getPayoutTableEntries(): { handType: HandType; label: string; multiplier: number }[] {
-  // Display in descending rarity order (not Bull 'Em game order)
+  // Display in descending payout order
   const order: HandType[] = [
     HandType.ROYAL_FLUSH,
     HandType.STRAIGHT_FLUSH,
     HandType.FOUR_OF_A_KIND,
     HandType.FULL_HOUSE,
-    HandType.FLUSH,
     HandType.STRAIGHT,
+    HandType.FLUSH,
     HandType.THREE_OF_A_KIND,
     HandType.TWO_PAIR,
     HandType.PAIR,
