@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, u
 import type { User, PublicProfile, AvatarId, AvatarBgColor } from '@bull-em/shared';
 import { socket } from '../socket.js';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 
 export interface AuthContextValue {
   user: User | null;
@@ -84,25 +85,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   // Handle OAuth deep links from the native app (bullem://auth-callback?token=<jwt>).
-  // After OAuth completes in Safari, the server redirects to this custom URL scheme
-  // which re-opens the native app. We extract the token, exchange it for an httpOnly
-  // cookie via the server, then refresh the auth state.
+  // After OAuth completes in the Safari overlay (opened via Browser.open()), the server
+  // redirects to this custom URL scheme which re-opens the native app. We close the
+  // browser overlay, extract the token, exchange it for an httpOnly cookie via the
+  // server, then refresh the auth state.
   useEffect(() => {
     if (!isCapacitorNative()) return;
 
-    const listener = CapacitorApp.addListener('appUrlOpen', (event: { url: string }) => {
-      const url = event.url;
+    /** Process an OAuth callback URL from the bullem:// deep link. */
+    function handleOAuthUrl(url: string): void {
       if (!url.startsWith('bullem://auth-callback')) return;
       if (handlingOAuthRef.current) return;
       handlingOAuthRef.current = true;
+
+      // Close the Safari overlay that Browser.open() created for OAuth
+      void Browser.close().catch(() => {});
 
       const params = new URL(url.replace('bullem://', 'https://placeholder/')).searchParams;
       const token = params.get('token');
       const error = params.get('error');
 
       if (error || !token) {
-        // Navigate to login with error — use history.replaceState to avoid
-        // pushing onto the router while inside an event listener.
         window.location.href = '/login?error=oauth_failed';
         handlingOAuthRef.current = false;
         return;
@@ -127,6 +130,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .finally(() => {
           handlingOAuthRef.current = false;
         });
+    }
+
+    // Listen for deep links while the app is in the foreground
+    const listener = CapacitorApp.addListener('appUrlOpen', (event: { url: string }) => {
+      handleOAuthUrl(event.url);
+    });
+
+    // Handle cold-start deep links — if the app was killed and re-launched via
+    // bullem:// URL, the appUrlOpen event may have fired before this listener
+    // was registered. getLaunchUrl() catches that case.
+    void CapacitorApp.getLaunchUrl().then((result) => {
+      if (result?.url) {
+        handleOAuthUrl(result.url);
+      }
     });
 
     return () => {
