@@ -257,7 +257,7 @@ npm test             # Run all tests across workspaces
 
 Bull 'Em is deployed on [Fly.io](https://fly.io).
 
-- **App URL:** `https://bullem.fly.dev`
+- **App URL:** `https://bullem.cards`
 - **Config:** `fly.toml` at repo root
 - **Health check:** `GET /health` returns `{ "status": "ok" }`
 - **Docker:** Multi-stage build — build all workspaces, copy only production artifacts
