@@ -101,8 +101,8 @@ export function getDealerAction(
 
   // Count turns so far for the info set key
   const turnCount = turnHistory.length;
-  // Dealer is the opener if there are no previous turns
-  const isOpener = turnCount === 0;
+  // Dealer is always P2 (responder) — player opens first for house edge
+  const isOpener = false;
 
   const decision = decideFiveDrawCFR(dealerCards, currentHand, turnCount, isOpener);
 

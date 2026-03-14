@@ -515,7 +515,9 @@ export function FiveDrawPage() {
       id: DEALER_ID, name: 'Dealer', cardCount: 5,
       isConnected: true, isEliminated: false, isHost: false, isBot: true, cards: [],
     };
-    const players = [dealerPlayer, humanPlayer];
+    // Player opens first (P1), dealer responds second (P2) — P2 has
+    // the positional edge (sees P1's opening before deciding).
+    const players = [humanPlayer, dealerPlayer];
     playersRef.current = players;
 
     const engine = new GameEngine(players, { maxCards: 5, turnTimer: 0, lastChanceMode: 'strict' });
