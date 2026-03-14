@@ -96,6 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     function handleOAuthUrl(url: string): void {
       if (!url.startsWith('bullem://auth-callback')) return;
       if (handlingOAuthRef.current) return;
+
+      // Guard against re-processing the same URL across page reloads.
+      // getLaunchUrl() returns the same URL every time, and window.location.href
+      // triggers a full reload that re-mounts this component — without this
+      // check we'd loop forever.
+      const HANDLED_KEY = 'oauth_callback_handled';
+      if (sessionStorage.getItem(HANDLED_KEY) === url) return;
+      sessionStorage.setItem(HANDLED_KEY, url);
+
       handlingOAuthRef.current = true;
 
       // Close the Safari overlay that Browser.open() created for OAuth
@@ -125,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.location.href = '/';
         })
         .catch(() => {
+          sessionStorage.removeItem(HANDLED_KEY);
           window.location.href = '/login?error=oauth_failed';
         })
         .finally(() => {
