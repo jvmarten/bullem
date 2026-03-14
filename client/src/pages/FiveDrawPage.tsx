@@ -407,14 +407,27 @@ export function FiveDrawPage() {
     const w = wagerRef.current;
     const playerWon = winner === 'player';
     const payout = playerWon ? w * FIVE_DRAW_WIN_MULTIPLIER : 0;
-    const netGain = payout - w;
 
+    // Wager was already deducted at game start, so add back the full payout
+    // (2x wager on win, 0 on loss)
     setBalance(prev => {
-      const newBal = prev + netGain;
+      const newBal = prev + payout;
       if (!user) saveGuestBalance(newBal);
       return newBal;
     });
     setPhase('result');
+
+    // Persist result to server for authenticated users
+    if (user) {
+      fetch('/api/five-draw/result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ wager: w, won: playerWon, payout }),
+      }).catch(() => {
+        // Non-critical — local balance already updated
+      });
+    }
   }, [user]);
 
   // === Start dealer card reveal sequence ===
