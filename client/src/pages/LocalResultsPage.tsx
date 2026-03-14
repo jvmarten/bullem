@@ -13,7 +13,12 @@ import { markFirstGamePlayed } from '../utils/tutorialProgress.js';
 export function LocalResultsPage() {
   const navigate = useNavigate();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, lastReplay } = useGameContext();
-  const [rankingDone, setRankingDone] = useState(false);
+  // Persist ranking-done state in sessionStorage so navigating to replay and
+  // back doesn't re-trigger the reveal animation.
+  const rankingStorageKey = winnerId ? `ranking-done:local:${winnerId}` : null;
+  const [rankingDone, setRankingDone] = useState(() => {
+    return rankingStorageKey ? sessionStorage.getItem(rankingStorageKey) === '1' : false;
+  });
   const [statsVisible, setStatsVisible] = useState(false);
 
   // Mark that the player has completed their first real game
@@ -47,7 +52,8 @@ export function LocalResultsPage() {
 
   const handleRankingComplete = useCallback(() => {
     setRankingDone(true);
-  }, []);
+    if (rankingStorageKey) sessionStorage.setItem(rankingStorageKey, '1');
+  }, [rankingStorageKey]);
 
   if (!winnerId && !gameState) return null;
 
@@ -80,6 +86,7 @@ export function LocalResultsPage() {
             winnerId={winnerId}
             stats={gameStats}
             onRevealComplete={handleRankingComplete}
+            skipAnimation={rankingDone}
           />
         )}
 
