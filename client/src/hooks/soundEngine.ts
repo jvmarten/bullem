@@ -1,5 +1,6 @@
 import { RANK_VALUES, HandType } from '@bull-em/shared';
 import type { HandCall, Rank } from '@bull-em/shared';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import fahSoundUrl from '../assets/sounds/fah.mp3';
 import cardDealUrl from '../assets/sounds/card-deal.mp3';
 import cardRevealUrl from '../assets/sounds/card-reveal.mp3';
@@ -142,8 +143,44 @@ if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
   mq.addEventListener('change', (e) => { prefersReducedMotion = e.matches; });
 }
 
-function vibrate(pattern: number | number[]): void {
+// Detect Capacitor native at module load for haptic routing.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _cap = typeof window !== 'undefined' ? (window as any).Capacitor : undefined;
+const isNativeApp: boolean = _cap != null
+  && typeof _cap.isNativePlatform === 'function'
+  && _cap.isNativePlatform() === true;
+
+// Map game events to Capacitor Haptics calls. iOS doesn't support the
+// Web Vibration API at all, so we use the native haptic engine instead.
+const CAPACITOR_HAPTICS: Partial<Record<SoundName, () => void>> = {
+  cardDeal:    () => Haptics.impact({ style: ImpactStyle.Light }),
+  callMade:    () => Haptics.impact({ style: ImpactStyle.Light }),
+  trueCalled:  () => Haptics.impact({ style: ImpactStyle.Medium }),
+  bullCalled:  () => Haptics.impact({ style: ImpactStyle.Heavy }),
+  yourTurn:    () => Haptics.notification({ type: NotificationType.Warning }),
+  roundWin:    () => Haptics.notification({ type: NotificationType.Success }),
+  roundLose:   () => Haptics.notification({ type: NotificationType.Error }),
+  eliminated:  () => Haptics.impact({ style: ImpactStyle.Heavy }),
+  gameOver:    () => Haptics.notification({ type: NotificationType.Warning }),
+  victory:     () => Haptics.notification({ type: NotificationType.Success }),
+  heartbeat:   () => Haptics.impact({ style: ImpactStyle.Medium }),
+};
+
+function vibrate(name: SoundName): void {
   if (prefersReducedMotion) return;
+
+  // On Capacitor native (iOS), use the Taptic Engine via plugin
+  if (isNativeApp) {
+    const hapticFn = CAPACITOR_HAPTICS[name];
+    if (hapticFn) {
+      try { hapticFn(); } catch { /* plugin unavailable — no-op */ }
+    }
+    return;
+  }
+
+  // Fallback to Web Vibration API (Android browsers)
+  const pattern = HAPTIC_PATTERNS[name];
+  if (!pattern) return;
   try {
     navigator.vibrate(pattern);
   } catch {
@@ -232,11 +269,13 @@ if (typeof document !== 'undefined') {
   // browser refuses resume without a gesture (autoplay policy). If the
   // context was closed/nulled (e.g. after an app switch), create a new
   // one in the gesture handler so it's allowed by autoplay policy.
+  let hasRecreatedOnGesture = false;
   const resumeOnInteraction = () => {
     if (!audioCtx) {
       // Context was closed/nulled — recreate within user gesture context
       try {
         audioCtx = new AudioContext();
+        hasRecreatedOnGesture = true;
       } catch {
         return;
       }
@@ -245,6 +284,24 @@ if (typeof document !== 'undefined') {
     }
     const state = audioCtx.state as string;
     if (state === 'suspended' || state === 'interrupted') {
+      // On iOS WKWebView (Capacitor), an AudioContext created before any user
+      // gesture may be permanently stuck in 'suspended' even after resume().
+      // Close it and create a fresh one inside this gesture callback so the
+      // browser trusts it. Only do this once to avoid churn.
+      if (!hasRecreatedOnGesture) {
+        hasRecreatedOnGesture = true;
+        try { audioCtx.close(); } catch { /* already closed */ }
+        audioCtx = null;
+        audioBufferCache.clear();
+        audioBufferLoading.clear();
+        try {
+          audioCtx = new AudioContext();
+        } catch {
+          return;
+        }
+        preloadAllSounds();
+        return;
+      }
       audioCtx.resume().catch(() => {});
     } else if (state === 'closed') {
       audioCtx = null;
@@ -505,8 +562,7 @@ export function createSoundController(): SoundController {
     play(name: SoundName) {
       // Haptics fire independently of mute — a user may want vibration without sound
       if (hapticsEnabled) {
-        const haptic = HAPTIC_PATTERNS[name];
-        if (haptic) vibrate(haptic);
+        vibrate(name);
       }
 
       if (muted) return;
