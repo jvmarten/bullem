@@ -6,6 +6,15 @@ import { useAuth } from '../context/AuthContext.js';
 // Vite proxies /auth and /api to the server in dev — relative URLs work from any device.
 const API_BASE = '';
 
+/** Detect whether we're running inside a Capacitor native shell (iOS/Android). */
+function isCapacitorNative(): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cap = (window as any).Capacitor;
+  return cap != null
+    && typeof cap.isNativePlatform === 'function'
+    && cap.isNativePlatform() === true;
+}
+
 type AuthMode = 'signin' | 'register';
 
 export function LoginPage() {
@@ -138,9 +147,11 @@ export function LoginPage() {
           </button>
         )}
 
-        {/* OAuth buttons — work for both sign in and registration */}
+        {/* OAuth buttons — work for both sign in and registration.
+           On Capacitor native, append source=capacitor so the server redirects
+           back via custom URL scheme (bullem://) instead of a web redirect. */}
         <a
-          href={`${API_BASE}/auth/google`}
+          href={`${API_BASE}/auth/google${isCapacitorNative() ? '?source=capacitor' : ''}`}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-[#333] font-medium transition-colors"
           style={{ backgroundColor: 'rgba(255,255,255,0.95)' }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,1)'; }}
@@ -156,7 +167,7 @@ export function LoginPage() {
         </a>
 
         <a
-          href={`${API_BASE}/auth/apple`}
+          href={`${API_BASE}/auth/apple${isCapacitorNative() ? '?source=capacitor' : ''}`}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-white font-medium transition-colors mt-3"
           style={{ backgroundColor: '#000' }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a1a1a'; }}
