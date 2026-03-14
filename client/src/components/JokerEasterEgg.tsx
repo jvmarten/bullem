@@ -176,7 +176,7 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   audioReady: boolean;
 }) {
-  const { volume, muted, hapticsEnabled } = useSound();
+  const { volume, muted } = useSound();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const animRef = useRef<number>(0);
   const [currentSubtitle, setCurrentSubtitle] = useState<SubtitleEntry | null>(null);
@@ -236,16 +236,10 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
     return () => audio.removeEventListener('ended', onEnded);
   }, [phase, setPhase, audioRef]);
 
-  // Screen shake + haptic when flying starts
+  // Screen shake when flying starts
   useEffect(() => {
     if (phase !== 'flying') return;
 
-    // Haptic feedback (respects user's haptics setting)
-    if (hapticsEnabled && navigator.vibrate) {
-      navigator.vibrate([100, 30, 100, 30, 200]);
-    }
-
-    // Screen shake
     document.documentElement.classList.add('screen-shake-heavy');
     const onEnd = () => {
       document.documentElement.classList.remove('screen-shake-heavy');
@@ -255,7 +249,7 @@ export function JokerOverlay({ phase, setPhase, audioRef, audioReady }: {
       clearTimeout(timer);
       document.documentElement.classList.remove('screen-shake-heavy');
     };
-  }, [phase, hapticsEnabled]);
+  }, [phase]);
 
   // Flying animation via requestAnimationFrame with Catmull-Rom spline
   useEffect(() => {

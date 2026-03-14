@@ -120,17 +120,12 @@ const SOUND_DEFS: Record<SoundName, ToneConfig[]> = {
 // navigator.vibrate() is a no-op on unsupported devices (desktop browsers),
 // so this gracefully degrades without any feature detection.
 const HAPTIC_PATTERNS: Partial<Record<SoundName, number | number[]>> = {
-  yourTurn:    [40, 30, 40],      // double tap — "hey, it's you"
-  bullCalled:  [100],             // firm single pulse
-  trueCalled:  [50],              // gentle pulse
-  callMade:    [20],              // subtle tick
+  yourTurn:    [40, 30, 40],         // double tap — "hey, it's you"
+  bullCalled:  [100],                // firm single pulse
   roundWin:    [30, 40, 30, 40, 60], // celebratory triple pulse
-  roundLose:   [80, 30, 120],     // descending buzz
-  eliminated:  [200],             // long buzz — you're out
-  gameOver:    [40, 30, 40, 30, 40, 60, 100], // big fanfare pattern
-  victory:     [50, 40, 50, 40, 50, 60, 120], // triumphant celebration
-  cardDeal:    [15],              // tiny tap
-  heartbeat:   [60, 80, 40],     // lub-dub pulse
+  roundLose:   [80, 30, 120],        // descending buzz
+  eliminated:  [200],                // long buzz — you're out
+  heartbeat:   [60, 80, 40],         // lub-dub pulse
 };
 
 // Cache the reduced-motion preference so we don't query it on every vibration call.
@@ -153,16 +148,11 @@ const isNativeApp: boolean = _cap != null
 // Map game events to Capacitor Haptics calls. iOS doesn't support the
 // Web Vibration API at all, so we use the native haptic engine instead.
 const CAPACITOR_HAPTICS: Partial<Record<SoundName, () => void>> = {
-  cardDeal:    () => Haptics.impact({ style: ImpactStyle.Light }),
-  callMade:    () => Haptics.impact({ style: ImpactStyle.Light }),
-  trueCalled:  () => Haptics.impact({ style: ImpactStyle.Medium }),
   bullCalled:  () => Haptics.impact({ style: ImpactStyle.Heavy }),
   yourTurn:    () => Haptics.notification({ type: NotificationType.Warning }),
   roundWin:    () => Haptics.notification({ type: NotificationType.Success }),
   roundLose:   () => Haptics.notification({ type: NotificationType.Error }),
   eliminated:  () => Haptics.impact({ style: ImpactStyle.Heavy }),
-  gameOver:    () => Haptics.notification({ type: NotificationType.Warning }),
-  victory:     () => Haptics.notification({ type: NotificationType.Success }),
   heartbeat:   () => Haptics.impact({ style: ImpactStyle.Medium }),
 };
 
