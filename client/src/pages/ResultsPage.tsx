@@ -68,7 +68,12 @@ export function ResultsPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const { winnerId, gameState, gameStats, playerId, leaveRoom, requestRematch, roomState, lastReplay, ratingChanges, watchRandomGame, joinMatchmaking, leaveMatchmaking, matchmakingStatus, matchmakingFound, clearMatchmakingFound, resetForMatchedGame } = useGameContext();
   const [watchingAnother, setWatchingAnother] = useState(false);
-  const [rankingDone, setRankingDone] = useState(false);
+  // Persist ranking-done state in sessionStorage so navigating to replay and
+  // back doesn't re-trigger the reveal animation (mirrors the victory sound pattern).
+  const rankingStorageKey = roomCode && winnerId ? `ranking-done:${roomCode}:${winnerId}` : null;
+  const [rankingDone, setRankingDone] = useState(() => {
+    return rankingStorageKey ? sessionStorage.getItem(rankingStorageKey) === '1' : false;
+  });
   const [statsVisible, setStatsVisible] = useState(false);
   const [replayShared, setReplayShared] = useState(false);
   const [rankedQueuing, setRankedQueuing] = useState<RankedMode | null>(null);
@@ -176,7 +181,8 @@ export function ResultsPage() {
 
   const handleRankingComplete = useCallback(() => {
     setRankingDone(true);
-  }, []);
+    if (rankingStorageKey) sessionStorage.setItem(rankingStorageKey, '1');
+  }, [rankingStorageKey]);
 
   return (
     <Layout>
@@ -210,6 +216,7 @@ export function ResultsPage() {
             stats={gameStats}
             onRevealComplete={handleRankingComplete}
             ratingChanges={ratingChanges}
+            skipAnimation={rankingDone}
           />
         )}
 

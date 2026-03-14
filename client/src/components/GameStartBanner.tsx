@@ -245,11 +245,13 @@ export function ResumeMatchBanner(): React.ReactElement | null {
   const roomCode = roomState?.roomCode ?? activeRoom;
   const reconnected = roomState !== null;
 
-  // Check if user is already on the game/lobby/results page for this room
+  // Check if user is already on the game/lobby/results/replay page for this room
   const isOnRoomPage = roomCode != null && (
     location.pathname === `/game/${roomCode}` ||
     location.pathname === `/room/${roomCode}` ||
-    location.pathname === `/results/${roomCode}`
+    location.pathname === `/results/${roomCode}` ||
+    location.pathname.startsWith('/replay') ||
+    location.pathname.startsWith('/local/replay')
   );
 
   // Check if the user is an active player (not a spectator)

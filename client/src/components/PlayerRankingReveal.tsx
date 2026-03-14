@@ -17,6 +17,8 @@ interface Props {
   stats: GameStats;
   onRevealComplete: () => void;
   ratingChanges?: Record<PlayerId, RatingChange> | null;
+  /** When true, skip the reveal animation and show all rankings immediately. */
+  skipAnimation?: boolean;
 }
 
 /**
@@ -63,12 +65,14 @@ const REVEAL_INTERVAL = 700;
 /** Extra delay before the winner (1st place) reveal. */
 const WINNER_EXTRA_DELAY = 400;
 
-export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete, ratingChanges }: Props) {
+export function PlayerRankingReveal({ players, winnerId, stats, onRevealComplete, ratingChanges, skipAnimation }: Props) {
   const ranking = buildRanking(players, winnerId, stats);
   // Reveal order: last place first, winner last
   const revealOrder = [...ranking].reverse();
 
-  const [revealedCount, setRevealedCount] = useState(0);
+  const [revealedCount, setRevealedCount] = useState(() =>
+    skipAnimation ? revealOrder.length : 0
+  );
   const { play } = useSound();
   const navigate = useNavigate();
 
