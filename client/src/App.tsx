@@ -72,6 +72,7 @@ const PublicProfilePage = lazyWithRetry(() => import('./pages/PublicProfilePage.
 const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage.js'), 'ForgotPasswordPage');
 const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage.js'), 'ResetPasswordPage');
 const FriendsPage = lazyWithRetry(() => import('./pages/FriendsPage.js'), 'FriendsPage');
+const PrivacyPolicyPage = lazyWithRetry(() => import('./pages/PrivacyPolicyPage.js'), 'PrivacyPolicyPage');
 
 
 function OnlineLayout() {
@@ -183,6 +184,7 @@ export default function App() {
           <Route path="/draw" element={<SuspenseRoute label="deck draw"><DeckDrawPage /></SuspenseRoute>} />
           <Route path="/deck-draw" element={<Navigate to="/draw" replace />} />
           <Route path="/five-draw" element={<SuspenseRoute label="5 draw"><FiveDrawPage /></SuspenseRoute>} />
+          <Route path="/privacy" element={<SuspenseRoute label="privacy policy"><PrivacyPolicyPage /></SuspenseRoute>} />
 
           {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
           <Route element={<OnlineLayout />}>
