@@ -14,6 +14,74 @@ const router = Router();
 /** Custom URL scheme for native iOS app deep links. */
 const NATIVE_URL_SCHEME = 'bullem';
 
+// ── Server-side OAuth state store ────────────────────────────────────────
+// On iOS, the OAuth flow starts in WKWebView (where cookies are set) but
+// the OAuth provider opens in Safari (separate cookie jar). When the callback
+// returns via Safari, the state/source cookies don't exist → state mismatch.
+// This server-side store provides a fallback so the state can be verified
+// even when cookies are lost crossing the WKWebView↔Safari boundary.
+// TODO(scale): Externalize to Redis when running multiple server instances.
+// The state values are short-lived (10 min TTL) and small, so an in-memory
+// Map is fine for a single instance.
+
+interface OAuthStateEntry {
+  source: string | undefined;
+  createdAt: number;
+}
+
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes — matches cookie maxAge
+
+const oauthStateStore = new Map<string, OAuthStateEntry>();
+
+/** Periodically clean expired entries to prevent unbounded growth. */
+function cleanExpiredStates(): void {
+  const now = Date.now();
+  for (const [key, entry] of oauthStateStore) {
+    if (now - entry.createdAt > STATE_TTL_MS) {
+      oauthStateStore.delete(key);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanExpiredStates, 5 * 60 * 1000).unref();
+
+/** Store OAuth state server-side alongside the cookie (belt and suspenders). */
+function storeOAuthState(state: string, source: string | undefined): void {
+  oauthStateStore.set(state, { source, createdAt: Date.now() });
+}
+
+/**
+ * Verify OAuth state from the callback. Tries the cookie first (normal web flow),
+ * then falls back to the server-side store (iOS native where cookies are lost).
+ * Returns the source ('capacitor' | undefined) if state is valid, or null if invalid.
+ */
+function verifyOAuthState(
+  callbackState: string | undefined,
+  cookieState: string | undefined,
+  cookieSource: string | undefined,
+): { valid: boolean; source: string | undefined } {
+  if (!callbackState) return { valid: false, source: undefined };
+
+  // 1. Try cookie-based verification (works for normal web flow)
+  if (cookieState && callbackState === cookieState) {
+    // Clean up the server-side entry since we verified via cookie
+    oauthStateStore.delete(callbackState);
+    return { valid: true, source: cookieSource };
+  }
+
+  // 2. Fall back to server-side store (iOS native where cookies are lost)
+  const stored = oauthStateStore.get(callbackState);
+  if (stored && Date.now() - stored.createdAt <= STATE_TTL_MS) {
+    oauthStateStore.delete(callbackState);
+    return { valid: true, source: stored.source };
+  }
+
+  // State not found in either location
+  oauthStateStore.delete(callbackState ?? '');
+  return { valid: false, source: undefined };
+}
+
 /**
  * Build the redirect URL after successful OAuth for the given platform.
  * For Capacitor native apps, redirect to the custom URL scheme with the JWT
@@ -83,6 +151,9 @@ router.get('/google', (req, res) => {
     });
   }
 
+  // Store state server-side so it survives iOS WKWebView→Safari cookie jar boundary
+  storeOAuthState(state, source);
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: getRedirectUri(),
@@ -115,14 +186,18 @@ router.get('/google/callback', async (req, res) => {
   try {
     const { code, state } = req.query as { code?: string; state?: string };
     const cookieState = req.cookies?.oauth_state as string | undefined;
-    const oauthSource = req.cookies?.oauth_source as string | undefined;
+    const cookieSource = req.cookies?.oauth_source as string | undefined;
 
     // Always clear the state and source cookies
     res.clearCookie('oauth_state', { path: '/' });
     res.clearCookie('oauth_source', { path: '/' });
 
-    // Verify state
-    if (!state || !cookieState || state !== cookieState) {
+    // Verify state — tries cookie first, falls back to server-side store
+    // (iOS native loses cookies when OAuth opens in Safari instead of WKWebView)
+    const stateResult = verifyOAuthState(state, cookieState, cookieSource);
+    const oauthSource = stateResult.source;
+
+    if (!stateResult.valid) {
       logger.warn('OAuth state mismatch');
       res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
@@ -382,6 +457,9 @@ router.get('/apple', (req, res) => {
     });
   }
 
+  // Store state server-side so it survives iOS WKWebView→Safari cookie jar boundary
+  storeOAuthState(state, source);
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: getAppleRedirectUri(),
@@ -412,14 +490,18 @@ router.post('/apple/callback', async (req, res) => {
       user?: string; // JSON string with name, only on first authorization
     };
     const cookieState = req.cookies?.apple_oauth_state as string | undefined;
-    const appleOauthSource = req.cookies?.apple_oauth_source as string | undefined;
+    const cookieSource = req.cookies?.apple_oauth_source as string | undefined;
 
     // Always clear the state and source cookies
     res.clearCookie('apple_oauth_state', { path: '/' });
     res.clearCookie('apple_oauth_source', { path: '/' });
 
-    // Verify state
-    if (!state || !cookieState || state !== cookieState) {
+    // Verify state — tries cookie first, falls back to server-side store
+    // (iOS native loses cookies when OAuth opens in Safari instead of WKWebView)
+    const stateResult = verifyOAuthState(state, cookieState, cookieSource);
+    const appleOauthSource = stateResult.source;
+
+    if (!stateResult.valid) {
       logger.warn('Apple OAuth state mismatch');
       res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
