@@ -134,7 +134,7 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
     registerLobbyHandlers(io, socket, roomManager, botManager);
     registerGameHandlers(io, socket, roomManager, botManager, rateLimiter);
     registerPushHandlers(io, socket, roomManager, pushManager);
-    registerFriendHandlers(io, socket, roomManager);
+    registerFriendHandlers(io, socket, roomManager, pushManager);
     if (matchmakingQueue) {
       registerMatchmakingHandlers(io, socket, matchmakingQueue);
     }

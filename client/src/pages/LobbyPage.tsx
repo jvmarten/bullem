@@ -753,7 +753,7 @@ export function LobbyPage() {
           <div className="glass px-4 py-3">
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-sm text-[var(--gold-dim)]">Turn notifications</span>
+                <span className="text-sm text-[var(--gold-dim)]">Push notifications</span>
                 {pushState === 'denied' && (
                   <p className="text-[10px] text-[var(--danger)]">Blocked by browser</p>
                 )}

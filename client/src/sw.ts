@@ -88,7 +88,7 @@ self.addEventListener('push', (event) => {
 
   const title = data.title || "Bull 'Em";
   const options: NotificationOptions = {
-    body: data.body || "It's your turn!",
+    body: data.body || "You have a new notification",
     icon: '/bull-logo-red-192.png',
     badge: '/bull-logo-red-32.png',
     data: data.data || {},
