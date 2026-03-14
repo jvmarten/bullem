@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
-import type { ClientToServerEvents, ServerToClientEvents, FriendEntry } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, FriendEntry, PlayerId } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
+import type { PushManager } from '../push/PushManager.js';
 import { getCorrelatedLogger } from '../logger.js';
 import {
   getFriendsForUser,
@@ -112,6 +113,7 @@ export function registerFriendHandlers(
   io: TypedServer,
   socket: TypedSocket,
   roomManager: RoomManager,
+  pushManager: PushManager,
 ): void {
   // ── friends:list ────────────────────────────────────────────────────
   socket.on('friends:list', async (callback) => {
@@ -204,6 +206,12 @@ export function registerFriendHandlers(
               currentRoomCode: null,
               createdAt: result.entry.createdAt,
             });
+          } else {
+            // Target is offline — send push notification
+            void pushManager.notify(
+              result.entry.userId as PlayerId,
+              `${senderInfo.displayName || senderInfo.username} sent you a friend request`,
+            );
           }
         }
       }
@@ -335,6 +343,13 @@ export function registerFriendHandlers(
           fromUsername: username,
           roomCode,
         });
+      } else {
+        // Friend is offline — send push notification with room link
+        void pushManager.notify(
+          friendUserId as PlayerId,
+          `${username} invited you to a game!`,
+          { roomCode },
+        );
       }
 
       callback({ ok: true });

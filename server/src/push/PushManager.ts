@@ -21,7 +21,7 @@ interface PushSubscriptionRow {
 }
 
 /**
- * Manages Web Push subscriptions and sends turn notifications.
+ * Manages Web Push subscriptions and sends push notifications.
  *
  * Subscriptions are persisted to PostgreSQL so they survive server restarts
  * and work across multiple server instances. An in-memory cache avoids a
@@ -115,21 +115,24 @@ export class PushManager {
     logger.debug({ playerId }, 'Push subscription removed');
   }
 
-  /** Send a "your turn" push notification to a player. */
-  async notifyTurn(playerId: PlayerId, roomCode: string): Promise<void> {
+  /**
+   * Send a push notification to a player.
+   * Used for important events only: game invites, friend requests.
+   */
+  async notify(playerId: PlayerId, body: string, data?: Record<string, unknown>): Promise<void> {
     if (!this.enabled) return;
     const subscription = this.cache.get(playerId);
     if (!subscription) return;
 
     const payload = JSON.stringify({
       title: "Bull 'Em",
-      body: "It's your turn!",
-      data: { roomCode },
+      body,
+      data: data ?? {},
     });
 
     try {
       await webpush.sendNotification(subscription, payload);
-      logger.debug({ playerId, roomCode }, 'Push notification sent');
+      logger.debug({ playerId, body }, 'Push notification sent');
     } catch (err: unknown) {
       const statusCode = (err as { statusCode?: number }).statusCode;
       if (statusCode === 410 || statusCode === 404) {

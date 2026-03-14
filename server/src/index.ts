@@ -17,7 +17,6 @@ import { BackgroundGameManager } from './game/BackgroundGameManager.js';
 import { CalibrationManager } from './game/CalibrationManager.js';
 import { registerHandlers } from './socket/registerHandlers.js';
 import { MatchmakingQueue } from './matchmaking/MatchmakingQueue.js';
-import { setPushManager } from './socket/broadcast.js';
 import { authRouter, setAuthRateLimiter } from './auth/routes.js';
 import { oauthRouter } from './auth/oauth.js';
 import { optionalAuth, requireAuth, requireAdmin } from './auth/middleware.js';
@@ -155,7 +154,6 @@ setAuthRateLimiter(rateLimiter);
 const botManager = new BotManager();
 botManager.setRoomManager(roomManager);
 const pushManager = new PushManager();
-setPushManager(pushManager);
 const backgroundGameManager = new BackgroundGameManager(io, roomManager, botManager);
 const calibrationManager = new CalibrationManager(io, roomManager, botManager);
 

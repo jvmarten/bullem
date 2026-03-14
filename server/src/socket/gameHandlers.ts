@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { RoomManager } from '../rooms/RoomManager.js';
 import { BotManager } from '../game/BotManager.js';
 import type { TurnResult } from '../game/GameEngine.js';
-import { broadcastGameState, sendTurnPushNotification } from './broadcast.js';
+import { broadcastGameState } from './broadcast.js';
 import { beginRoundResultPhase, markContinueReady, handleSetOver } from './roundTransition.js';
 import { getCorrelatedLogger } from '../logger.js';
 import { gameActionsTotal, gamesCompletedTotal } from '../metrics.js';
@@ -301,7 +301,6 @@ function handleResult(
       // Schedule next turn first (sets deadline for human), then broadcast with correct deadline
       botManager.scheduleBotTurn(room, io);
       broadcastGameState(io, room);
-      sendTurnPushNotification(io, room);
       break;
 
     case 'resolve':
