@@ -10,13 +10,12 @@ workflows:
         distribution_type: app_store
         bundle_identifier: cards.bullem.app
       vars:
-        XCODE_WORKSPACE: client/ios/App/App.xcworkspace
+        XCODE_PROJECT: client/ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APP_ID: "6760539765"
         BUNDLE_ID: cards.bullem.app
       node: 22
       xcode: latest
-      cocoapods: default
     scripts:
       - name: Install dependencies
         script: |
@@ -35,7 +34,7 @@ workflows:
         script: |
           cd client/ios/App
           xcodebuild -resolvePackageDependencies \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App
       - name: Increment build number
         script: |
@@ -46,7 +45,7 @@ workflows:
         script: |
           cd client/ios/App
           xcode-project build-ipa \
-            --workspace App.xcworkspace \
+            --project App.xcodeproj \
             --scheme App
     artifacts:
       - client/ios/App/build/ios/ipa/*.ipa
