@@ -71,6 +71,7 @@ function parseArgs(argv: string[]): {
   iterations: number;
   progressInterval: number;
   checkpointInterval: number;
+  mixedRatio: number;
   resume: boolean;
   checkpointFile: string | null;
   strategyName: string | null;
@@ -79,6 +80,7 @@ function parseArgs(argv: string[]): {
   let iterations = 200_000;
   let progressInterval = 5000;
   let checkpointInterval = 50_000;
+  let mixedRatio = 0;
   let resume = false;
   let checkpointFile: string | null = null;
   let strategyName: string | null = null;
@@ -104,6 +106,14 @@ function parseArgs(argv: string[]): {
         checkpointInterval = parseInt(next ?? '', 10);
         i++;
         break;
+      case '--mixed':
+        mixedRatio = parseFloat(next ?? '');
+        if (isNaN(mixedRatio) || mixedRatio < 0 || mixedRatio > 1) {
+          console.error('Error: --mixed must be a number between 0.0 and 1.0');
+          process.exit(1);
+        }
+        i++;
+        break;
       case '--resume':
         resume = true;
         break;
@@ -124,7 +134,9 @@ Usage:
   npm run train-five-draw -w training -- [options]
 
 Options:
-  --iterations, -i <n>       Number of self-play iterations (default: 200000)
+  --iterations, -i <n>       Number of training iterations (default: 200000)
+  --mixed <ratio>            Fraction of iterations using heuristic opponents (0.0-1.0, default: 0)
+                             0.0 = pure self-play, 0.4 = 40% heuristic opponents
   --progress <n>             Log progress every N iterations (default: 5000)
   --checkpoint-interval <n>  Save checkpoint every N iterations (default: 50000)
   --resume                   Resume from latest 5 Draw checkpoint
@@ -140,7 +152,7 @@ Options:
     }
   }
 
-  return { iterations, progressInterval, checkpointInterval, resume, checkpointFile, strategyName };
+  return { iterations, progressInterval, checkpointInterval, mixedRatio, resume, checkpointFile, strategyName };
 }
 
 const config = parseArgs(process.argv);
@@ -191,7 +203,10 @@ function onCheckpoint(engine: CFREngine, iteration: number): void {
 
 // ── Run training ────────────────────────────────────────────────────
 
-console.log(`\n5 Draw CFR Training: ${config.iterations} iterations, pure self-play\n`);
+const modeLabel = config.mixedRatio > 0
+  ? `mixed training (${(config.mixedRatio * 100).toFixed(0)}% heuristic opponents)`
+  : 'pure self-play';
+console.log(`\n5 Draw CFR Training: ${config.iterations} iterations, ${modeLabel}\n`);
 
 const result = existingEngine
   ? resumeFiveDrawTraining(existingEngine, {

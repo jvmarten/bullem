@@ -30,6 +30,26 @@ type PlayerStrategy = (
 ) => { action: 'call' | 'pass'; hand?: HandCall };
 
 /**
+ * Wrap a player strategy to enforce the opening rule: P1 must call a hand
+ * on the opening move (cannot pass).
+ */
+function enforceOpening(fn: PlayerStrategy): PlayerStrategy {
+  return (myCards, currentHand, turnCount) => {
+    const result = fn(myCards, currentHand, turnCount);
+    if (!currentHand && result.action === 'pass') {
+      const hand = pickBestTruthfulHand(myCards, null);
+      if (hand) return { action: 'call', hand };
+      const bestRank = myCards.reduce(
+        (best, c) => RANK_VALUES[c.rank] > RANK_VALUES[best] ? c.rank : best,
+        myCards[0]!.rank,
+      );
+      return { action: 'call', hand: { type: HandType.HIGH_CARD, rank: bestRank } };
+    }
+    return result;
+  };
+}
+
+/**
  * Aggressive heuristic: always raises with best truthful hand or small bluffs.
  * Passes only when claim is very high and no support.
  */
@@ -325,11 +345,11 @@ function evaluate(playerFn: PlayerStrategy, games: number): EvalResult {
 // ── Run evaluations ──────────────────────────────────────────────────
 
 const strategies: Array<{ name: string; fn: PlayerStrategy; desc: string }> = [
-  { name: 'Random',     fn: randomPlayer,     desc: 'Random legal moves' },
-  { name: 'Passive',    fn: passivePlayer,     desc: 'Only strong truthful hands, 5% bluff' },
-  { name: 'Balanced',   fn: balancedPlayer,    desc: 'Truthful + 20% bluff' },
-  { name: 'Aggressive', fn: aggressivePlayer,  desc: 'Truthful + 40% bluff' },
-  { name: 'Smart',      fn: smartPlayer,       desc: 'Card-counting, adaptive bluffing' },
+  { name: 'Random',     fn: enforceOpening(randomPlayer),     desc: 'Random legal moves' },
+  { name: 'Passive',    fn: enforceOpening(passivePlayer),     desc: 'Only strong truthful hands, 5% bluff' },
+  { name: 'Balanced',   fn: enforceOpening(balancedPlayer),    desc: 'Truthful + 20% bluff' },
+  { name: 'Aggressive', fn: enforceOpening(aggressivePlayer),  desc: 'Truthful + 40% bluff' },
+  { name: 'Smart',      fn: enforceOpening(smartPlayer),       desc: 'Card-counting, adaptive bluffing' },
 ];
 
 console.log(`\n═══════════════════════════════════════════════════════════════`);

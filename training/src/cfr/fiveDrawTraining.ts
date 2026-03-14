@@ -21,6 +21,7 @@ import {
   getFiveDrawInfoSetKey,
 } from './fiveDrawInfoSet.js';
 import { mapFiveDrawAction } from './fiveDrawActionMapper.js';
+import { pickHeuristicOpponent, type HeuristicPlayerFn } from './fiveDrawOpponents.js';
 
 const MAX_TURNS = 100;
 
@@ -28,6 +29,12 @@ export interface FiveDrawTrainingConfig {
   iterations: number;
   progressInterval: number;
   checkpointInterval: number;
+  /**
+   * Fraction of iterations that use heuristic opponents instead of self-play.
+   * 0.0 = pure self-play (Nash convergence), 1.0 = all heuristic opponents.
+   * Recommended: 0.3–0.5 for balanced exploitation + equilibrium learning.
+   */
+  mixedRatio?: number;
   onCheckpoint?: (engine: CFREngine, iteration: number) => void;
   onProgress?: (metrics: FiveDrawProgressMetrics) => void;
 }
@@ -79,14 +86,23 @@ function mixExploration(
 }
 
 /**
- * Run the 5 Draw CFR self-play training loop.
- * Pure self-play — both players use the CFR strategy, converging to Nash.
+ * Run the 5 Draw CFR training loop.
+ *
+ * When mixedRatio > 0, a fraction of iterations use heuristic opponents
+ * (passive, balanced, aggressive, smart, random) instead of self-play.
+ * This teaches the CFR strategy to exploit non-equilibrium play — e.g.
+ * passive players who always pass, forcing CFR into the last-caller seat.
+ *
+ * In mixed iterations, the heuristic opponent plays P1 (opener) and
+ * the CFR strategy is always the traverser (P2 / dealer), since the
+ * dealer position is what we're training for production use.
  */
 export function trainFiveDrawCFR(config: FiveDrawTrainingConfig): FiveDrawTrainingResult {
   const {
     iterations,
     progressInterval,
     checkpointInterval,
+    mixedRatio = 0,
     onCheckpoint,
     onProgress,
   } = config;
@@ -102,13 +118,23 @@ export function trainFiveDrawCFR(config: FiveDrawTrainingConfig): FiveDrawTraini
   let windowGames = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
-    // Alternating updates: update player 0 on even iters, player 1 on odd
-    const traverser: 0 | 1 = (iter % 2) as 0 | 1;
+    const useMixed = mixedRatio > 0 && Math.random() < mixedRatio;
 
-    const result = runFiveDrawTrainingGame(cfrEngine, iter, traverser);
+    let result: FiveDrawGameResult;
 
-    // Update regrets for the traverser only
-    updateRegrets(cfrEngine, result.decisions, result.winner, traverser);
+    if (useMixed) {
+      // Mixed iteration: heuristic opponent as P1, CFR as P2 (dealer)
+      const opponent = pickHeuristicOpponent();
+      result = runFiveDrawMixedGame(cfrEngine, iter, opponent);
+      // Only update P2 (CFR / dealer) regrets
+      updateRegrets(cfrEngine, result.decisions, result.winner, 1);
+    } else {
+      // Self-play iteration: alternating updates for Nash convergence
+      const traverser: 0 | 1 = (iter % 2) as 0 | 1;
+      result = runFiveDrawTrainingGame(cfrEngine, iter, traverser);
+      updateRegrets(cfrEngine, result.decisions, result.winner, traverser);
+    }
+
     cfrEngine.incrementIterations();
 
     if (result.winner === 0) {
@@ -171,6 +197,7 @@ export function resumeFiveDrawTraining(
     onProgress,
   } = config;
 
+  const mixedRatio = config.mixedRatio ?? 0;
   const startTime = performance.now();
   const startIter = existingEngine.iterations;
   let p1Wins = 0;
@@ -181,10 +208,20 @@ export function resumeFiveDrawTraining(
 
   for (let i = 0; i < additionalIterations; i++) {
     const globalIter = startIter + i;
-    const traverser: 0 | 1 = (globalIter % 2) as 0 | 1;
+    const useMixed = mixedRatio > 0 && Math.random() < mixedRatio;
 
-    const result = runFiveDrawTrainingGame(existingEngine, globalIter, traverser);
-    updateRegrets(existingEngine, result.decisions, result.winner, traverser);
+    let result: FiveDrawGameResult;
+
+    if (useMixed) {
+      const opponent = pickHeuristicOpponent();
+      result = runFiveDrawMixedGame(existingEngine, globalIter, opponent);
+      updateRegrets(existingEngine, result.decisions, result.winner, 1);
+    } else {
+      const traverser: 0 | 1 = (globalIter % 2) as 0 | 1;
+      result = runFiveDrawTrainingGame(existingEngine, globalIter, traverser);
+      updateRegrets(existingEngine, result.decisions, result.winner, traverser);
+    }
+
     existingEngine.incrementIterations();
 
     if (result.winner === 0) {
@@ -340,6 +377,116 @@ function runFiveDrawTrainingGame(
 
   const handExists = HandChecker.exists(allCards, currentHand);
   // Last caller wins if hand exists; passer wins if it doesn't
+  const winner: 0 | 1 = handExists ? lastCaller : (lastCaller === 0 ? 1 : 0);
+
+  return { winner, decisions };
+}
+
+/**
+ * Run a single 5 Draw game: heuristic opponent as P1 (opener), CFR as P2 (dealer).
+ *
+ * Only CFR decisions (P2) are recorded for regret updates. The heuristic
+ * opponent's decisions are not tracked since we don't update their strategy.
+ */
+function runFiveDrawMixedGame(
+  cfrEngine: CFREngine,
+  iteration: number,
+  opponentFn: HeuristicPlayerFn,
+): FiveDrawGameResult {
+  const deck = shuffleDeck(buildDeck());
+  const p1Cards = deck.slice(0, 5); // heuristic opponent
+  const p2Cards = deck.slice(5, 10); // CFR dealer
+  const allCards = [...p1Cards, ...p2Cards];
+  const cards: [Card[], Card[]] = [p1Cards, p2Cards];
+
+  let currentHand: HandCall | null = null;
+  let lastCaller: 0 | 1 = 0;
+  let currentPlayer: 0 | 1 = 0; // P1 (heuristic) opens
+  let turnCount = 0;
+  const decisions: DecisionRecord[] = [];
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    if (currentPlayer === 0) {
+      // Heuristic opponent's turn — no CFR decision recorded
+      const decision = opponentFn(p1Cards, currentHand, turnCount);
+
+      if (decision.action === 'pass') {
+        break;
+      }
+
+      if (decision.hand && (!currentHand || isHigherHand(decision.hand, currentHand))) {
+        currentHand = decision.hand;
+        lastCaller = 0;
+      } else {
+        // Invalid or no hand — treat as pass
+        break;
+      }
+    } else {
+      // CFR player's turn (P2 / dealer)
+      const myCards = cards[1]!;
+      const legalActions = getFiveDrawLegalActions(currentHand);
+      const infoSetKey = getFiveDrawInfoSetKey(myCards, currentHand, turnCount, false);
+
+      const node = cfrEngine.getNode(infoSetKey, legalActions as unknown as import('./infoSet.js').AbstractAction[]);
+      const baseStrategy = cfrEngine.getStrategy(node, legalActions as unknown as import('./infoSet.js').AbstractAction[]);
+
+      const epsilon = Math.max(0.05, 0.4 / Math.sqrt(1 + iteration / 1000));
+      const samplingStrategy = mixExploration(baseStrategy, legalActions, epsilon);
+
+      const weight = Math.max(1, iteration);
+      cfrEngine.accumulateStrategy(
+        infoSetKey,
+        legalActions as unknown as import('./infoSet.js').AbstractAction[],
+        baseStrategy,
+        weight,
+      );
+
+      // Sample action
+      let chosenAction: FiveDrawAction = legalActions[0]!;
+      const r = Math.random();
+      let cumulative = 0;
+      for (const a of legalActions) {
+        cumulative += samplingStrategy[a] ?? 0;
+        if (r <= cumulative) {
+          chosenAction = a;
+          break;
+        }
+      }
+
+      decisions.push({
+        player: 1,
+        infoSetKey,
+        legalActions,
+        strategy: samplingStrategy,
+        chosenAction,
+      });
+
+      const concrete = mapFiveDrawAction(chosenAction, currentHand, myCards);
+
+      if (concrete.action === 'pass') {
+        break;
+      }
+
+      if (concrete.hand) {
+        if (currentHand && !isHigherHand(concrete.hand, currentHand)) {
+          break;
+        }
+        currentHand = concrete.hand;
+        lastCaller = 1;
+      } else {
+        break;
+      }
+    }
+
+    turnCount++;
+    currentPlayer = currentPlayer === 0 ? 1 : 0;
+  }
+
+  if (!currentHand) {
+    return { winner: 1, decisions };
+  }
+
+  const handExists = HandChecker.exists(allCards, currentHand);
   const winner: 0 | 1 = handExists ? lastCaller : (lastCaller === 0 ? 1 : 0);
 
   return { winner, decisions };
