@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { signToken } from './jwt.js';
+import { signToken, verifyToken } from './jwt.js';
 import { AUTH_COOKIE_NAME } from './middleware.js';
 import { cookieOptions } from './routes.js';
 import { query } from '../db/index.js';
@@ -10,6 +10,34 @@ import logger from '../logger.js';
 import { track } from '../analytics/track.js';
 
 const router = Router();
+
+/** Custom URL scheme for native iOS app deep links. */
+const NATIVE_URL_SCHEME = 'bullem';
+
+/**
+ * Build the redirect URL after successful OAuth for the given platform.
+ * For Capacitor native apps, redirect to the custom URL scheme with the JWT
+ * token so the native shell can set the cookie in WKWebView.
+ * For web, redirect to the home page (cookie is already set on the response).
+ */
+function buildPostAuthRedirect(token: string, source: string | undefined): string {
+  if (source === 'capacitor') {
+    return `${NATIVE_URL_SCHEME}://auth-callback?token=${encodeURIComponent(token)}`;
+  }
+  return '/';
+}
+
+/**
+ * Build the redirect URL after a failed OAuth attempt.
+ * For Capacitor native apps, redirect to the custom URL scheme with an error.
+ * For web, redirect to the login page with an error query param.
+ */
+function buildPostAuthErrorRedirect(source: string | undefined): string {
+  if (source === 'capacitor') {
+    return `${NATIVE_URL_SCHEME}://auth-callback?error=oauth_failed`;
+  }
+  return '/login?error=oauth_failed';
+}
 
 /** Build the Google OAuth redirect URI based on environment. */
 function getRedirectUri(): string {
@@ -32,6 +60,7 @@ router.get('/google', (req, res) => {
     return;
   }
 
+  const source = req.query.source as string | undefined;
   const state = crypto.randomBytes(32).toString('hex');
 
   res.cookie('oauth_state', state, {
@@ -41,6 +70,18 @@ router.get('/google', (req, res) => {
     maxAge: 10 * 60 * 1000, // 10 minutes
     path: '/',
   });
+
+  // Persist the request source (e.g. 'capacitor') so the callback knows
+  // whether to redirect back via custom URL scheme or normal web redirect.
+  if (source === 'capacitor') {
+    res.cookie('oauth_source', 'capacitor', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 10 * 60 * 1000,
+      path: '/',
+    });
+  }
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -74,20 +115,22 @@ router.get('/google/callback', async (req, res) => {
   try {
     const { code, state } = req.query as { code?: string; state?: string };
     const cookieState = req.cookies?.oauth_state as string | undefined;
+    const oauthSource = req.cookies?.oauth_source as string | undefined;
 
-    // Always clear the state cookie
+    // Always clear the state and source cookies
     res.clearCookie('oauth_state', { path: '/' });
+    res.clearCookie('oauth_source', { path: '/' });
 
     // Verify state
     if (!state || !cookieState || state !== cookieState) {
       logger.warn('OAuth state mismatch');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
     if (!code) {
       logger.warn('OAuth callback missing code');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
@@ -95,7 +138,7 @@ router.get('/google/callback', async (req, res) => {
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
       logger.error('Google OAuth credentials not configured');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
@@ -114,7 +157,7 @@ router.get('/google/callback', async (req, res) => {
 
     if (!tokenRes.ok) {
       logger.error({ status: tokenRes.status }, 'Google token exchange failed');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
@@ -127,7 +170,7 @@ router.get('/google/callback', async (req, res) => {
 
     if (!profileRes.ok) {
       logger.error({ status: profileRes.status }, 'Google userinfo fetch failed');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
@@ -136,13 +179,13 @@ router.get('/google/callback', async (req, res) => {
 
     if (!email || !googleId) {
       logger.error('Google profile missing email or id');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
     if (!pool) {
       logger.error('Database unavailable during OAuth');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
       return;
     }
 
@@ -159,7 +202,7 @@ router.get('/google/callback', async (req, res) => {
       track('player:login', { authMethod: 'google' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-      res.redirect('/');
+      res.redirect(buildPostAuthRedirect(token, oauthSource));
       return;
     }
 
@@ -179,7 +222,7 @@ router.get('/google/callback', async (req, res) => {
       track('player:login', { authMethod: 'google' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-      res.redirect('/');
+      res.redirect(buildPostAuthRedirect(token, oauthSource));
       return;
     }
 
@@ -219,7 +262,7 @@ router.get('/google/callback', async (req, res) => {
           track('player:registered', { authMethod: 'google' }, row.id);
           const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-          res.redirect('/');
+          res.redirect(buildPostAuthRedirect(token, oauthSource));
           inserted = true;
           break;
         }
@@ -240,11 +283,11 @@ router.get('/google/callback', async (req, res) => {
 
     if (!inserted) {
       logger.error({ googleId, email }, 'Failed to create OAuth user after retries');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(oauthSource));
     }
   } catch (err) {
     logger.error({ err }, 'Google OAuth callback failed');
-    res.redirect('/login?error=oauth_failed');
+    res.redirect(buildPostAuthErrorRedirect(undefined));
   }
 });
 
@@ -315,6 +358,7 @@ router.get('/apple', (req, res) => {
     return;
   }
 
+  const source = req.query.source as string | undefined;
   const state = crypto.randomBytes(32).toString('hex');
 
   // Apple sends the callback as a cross-site POST, so sameSite must be 'none'
@@ -326,6 +370,17 @@ router.get('/apple', (req, res) => {
     maxAge: 10 * 60 * 1000, // 10 minutes
     path: '/',
   });
+
+  // Persist the request source so the callback can redirect to the native app.
+  if (source === 'capacitor') {
+    res.cookie('apple_oauth_source', 'capacitor', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+      maxAge: 10 * 60 * 1000,
+      path: '/',
+    });
+  }
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -357,20 +412,22 @@ router.post('/apple/callback', async (req, res) => {
       user?: string; // JSON string with name, only on first authorization
     };
     const cookieState = req.cookies?.apple_oauth_state as string | undefined;
+    const appleOauthSource = req.cookies?.apple_oauth_source as string | undefined;
 
-    // Always clear the state cookie
+    // Always clear the state and source cookies
     res.clearCookie('apple_oauth_state', { path: '/' });
+    res.clearCookie('apple_oauth_source', { path: '/' });
 
     // Verify state
     if (!state || !cookieState || state !== cookieState) {
       logger.warn('Apple OAuth state mismatch');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
     if (!code) {
       logger.warn('Apple OAuth callback missing code');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -380,7 +437,7 @@ router.post('/apple/callback', async (req, res) => {
     const applePrivateKey = process.env.APPLE_PRIVATE_KEY;
     if (!clientId || !appleTeamId || !appleKeyId || !applePrivateKey) {
       logger.error('Apple OAuth credentials not configured');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -401,7 +458,7 @@ router.post('/apple/callback', async (req, res) => {
 
     if (!tokenRes.ok) {
       logger.error({ status: tokenRes.status }, 'Apple token exchange failed');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -411,7 +468,7 @@ router.post('/apple/callback', async (req, res) => {
     const idTokenPayload = decodeJwtPayload(tokenData.id_token);
     if (!idTokenPayload) {
       logger.error('Failed to decode Apple id_token');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -420,7 +477,7 @@ router.post('/apple/callback', async (req, res) => {
 
     if (!appleId) {
       logger.error('Apple id_token missing sub claim');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -440,7 +497,7 @@ router.post('/apple/callback', async (req, res) => {
 
     if (!pool) {
       logger.error('Database unavailable during Apple OAuth');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
       return;
     }
 
@@ -457,7 +514,7 @@ router.post('/apple/callback', async (req, res) => {
       track('player:login', { authMethod: 'apple' }, row.id);
       const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
       res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-      res.redirect('/');
+      res.redirect(buildPostAuthRedirect(token, appleOauthSource));
       return;
     }
 
@@ -478,7 +535,7 @@ router.post('/apple/callback', async (req, res) => {
         track('player:login', { authMethod: 'apple' }, row.id);
         const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
         res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-        res.redirect('/');
+        res.redirect(buildPostAuthRedirect(token, appleOauthSource));
         return;
       }
     }
@@ -520,7 +577,7 @@ router.post('/apple/callback', async (req, res) => {
           track('player:registered', { authMethod: 'apple' }, row.id);
           const token = signToken({ userId: row.id, username: row.username, role: row.role as 'user' | 'admin' });
           res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
-          res.redirect('/');
+          res.redirect(buildPostAuthRedirect(token, appleOauthSource));
           inserted = true;
           break;
         }
@@ -540,12 +597,35 @@ router.post('/apple/callback', async (req, res) => {
 
     if (!inserted) {
       logger.error({ appleId, email }, 'Failed to create Apple OAuth user after retries');
-      res.redirect('/login?error=oauth_failed');
+      res.redirect(buildPostAuthErrorRedirect(appleOauthSource));
     }
   } catch (err) {
     logger.error({ err }, 'Apple OAuth callback failed');
-    res.redirect('/login?error=oauth_failed');
+    res.redirect(buildPostAuthErrorRedirect(undefined));
   }
+});
+
+// ── POST /auth/token-exchange ─────────────────────────────────────────────
+// Used by the Capacitor native app to set the httpOnly auth cookie in WKWebView
+// after receiving a JWT via the bullem:// deep link from an OAuth callback.
+
+router.post('/token-exchange', (req, res) => {
+  const { token } = req.body as { token?: string };
+
+  if (!token || typeof token !== 'string') {
+    res.status(400).json({ error: 'Missing token' });
+    return;
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  // Set the auth cookie in WKWebView's cookie jar (same domain, so it works)
+  res.cookie(AUTH_COOKIE_NAME, token, cookieOptions());
+  res.json({ ok: true });
 });
 
 export { router as oauthRouter };

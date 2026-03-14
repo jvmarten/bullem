@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import type { User, PublicProfile, AvatarId, AvatarBgColor } from '@bull-em/shared';
 import { socket } from '../socket.js';
+import { App as CapacitorApp } from '@capacitor/app';
 
 export interface AuthContextValue {
   user: User | null;
@@ -46,10 +47,20 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return data;
 }
 
+/** Detect whether we're running inside a Capacitor native shell. */
+function isCapacitorNative(): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cap = (window as any).Capacitor;
+  return cap != null
+    && typeof cap.isNativePlatform === 'function'
+    && cap.isNativePlatform() === true;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const handlingOAuthRef = useRef(false);
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -70,6 +81,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for existing session on mount
   useEffect(() => {
     refreshProfile().finally(() => setLoading(false));
+  }, [refreshProfile]);
+
+  // Handle OAuth deep links from the native app (bullem://auth-callback?token=<jwt>).
+  // After OAuth completes in Safari, the server redirects to this custom URL scheme
+  // which re-opens the native app. We extract the token, exchange it for an httpOnly
+  // cookie via the server, then refresh the auth state.
+  useEffect(() => {
+    if (!isCapacitorNative()) return;
+
+    const listener = CapacitorApp.addListener('appUrlOpen', (event: { url: string }) => {
+      const url = event.url;
+      if (!url.startsWith('bullem://auth-callback')) return;
+      if (handlingOAuthRef.current) return;
+      handlingOAuthRef.current = true;
+
+      const params = new URL(url.replace('bullem://', 'https://placeholder/')).searchParams;
+      const token = params.get('token');
+      const error = params.get('error');
+
+      if (error || !token) {
+        // Navigate to login with error — use history.replaceState to avoid
+        // pushing onto the router while inside an event listener.
+        window.location.href = '/login?error=oauth_failed';
+        handlingOAuthRef.current = false;
+        return;
+      }
+
+      // Exchange the token for an httpOnly cookie in WKWebView's cookie jar
+      fetch(`${API_BASE}/auth/token-exchange`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Token exchange failed');
+          await refreshProfile();
+          socket.disconnect().connect();
+          window.location.href = '/';
+        })
+        .catch(() => {
+          window.location.href = '/login?error=oauth_failed';
+        })
+        .finally(() => {
+          handlingOAuthRef.current = false;
+        });
+    });
+
+    return () => {
+      listener.then(h => h.remove());
+    };
   }, [refreshProfile]);
 
   const login = useCallback(async (identifier: string, password: string) => {
