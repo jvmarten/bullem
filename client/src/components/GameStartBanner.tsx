@@ -128,7 +128,7 @@ export function GameStartBanner() {
   const progress = countdown / REDIRECT_SECONDS;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down">
+    <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down pt-[var(--safe-top)] bg-[rgba(0,0,0,0.85)]">
       {/* Progress bar */}
       <div className="h-1 bg-[rgba(255,255,255,0.1)]">
         <div
@@ -309,7 +309,7 @@ export function ResumeMatchBanner(): React.ReactElement | null {
   // Brief "match ended" notification
   if (showEnded) {
     return (
-      <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down">
+      <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down pt-[var(--safe-top)] bg-[rgba(0,0,0,0.85)]">
         <div className="bg-[rgba(0,0,0,0.85)] backdrop-blur-sm border-b border-[var(--gold-dim)] px-4 py-3">
           <div className="max-w-lg mx-auto text-center">
             <p className="text-sm text-[var(--gold-dim)]">Your match has ended</p>
@@ -322,7 +322,7 @@ export function ResumeMatchBanner(): React.ReactElement | null {
   if (!shouldShow) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down">
+    <div className="fixed top-0 left-0 right-0 z-[99] animate-slide-down pt-[var(--safe-top)] bg-[rgba(0,0,0,0.85)]">
       <div className="bg-[rgba(0,0,0,0.85)] backdrop-blur-sm border-b border-[var(--gold)] px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           {/* Pulsing dot — green when reconnected, amber when reconnecting */}

@@ -55,7 +55,7 @@ export function ToastContainer() {
     <div
       aria-live="polite"
       aria-label="Notifications"
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none"
+      className="fixed top-[calc(1rem+var(--safe-top))] left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none"
     >
       {toasts.map(toast => (
         <div key={toast.id} className="pointer-events-auto">
