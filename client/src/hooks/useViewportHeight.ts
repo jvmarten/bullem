@@ -49,6 +49,27 @@ export function useViewportHeight(): void {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
     if (!meta) return;
 
+    // In a Capacitor native shell, WKWebView needs viewport-fit=cover always
+    // for safe area insets to work. The Safari-specific portrait bug that
+    // motivated removing it in portrait doesn't apply to WKWebView.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cap = (window as any).Capacitor;
+    const isCapacitorNative = cap != null
+      && typeof cap.isNativePlatform === 'function'
+      && cap.isNativePlatform() === true;
+
+    if (isCapacitorNative) {
+      const content = meta.getAttribute('content') ?? '';
+      if (!content.includes('viewport-fit=cover')) {
+        meta.setAttribute('content', content + ', viewport-fit=cover');
+      }
+      // Add a CSS class so styles can target native safe area padding
+      document.documentElement.classList.add('capacitor-native');
+      forceLayoutResync();
+      // No orientation toggling needed — always covered
+      return;
+    }
+
     const mql = window.matchMedia(LANDSCAPE_MQ);
 
     function update(isLandscape: boolean) {

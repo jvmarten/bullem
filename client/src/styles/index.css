@@ -109,6 +109,12 @@ body {
      active in landscape, so the browser handles portrait safe areas natively. */
 }
 
+/* Capacitor native builds always have viewport-fit=cover, so the app extends
+   behind the status bar. Apply top safe area padding so content isn't hidden. */
+html.capacitor-native .felt-bg {
+  padding-top: var(--safe-top);
+}
+
 /* ── Layout shell — fixed viewport, inner scroll only ─ */
 .felt-bg > header,
 .felt-bg > .game-header-overlay {
