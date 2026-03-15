@@ -385,6 +385,11 @@ export function GamePage() {
   const handleCardTap = useCallback((card: Card) => {
     if (!quickDrawEnabled || !canRaise || !gameState) return;
     play('uiClick');
+    if (quickDrawOpen) {
+      setQuickDrawOpen(false);
+      setTappedCard(null);
+      return;
+    }
     const suggestions = getQuickDrawSuggestions(gameState.myCards, gameState.currentHand, card);
     if (suggestions.length === 0) {
       setHandSelectorOpen(true);
@@ -393,7 +398,7 @@ export function GamePage() {
       setTappedCard(card);
       setQuickDrawOpen(true);
     }
-  }, [quickDrawEnabled, canRaise, play, gameState]);
+  }, [quickDrawEnabled, canRaise, play, gameState, quickDrawOpen]);
 
   const handleQuickDrawSelect = useCallback((suggestion: QuickDrawSuggestion) => {
     // Sound is played by useGameSounds when the turn history updates
