@@ -2529,6 +2529,7 @@ html.capacitor-native .felt-bg {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   flex-shrink: 0;
   transition: box-shadow 0.3s ease;
+  overflow: hidden;
 }
 
 .rt-avatar--me {

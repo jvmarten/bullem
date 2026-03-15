@@ -200,7 +200,7 @@ export function GameStatsDisplay({ stats, players, winnerId }: Props) {
                   <Tooltip
                     contentStyle={{ background: '#1a1510', border: '1px solid rgba(212,168,67,0.3)', borderRadius: 8, fontSize: 12 }}
                     itemStyle={{ color: '#e8e0d4' }}
-                    formatter={(value: unknown, name: unknown) => [`${typeof value === 'number' ? value : 0}%`, name === 'bullAcc' ? 'Bull Accuracy' : 'True Accuracy']}
+                    formatter={(value: unknown, name: unknown) => [`${typeof value === 'number' ? value : 0}%`, String(name ?? '')]}
                     labelFormatter={(_label, payload) => {
                       if (payload && payload.length > 0) {
                         const first = payload[0];
@@ -243,8 +243,6 @@ export function GameStatsDisplay({ stats, players, winnerId }: Props) {
                     stroke="none"
                     animationDuration={800}
                     animationBegin={300}
-                    label={({ name, pct }: { name?: string; pct?: number }) => `${name ?? ''} ${pct ?? 0}%`}
-                    labelLine={false}
                   >
                     {callDistData.map((_entry, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? '#d4a843'} />

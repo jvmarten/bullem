@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BOT_AVATAR_MAP } from '@bull-em/shared';
 import type { AvatarId } from '@bull-em/shared';
 
@@ -40,19 +41,22 @@ interface PlayerAvatarProps {
  * Use inside a container that provides sizing and rounding (e.g. `.avatar` class).
  */
 export function PlayerAvatarContent({ name, avatar, photoUrl, isBot }: PlayerAvatarProps): React.JSX.Element {
+  const [imgFailed, setImgFailed] = useState(false);
+
   // Bots always use their emoji or gear icon
   if (isBot) {
     return <>{BOT_AVATAR_MAP.get(name) ?? '\u2699'}</>;
   }
 
   // Profile photo takes priority over emoji avatar
-  if (photoUrl) {
+  if (photoUrl && !imgFailed) {
     return (
       <img
         src={photoUrl}
         alt={name}
         className="absolute inset-0 w-full h-full object-cover rounded-full"
         draggable={false}
+        onError={() => setImgFailed(true)}
       />
     );
   }

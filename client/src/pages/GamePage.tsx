@@ -253,8 +253,14 @@ export function GamePage() {
       return () => clearTimeout(timeout);
     }
 
+    // Only attempt rejoin if we have a reconnect token for this room — that
+    // proves we were a player in this game. Without it we may be a spectator
+    // whose SPECTATOR_ROOM_KEY was cleared (e.g., by leaveRoom()), so falling
+    // through to joinRoom() would fail with "Game already in progress".
+    const storedRoomCode = sessionStorage.getItem('bull-em-room-code');
+    const storedToken = sessionStorage.getItem('bull-em-reconnect-token');
     const storedName = sessionStorage.getItem('bull-em-player-name') || localStorage.getItem('bull-em-player-name');
-    if (!storedName) {
+    if (!storedName || !storedToken || storedRoomCode !== roomCode) {
       navigate('/');
       return;
     }
