@@ -265,8 +265,6 @@ function HandDistTab({ pieData, totalCalls }: { pieData: { name: string; value: 
               outerRadius={75}
               dataKey="value"
               stroke="none"
-              label={({ name, pct }: { name?: string; pct?: number }) => `${name ?? ''} ${pct ?? 0}%`}
-              labelLine={false}
             >
               {pieData.map((_entry, i) => (
                 <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? '#d4a843'} />

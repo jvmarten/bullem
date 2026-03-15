@@ -269,6 +269,15 @@ export function ReplayPage() {
       <div className="flex flex-col gap-3 pt-4 pb-20 max-w-lg mx-auto px-3">
         {/* Header */}
         <div className="text-center">
+          <button
+            onClick={() => navigate(-1)}
+            className="mb-2 inline-flex items-center gap-1 text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors min-h-[44px]"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Back
+          </button>
           <h2 className="font-display text-xl font-bold text-[var(--gold)]">
             Game Replay
           </h2>
