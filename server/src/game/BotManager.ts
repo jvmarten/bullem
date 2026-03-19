@@ -43,6 +43,9 @@ export class BotManager {
   private botUserIds = new Map<string, string>();
   /** Set of bot IDs that use CFR strategy instead of heuristic logic. */
   private cfrBotIds = new Set<string>();
+  /** Per-room set of player IDs penalized in the last round. Used by CFR bots
+   *  for round-level memory (adjusting strategy after a loss). */
+  private lastRoundPenalized = new Map<string, Set<string>>();
 
   /** Attach a RoomManager reference for Redis persistence after bot actions.
    *  Must be called before any bot actions are processed. */
@@ -342,7 +345,11 @@ export class BotManager {
     const profileConfig = this.botProfileConfigs.get(botId);
     const isCFR = this.cfrBotIds.has(botId);
     const memoryScope = room.currentGameId ?? room.roomCode;
-    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, memoryScope, profileConfig, isCFR, room.settings);
+    // CFR bots need to know if they were penalized last round for round-level memory
+    const wasPenalizedLastRound = isCFR
+      ? (this.lastRoundPenalized.get(room.roomCode)?.has(botId) ?? false)
+      : false;
+    const decision = BotPlayer.decideAction(state, botId, botPlayer.cards, effectiveDifficulty, visibleCards, memoryScope, profileConfig, isCFR, room.settings, wasPenalizedLastRound);
 
     let result: TurnResult;
     switch (decision.action) {
@@ -408,6 +415,11 @@ export class BotManager {
         break;
 
       case 'resolve': {
+        // Track who was penalized for CFR round-level memory
+        this.lastRoundPenalized.set(
+          room.roomCode,
+          new Set(result.result.penalizedPlayerIds),
+        );
         beginRoundResultPhase(io, room, this, result.result, this.roomManager);
         break;
       }

@@ -83,16 +83,27 @@ function heuristicFallback(legalActions: AbstractAction[]): AbstractAction {
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
+ * Small epsilon-noise mixed into the strategy at eval time.
+ * Prevents humans from building a perfect model of the bot's tendencies.
+ * Even if they figure out the rough strategy, the noise makes specific
+ * predictions unreliable across many games.
+ */
+const EVAL_EPSILON = 0.03;
+
+/**
  * Make a CFR-based decision for a bot.
  *
  * Looks up the trained strategy for the current game state and samples
- * an action from the probability distribution. Falls back to a heuristic
- * when the info set isn't in the trained strategy.
+ * an action from the probability distribution. Mixes in small epsilon-noise
+ * (3%) to prevent predictability across many games. Falls back to a
+ * heuristic when the info set isn't in the trained strategy.
  *
  * @param state - The game state as seen by this bot
  * @param botCards - The bot's actual cards
  * @param totalCards - Total cards across all active players
  * @param activePlayers - Number of non-eliminated players
+ * @param botPlayerId - Bot's player ID (for opponent aggression tracking)
+ * @param wasPenalizedLastRound - Whether this bot lost the previous round
  * @returns A BotAction, or null if no legal actions (shouldn't happen in practice)
  */
 export function decideCFR(
@@ -102,6 +113,8 @@ export function decideCFR(
   activePlayers: number,
   jokerCount: JokerCount = 0,
   lastChanceMode: LastChanceMode = 'classic',
+  botPlayerId: string = '',
+  wasPenalizedLastRound: boolean = false,
 ): BotAction | null {
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
@@ -112,14 +125,23 @@ export function decideCFR(
   let chosenAction: AbstractAction;
 
   if (strategyMap) {
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount, lastChanceMode);
+    const infoSetKey = getInfoSetKey(
+      state, botCards, totalCards, activePlayers,
+      jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+    );
     const strategyEntry = strategyMap[infoSetKey];
 
     if (strategyEntry) {
-      // Build probability distribution over legal actions
+      // Build probability distribution over legal actions with epsilon-noise
+      const uniform = 1 / legalActions.length;
       let totalProb = 0;
+      const probs = new Map<AbstractAction, number>();
       for (const action of legalActions) {
-        totalProb += strategyEntry[action] ?? 0;
+        const base = strategyEntry[action] ?? 0;
+        // Mix in epsilon-noise: (1-ε)*strategy + ε*uniform
+        const mixed = (1 - EVAL_EPSILON) * base + EVAL_EPSILON * uniform;
+        probs.set(action, mixed);
+        totalProb += mixed;
       }
 
       if (totalProb > 0) {
@@ -127,7 +149,7 @@ export function decideCFR(
         let cumulative = 0;
         chosenAction = legalActions[legalActions.length - 1]!;
         for (const action of legalActions) {
-          cumulative += strategyEntry[action] ?? 0;
+          cumulative += probs.get(action) ?? 0;
           if (r <= cumulative) {
             chosenAction = action;
             break;

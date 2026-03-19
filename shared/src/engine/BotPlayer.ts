@@ -360,6 +360,7 @@ export class BotPlayer {
     profileConfig?: BotProfileConfig,
     isCFR?: boolean,
     gameSettings?: { jokerCount?: JokerCount; lastChanceMode?: LastChanceMode },
+    wasPenalizedLastRound?: boolean,
   ): BotAction {
     if (difficulty === BotDifficulty.IMPOSSIBLE && allCards) {
       return this.decideImpossible(state, botId, botCards, allCards);
@@ -375,6 +376,8 @@ export class BotPlayer {
         state, botCards, totalCards, activePlayers,
         (gameSettings?.jokerCount ?? 0) as JokerCount,
         gameSettings?.lastChanceMode ?? 'classic',
+        botId,
+        wasPenalizedLastRound ?? false,
       );
       if (cfrAction) return cfrAction;
       // Fall through to heuristic if CFR returns null (shouldn't happen)

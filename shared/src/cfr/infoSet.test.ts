@@ -103,7 +103,7 @@ describe('getInfoSetKey', () => {
     const key = getInfoSetKey(state, [card('A', 'spades')], 4, 2);
     expect(key).toContain('|');
     const parts = key.split('|');
-    expect(parts.length).toBeGreaterThanOrEqual(9);
+    expect(parts.length).toBeGreaterThanOrEqual(11);
   });
 
   it('starts with the round phase first character', () => {
@@ -133,9 +133,9 @@ describe('getInfoSetKey', () => {
       card('A', 'spades'), card('K', 'spades'), card('Q', 'spades'),
       card('J', 'spades'), card('10', 'spades'),
     ], 10, 2);
-    expect(key1.split('|')[2]).toBe('n1');
-    expect(key2.split('|')[2]).toBe('nMid');
-    expect(key5.split('|')[2]).toBe('nHi');
+    expect(key1.split('|')[2]).toBe('c1');
+    expect(key2.split('|')[2]).toBe('c2');
+    expect(key5.split('|')[2]).toBe('c5');
   });
 
   it('includes total cards bucket', () => {
@@ -148,7 +148,7 @@ describe('getInfoSetKey', () => {
     expect(keyHi.split('|')[3]).toBe('tHi');
   });
 
-  it('includes hand strength bucket based on cards', () => {
+  it('includes hand strength and high card buckets based on cards', () => {
     const state = makeState();
     // A pair = strong
     const keyStrong = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts')], 4, 2);
@@ -159,6 +159,11 @@ describe('getInfoSetKey', () => {
     expect(keyStrong.split('|')[4]).toBe('strong');
     expect(keyDraw.split('|')[4]).toBe('draw');
     expect(keyWeak.split('|')[4]).toBe('weak');
+    // High card bucket (index 5)
+    expect(keyStrong.split('|')[5]).toBe('hHi'); // Ace = high
+    // Low cards
+    const keyLow = getInfoSetKey(state, [card('3', 'spades'), card('4', 'hearts')], 4, 2);
+    expect(keyLow.split('|')[5]).toBe('hLo');
   });
 
   it('appends 2P refinement suffix for 2-player games with a current hand', () => {
@@ -232,5 +237,6 @@ describe('getInfoSetKey', () => {
     const state = makeState();
     const key = getInfoSetKey(state, [], 0, 2);
     expect(key.split('|')[4]).toBe('x'); // myHandStrengthBucket returns 'x' for empty
+    expect(key.split('|')[5]).toBe('x'); // highCardBucket returns 'x' for empty
   });
 });

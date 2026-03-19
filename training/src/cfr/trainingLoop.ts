@@ -375,11 +375,14 @@ interface TrainingPlayerSetup {
 
 /**
  * Create players for a training game.
- * All player counts use 1 CFR traverser + (n-1) heuristic bot opponents.
- * Training against the bot pool teaches CFR to exploit the opponents it
- * will face in evaluation. For 2P, this produces a best-response strategy
- * that beats heuristic bots, rather than a Nash equilibrium (which only
- * guarantees 50% and can't exploit opponent weaknesses).
+ *
+ * For 2P: Mixed training — 70% heuristic opponents (learn to exploit their
+ * patterns), 30% CFR self-play (converge toward unexploitable baseline).
+ * This produces a strategy that both exploits bots AND resists counter-
+ * exploitation by humans.
+ *
+ * For 3+P: 1 CFR traverser + (n-1) heuristic bot opponents. CFR self-play
+ * doesn't converge to Nash in >2 player games.
  */
 function createTrainingPlayers(
   playerCount: number,
@@ -389,18 +392,25 @@ function createTrainingPlayers(
   const configs: BotConfig[] = [];
   const opponentConfigs = new Map<string, BotProfileConfig>();
 
-  // 1 CFR traverser + (n-1) bot opponents for all player counts
-  configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
-  for (let i = 1; i < playerCount; i++) {
-    const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
-    const botId = `bot-${i}`;
-    configs.push({
-      id: botId,
-      name: `Bot ${i}`,
-      difficulty: BotDifficulty.HARD,
-      profileConfig: profile.config,
-    });
-    opponentConfigs.set(botId, profile.config);
+  if (playerCount === 2 && Math.random() < 0.3) {
+    // 30% self-play for 2P — converges toward Nash equilibrium.
+    // Both players use CFR; only cfr-0's regrets are updated.
+    configs.push({ id: 'cfr-0', name: 'CFR-0', difficulty: BotDifficulty.HARD });
+    configs.push({ id: 'cfr-1', name: 'CFR-1', difficulty: BotDifficulty.HARD });
+  } else {
+    // 70% heuristic opponents for 2P, 100% for multiplayer
+    configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
+    for (let i = 1; i < playerCount; i++) {
+      const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
+      const botId = `bot-${i}`;
+      configs.push({
+        id: botId,
+        name: `Bot ${i}`,
+        difficulty: BotDifficulty.HARD,
+        profileConfig: profile.config,
+      });
+      opponentConfigs.set(botId, profile.config);
+    }
   }
 
   const players = createBotPlayers(configs);
@@ -457,6 +467,10 @@ function runTrainingGame(
       const totalCards = activePlayers.reduce((sum, p) => sum + p.cardCount, 0);
       const activePlayerCount = activePlayers.length;
 
+      // Track whether this player was penalized last round for round-level memory
+      const wasPenalized = currentRoundIndex > 0
+        && roundOutcomes[currentRoundIndex - 1]?.penalizedPlayerIds.includes(currentId);
+
       let action: BotAction;
 
       // Check if this player is a bot opponent (not CFR)
@@ -467,11 +481,11 @@ function runTrainingGame(
           state, player.id, player.cards, BotDifficulty.HARD, undefined, scope, profileConfig,
         );
       } else {
-        // CFR agent — use CFR strategy with exploration
+        // CFR agent (traverser or self-play opponent) — use CFR strategy with exploration
         const legalActions = getLegalAbstractActions(state);
 
         if (legalActions.length > 0) {
-          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode);
+          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode, currentId, wasPenalized);
           const node = cfrEngine.getNode(infoSetKey, legalActions);
           const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 

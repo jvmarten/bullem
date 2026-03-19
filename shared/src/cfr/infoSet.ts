@@ -241,6 +241,35 @@ function myHandStrengthBucket(cards: Card[]): string {
   return 'weak';
 }
 
+function highCardBucket(cards: Card[]): string {
+  if (cards.length === 0) return 'x';
+  let maxVal = 0;
+  for (const c of cards) {
+    const val = RANK_VALUES[c.rank];
+    if (val > maxVal) maxVal = val;
+  }
+  if (maxVal >= 12) return 'hHi';   // Q, K, A
+  if (maxVal >= 8) return 'hMid';   // 8, 9, 10, J
+  return 'hLo';                      // 2-7
+}
+
+function opponentAggressionBucket(
+  turnHistory: { action: string; playerId: string }[],
+  myId: string,
+): string {
+  let oppRaises = 0;
+  let oppChallenges = 0;
+  for (const entry of turnHistory) {
+    if (entry.playerId === myId) continue;
+    if (entry.action === 'call' || entry.action === 'lastChanceRaise') oppRaises++;
+    if (entry.action === 'bull' || entry.action === 'true') oppChallenges++;
+  }
+  const total = oppRaises + oppChallenges;
+  if (total === 0) return 'oX';
+  if (oppRaises > oppChallenges) return 'oAg';
+  return 'oPa';
+}
+
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
 function turnDepthBucket(turnHistory: { action: string }[]): string {
@@ -324,19 +353,30 @@ export function getInfoSetKey(
   activePlayers: number = 2,
   jokerCount: JokerCount = 0,
   lastChanceMode: LastChanceMode = 'classic',
+  myPlayerId: string = '',
+  wasPenalizedLastRound: boolean = false,
 ): string {
   const parts: string[] = [
     state.roundPhase.charAt(0),
     playerCountBucket(activePlayers),
-    myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
+    myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length <= 3 ? 'c34' : 'c5',
     totalCardsBucket(totalCards),
     myHandStrengthBucket(myCards),
+    highCardBucket(myCards),
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
     turnDepthBucket(state.turnHistory),
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
+
+  if (wasPenalizedLastRound) {
+    parts.push('pen');
+  }
+
+  if (activePlayers > 2) {
+    parts.push(opponentAggressionBucket(state.turnHistory, myPlayerId));
+  }
 
   if (activePlayers <= 2 && state.currentHand) {
     parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
