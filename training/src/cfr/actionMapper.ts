@@ -50,10 +50,39 @@ function extractHistoryContext(state: ClientGameState): { mentionedRanks: Set<Ra
   return { mentionedRanks, mentionedSuits };
 }
 
+// ── Plausibility capping ──────────────────────────────────────────────
+
+/**
+ * Minimum total cards needed for each hand type to be plausible as a claim.
+ * Mirrors shared/src/cfr/actionMapper.ts thresholds.
+ */
+const MIN_CARDS_FOR_PLAUSIBLE_CLAIM: Record<number, number> = {
+  [HandType.HIGH_CARD]: 1,
+  [HandType.PAIR]: 3,
+  [HandType.TWO_PAIR]: 8,
+  [HandType.FLUSH]: 10,
+  [HandType.THREE_OF_A_KIND]: 8,
+  [HandType.STRAIGHT]: 12,
+  [HandType.FULL_HOUSE]: 14,
+  [HandType.FOUR_OF_A_KIND]: 18,
+  [HandType.STRAIGHT_FLUSH]: 22,
+  [HandType.ROYAL_FLUSH]: 26,
+};
+
+function maxPlausibleHandType(totalCards: number): HandType {
+  for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
+    if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE_CLAIM[t] ?? 999)) {
+      return t as HandType;
+    }
+  }
+  return HandType.HIGH_CARD;
+}
+
 export function mapAbstractToConcreteAction(
   abstractAction: AbstractAction,
   state: ClientGameState,
   myCards: Card[],
+  totalCards: number = 52,
 ): BotStrategyAction | undefined {
   switch (abstractAction) {
     case AbstractAction.BULL:
@@ -70,7 +99,8 @@ export function mapAbstractToConcreteAction(
     case AbstractAction.TRUTHFUL_HIGH: {
       const tier = abstractAction === AbstractAction.TRUTHFUL_LOW ? 'low'
         : abstractAction === AbstractAction.TRUTHFUL_MID ? 'mid' : 'high';
-      const hand = generateTruthfulHand(tier, state.currentHand, myCards);
+      const maxType = maxPlausibleHandType(totalCards);
+      const hand = generateTruthfulHand(tier, state.currentHand, myCards, maxType);
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -83,7 +113,8 @@ export function mapAbstractToConcreteAction(
       const magnitude = abstractAction === AbstractAction.BLUFF_SMALL ? 'small'
         : abstractAction === AbstractAction.BLUFF_MID ? 'mid' : 'big';
       const context = extractHistoryContext(state);
-      const hand = generateBluffHand(magnitude, state.currentHand, myCards, context);
+      const maxType = maxPlausibleHandType(totalCards);
+      const hand = generateBluffHand(magnitude, state.currentHand, myCards, context, maxType);
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -103,6 +134,7 @@ function generateTruthfulHand(
   tier: 'low' | 'mid' | 'high',
   currentHand: HandCall | null,
   myCards: Card[],
+  maxType: HandType = HandType.ROYAL_FLUSH,
 ): HandCall {
   const candidates: HandCall[] = [];
 
@@ -209,10 +241,11 @@ function generateTruthfulHand(
     }
   }
 
-  // Filter to valid raises
+  // Filter to valid raises within plausibility cap
+  const plausible = candidates.filter(h => h.type <= maxType);
   const valid = currentHand
-    ? candidates.filter(h => isHigherHand(h, currentHand))
-    : candidates;
+    ? plausible.filter(h => isHigherHand(h, currentHand))
+    : plausible;
 
   if (valid.length > 0) {
     valid.sort((a, b) => {
@@ -225,13 +258,11 @@ function generateTruthfulHand(
     return valid[idx]!;
   }
 
-  // Fallback: minimum raise (null only for royal flush — nothing higher exists)
+  // Fallback: minimum raise, capped at plausible types
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
+    if (minRaise && minRaise.type <= maxType) return minRaise;
     if (minRaise) return minRaise;
-    // Royal flush is the highest possible — no valid raise exists.
-    // Return the royal flush itself; the engine will reject it as
-    // "not higher" but this is an unwinnable state anyway.
     return currentHand;
   }
 
@@ -269,6 +300,7 @@ function generateBluffHand(
   currentHand: HandCall | null,
   myCards: Card[],
   historyContext?: { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> },
+  maxType: HandType = HandType.ROYAL_FLUSH,
 ): HandCall {
   const mySuitSet = new Set(myCards.map(c => c.suit));
   const mentionedRanks = historyContext?.mentionedRanks ?? new Set<Rank>();
@@ -341,12 +373,12 @@ function generateBluffHand(
 
   const currentType = currentHand?.type ?? -1;
 
-  // Try progressively from target type down to find a valid bluff
+  // Try progressively from target type, capped at plausible maximum
   const targetOffset = magnitude === 'small' ? 1 : magnitude === 'mid' ? 2 : 3;
-  const startType = Math.min(currentType + targetOffset, HandType.ROYAL_FLUSH);
+  const startType = Math.min(currentType + targetOffset, maxType);
 
-  // Try target type, then scan upward for a valid hand
-  for (let tryType = startType; tryType <= HandType.ROYAL_FLUSH; tryType++) {
+  // Scan from target up to maxType (not beyond — implausible types are banned)
+  for (let tryType = startType; tryType <= maxType; tryType++) {
     if (tryType < HandType.HIGH_CARD) continue;
     const hand = generateBluffOfType(
       tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit,
@@ -356,9 +388,10 @@ function generateBluffHand(
     }
   }
 
-  // Fallback: minimum raise (null only for royal flush)
+  // Fallback: minimum raise, capped at plausible types
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
+    if (minRaise && minRaise.type <= maxType) return minRaise;
     if (minRaise) return minRaise;
     return currentHand;
   }
