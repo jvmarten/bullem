@@ -10,11 +10,12 @@ A multiplayer bluffing card game that combines elements of Liar's Dice with Texa
 
 ## Tech Stack
 
-- **Frontend:** React (web app, mobile-first responsive design, future native wrapper via Capacitor/React Native)
+- **Frontend:** React (web app, mobile-first responsive design, native iOS/Android apps via Capacitor)
 - **Backend:** Node.js with WebSockets (Socket.io) for real-time multiplayer
 - **State Management:** Server-authoritative game state — clients are untrusted rendering layers
 - **Infrastructure:** Fly.io (single region today, multi-region when needed)
-- **Future:** Native iOS/Android apps, Redis for session store + Socket.io adapter, PostgreSQL for persistence
+- **Native Apps:** iOS and Android apps shipped via Capacitor — thin WebView shells loading from `https://bullem.cards`. Server-side changes (bot training, game logic, deployments) take effect immediately without App Store updates
+- **Future:** Redis for session store + Socket.io adapter, PostgreSQL for persistence
 
 ## Engineering Philosophy
 
@@ -43,7 +44,7 @@ A multiplayer bluffing card game that combines elements of Liar's Dice with Texa
    - Assume high-latency, lossy connections — optimistic UI with server reconciliation
    - CSS: `touch-action`, `overscroll-behavior`, no accidental horizontal scroll
    - Test on actual phones, not just DevTools responsive mode
-   - Compatible with future native wrappers (Capacitor/React Native Web)
+   - Compatible with native Capacitor apps (iOS/Android already shipped)
 
 4. **Security Is Not Optional**
    - Server-authoritative: ALL game logic runs server-side, clients only render
@@ -378,7 +379,7 @@ Training runs can take 20-30+ minutes depending on population size and generatio
 9. ~~Replay system and spectator mode~~ ✓
 10. ~~Observability (structured logging, Sentry, Prometheus metrics)~~ ✓
 11. Matchmaking, ranked play, leaderboards
-12. Native mobile apps (Capacitor or React Native wrapper)
+12. ~~Native mobile apps (Capacitor)~~ ✓ (iOS and Android shipped — WebView loading from bullem.cards)
 
 ## Agent PR Policy
 
