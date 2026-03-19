@@ -15,6 +15,27 @@ import { HandChecker } from '../engine/HandChecker.js';
 import { AbstractAction } from './infoSet.js';
 
 /**
+ * Extract ranks and suits mentioned in the turn history.
+ * Used to generate more believable bluffs by "continuing the narrative"
+ * of what other players have claimed.
+ */
+function extractHistoryContext(state: ClientGameState): { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> } {
+  const mentionedRanks = new Set<Rank>();
+  const mentionedSuits = new Set<Suit>();
+  for (const entry of state.turnHistory) {
+    if (!entry.hand) continue;
+    const h = entry.hand;
+    if ('rank' in h && h.rank) mentionedRanks.add(h.rank as Rank);
+    if ('highRank' in h && h.highRank) mentionedRanks.add(h.highRank as Rank);
+    if ('lowRank' in h && h.lowRank) mentionedRanks.add(h.lowRank as Rank);
+    if ('threeRank' in h && h.threeRank) mentionedRanks.add(h.threeRank as Rank);
+    if ('twoRank' in h && h.twoRank) mentionedRanks.add(h.twoRank as Rank);
+    if ('suit' in h && h.suit) mentionedSuits.add(h.suit as Suit);
+  }
+  return { mentionedRanks, mentionedSuits };
+}
+
+/**
  * Convert an abstract action to a concrete BotAction.
  * Raise/bluff actions always produce a valid result — never returns undefined.
  */
@@ -55,7 +76,8 @@ export function mapAbstractToConcreteAction(
     case AbstractAction.BLUFF_BIG: {
       const magnitude = abstractAction === AbstractAction.BLUFF_SMALL ? 'small'
         : abstractAction === AbstractAction.BLUFF_MID ? 'mid' : 'big';
-      const hand = generateBluffHand(magnitude, state.currentHand, myCards);
+      const context = extractHistoryContext(state);
+      const hand = generateBluffHand(magnitude, state.currentHand, myCards, context);
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -214,21 +236,75 @@ function generateBluffHand(
   magnitude: 'small' | 'mid' | 'big',
   currentHand: HandCall | null,
   myCards: Card[],
+  historyContext?: { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> },
 ): HandCall {
-  const myRankSet = new Set(myCards.map(c => c.rank));
   const mySuitSet = new Set(myCards.map(c => c.suit));
+  const mentionedRanks = historyContext?.mentionedRanks ?? new Set<Rank>();
+  const mentionedSuits = historyContext?.mentionedSuits ?? new Set<Suit>();
 
-  const nonHeldRanks = ALL_RANKS.filter(r => !myRankSet.has(r));
-  const bluffRankPool = nonHeldRanks.length > 0 ? nonHeldRanks : ALL_RANKS;
+  // Plausibility-weighted rank selection: mid-high ranks are more believable.
+  // Weights: 2-5 get weight 1, 6-9 get weight 3, 10-A get weight 4.
+  // Ranks mentioned in previous calls get a 2x boost — "continuing the
+  // narrative" of what others claimed makes the bluff more believable.
+  const rankWeights: [Rank, number][] = ALL_RANKS.map(r => {
+    const val = RANK_VALUES[r];
+    let weight: number;
+    if (val <= 5) weight = 1;
+    else if (val <= 9) weight = 3;
+    else weight = 4;
+    // Boost ranks that have been mentioned in the round's call history
+    if (mentionedRanks.has(r)) weight *= 2;
+    return [r, weight];
+  });
+  const totalRankWeight = rankWeights.reduce((s, [, w]) => s + w, 0);
 
-  function pickBluffRank(): Rank {
-    return bluffRankPool[Math.floor(Math.random() * bluffRankPool.length)]!;
+  function pickWeightedRank(): Rank {
+    const roll = Math.random() * totalRankWeight;
+    let cumulative = 0;
+    for (const [rank, weight] of rankWeights) {
+      cumulative += weight;
+      if (roll <= cumulative) return rank;
+    }
+    return rankWeights[rankWeights.length - 1]![0];
   }
 
-  const nonHeldSuits = ALL_SUITS.filter(s => !mySuitSet.has(s));
-  const suitPool = nonHeldSuits.length > 0 ? nonHeldSuits : ALL_SUITS;
+  /** Pick a rank different from `exclude` and at least 2 apart in value. */
+  function pickSpacedRank(exclude: Rank): Rank {
+    const excludeVal = RANK_VALUES[exclude];
+    const spacedWeights = rankWeights.filter(
+      ([r]) => Math.abs(RANK_VALUES[r] - excludeVal) >= 2,
+    );
+    if (spacedWeights.length === 0) {
+      const diff = ALL_RANKS.filter(r => r !== exclude);
+      return diff[Math.floor(Math.random() * diff.length)]!;
+    }
+    const totalW = spacedWeights.reduce((s, [, w]) => s + w, 0);
+    const roll = Math.random() * totalW;
+    let cumulative = 0;
+    for (const [rank, weight] of spacedWeights) {
+      cumulative += weight;
+      if (roll <= cumulative) return rank;
+    }
+    return spacedWeights[spacedWeights.length - 1]![0];
+  }
+
+  // Suit selection: prefer suits mentioned in call history (more believable),
+  // then non-held suits, then any suit.
+  const suitWeights: [Suit, number][] = ALL_SUITS.map(s => {
+    let weight = 1;
+    if (mentionedSuits.has(s)) weight += 3;  // Strong preference for mentioned suits
+    if (!mySuitSet.has(s)) weight += 1;       // Slight preference for non-held
+    return [s, weight];
+  });
+  const totalSuitWeight = suitWeights.reduce((s, [, w]) => s + w, 0);
   function pickBluffSuit(): Suit {
-    return suitPool[Math.floor(Math.random() * suitPool.length)]!;
+    const roll = Math.random() * totalSuitWeight;
+    let cumulative = 0;
+    for (const [suit, weight] of suitWeights) {
+      cumulative += weight;
+      if (roll <= cumulative) return suit;
+    }
+    return suitWeights[suitWeights.length - 1]![0];
   }
 
   const currentType = currentHand?.type ?? -1;
@@ -237,7 +313,9 @@ function generateBluffHand(
 
   for (let tryType = startType; tryType <= HandType.ROYAL_FLUSH; tryType++) {
     if (tryType < HandType.HIGH_CARD) continue;
-    const hand = generateBluffOfType(tryType as HandType, pickBluffRank, pickBluffSuit);
+    const hand = generateBluffOfType(
+      tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit,
+    );
     if (!currentHand || isHigherHand(hand, currentHand)) {
       return hand;
     }
@@ -250,12 +328,13 @@ function generateBluffHand(
     return currentHand;
   }
 
-  return { type: HandType.HIGH_CARD, rank: pickBluffRank() };
+  return { type: HandType.HIGH_CARD, rank: pickWeightedRank() };
 }
 
 function generateBluffOfType(
   type: HandType,
   pickRank: () => Rank,
+  pickSpacedRank: (exclude: Rank) => Rank,
   pickSuit: () => Suit,
 ): HandCall {
   switch (type) {
@@ -266,10 +345,12 @@ function generateBluffOfType(
       return { type: HandType.PAIR, rank: pickRank() };
 
     case HandType.TWO_PAIR: {
-      const high = pickRank();
-      const highIdx = ALL_RANKS.indexOf(high);
-      const low = highIdx > 0 ? ALL_RANKS[highIdx - 1]! : ALL_RANKS[highIdx + 1]!;
-      const [hi, lo] = RANK_VALUES[high] > RANK_VALUES[low] ? [high, low] : [low, high];
+      // Pick two independent ranks with spacing — avoids the adjacent-rank
+      // pattern (e.g. "3s and 2s") that is an instant tell.
+      const first = pickRank();
+      const second = pickSpacedRank(first);
+      const [hi, lo] = RANK_VALUES[first] > RANK_VALUES[second]
+        ? [first, second] : [second, first];
       return { type: HandType.TWO_PAIR, highRank: hi, lowRank: lo };
     }
 
@@ -286,9 +367,9 @@ function generateBluffOfType(
     }
 
     case HandType.FULL_HOUSE: {
+      // Pick two independent ranks with spacing — same rationale as two-pair.
       const threeRank = pickRank();
-      const threeIdx = ALL_RANKS.indexOf(threeRank);
-      const twoRank = threeIdx > 0 ? ALL_RANKS[threeIdx - 1]! : ALL_RANKS[threeIdx + 1]!;
+      const twoRank = pickSpacedRank(threeRank);
       return { type: HandType.FULL_HOUSE, threeRank, twoRank };
     }
 
