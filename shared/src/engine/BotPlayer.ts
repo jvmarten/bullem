@@ -282,14 +282,14 @@ export class BotPlayer {
   // provide contextual adaptation but don't meaningfully differentiate between
   // personalities — hardcoded at their gen50 evolved-optimal values.
   private static readonly CARD_COUNT_SENSITIVITY = 0.05;
-  private static readonly HEADS_UP_AGGRESSION = 0.68;
+  private static readonly HEADS_UP_AGGRESSION = 0.75;      // Increased — humans exploit passive heads-up play
   private static readonly SURVIVAL_PRESSURE = 0.40;
   private static readonly BLUFF_TARGET_SELECTION = 0.46;
-  private static readonly POSITION_AWARENESS = 0.42;
-  private static readonly TRUE_CALL_CONFIDENCE = 1.0;
-  private static readonly COUNTER_BLUFF_RATE = 0.62;
+  private static readonly POSITION_AWARENESS = 0.55;        // Increased — better use of positional info vs humans
+  private static readonly TRUE_CALL_CONFIDENCE = 0.85;      // Reduced — less eager to commit to true, stay skeptical
+  private static readonly COUNTER_BLUFF_RATE = 0.70;        // Increased — raise over suspected bluffs more often
   private static readonly BULL_PHASE_BLUFF_RATE = 0.75;
-  private static readonly OPENING_HAND_TYPE_PREFERENCE = 0.26;
+  private static readonly OPENING_HAND_TYPE_PREFERENCE = 0.20; // Reduced — hide info more by opening with high cards
 
   /**
    * Get truthfulness adjustment for a specific player based on memory.
@@ -303,9 +303,9 @@ export class BotPlayer {
     mem: Map<string, OpponentProfile>,
     callerDesperate?: boolean,
   ): number {
-    if (!playerId) return 1.0;
+    if (!playerId) return 0.75;
     const profile = mem.get(playerId);
-    if (!profile || profile.totalCalls < 2) return 1.0;
+    if (!profile || profile.totalCalls < 1) return 0.75;
 
     const bluffRate = profile.bluffsCaught / profile.totalCalls;
 
@@ -909,8 +909,14 @@ export class BotPlayer {
     const callerDesperate = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
     const callerDesperateFlag = state !== undefined && callerDesperate < 1.0;
     const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
-    const cardPoolScale = Math.min(1.0, totalCards / 12); // Ramp from ~0.17 at 2 cards to 1.0 at 12+
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate * cardPoolScale;
+    // Steeper card pool scaling — with few cards, complex hands are very unlikely.
+    // Humans exploit bots by calling straights/flushes with 4-6 total cards.
+    const cardPoolScale = Math.min(1.0, totalCards / 15); // Ramp from ~0.13 at 2 cards to 1.0 at 15+
+    // Additional skepticism penalty for high hand types with few cards in play
+    const fewCardsSkepticism = totalCards < 8 && currentHand.type >= HandType.FLUSH
+      ? (8 - totalCards) * 0.03 // Up to 0.18 penalty for complex hands with very few cards
+      : 0;
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDesperate * cardPoolScale - fewCardsSkepticism;
 
     // Factor in position: more raises → more likely someone is bluffing.
     // Late position amplifies this — with 4+ raises, the bot has rich info
@@ -924,8 +930,11 @@ export class BotPlayer {
     // has something real — but the LAST raiser is increasingly suspect.
     // With few raises, the caller is more likely truthful. With many, the
     // latest caller may be riding momentum without real cards.
-    const escalationAdj = ctx && ctx.totalRaises >= 3
-      ? (ctx.totalRaises - 2) * 0.05 * (1.0 - cfg.bullThreshold) // Suspicious profiles weigh this more
+    // Increased escalation suspicion: humans exploit bots by making big jumps
+    // (e.g., pair → straight) knowing bots won't penalize enough.
+    // Also trigger at 2+ raises instead of 3+ for earlier detection.
+    const escalationAdj = ctx && ctx.totalRaises >= 2
+      ? (ctx.totalRaises - 1) * 0.07 * (1.0 - cfg.bullThreshold) // Suspicious profiles weigh this more
       : 0;
 
     // Call chain consistency: consistent chains are more believable
@@ -1279,8 +1288,12 @@ export class BotPlayer {
     const callerDespTrust = state ? this.getDesperationTrustFactor(lastCallerId, state) : 1.0;
     const callerDesperateFlag = state !== undefined && callerDespTrust < 1.0;
     const trustFactor = this.getPlayerTrustFactor(lastCallerId, mem, callerDesperateFlag) * cfg.trustMultiplier;
-    const cardPoolScale = Math.min(1.0, totalCards / 12);
-    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust * cardPoolScale;
+    const cardPoolScale = Math.min(1.0, totalCards / 15);
+    // Additional skepticism for complex hands with few cards (same as calling phase)
+    const fewCardsSkepticism = totalCards < 8 && currentHand.type >= HandType.FLUSH
+      ? (8 - totalCards) * 0.03
+      : 0;
+    const truthBoost = this.getTruthfulnessBoost(currentHand) * trustFactor * callerDespTrust * cardPoolScale - fewCardsSkepticism;
 
     // Factor in position and escalation patterns
     // positionAwareness scales position adjustment in bull phase too
@@ -1501,10 +1514,13 @@ export class BotPlayer {
    * i.e., it leans toward calling bull.
    */
   private static getDynamicBullThreshold(cardCount: number): number {
+    // Lowered thresholds at low card counts — human players exploit bots'
+    // reluctance to call bull when "safe." With 1-2 cards, bluffs are common
+    // because the cost of getting caught is low for the bluffer.
     switch (cardCount) {
-      case 1: return 0.35;  // Safe position, lean toward "true" (low bar)
-      case 2: return 0.42;  // Balanced-safe
-      case 3: return 0.48;  // Balanced
+      case 1: return 0.40;  // Even when safe, stay skeptical — humans bluff freely here
+      case 2: return 0.45;  // Balanced — don't let humans bluff for free
+      case 3: return 0.50;  // Balanced
       case 4: return 0.55;  // Desperate — aggressively call bull (high bar)
       default: return 0.60; // Max desperation (5+ cards)
     }
@@ -2722,28 +2738,31 @@ export class BotPlayer {
    * and lower for higher hands (STRAIGHT_FLUSH — more likely a bluff).
    */
   private static getTruthfulnessBoost(hand: HandCall): number {
+    // Reduced from previous values — human players bluff more aggressively
+    // than bots expected. Lower priors force bots to rely on math + memory
+    // rather than assuming honesty.
     switch (hand.type) {
       case HandType.HIGH_CARD:
-        return 0.12; // Likely truthful but not certain
+        return 0.07; // Common bluff target — only mild truthfulness prior
       case HandType.PAIR:
-        return 0.10; // Likely they hold at least 1 of the pair
+        return 0.06; // Frequently bluffed by skilled players
       case HandType.TWO_PAIR:
-        return 0.07; // Moderate evidence — might hold 1 of each
+        return 0.04; // Moderate evidence — might hold 1 of each
       case HandType.FLUSH:
-        return 0.06; // Might hold a couple suited cards
+        return 0.03; // Hard to verify — often a bluff
       case HandType.THREE_OF_A_KIND:
-        return 0.05; // Might hold 1-2 of the rank
+        return 0.03; // Might hold 1-2 of the rank
       case HandType.STRAIGHT:
-        return 0.04; // Might hold some of the ranks
+        return 0.02; // Might hold some of the ranks
       case HandType.FULL_HOUSE:
-        return 0.03; // High hand — weak signal
+        return 0.01; // High hand — weak signal, often bluffed
       case HandType.FOUR_OF_A_KIND:
-        return 0.02; // Big claim — often a bluff
+        return 0.00; // Big claim — very often a bluff
       case HandType.STRAIGHT_FLUSH:
       case HandType.ROYAL_FLUSH:
-        return 0.01; // Very likely a bluff at this level
+        return -0.02; // Almost always a bluff — penalize plausibility
       default:
-        return 0.05;
+        return 0.03;
     }
   }
 
@@ -2792,10 +2811,11 @@ export class BotPlayer {
       if (entry.action === TurnAction.CALL) raiseCount++;
     }
 
-    // First call is normal; after that, each additional raise adds suspicion
-    // Each extra raise beyond 1 adds ~8% bluff suspicion
+    // First call is normal; after that, each additional raise adds suspicion.
+    // Increased from 0.08 to 0.10 per raise — humans chain-bluff more aggressively
+    // than bots, and long chains are increasingly suspect.
     const extraRaises = Math.max(0, raiseCount - 1);
-    return extraRaises * 0.08;
+    return extraRaises * 0.10;
   }
 
   // ─── TURN HISTORY ANALYSIS ──────────────────────────────────────────
