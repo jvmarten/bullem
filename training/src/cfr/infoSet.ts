@@ -252,8 +252,7 @@ function claimHeightBucket(hand: HandCall | null): string {
 
 /**
  * Rough bucket for the best hand the player could contribute to.
- * Coarsened from 6 buckets to 3 — keeps the essential distinction
- * between strong hands (pairs/trips), draws, and nothing.
+ * 3 buckets: strong (pair+), draw (suited/connected), weak (nothing).
  */
 function myHandStrengthBucket(cards: Card[]): string {
   if (cards.length === 0) return 'x';
@@ -268,10 +267,52 @@ function myHandStrengthBucket(cards: Card[]): string {
   const maxGroup = Math.max(...rankCounts.values());
   const maxSuit = Math.max(...suitCounts.values());
 
-  // 3 buckets: strong (pair+), draw (suited/connected), weak (nothing)
-  if (maxGroup >= 2) return 'strong';  // pair, trips, or better
-  if (maxSuit >= 2) return 'draw';     // flush draw or suited
-  return 'weak';                       // nothing notable
+  if (maxGroup >= 2) return 'strong';
+  if (maxSuit >= 2) return 'draw';
+  return 'weak';
+}
+
+// ── High card value bucketing ─────────────────────────────────────────
+
+/**
+ * Bucket the highest card value in the player's hand.
+ * Holding an Ace vs a 3 should produce very different opening strategies
+ * and bluff-calling decisions. 3 buckets to keep info set space manageable.
+ */
+function highCardBucket(cards: Card[]): string {
+  if (cards.length === 0) return 'x';
+  let maxVal = 0;
+  for (const c of cards) {
+    const val = RANK_VALUES[c.rank];
+    if (val > maxVal) maxVal = val;
+  }
+  if (maxVal >= 12) return 'hHi';   // Q, K, A — premium holdings
+  if (maxVal >= 8) return 'hMid';   // 8, 9, 10, J — decent
+  return 'hLo';                      // 2-7 — weak holdings
+}
+
+// ── Opponent aggression bucketing ─────────────────────────────────────
+
+/**
+ * Track opponent aggression from the turn history this round.
+ * Counts raises vs bull/true calls from other players to infer style.
+ * Aggressive opponents raise often; passive ones call bull/true quickly.
+ */
+function opponentAggressionBucket(
+  turnHistory: { action: string; playerId: string }[],
+  myId: string,
+): string {
+  let oppRaises = 0;
+  let oppChallenges = 0;
+  for (const entry of turnHistory) {
+    if (entry.playerId === myId) continue;
+    if (entry.action === 'call' || entry.action === 'lastChanceRaise') oppRaises++;
+    if (entry.action === 'bull' || entry.action === 'true') oppChallenges++;
+  }
+  const total = oppRaises + oppChallenges;
+  if (total === 0) return 'oX';        // No opponent actions yet
+  if (oppRaises > oppChallenges) return 'oAg';  // Opponents are raising more (aggressive)
+  return 'oPa';                          // Opponents are challenging more (passive)
 }
 
 // ── Turn depth bucketing ─────────────────────────────────────────────
@@ -386,6 +427,19 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
  * - Cross-feature plausibility bucket (claim type vs total cards)
  * - Better strategic differentiation for detecting bluffs
  */
+/**
+ * Generate a compact info set key for CFR.
+ *
+ * V3 abstraction with richer features for stronger play:
+ * - Individual card counts (1-5) instead of 3 buckets
+ * - High card value bucket (holding an Ace vs a 3 matters)
+ * - Opponent aggression tracking (aggressive vs passive opponents)
+ * - Round memory (was penalized last round — affects risk appetite)
+ * - All previous features retained (plausibility, claim height, sentiment)
+ *
+ * @param myPlayerId - Required for opponent aggression tracking
+ * @param wasPenalizedLastRound - Whether this player lost the previous round
+ */
 export function getInfoSetKey(
   state: ClientGameState,
   myCards: Card[],
@@ -393,48 +447,53 @@ export function getInfoSetKey(
   activePlayers: number = 2,
   jokerCount: JokerCount = 0,
   lastChanceMode: LastChanceMode = 'classic',
+  myPlayerId: string = '',
+  wasPenalizedLastRound: boolean = false,
 ): string {
   const parts: string[] = [
     // Phase: c=calling, b=bull_phase, l=last_chance
     state.roundPhase.charAt(0),
-    // Player count bucket — determines bull/true calibration
+    // Player count bucket
     playerCountBucket(activePlayers),
-    // How many cards I hold — 3 buckets for better calibration
-    myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
+    // Card count — 4 buckets for good calibration without exploding info set space
+    myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length <= 3 ? 'c34' : 'c5',
     // Total cards in play
     totalCardsBucket(totalCards),
     // My hand quality
     myHandStrengthBucket(myCards),
+    // My highest card value — holding an Ace vs 3 matters for opening strategy
+    highCardBucket(myCards),
     // How my cards relate to the current claim
     handVsClaimBucket(myCards, state.currentHand),
-    // Claim height — 4 buckets for finer strategic distinction
+    // Claim height — 4 buckets
     claimHeightBucket(state.currentHand),
-    // Claim plausibility — cross-feature: claim type vs total cards in play
+    // Claim plausibility — cross-feature: claim type vs total cards
     claimPlausibilityBucket(state.currentHand, totalCards),
     // How deep are we in this round
     turnDepthBucket(state.turnHistory),
-    // Bull/true voting sentiment — multiplayer-critical context
+    // Bull/true voting sentiment
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
-  // 2P refinement: distinguish high card claims (trivially true) from
-  // pair+ claims (may be bluffs). This is the biggest abstraction error
-  // in 1v1 — the optimal bull rate for "high card" is ~0% while for
-  // "pair" it's ~94% with 2 cards. Merging them produces bad strategy.
-  // Only appended for p2 so multiplayer keys stay identical.
+  // Round memory: were we penalized last round?
+  if (wasPenalizedLastRound) {
+    parts.push('pen');
+  }
+
+  // Opponent aggression — only for multiplayer where it's most impactful
+  if (activePlayers > 2) {
+    parts.push(opponentAggressionBucket(state.turnHistory, myPlayerId));
+  }
+
+  // 2P refinement: distinguish high card claims from pair+ claims
   if (activePlayers <= 2 && state.currentHand) {
     parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
   }
 
-  // Joker context — jokers fundamentally change hand plausibility
-  // (wildcards make high hands much more likely to exist).
+  // Variant suffixes
   if (jokerCount > 0) {
     parts.push(`j${jokerCount}`);
   }
-
-  // Last chance mode context — 'strict' changes the game tree after a
-  // last-chance raise (returns to CALLING instead of BULL_PHASE), which
-  // affects optimal raise/pass decisions.
   if (lastChanceMode === 'strict') {
     parts.push('lcS');
   }

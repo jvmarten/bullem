@@ -89,9 +89,11 @@ export function exportStrategy(
 ): string {
   ensureDir(STRATEGIES_DIR);
 
+  // Prune at 2% and use 3 decimal precision to keep file size manageable
+  // (~1MB total across all buckets, fitting in client PWA bundle)
   const strategy = mode === 'current'
-    ? engine.exportCurrentStrategy()
-    : engine.exportStrategy();
+    ? engine.exportCurrentStrategy(0.02, 3)
+    : engine.exportStrategy(0.02, 3);
   const filename = name
     ? `${name}.json`
     : `cfr-strategy-${engine.iterations}.json`;
@@ -113,7 +115,7 @@ export function exportStrategiesByPlayerCount(
 ): Map<string, string> {
   ensureDir(STRATEGIES_DIR);
 
-  const strategyMap = engine.exportStrategiesByPlayerCount(mode);
+  const strategyMap = engine.exportStrategiesByPlayerCount(mode, 0.02, 3);
   const result = new Map<string, string>();
 
   for (const [bucket, strategy] of strategyMap) {

@@ -51,6 +51,8 @@ export default defineConfig({
       injectManifest: {
         // Precache built JS/CSS chunks and static assets from public/
         globPatterns: ['**/*.{js,css,html,png,jpg,svg,ico,woff2}'],
+        // CFR strategy data chunk can be ~4MB — raise from default 2MB
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       devOptions: {
         enabled: false, // Service worker is production-only; dev uses devBullLogo plugin
