@@ -23,8 +23,12 @@ function resolvePlayerBucket(activePlayers: number): string {
 // ── Heuristic fallback ───────────────────────────────────────────────
 
 /**
- * Conservative fallback when info set is missing from trained strategy.
- * Better than uniform random — favors challenging and conservative play.
+ * Smarter fallback when info set is missing from trained strategy.
+ * Uses a balanced distribution that doesn't create exploitable patterns:
+ * - Raises (truthful) are preferred over bluffs when available
+ * - Bull/true are moderately weighted to avoid being too predictable
+ * - Bluffs are used sparingly to maintain unpredictability
+ * - Pass is favored in last-chance to avoid reckless raises
  */
 function heuristicFallback(legalActions: AbstractAction[]): AbstractAction {
   const weights = new Map<AbstractAction, number>();
@@ -32,17 +36,37 @@ function heuristicFallback(legalActions: AbstractAction[]): AbstractAction {
     weights.set(action, 1);
   }
 
+  // Balanced bull/true — not heavily biased toward either
   if (legalActions.includes(AbstractAction.BULL)) {
-    weights.set(AbstractAction.BULL, 3);
+    weights.set(AbstractAction.BULL, 2);
   }
   if (legalActions.includes(AbstractAction.TRUE)) {
     weights.set(AbstractAction.TRUE, 2);
   }
   if (legalActions.includes(AbstractAction.PASS)) {
-    weights.set(AbstractAction.PASS, 4);
+    weights.set(AbstractAction.PASS, 3);
   }
+
+  // Prefer truthful claims over bluffs — they're safer
   if (legalActions.includes(AbstractAction.TRUTHFUL_LOW)) {
-    weights.set(AbstractAction.TRUTHFUL_LOW, 2);
+    weights.set(AbstractAction.TRUTHFUL_LOW, 3);
+  }
+  if (legalActions.includes(AbstractAction.TRUTHFUL_MID)) {
+    weights.set(AbstractAction.TRUTHFUL_MID, 2);
+  }
+  if (legalActions.includes(AbstractAction.TRUTHFUL_HIGH)) {
+    weights.set(AbstractAction.TRUTHFUL_HIGH, 1);
+  }
+
+  // Bluffs stay low-weighted — used for unpredictability, not as default
+  if (legalActions.includes(AbstractAction.BLUFF_SMALL)) {
+    weights.set(AbstractAction.BLUFF_SMALL, 1);
+  }
+  if (legalActions.includes(AbstractAction.BLUFF_MID)) {
+    weights.set(AbstractAction.BLUFF_MID, 1);
+  }
+  if (legalActions.includes(AbstractAction.BLUFF_BIG)) {
+    weights.set(AbstractAction.BLUFF_BIG, 1);
   }
 
   let totalWeight = 0;

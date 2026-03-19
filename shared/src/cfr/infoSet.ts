@@ -215,9 +215,10 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.PAIR) return 'lo';            // high card, pair — very common
-  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid'; // two pair, flush, trips — moderate
-  return 'hi';                                             // straight, full house, 4oak, SF, RF — rare
+  if (hand.type <= HandType.PAIR) return 'lo';
+  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid';
+  if (hand.type <= HandType.FULL_HOUSE) return 'hi';
+  return 'vhi';
 }
 
 // ── My best hand type ────────────────────────────────────────────────
@@ -284,6 +285,32 @@ function playerCountBucket(activePlayers: number): string {
   return 'p5+';
 }
 
+// ── Claim plausibility ────────────────────────────────────────────────
+
+function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): string {
+  if (!hand) return 'x';
+
+  const minCardsForType: Record<number, number> = {
+    [HandType.HIGH_CARD]: 1,
+    [HandType.PAIR]: 4,
+    [HandType.TWO_PAIR]: 7,
+    [HandType.FLUSH]: 8,
+    [HandType.THREE_OF_A_KIND]: 8,
+    [HandType.STRAIGHT]: 10,
+    [HandType.FULL_HOUSE]: 12,
+    [HandType.FOUR_OF_A_KIND]: 16,
+    [HandType.STRAIGHT_FLUSH]: 20,
+    [HandType.ROYAL_FLUSH]: 25,
+  };
+
+  const needed = minCardsForType[hand.type] ?? 10;
+  const ratio = totalCards / needed;
+
+  if (ratio >= 2.0) return 'pl';
+  if (ratio >= 1.0) return 'mb';
+  return 'im';
+}
+
 // ── Information set key ──────────────────────────────────────────────
 
 /**
@@ -306,18 +333,15 @@ export function getInfoSetKey(
     myHandStrengthBucket(myCards),
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
+    claimPlausibilityBucket(state.currentHand, totalCards),
     turnDepthBucket(state.turnHistory),
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
-  // 2P refinement: distinguish high card claims (trivially true) from
-  // pair+ claims (may be bluffs). Only appended for p2.
   if (activePlayers <= 2 && state.currentHand) {
     parts.push(state.currentHand.type === HandType.HIGH_CARD ? 'hc' : 'rh');
   }
 
-  // Variant suffixes — only appended for non-default configs so existing
-  // standard-config strategies remain backward-compatible.
   if (jokerCount > 0) {
     parts.push(`j${jokerCount}`);
   }

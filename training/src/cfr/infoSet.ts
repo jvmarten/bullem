@@ -233,16 +233,19 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 // ── Claim height bucketing ───────────────────────────────────────────
 
 /**
- * Bucket the current claim into low/mid/high.
- * 3 real buckets capture the critical distinction: low claims are almost
- * always achievable, mid claims are plausible with enough cards, and high
- * claims are often bluffs (especially at low card counts).
+ * Bucket the current claim into low/mid/high/vhi.
+ * 4 real buckets provide finer strategic distinction:
+ * - lo: high card, pair — almost always exist with enough cards
+ * - mid: two pair, flush, trips — plausible but worth questioning
+ * - hi: straight, full house — unusual, often bluffs
+ * - vhi: four of a kind, straight flush, royal flush — almost always bluffs
  */
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.PAIR) return 'lo';            // high card, pair — very common
-  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid'; // two pair, flush, trips — moderate
-  return 'hi';                                             // straight, full house, 4oak, SF, RF — rare
+  if (hand.type <= HandType.PAIR) return 'lo';
+  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid';
+  if (hand.type <= HandType.FULL_HOUSE) return 'hi';
+  return 'vhi';
 }
 
 // ── My best hand type ────────────────────────────────────────────────
@@ -337,19 +340,51 @@ function playerCountBucket(activePlayers: number): string {
   return 'p5+';                             // Large multiplayer: claims very likely true
 }
 
+// ── Claim plausibility ────────────────────────────────────────────────
+
+/**
+ * Assess how plausible the current claim is given total cards in play.
+ * A "pair" with 2 total cards is very different from a "pair" with 20 cards.
+ * This cross-feature captures what claimHeight + totalCards alone miss.
+ */
+function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): string {
+  if (!hand) return 'x';
+
+  // Approximate minimum cards needed for each hand type to be likely
+  const minCardsForType: Record<number, number> = {
+    [HandType.HIGH_CARD]: 1,
+    [HandType.PAIR]: 4,
+    [HandType.TWO_PAIR]: 7,
+    [HandType.FLUSH]: 8,
+    [HandType.THREE_OF_A_KIND]: 8,
+    [HandType.STRAIGHT]: 10,
+    [HandType.FULL_HOUSE]: 12,
+    [HandType.FOUR_OF_A_KIND]: 16,
+    [HandType.STRAIGHT_FLUSH]: 20,
+    [HandType.ROYAL_FLUSH]: 25,
+  };
+
+  const needed = minCardsForType[hand.type] ?? 10;
+  const ratio = totalCards / needed;
+
+  if (ratio >= 2.0) return 'pl';   // plausible — enough cards for the claim
+  if (ratio >= 1.0) return 'mb';   // maybe — borderline, could exist
+  return 'im';                      // implausible — not enough cards
+}
+
 // ── Information set key ──────────────────────────────────────────────
 
 /**
  * Generate a compact info set key for CFR.
  *
- * Coarsened abstraction designed to produce ~5-10K unique keys across all
- * player counts, enabling convergence with 500K+ iterations.
- * Format: phase|playerCount|cardCount|totalCardsBucket|myStrength|handVsClaim|claimHeight|turnDepth|bullSentiment
+ * Enhanced abstraction designed to produce ~15-25K unique keys, enabling
+ * finer strategic decisions with 500K+ iterations.
+ * Format: phase|playerCount|cardCount|totalCards|myStrength|handVsClaim|claimHeight|plausibility|turnDepth|bullSentiment
  *
- * The bullSentiment segment is critical for multiplayer: it encodes the
- * distribution of bull/true votes so far and position in the response chain.
- * Without this, the strategy can't distinguish between "I'm first to respond"
- * and "4 others already called bull" — fundamentally different decisions.
+ * Key improvements over previous version:
+ * - 4 claim height buckets (lo/mid/hi/vhi) instead of 3
+ * - Cross-feature plausibility bucket (claim type vs total cards)
+ * - Better strategic differentiation for detecting bluffs
  */
 export function getInfoSetKey(
   state: ClientGameState,
@@ -366,14 +401,16 @@ export function getInfoSetKey(
     playerCountBucket(activePlayers),
     // How many cards I hold — 3 buckets for better calibration
     myCards.length <= 1 ? 'n1' : myCards.length <= 3 ? 'nMid' : 'nHi',
-    // Total cards in play — still needed for opening plausibility assessment
+    // Total cards in play
     totalCardsBucket(totalCards),
     // My hand quality
     myHandStrengthBucket(myCards),
     // How my cards relate to the current claim
     handVsClaimBucket(myCards, state.currentHand),
-    // Claim height — splits high card (trivially true) from pair (real decision)
+    // Claim height — 4 buckets for finer strategic distinction
     claimHeightBucket(state.currentHand),
+    // Claim plausibility — cross-feature: claim type vs total cards in play
+    claimPlausibilityBucket(state.currentHand, totalCards),
     // How deep are we in this round
     turnDepthBucket(state.turnHistory),
     // Bull/true voting sentiment — multiplayer-critical context
@@ -391,15 +428,13 @@ export function getInfoSetKey(
 
   // Joker context — jokers fundamentally change hand plausibility
   // (wildcards make high hands much more likely to exist).
-  // Only add segment when jokers are present to keep standard-deck
-  // info set keys backward-compatible with existing strategies.
   if (jokerCount > 0) {
     parts.push(`j${jokerCount}`);
   }
 
   // Last chance mode context — 'strict' changes the game tree after a
   // last-chance raise (returns to CALLING instead of BULL_PHASE), which
-  // affects optimal raise/pass decisions. Only add when non-default.
+  // affects optimal raise/pass decisions.
   if (lastChanceMode === 'strict') {
     parts.push('lcS');
   }
