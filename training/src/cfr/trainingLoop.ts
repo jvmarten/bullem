@@ -511,7 +511,7 @@ function runTrainingGame(
             }
           }
 
-          const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards);
+          const concreteAction = mapAbstractToConcreteAction(abstractAction, state, player.cards, totalCards);
 
           if (concreteAction) {
             action = concreteAction;

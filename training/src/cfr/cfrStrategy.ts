@@ -61,7 +61,7 @@ export function createCFRTrainingStrategy(
       chosenAction: abstractAction,
     });
 
-    return mapAbstractToConcreteAction(abstractAction, state, botCards);
+    return mapAbstractToConcreteAction(abstractAction, state, botCards, totalCards);
   };
 }
 
@@ -222,6 +222,6 @@ function makeEvalStrategy(
       chosenAction = heuristicFallback(legalActions, state);
     }
 
-    return mapAbstractToConcreteAction(chosenAction, state, botCards);
+    return mapAbstractToConcreteAction(chosenAction, state, botCards, totalCards);
   };
 }
