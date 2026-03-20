@@ -52,12 +52,12 @@ const MIN_CARDS_FOR_PLAUSIBLE_CLAIM: Record<number, number> = {
   [HandType.PAIR]: 3,
   [HandType.TWO_PAIR]: 8,
   [HandType.FLUSH]: 10,
-  [HandType.THREE_OF_A_KIND]: 8,
+  [HandType.THREE_OF_A_KIND]: 10,
   [HandType.STRAIGHT]: 12,
-  [HandType.FULL_HOUSE]: 14,
-  [HandType.FOUR_OF_A_KIND]: 18,
-  [HandType.STRAIGHT_FLUSH]: 22,
-  [HandType.ROYAL_FLUSH]: 26,
+  [HandType.FULL_HOUSE]: 16,
+  [HandType.FOUR_OF_A_KIND]: 20,
+  [HandType.STRAIGHT_FLUSH]: 25,
+  [HandType.ROYAL_FLUSH]: 30,
 };
 
 /**
