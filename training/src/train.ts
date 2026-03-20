@@ -37,7 +37,10 @@ function parseArgs(argv: string[]): {
   // to converge. 2P is well-served by fewer samples since it's simpler.
   // With coarsened abstraction (~5-10K info sets), 500K iterations gives
   // ~50-100 visits per info set — enough for reasonable convergence.
-  let players: number | number[] = [2, 2, 3, 3, 4, 4, 5, 5, 6, 6]; // balanced distribution
+  // Balanced distribution including large games (7-9 players) for p5+ coverage.
+  // Large multiplayer games have very different dynamics (more total cards,
+  // longer voting chains) that need dedicated training samples.
+  let players: number | number[] = [2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9];
   let maxCards = 5;
   let jokerCount: JokerCount = 0;
   let lastChanceMode: LastChanceMode = 'classic';

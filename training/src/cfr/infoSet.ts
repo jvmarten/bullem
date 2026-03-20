@@ -363,9 +363,10 @@ function bullSentimentBucket(
  * distinction (few cards = bluffs likely, many cards = claims likely true).
  */
 function totalCardsBucket(totalCards: number): string {
-  if (totalCards <= 4) return 'tLo';    // small pool — most hands unlikely
-  if (totalCards <= 8) return 'tMid';   // medium pool — pairs/trips possible
-  return 'tHi';                          // large pool — most hands likely exist
+  if (totalCards <= 4) return 'tLo';    // tiny pool — most hands unlikely
+  if (totalCards <= 10) return 'tMid';  // small pool — pairs possible
+  if (totalCards <= 20) return 'tHi';   // medium pool — pairs/flushes likely
+  return 'tVHi';                         // large pool — almost all hands exist
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
