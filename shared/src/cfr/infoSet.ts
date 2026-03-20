@@ -302,8 +302,9 @@ function bullSentimentBucket(
 
 function totalCardsBucket(totalCards: number): string {
   if (totalCards <= 4) return 'tLo';
-  if (totalCards <= 8) return 'tMid';
-  return 'tHi';
+  if (totalCards <= 10) return 'tMid';
+  if (totalCards <= 20) return 'tHi';
+  return 'tVHi';
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
