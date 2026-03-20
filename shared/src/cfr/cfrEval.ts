@@ -230,6 +230,41 @@ function adjustStrategyForPlausibility(
     }
   }
 
+  // Adjustment 2b: When current claim is at or near the plausibility ceiling,
+  // any raise will produce an implausible hand. Kill raise probability early
+  // so bots don't waste turns generating hands that get overridden to bull.
+  if (hasBull && currentHand) {
+    const currentType = currentHand.type;
+    // Find the max plausible type for this card count
+    let maxPlausible = HandType.HIGH_CARD;
+    for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
+      if (totalCards >= (MIN_CARDS_FOR_HAND[t] ?? 999)) {
+        maxPlausible = t as HandType;
+        break;
+      }
+    }
+    // If current claim is already at or above the plausible ceiling,
+    // raises can only go higher into implausible territory
+    if (currentType >= maxPlausible) {
+      const raiseActions = legalActions.filter(a =>
+        a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
+      );
+      let raiseMass = 0;
+      for (const a of raiseActions) {
+        raiseMass += probs.get(a) ?? 0;
+      }
+      if (raiseMass > 0) {
+        // Transfer 95% of raise mass to bull — raises are almost certainly implausible
+        const transfer = raiseMass * 0.95;
+        const scale = 0.05;
+        for (const a of raiseActions) {
+          probs.set(a, (probs.get(a) ?? 0) * scale);
+        }
+        probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
+      }
+    }
+  }
+
   // Adjustment 3: When claim is near-impossible, make bull near-certain
   if (hasBull && plausibility === 0.0) {
     // Override: 90% bull, split remaining among other legal actions

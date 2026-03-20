@@ -109,6 +109,16 @@ export function mapAbstractToConcreteAction(
         : abstractAction === AbstractAction.TRUTHFUL_MID ? 'mid' : 'high';
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateTruthfulHand(tier, state.currentHand, myCards, maxType);
+      // If the generated hand exceeds plausibility cap, refuse to raise.
+      // In LAST_CHANCE phase, pass instead. Otherwise, call bull.
+      // This prevents escalation spirals into Straight Flush / Royal Flush
+      // territory with few cards.
+      if (hand.type > maxType) {
+        if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+          return { action: 'lastChancePass' };
+        }
+        return { action: 'bull' };
+      }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -123,6 +133,13 @@ export function mapAbstractToConcreteAction(
       const context = extractHistoryContext(state);
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateBluffHand(magnitude, state.currentHand, myCards, context, maxType);
+      // Same plausibility guard — refuse to raise with implausible hands
+      if (hand.type > maxType) {
+        if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+          return { action: 'lastChancePass' };
+        }
+        return { action: 'bull' };
+      }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
