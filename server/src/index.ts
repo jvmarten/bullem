@@ -263,8 +263,9 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   // This ensures the leaderboard, profiles, and other DB-backed endpoints
   // serve correct data from the very first request (no race with DB init).
   const PORT = process.env.PORT ?? 3001;
-  httpServer.listen(PORT, () => {
-    logger.info({ port: PORT }, `Bull 'Em server running on port ${PORT}`);
+  const HOST = process.env.HOST ?? '0.0.0.0';
+  httpServer.listen(Number(PORT), HOST, () => {
+    logger.info({ port: PORT, host: HOST }, `Bull 'Em server running on ${HOST}:${PORT}`);
   });
 })();
 
