@@ -276,6 +276,20 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
   return turnHistory.length <= 2 ? 'early' : 'late';
 }
 
+// ── Turn position bucketing ──────────────────────────────────────────
+
+/**
+ * Position in the current action cycle relative to other players.
+ * Acting first vs last in a cycle requires very different strategies.
+ */
+function turnPositionBucket(turnHistory: { action: string }[], activePlayers: number): string {
+  if (activePlayers <= 2) return 'x'; // Heads-up: position is always 1v1
+  const posInCycle = turnHistory.length % activePlayers;
+  if (posInCycle === 0) return 'pos0';    // First to act — no info
+  if (posInCycle >= activePlayers - 1) return 'posL';  // Last to act — full info
+  return 'posM';                           // Middle — partial info
+}
+
 // ── Bull/true sentiment bucketing ────────────────────────────────────
 
 function bullSentimentBucket(
@@ -301,10 +315,11 @@ function bullSentimentBucket(
 // ── Total cards bucketing ────────────────────────────────────────────
 
 function totalCardsBucket(totalCards: number): string {
-  if (totalCards <= 4) return 'tLo';
-  if (totalCards <= 10) return 'tMid';
-  if (totalCards <= 20) return 'tHi';
-  return 'tVHi';
+  if (totalCards <= 4) return 'tLo';     // tiny pool — most hands unlikely
+  if (totalCards <= 7) return 'tMid1';   // small pool — pairs possible
+  if (totalCards <= 10) return 'tMid2';  // growing pool — two pair/flush emerging
+  if (totalCards <= 20) return 'tHi';    // medium pool — pairs/flushes likely
+  return 'tVHi';                          // large pool — almost all hands exist
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
@@ -360,7 +375,8 @@ export function getInfoSetKey(
   const parts: string[] = [
     state.roundPhase.charAt(0),
     playerCountBucket(activePlayers),
-    myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length <= 3 ? 'c34' : 'c5',
+    // Card count — 5 individual buckets for finer strategic distinction
+    myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length === 3 ? 'c3' : myCards.length === 4 ? 'c4' : 'c5',
     totalCardsBucket(totalCards),
     myHandStrengthBucket(myCards),
     highCardBucket(myCards),
@@ -368,6 +384,8 @@ export function getInfoSetKey(
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
     turnDepthBucket(state.turnHistory),
+    // Position in current action cycle (first/mid/last to act)
+    turnPositionBucket(state.turnHistory, activePlayers),
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 

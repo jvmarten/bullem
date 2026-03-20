@@ -144,7 +144,7 @@ describe('getInfoSetKey', () => {
     const keyMid = getInfoSetKey(state, [], 6, 2);
     const keyHi = getInfoSetKey(state, [], 12, 2);
     expect(keyLo.split('|')[3]).toBe('tLo');
-    expect(keyMid.split('|')[3]).toBe('tMid');
+    expect(keyMid.split('|')[3]).toBe('tMid1');
     expect(keyHi.split('|')[3]).toBe('tHi');
   });
 
