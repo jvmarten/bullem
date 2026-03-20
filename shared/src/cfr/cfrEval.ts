@@ -13,7 +13,7 @@
  */
 
 import type { Card, ClientGameState, HandCall, JokerCount, LastChanceMode } from '../types.js';
-import { HandType } from '../types.js';
+import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
@@ -32,18 +32,24 @@ function resolvePlayerBucket(activePlayers: number): string {
 /**
  * Minimum total cards for each hand type to have a reasonable chance of
  * existing across all players' combined cards.
+ *
+ * Calibrated from actual probability analysis:
+ * - These represent the card count where the hand type has roughly a
+ *   10-20% base chance of existing (for any specific rank/suit).
+ * - Previous values were too optimistic, leading bots to treat implausible
+ *   claims (e.g., three-of-a-kind with 8 cards, ~0.3%) as "coin flips."
  */
 const MIN_CARDS_FOR_HAND: Record<number, number> = {
   [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 4,
-  [HandType.TWO_PAIR]: 7,
-  [HandType.FLUSH]: 8,
-  [HandType.THREE_OF_A_KIND]: 8,
-  [HandType.STRAIGHT]: 10,
-  [HandType.FULL_HOUSE]: 12,
-  [HandType.FOUR_OF_A_KIND]: 16,
-  [HandType.STRAIGHT_FLUSH]: 20,
-  [HandType.ROYAL_FLUSH]: 25,
+  [HandType.PAIR]: 5,
+  [HandType.TWO_PAIR]: 9,
+  [HandType.FLUSH]: 12,
+  [HandType.THREE_OF_A_KIND]: 12,
+  [HandType.STRAIGHT]: 14,
+  [HandType.FULL_HOUSE]: 18,
+  [HandType.FOUR_OF_A_KIND]: 22,
+  [HandType.STRAIGHT_FLUSH]: 28,
+  [HandType.ROYAL_FLUSH]: 34,
 };
 
 /**
@@ -281,6 +287,175 @@ function adjustStrategyForPlausibility(
   }
 }
 
+// ── Anti-cascade adjustment ─────────────────────────────────────────
+
+/**
+ * Prevents herding behavior in bull_phase where bots blindly follow
+ * earlier voters' decisions, causing destructive cascades.
+ *
+ * Observed in replays: when 2+ bots call true, remaining bots pile on
+ * true even when the hand is unlikely (7 bots calling true on a
+ * non-existent two-pair). Similarly, when many call bull on a plausible
+ * hand, the rest follow instead of applying independent judgment.
+ *
+ * Fix: Each bot applies independent skepticism that scales with the
+ * number of same-direction votes already cast.
+ */
+function adjustForSentimentCascade(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  state: ClientGameState,
+  totalCards: number,
+): void {
+  if (state.roundPhase !== RoundPhase.BULL_PHASE) return;
+
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  const hasTrue = legalActions.includes(AbstractAction.TRUE);
+  if (!hasBull || !hasTrue) return;
+
+  let bullCount = 0;
+  let trueCount = 0;
+  for (const entry of state.turnHistory) {
+    if (entry.action === 'bull') bullCount++;
+    if (entry.action === 'true') trueCount++;
+  }
+
+  const plausibility = claimPlausibility(state.currentHand, totalCards);
+
+  // True cascade: multiple true votes on a hand that isn't clearly real.
+  // If the hand were obviously real, it wouldn't need defenders — be skeptical.
+  if (trueCount >= 2 && plausibility < 1.0) {
+    const cascadeFactor = Math.min(trueCount * 0.10, 0.50);
+    const skepticism = cascadeFactor * (1 - plausibility);
+    const currentTrue = probs.get(AbstractAction.TRUE) ?? 0;
+    const transfer = Math.min(currentTrue * 0.6, skepticism);
+    probs.set(AbstractAction.TRUE, currentTrue - transfer);
+    probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
+  }
+
+  // Bull cascade: many bull votes on a plausible hand.
+  // Don't follow the crowd when the hand is likely to exist.
+  if (bullCount >= 3 && plausibility >= 0.5) {
+    const contraryFactor = Math.min(bullCount * 0.06, 0.30);
+    const contraryBoost = contraryFactor * plausibility;
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const transfer = Math.min(currentBull * 0.4, contraryBoost);
+    probs.set(AbstractAction.BULL, currentBull - transfer);
+    probs.set(AbstractAction.TRUE, (probs.get(AbstractAction.TRUE) ?? 0) + transfer);
+  }
+}
+
+// ── Low-claim protection ────────────────────────────────────────────
+
+/**
+ * Prevents calling bull on very low claims when many cards are in play.
+ *
+ * "High card Q" with 7+ cards or "pair of X" with 15+ cards are almost
+ * always going to exist. Calling bull is burning a life for no reason.
+ *
+ * Observed: Viper called bull on "high card Q" heads-up with 7 total
+ * cards — Q exists among 7 random cards ~46% of the time, and the
+ * opponent likely holds it since they claimed it.
+ */
+function adjustForLowClaims(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  totalCards: number,
+): void {
+  if (!currentHand) return;
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  if (!hasBull) return;
+
+  let protection = 0;
+
+  if (currentHand.type === HandType.HIGH_CARD) {
+    // P(rank X exists) ≈ 1 - (48/52)^N. With 5 cards: ~35%, 9: ~54%.
+    // The opener likely HAS the card they're claiming, making bull even worse.
+    if (totalCards >= 5) {
+      protection = Math.min(0.65, (totalCards - 4) * 0.07);
+    }
+  } else if (currentHand.type === HandType.PAIR) {
+    // Pair of X needs 2+ of a specific rank among N cards.
+    // With 12 cards: ~22%, 16: ~37%. Still risky to bull.
+    if (totalCards >= 12) {
+      protection = Math.min(0.40, (totalCards - 10) * 0.04);
+    }
+  }
+
+  if (protection > 0) {
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const transfer = currentBull * protection;
+    probs.set(AbstractAction.BULL, currentBull - transfer);
+
+    // Distribute transferred mass proportionally to other actions
+    const otherActions = legalActions.filter(a => a !== AbstractAction.BULL);
+    let otherTotal = 0;
+    for (const a of otherActions) {
+      otherTotal += probs.get(a) ?? 0;
+    }
+    if (otherTotal > 0) {
+      for (const a of otherActions) {
+        const current = probs.get(a) ?? 0;
+        probs.set(a, current + transfer * (current / otherTotal));
+      }
+    }
+  }
+}
+
+// ── Last-chance pass encouragement ──────────────────────────────────
+
+/**
+ * In last-chance phase, favors passing over raising to implausible hands.
+ *
+ * When a bot's claim is challenged and they get last chance, raising to
+ * an even higher hand is only valuable if the new claim is plausible.
+ * Raising to three-of-a-kind with 9 cards (as observed in replays)
+ * guarantees losing when everyone calls bull again.
+ *
+ * If the current claim might already be false, passing lets the round
+ * resolve on the existing claim — which might actually penalize the
+ * bull callers if it happens to exist.
+ */
+function adjustForLastChancePass(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  totalCards: number,
+): void {
+  if (!legalActions.includes(AbstractAction.PASS)) return;
+
+  const plausibility = claimPlausibility(currentHand, totalCards);
+  const heightScore = claimHeightScore(currentHand);
+
+  // When the current claim is already borderline or high, raising
+  // will almost certainly produce something even less plausible
+  if (plausibility <= 0.8 || heightScore >= 0.3) {
+    const passBoost = Math.max(
+      (1.0 - plausibility) * 0.5,    // Low plausibility → strong pass
+      (heightScore - 0.2) * 0.4,     // High claim → moderate pass
+    );
+
+    const raiseActions = legalActions.filter(a =>
+      a !== AbstractAction.PASS && a !== AbstractAction.BULL && a !== AbstractAction.TRUE,
+    );
+
+    let raiseMass = 0;
+    for (const a of raiseActions) {
+      raiseMass += probs.get(a) ?? 0;
+    }
+
+    if (raiseMass > 0) {
+      const transfer = Math.min(raiseMass * 0.75, passBoost);
+      const scale = 1 - transfer / raiseMass;
+      for (const a of raiseActions) {
+        probs.set(a, (probs.get(a) ?? 0) * scale);
+      }
+      probs.set(AbstractAction.PASS, (probs.get(AbstractAction.PASS) ?? 0) + transfer);
+    }
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
@@ -352,8 +527,11 @@ export function decideCFR(
         }
       }
 
-      // Apply plausibility adjustments — overrides strategy for impossible claims
+      // Apply post-strategy safety adjustments
       adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
+      adjustForSentimentCascade(probs, legalActions, state, totalCards);
+      adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
+      adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
 
       // Sample from adjusted distribution
       let adjTotal = 0;
