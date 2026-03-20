@@ -494,9 +494,12 @@ function runTrainingGame(
           const samplingStrategy = mixExploration(baseStrategy, legalActions, epsilon);
 
           // Accumulate the BASE strategy (not the exploration-mixed one)
-          // for the average strategy computation. Use linear weighting so later
-          // (more informed) iterations dominate the average.
-          const weight = Math.max(1, iteration);
+          // for the average strategy computation. CFR+ uses t^2 weighting
+          // so later (more converged) iterations dominate the average,
+          // discounting early noisy exploration more aggressively than
+          // linear weighting.
+          const t = Math.max(1, iteration);
+          const weight = t * t;
           cfrEngine.accumulateStrategy(infoSetKey, legalActions, baseStrategy, weight);
 
           // Sample from the exploration-mixed strategy
@@ -686,11 +689,13 @@ function updateRegretsPerRound(
       if (action === decision.chosenAction) {
         // Chosen: v̂(a*) - baseline = u*W - p*u*W = u*W*(1 - p)
         const regret = chosenValue - baseline;
-        node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
+        // CFR+: clamp cumulative regret to non-negative for faster convergence
+        node.regretSum[action] = Math.max(0, (node.regretSum[action] ?? 0) + regret);
       } else {
         // Unchosen: 0 - baseline = -p*u*W
         const regret = -baseline;
-        node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
+        // CFR+: clamp cumulative regret to non-negative
+        node.regretSum[action] = Math.max(0, (node.regretSum[action] ?? 0) + regret);
       }
     }
   }
