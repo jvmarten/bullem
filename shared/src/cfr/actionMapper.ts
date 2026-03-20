@@ -109,11 +109,8 @@ export function mapAbstractToConcreteAction(
         : abstractAction === AbstractAction.TRUTHFUL_MID ? 'mid' : 'high';
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateTruthfulHand(tier, state.currentHand, myCards, maxType);
-      // If the generated hand exceeds plausibility cap, refuse to raise.
-      // In LAST_CHANCE phase, pass instead. Otherwise, call bull.
-      // This prevents escalation spirals into Straight Flush / Royal Flush
-      // territory with few cards.
-      if (hand.type > maxType) {
+      // null means no meaningful raise available — convert to bull/pass
+      if (!hand || hand.type > maxType) {
         if (state.roundPhase === RoundPhase.LAST_CHANCE) {
           return { action: 'lastChancePass' };
         }
@@ -133,8 +130,8 @@ export function mapAbstractToConcreteAction(
       const context = extractHistoryContext(state);
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateBluffHand(magnitude, state.currentHand, myCards, context, maxType);
-      // Same plausibility guard — refuse to raise with implausible hands
-      if (hand.type > maxType) {
+      // null means no meaningful bluff available — convert to bull/pass
+      if (!hand || hand.type > maxType) {
         if (state.roundPhase === RoundPhase.LAST_CHANCE) {
           return { action: 'lastChancePass' };
         }
@@ -155,7 +152,7 @@ function generateTruthfulHand(
   currentHand: HandCall | null,
   myCards: Card[],
   maxType: HandType = HandType.ROYAL_FLUSH,
-): HandCall {
+): HandCall | null {
   const candidates: HandCall[] = [];
 
   if (myCards.length > 0) {
@@ -276,14 +273,17 @@ function generateTruthfulHand(
     return valid[idx]!;
   }
 
-  // Fallback: minimum raise, but still capped at plausible types
+  // No valid candidates beat the current call.
+  // Only allow cross-type minimum raises (e.g., Pair of Aces → Two Pair).
+  // Same-type minimum raises (e.g., Full House 2s over 4s → 2s over 5s)
+  // are degenerate and cause infinite escalation spirals — return null
+  // so the caller converts to bull.
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
-    if (minRaise && minRaise.type <= maxType) return minRaise;
-    // If even minimum raise is implausible, return minimum raise anyway
-    // (the caller — decideCFR — should override to bull instead)
-    if (minRaise) return minRaise;
-    return currentHand;
+    if (minRaise && minRaise.type > currentHand.type && minRaise.type <= maxType) {
+      return minRaise;
+    }
+    return null;
   }
 
   // Opening: high card with best rank, or fallback to 7
@@ -305,7 +305,7 @@ function generateBluffHand(
   myCards: Card[],
   historyContext?: { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> },
   maxType: HandType = HandType.ROYAL_FLUSH,
-): HandCall {
+): HandCall | null {
   const mySuitSet = new Set(myCards.map(c => c.suit));
   const mentionedRanks = historyContext?.mentionedRanks ?? new Set<Rank>();
   const mentionedSuits = historyContext?.mentionedSuits ?? new Set<Suit>();
@@ -391,14 +391,14 @@ function generateBluffHand(
     }
   }
 
-  // If we can't find a plausible bluff, try minimum raise within plausible range
+  // No plausible bluff found. Same logic as truthful fallback:
+  // only allow cross-type minimum raises, not degenerate same-type increments.
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
-    if (minRaise && minRaise.type <= maxType) return minRaise;
-    // Even minimum raise exceeds plausibility — return it anyway,
-    // the caller should override to bull instead
-    if (minRaise) return minRaise;
-    return currentHand;
+    if (minRaise && minRaise.type > currentHand.type && minRaise.type <= maxType) {
+      return minRaise;
+    }
+    return null;
   }
 
   return { type: HandType.HIGH_CARD, rank: pickWeightedRank() };

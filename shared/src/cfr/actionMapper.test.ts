@@ -139,3 +139,61 @@ describe('mapAbstractToConcreteAction — bull sanity check', () => {
     expect(trueResult.action).toBe('true');
   });
 });
+
+describe('mapAbstractToConcreteAction — escalation spiral prevention', () => {
+  it('converts truthful raise to bull when no candidates beat Full House (no degenerate same-type min-raise)', () => {
+    // Regression: CFR bots with weak cards would fall back to getMinimumRaise(),
+    // producing Full House 2s over 5s → 2s over 6s → ... endlessly.
+    const botCards: Card[] = [
+      { rank: '9', suit: 'clubs' },
+      { rank: '4', suit: 'spades' },
+    ];
+    const state = makeState({
+      currentHand: { type: HandType.FULL_HOUSE, threeRank: '2', twoRank: '4' },
+    });
+
+    // With 32 total cards (8 players × 4 cards), all types are plausible.
+    // The bot should NOT produce a degenerate "Full House, 2s over 5s" raise.
+    for (const action of [AbstractAction.TRUTHFUL_LOW, AbstractAction.TRUTHFUL_MID, AbstractAction.TRUTHFUL_HIGH]) {
+      const result = mapAbstractToConcreteAction(action, state, botCards, 32);
+      // Should be bull (no valid truthful candidates), NOT a same-type min-raise
+      expect(result.action).toBe('bull');
+    }
+  });
+
+  it('converts bluff raise to bull when no bluff can be generated above Full House within plausibility cap', () => {
+    const botCards: Card[] = [
+      { rank: '3', suit: 'hearts' },
+      { rank: '7', suit: 'diamonds' },
+    ];
+    // Current call is already at Four of a Kind — bluffs need Straight Flush+
+    const state = makeState({
+      currentHand: { type: HandType.FOUR_OF_A_KIND, rank: 'A' },
+    });
+
+    // With only 10 total cards, maxPlausible is Straight (type 5).
+    // Four of a Kind (type 7) > Straight (type 5), so the plausibility ceiling
+    // check in adjustStrategyForPlausibility should already kill raises.
+    // But even without that, the bluff generator should return null when
+    // it can't produce anything above Four of a Kind of Aces within cap.
+    const result = mapAbstractToConcreteAction(AbstractAction.BLUFF_SMALL, state, botCards, 10);
+    expect(result.action).toBe('bull');
+  });
+
+  it('still allows cross-type minimum raises when appropriate', () => {
+    const botCards: Card[] = [
+      { rank: '5', suit: 'spades' },
+    ];
+    // Pair of Aces — minimum raise jumps to Two Pair (different type)
+    const state = makeState({
+      currentHand: { type: HandType.PAIR, rank: 'A' },
+    });
+
+    const result = mapAbstractToConcreteAction(AbstractAction.TRUTHFUL_LOW, state, botCards, 20);
+    // Should produce a raise (Two Pair or higher), not bull
+    expect(result.action).toBe('call');
+    if (result.action === 'call') {
+      expect(result.hand.type).toBeGreaterThan(HandType.PAIR);
+    }
+  });
+});

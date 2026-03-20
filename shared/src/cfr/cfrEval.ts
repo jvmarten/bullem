@@ -208,9 +208,13 @@ function adjustStrategyForPlausibility(
     }
   }
 
-  // Adjustment 2: When claims are very high (escalation spiral), boost bull
-  if (hasBull && heightScore > 0.6) {
-    const escalationBoost = (heightScore - 0.6) * 1.5; // 0 to 0.6 extra for bull
+  // Adjustment 2: When claims are very high (escalation spiral), boost bull.
+  // More aggressive than before — Full House+ (heightScore >= 0.6) should
+  // heavily favor bull to prevent the endless incremental raising pattern.
+  if (hasBull && heightScore > 0.5) {
+    // Quadratic scaling: gentle at 0.5, very aggressive at 0.8+
+    const excess = heightScore - 0.5;
+    const escalationBoost = excess * excess * 6; // 0.5→0, 0.6→0.06, 0.7→0.24, 0.8→0.54, 0.9→0.96
     const raiseActions = legalActions.filter(a =>
       a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
     );
@@ -221,7 +225,7 @@ function adjustStrategyForPlausibility(
     }
 
     if (raiseMass > 0) {
-      const transfer = Math.min(raiseMass * 0.7, escalationBoost);
+      const transfer = Math.min(raiseMass * 0.9, escalationBoost);
       const scale = 1 - transfer / raiseMass;
       for (const a of raiseActions) {
         probs.set(a, (probs.get(a) ?? 0) * scale);
