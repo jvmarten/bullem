@@ -125,6 +125,46 @@ describe('GameEngine lastChanceMode', () => {
     });
   });
 
+  describe('last chance after raise following a last chance raise', () => {
+    it('grants last chance to new caller after previous last chance raise was re-raised', () => {
+      // Regression: when Player A used last chance raise, then Player C raised,
+      // and everyone bulled Player C, Player C was denied their own last chance
+      // because lastChanceUsed was still true from Player A's last chance raise.
+      const p1 = makePlayer('p1', 'Alice');
+      const p2 = makePlayer('p2', 'Bob');
+      const p3 = makePlayer('p3', 'Charlie');
+      const engine = new GameEngine([p1, p2, p3], CLASSIC_SETTINGS);
+      engine.startRound();
+
+      p1.cards = [{ rank: '7', suit: 'spades' }];
+      p2.cards = [{ rank: '8', suit: 'hearts' }];
+      p3.cards = [{ rank: 'J', suit: 'clubs' }];
+
+      // p1 calls pair of 7s
+      engine.handleCall('p1', { type: HandType.PAIR, rank: '7' });
+      // p2 and p3 both bull → triggers last chance for p1
+      engine.handleBull('p2');
+      const lc1 = engine.handleBull('p3');
+      expect(lc1.type).toBe('last_chance');
+
+      // p1 uses last chance raise to pair of 8s
+      engine.handleLastChanceRaise('p1', { type: HandType.PAIR, rank: '8' });
+
+      // p2 is next — raises to pair of jacks (regular raise, not last chance)
+      engine.handleCall('p2', { type: HandType.PAIR, rank: 'J' });
+
+      // p3 and p1 both call bull on p2's hand
+      engine.handleBull('p3');
+      const lc2 = engine.handleBull('p1');
+
+      // p2 should get their own last chance — this was the bug
+      expect(lc2.type).toBe('last_chance');
+      if (lc2.type === 'last_chance') {
+        expect(lc2.playerId).toBe('p2');
+      }
+    });
+  });
+
   describe('serialization', () => {
     it('preserves lastChanceMode through serialize/restore', () => {
       const p1 = makePlayer('p1', 'Alice');
