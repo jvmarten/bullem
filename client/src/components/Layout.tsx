@@ -27,18 +27,20 @@ function getGuestDisplayName(): string {
   return 'guest';
 }
 
+/** Preload the LoginPage chunk so navigation to /login is instant. */
+function preloadLoginPage(): void {
+  void import('../pages/LoginPage.js');
+}
+
 function AuthLink() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return null;
-
-  // When in a game/room session, don't navigate away — it would kick the player out
-  const inSession = /^\/(room|game|local|results)/.test(location.pathname);
 
   const userIcon = (
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
   );
 
+  // Show authenticated user's name once loaded
   if (user) {
     return (
       <Link
@@ -52,7 +54,8 @@ function AuthLink() {
     );
   }
 
-  const guestName = getGuestDisplayName();
+  // When in a game/room session, don't navigate away — it would kick the player out
+  const inSession = /^\/(room|game|local|results)/.test(location.pathname);
   const isHomePage = location.pathname === '/';
 
   if (inSession) {
@@ -60,25 +63,36 @@ function AuthLink() {
     return (
       <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
-        <span>{guestName}</span>
+        <span>{getGuestDisplayName()}</span>
       </span>
     );
   }
 
+  // While auth is loading, only show "sign in" on the home page (the only page
+  // where the sign-in link appears). This avoids the button popping in late.
+  // On non-home pages, wait for loading to finish so we don't briefly flash
+  // "sign in" before resolving to the guest name.
   if (!isHomePage) {
+    if (loading) return null;
     // Subpages show guest name as plain text — only the home page links to sign in
     return (
       <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
-        <span>{guestName}</span>
+        <span>{getGuestDisplayName()}</span>
       </span>
     );
   }
 
+  // Home page: show "sign in" immediately — don't wait for the /auth/me check.
+  // Most visitors seeing this link are unauthenticated, so showing it right away
+  // eliminates the delay. If the auth check reveals a logged-in user, the link
+  // switches to their username above.
   return (
     <Link
       to="/login"
       className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
+      onTouchStart={preloadLoginPage}
+      onMouseEnter={preloadLoginPage}
     >
       {userIcon}
       <span>sign in</span>
