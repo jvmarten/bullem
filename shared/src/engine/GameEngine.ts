@@ -212,6 +212,7 @@ export class GameEngine {
 
     this.currentHand = hand;
     this.lastCallerId = playerId;
+    this.lastChanceUsed = false;
     this.addTurnEntry(playerId, TurnAction.CALL, hand);
     const callerStats = this.gameStats.playerStats[playerId];
     if (callerStats) callerStats.callsMade++;
