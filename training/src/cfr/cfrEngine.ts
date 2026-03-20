@@ -1,8 +1,14 @@
 /**
- * Vanilla CFR (Counterfactual Regret Minimization) engine.
+ * CFR+ (Counterfactual Regret Minimization Plus) engine.
  *
  * Tracks cumulative regret and cumulative strategy for each information set,
  * then uses regret matching to compute action probabilities.
+ *
+ * CFR+ improvement over vanilla CFR: negative cumulative regrets are clamped
+ * to zero after each update. This prevents "regret debt" where an action that
+ * was once very bad but is now good needs many iterations to overcome its
+ * accumulated negative regret. With clamping, recovery is immediate —
+ * convergence is typically 10x faster in practice.
  *
  * This is the core data structure — the training loop drives iteration
  * by running games and feeding outcomes back here.
@@ -136,10 +142,13 @@ export class CFREngine {
   }
 
   /**
-   * Update regrets for an info set after observing outcomes.
+   * Update regrets for an info set after observing outcomes (CFR+).
    * In external sampling CFR, we update regrets as:
    *   regret[a] += utility(a) - utility(strategy)
    * where utility(strategy) is the weighted average utility.
+   *
+   * CFR+ clamps cumulative regrets to max(0, ...) after each update,
+   * preventing "regret debt" that slows convergence in vanilla CFR.
    */
   updateRegrets(
     infoSetKey: string,
@@ -153,7 +162,8 @@ export class CFREngine {
     for (const action of legalActions) {
       const utility = actionUtilities[action] ?? 0;
       const regret = utility - strategyUtility;
-      node.regretSum[action] = (node.regretSum[action] ?? 0) + regret;
+      // CFR+: clamp cumulative regret to non-negative
+      node.regretSum[action] = Math.max(0, (node.regretSum[action] ?? 0) + regret);
     }
   }
 

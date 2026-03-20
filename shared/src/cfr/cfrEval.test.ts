@@ -156,4 +156,90 @@ describe('decideCFR', () => {
       expect(result, `phase=${phase}`).not.toBeNull();
     }
   });
+
+  describe('card-aware Bayesian adjustment', () => {
+    it('holding matching cards makes bull less likely on a pair claim', () => {
+      // Bot holds a 7 — "pair of 7s" claim is more likely to exist
+      const pairOf7s: HandCall = { type: HandType.PAIR, rank: '7' };
+      const stateWithMatch = makeState({
+        roundPhase: RoundPhase.BULL_PHASE,
+        currentHand: pairOf7s,
+        lastCallerId: 'p2',
+      });
+      const cardsWithMatch = [card('7', 'hearts'), card('K', 'spades')];
+
+      // Bot holds NO 7s — "pair of 7s" is less likely
+      const cardsWithout = [card('2', 'clubs'), card('3', 'diamonds')];
+
+      // Run many trials and count bull frequency
+      const N = 500;
+      let bullWithMatch = 0;
+      let bullWithout = 0;
+
+      for (let i = 0; i < N; i++) {
+        const r1 = decideCFR(stateWithMatch, cardsWithMatch, 10, 2);
+        if (r1?.action === 'bull') bullWithMatch++;
+
+        const r2 = decideCFR(stateWithMatch, cardsWithout, 10, 2);
+        if (r2?.action === 'bull') bullWithout++;
+      }
+
+      // With matching cards, bull should be called LESS often
+      expect(bullWithMatch).toBeLessThan(bullWithout);
+    });
+
+    it('holding blocking cards makes bull more likely on four-of-a-kind', () => {
+      // Bot holds 3 of the 4 kings — "four kings" is nearly impossible
+      const fourKings: HandCall = { type: HandType.FOUR_OF_A_KIND, rank: 'K' };
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: fourKings,
+        lastCallerId: 'p2',
+        players: [
+          { id: 'p1', name: 'P1', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p2', name: 'P2', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p3', name: 'P3', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+          { id: 'p4', name: 'P4', cardCount: 5, isConnected: true, isEliminated: false, isHost: false },
+        ],
+      });
+      // Bot holds 3 kings — only 1 king left among all other players
+      const blockingCards = [
+        card('K', 'spades'), card('K', 'hearts'), card('K', 'diamonds'),
+        card('2', 'clubs'), card('3', 'clubs'),
+      ];
+
+      const N = 200;
+      let bullCount = 0;
+      for (let i = 0; i < N; i++) {
+        const r = decideCFR(state, blockingCards, 20, 4);
+        if (r?.action === 'bull') bullCount++;
+      }
+
+      // With 3 of the 4 kings, bot should almost always call bull
+      // (4th king needs to be among the remaining 15 unknown cards out of 47 pool)
+      // That's ~32% chance — combined with other adjustments, bull should dominate
+      expect(bullCount).toBeGreaterThan(N * 0.5);
+    });
+
+    it('works correctly with single-card hands (early rounds)', () => {
+      // Early round: 1 card each, 2 players, 2 total cards
+      const highCardQ: HandCall = { type: HandType.HIGH_CARD, rank: 'Q' };
+      const state = makeState({
+        roundPhase: RoundPhase.CALLING,
+        currentHand: highCardQ,
+        lastCallerId: 'p2',
+      });
+
+      // Bot has a Q — the claim is true from our own cards alone
+      const cardsWithQ = [card('Q', 'hearts')];
+      const N = 200;
+      let trueOrCallCount = 0;
+      for (let i = 0; i < N; i++) {
+        const r = decideCFR(state, cardsWithQ, 2, 2);
+        if (r?.action === 'true' || r?.action === 'call') trueOrCallCount++;
+      }
+      // When we hold the claimed card, we should rarely bull
+      expect(trueOrCallCount).toBeGreaterThan(N * 0.3);
+    });
+  });
 });

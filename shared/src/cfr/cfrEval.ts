@@ -8,11 +8,12 @@
  *
  * Post-strategy safety layers:
  * 1. Plausibility override — forces bull when claims are impossible given card count
- * 2. Escalation dampening — increases bull probability as claims get absurdly high
- * 3. Plausibility-capped action mapping — prevents generating implausible hands
+ * 2. Card knowledge — Bayesian probability using bot's own cards (card counting)
+ * 3. Escalation dampening — increases bull probability as claims get absurdly high
+ * 4. Plausibility-capped action mapping — prevents generating implausible hands
  */
 
-import type { Card, ClientGameState, HandCall, JokerCount, LastChanceMode } from '../types.js';
+import type { Card, ClientGameState, HandCall, JokerCount, LastChanceMode, Rank, Suit } from '../types.js';
 import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
@@ -82,6 +83,216 @@ function claimHeightScore(hand: HandCall | null): number {
     score += (RANK_VALUES[hand.highRank] / 14) * 0.05;
   }
   return Math.min(score, 1.0);
+}
+
+// ── Combinatorial hand probability ────────────────────────────────────
+
+/**
+ * Binomial coefficient C(n, k) — "n choose k".
+ * Returns 0 for invalid inputs (k > n, negative values).
+ * Uses multiplicative formula to avoid overflow for reasonable inputs.
+ */
+function choose(n: number, k: number): number {
+  if (k < 0 || k > n || n < 0) return 0;
+  if (k === 0 || k === n) return 1;
+  if (k > n - k) k = n - k; // Optimization: C(n,k) = C(n, n-k)
+  let result = 1;
+  for (let i = 0; i < k; i++) {
+    result = result * (n - i) / (i + 1);
+  }
+  return Math.round(result);
+}
+
+/**
+ * Probability that at least `needed` copies of a specific rank exist
+ * among `unknownCards` drawn from a pool of `poolSize` cards containing
+ * `copiesInPool` copies of that rank.
+ *
+ * Uses the hypergeometric distribution:
+ *   P(X >= needed) = 1 - Σ_{x=0}^{needed-1} P(X = x)
+ *   where P(X = x) = C(copiesInPool, x) * C(poolSize - copiesInPool, unknownCards - x) / C(poolSize, unknownCards)
+ *
+ * This is exact Bayesian probability conditioned on the bot's own cards.
+ */
+function probAtLeastN(
+  copiesInPool: number,
+  poolSize: number,
+  unknownCards: number,
+  needed: number,
+): number {
+  if (needed <= 0) return 1.0;
+  if (copiesInPool < needed) return 0.0;
+  if (unknownCards <= 0) return 0.0;
+  if (unknownCards > poolSize) return copiesInPool >= needed ? 1.0 : 0.0;
+
+  const totalWays = choose(poolSize, unknownCards);
+  if (totalWays === 0) return 0.0;
+
+  let cumProb = 0;
+  for (let x = 0; x < needed; x++) {
+    const ways = choose(copiesInPool, x) * choose(poolSize - copiesInPool, unknownCards - x);
+    cumProb += ways / totalWays;
+  }
+
+  return Math.max(0, Math.min(1, 1 - cumProb));
+}
+
+/**
+ * Compute the Bayesian probability that a claimed hand exists across all
+ * players' combined cards, conditioned on the bot's own hand.
+ *
+ * The bot knows its own cards, so it can compute exact probabilities
+ * for what remains in the unknown cards (other players' hands).
+ *
+ * This is the key advantage: a bot holding 2 of the 4 sevens knows that
+ * "pair of 7s" among 8 total cards is almost certain (the 2 remaining
+ * sevens are among 6 unknown cards), while a bot with zero sevens knows
+ * it's much less likely.
+ *
+ * Returns a value in [0, 1] representing P(hand exists | my cards).
+ */
+function computeHandExistsProbability(
+  hand: HandCall,
+  myCards: Card[],
+  totalCards: number,
+  deckSize: number = 52,
+): number {
+  const unknownCards = totalCards - myCards.length;
+  const poolSize = deckSize - myCards.length; // Cards we haven't seen
+
+  if (unknownCards <= 0 || poolSize <= 0) {
+    // All cards are ours — check directly
+    return checkHandInCards(hand, myCards) ? 1.0 : 0.0;
+  }
+
+  switch (hand.type) {
+    case HandType.HIGH_CARD: {
+      // P(at least 1 copy of rank X among all cards)
+      const myCount = myCards.filter(c => c.rank === hand.rank).length;
+      if (myCount >= 1) return 1.0; // We have it
+      const poolCopies = 4 - myCount; // Copies of this rank in the pool
+      return probAtLeastN(poolCopies, poolSize, unknownCards, 1);
+    }
+
+    case HandType.PAIR: {
+      // P(at least 2 copies of rank X total)
+      const myCount = myCards.filter(c => c.rank === hand.rank).length;
+      const needed = Math.max(0, 2 - myCount);
+      if (needed === 0) return 1.0; // We already have the pair
+      const poolCopies = 4 - myCount;
+      return probAtLeastN(poolCopies, poolSize, unknownCards, needed);
+    }
+
+    case HandType.THREE_OF_A_KIND: {
+      const myCount = myCards.filter(c => c.rank === hand.rank).length;
+      const needed = Math.max(0, 3 - myCount);
+      if (needed === 0) return 1.0;
+      const poolCopies = 4 - myCount;
+      return probAtLeastN(poolCopies, poolSize, unknownCards, needed);
+    }
+
+    case HandType.FOUR_OF_A_KIND: {
+      const myCount = myCards.filter(c => c.rank === hand.rank).length;
+      const needed = Math.max(0, 4 - myCount);
+      if (needed === 0) return 1.0;
+      const poolCopies = 4 - myCount;
+      return probAtLeastN(poolCopies, poolSize, unknownCards, needed);
+    }
+
+    case HandType.TWO_PAIR: {
+      // P(pair of highRank AND pair of lowRank) — approximate as independent
+      const hiCount = myCards.filter(c => c.rank === hand.highRank).length;
+      const loCount = myCards.filter(c => c.rank === hand.lowRank).length;
+      const hiNeeded = Math.max(0, 2 - hiCount);
+      const loNeeded = Math.max(0, 2 - loCount);
+
+      const pHi = hiNeeded === 0 ? 1.0 : probAtLeastN(4 - hiCount, poolSize, unknownCards, hiNeeded);
+      const pLo = loNeeded === 0 ? 1.0 : probAtLeastN(4 - loCount, poolSize, unknownCards, loNeeded);
+      // Independence approximation (slightly optimistic for tight pools)
+      return pHi * pLo;
+    }
+
+    case HandType.FLUSH: {
+      // P(at least 5 cards of suit X across all cards)
+      const mySuitCount = myCards.filter(c => c.suit === hand.suit).length;
+      const needed = Math.max(0, 5 - mySuitCount);
+      if (needed === 0) return 1.0;
+      const poolCopies = 13 - mySuitCount; // 13 cards per suit minus what I hold
+      return probAtLeastN(poolCopies, poolSize, unknownCards, needed);
+    }
+
+    case HandType.FULL_HOUSE: {
+      // P(3 of threeRank AND 2 of twoRank)
+      const threeCount = myCards.filter(c => c.rank === hand.threeRank).length;
+      const twoCount = myCards.filter(c => c.rank === hand.twoRank).length;
+      const threeNeeded = Math.max(0, 3 - threeCount);
+      const twoNeeded = Math.max(0, 2 - twoCount);
+
+      const pThree = threeNeeded === 0 ? 1.0 : probAtLeastN(4 - threeCount, poolSize, unknownCards, threeNeeded);
+      const pTwo = twoNeeded === 0 ? 1.0 : probAtLeastN(4 - twoCount, poolSize, unknownCards, twoNeeded);
+      return pThree * pTwo;
+    }
+
+    case HandType.STRAIGHT: {
+      // 5 consecutive ranks. Approximate: product of P(at least 1 of each rank).
+      const highVal = RANK_VALUES[hand.highRank];
+      let prob = 1.0;
+      for (let v = highVal; v > highVal - 5; v--) {
+        const rank = Object.entries(RANK_VALUES).find(([, val]) => val === v)?.[0] as Rank | undefined;
+        if (!rank) return 0;
+        const myCount = myCards.filter(c => c.rank === rank).length;
+        if (myCount >= 1) continue; // We have this rank
+        const poolCopies = 4 - myCount;
+        prob *= probAtLeastN(poolCopies, poolSize, unknownCards, 1);
+      }
+      return prob;
+    }
+
+    case HandType.STRAIGHT_FLUSH: {
+      // 5 consecutive cards of the same suit
+      const highVal = RANK_VALUES[hand.highRank];
+      let prob = 1.0;
+      for (let v = highVal; v > highVal - 5; v--) {
+        const rank = Object.entries(RANK_VALUES).find(([, val]) => val === v)?.[0] as Rank | undefined;
+        if (!rank) return 0;
+        const hasIt = myCards.some(c => c.rank === rank && c.suit === hand.suit);
+        if (hasIt) continue;
+        // Exactly 1 copy of this specific card in the pool (if we don't have it)
+        const poolCopies = 1;
+        prob *= probAtLeastN(poolCopies, poolSize, unknownCards, 1);
+      }
+      return prob;
+    }
+
+    case HandType.ROYAL_FLUSH: {
+      // 10, J, Q, K, A of a specific suit
+      const royalRanks: Rank[] = ['10', 'J', 'Q', 'K', 'A'];
+      let prob = 1.0;
+      for (const rank of royalRanks) {
+        const hasIt = myCards.some(c => c.rank === rank && c.suit === hand.suit);
+        if (hasIt) continue;
+        const poolCopies = 1;
+        prob *= probAtLeastN(poolCopies, poolSize, unknownCards, 1);
+      }
+      return prob;
+    }
+  }
+}
+
+/** Quick check if a hand is satisfied by the given cards alone. */
+function checkHandInCards(hand: HandCall, cards: Card[]): boolean {
+  switch (hand.type) {
+    case HandType.HIGH_CARD:
+      return cards.some(c => c.rank === hand.rank);
+    case HandType.PAIR:
+      return cards.filter(c => c.rank === hand.rank).length >= 2;
+    case HandType.THREE_OF_A_KIND:
+      return cards.filter(c => c.rank === hand.rank).length >= 3;
+    case HandType.FOUR_OF_A_KIND:
+      return cards.filter(c => c.rank === hand.rank).length >= 4;
+    default:
+      return false; // Conservative for complex hands
+  }
 }
 
 // ── Heuristic fallback ───────────────────────────────────────────────
@@ -456,6 +667,98 @@ function adjustForLastChancePass(
   }
 }
 
+// ── Card-aware Bayesian adjustment ───────────────────────────────────
+
+/**
+ * Uses the bot's own cards to compute exact Bayesian probability that
+ * the current claim exists, then adjusts bull/true probabilities.
+ *
+ * This is the single most impactful decision improvement: a human
+ * expert counts cards to estimate whether a claim is real. Without
+ * this, the bot treats "pair of 7s" the same whether it holds two
+ * 7s (making it near-certain) or zero 7s (making it less likely).
+ *
+ * The adjustment is proportional to the distance between the computed
+ * probability and the baseline plausibility, preventing overcorrection
+ * when the trained strategy already accounts for the general case.
+ */
+function adjustForCardKnowledge(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  myCards: Card[],
+  totalCards: number,
+): void {
+  if (!currentHand) return;
+
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  const hasTrue = legalActions.includes(AbstractAction.TRUE);
+  if (!hasBull && !hasTrue) return;
+
+  const exactProb = computeHandExistsProbability(currentHand, myCards, totalCards);
+  const baselinePlaus = claimPlausibility(currentHand, totalCards);
+
+  // The "surprise" is how much our card knowledge shifts the probability
+  // relative to what the general plausibility suggests.
+  // Positive shift = hand more likely than baseline → favor true, reduce bull
+  // Negative shift = hand less likely than baseline → favor bull, reduce true
+  const shift = exactProb - baselinePlaus;
+
+  // Only apply meaningful adjustments (|shift| > 0.05 avoids noise)
+  if (Math.abs(shift) < 0.05) return;
+
+  // Scale the adjustment — max 40% probability transfer to avoid
+  // completely overriding the trained strategy
+  const adjustmentStrength = Math.min(Math.abs(shift) * 0.8, 0.40);
+
+  if (shift > 0 && hasBull) {
+    // Hand is MORE likely than baseline → reduce bull, boost true/raise
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const transfer = currentBull * adjustmentStrength;
+    probs.set(AbstractAction.BULL, currentBull - transfer);
+
+    // Distribute to true first (if available), then other actions
+    if (hasTrue) {
+      probs.set(AbstractAction.TRUE, (probs.get(AbstractAction.TRUE) ?? 0) + transfer * 0.7);
+      // Remaining 30% to other actions proportionally
+      const otherActions = legalActions.filter(
+        a => a !== AbstractAction.BULL && a !== AbstractAction.TRUE,
+      );
+      const otherTotal = otherActions.reduce((s, a) => s + (probs.get(a) ?? 0), 0);
+      if (otherTotal > 0) {
+        for (const a of otherActions) {
+          probs.set(a, (probs.get(a) ?? 0) + transfer * 0.3 * ((probs.get(a) ?? 0) / otherTotal));
+        }
+      } else {
+        probs.set(AbstractAction.TRUE, (probs.get(AbstractAction.TRUE) ?? 0) + transfer * 0.3);
+      }
+    } else {
+      const otherActions = legalActions.filter(a => a !== AbstractAction.BULL);
+      const otherTotal = otherActions.reduce((s, a) => s + (probs.get(a) ?? 0), 0);
+      if (otherTotal > 0) {
+        for (const a of otherActions) {
+          probs.set(a, (probs.get(a) ?? 0) + transfer * ((probs.get(a) ?? 0) / otherTotal));
+        }
+      }
+    }
+  } else if (shift < 0 && hasBull) {
+    // Hand is LESS likely than baseline → boost bull, reduce true/raise
+    const raiseAndTrueActions = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.PASS);
+    let donorMass = 0;
+    for (const a of raiseAndTrueActions) {
+      donorMass += probs.get(a) ?? 0;
+    }
+    if (donorMass > 0) {
+      const transfer = donorMass * adjustmentStrength;
+      const scale = 1 - transfer / donorMass;
+      for (const a of raiseAndTrueActions) {
+        probs.set(a, (probs.get(a) ?? 0) * scale);
+      }
+      probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
+    }
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
@@ -529,6 +832,7 @@ export function decideCFR(
 
       // Apply post-strategy safety adjustments
       adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
+      adjustForCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards);
       adjustForSentimentCascade(probs, legalActions, state, totalCards);
       adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
       adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
