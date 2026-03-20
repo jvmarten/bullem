@@ -174,7 +174,6 @@ export default function App() {
         <Routes>
           <Route path="/rules" element={<SuspenseRoute label="rules"><HowToPlayPage /></SuspenseRoute>} />
           <Route path="/tutorial" element={<SuspenseRoute label="tutorial"><TutorialPage /></SuspenseRoute>} />
-          <Route path="/login" element={<SuspenseRoute label="login"><LoginPage /></SuspenseRoute>} />
           <Route path="/profile" element={<SuspenseRoute label="profile"><ProfilePage /></SuspenseRoute>} />
           <Route path="/forgot-password" element={<SuspenseRoute label="page"><ForgotPasswordPage /></SuspenseRoute>} />
           <Route path="/reset-password" element={<SuspenseRoute label="page"><ResetPasswordPage /></SuspenseRoute>} />
@@ -186,10 +185,14 @@ export default function App() {
           <Route path="/five-draw" element={<SuspenseRoute label="5 draw"><FiveDrawPage /></SuspenseRoute>} />
           <Route path="/privacy" element={<SuspenseRoute label="privacy policy"><PrivacyPolicyPage /></SuspenseRoute>} />
 
-          {/* Online multiplayer routes (HomePage needs GameProvider for player count) */}
+          {/* Online multiplayer routes (HomePage needs GameProvider for player count).
+              Auth routes (/login, /forgot-password, /reset-password) are inside
+              OnlineLayout so navigating from the home page doesn't unmount/remount
+              the heavy GameProvider — that unmount caused a UI freeze on mobile. */}
           <Route element={<OnlineLayout />}>
             <Route path="/u/:username" element={<SuspenseRoute label="profile"><PublicProfilePage /></SuspenseRoute>} />
             <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<SuspenseRoute label="login"><LoginPage /></SuspenseRoute>} />
             {/* /host removed — game creation goes directly to lobby via "Create Game" */}
             <Route path="/host" element={<Navigate to="/" replace />} />
             <Route path="/room/:roomCode" element={<SuspenseRoute label="lobby"><LobbyPage /></SuspenseRoute>} />
