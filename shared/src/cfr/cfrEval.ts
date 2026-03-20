@@ -18,7 +18,7 @@ import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
-import { STRATEGY_DATA, type StrategyEntry } from './strategyData.js';
+import { STRATEGY_DATA, ACTION_EXPAND, type StrategyEntry } from './strategyData.js';
 import { RANK_VALUES } from '../constants.js';
 
 /** Map active player count to strategy bucket key. */
@@ -811,12 +811,21 @@ export function decideCFR(
     const strategyEntry = strategyMap[infoSetKey];
 
     if (strategyEntry) {
+      // Expand abbreviated action keys to full AbstractAction names.
+      // Strategy data uses compact keys (tl/tm/th/bs/bm/bb/bu/tr/pa)
+      // to reduce bundle size — expand them for lookup.
+      const expanded: Record<string, number> = {};
+      for (const [key, prob] of Object.entries(strategyEntry)) {
+        const fullKey = ACTION_EXPAND[key] ?? key;
+        expanded[fullKey] = prob;
+      }
+
       // Build probability distribution over legal actions with epsilon-noise
       const uniform = 1 / legalActions.length;
       let totalProb = 0;
       const probs = new Map<AbstractAction, number>();
       for (const action of legalActions) {
-        const base = strategyEntry[action] ?? 0;
+        const base = expanded[action] ?? 0;
         // Mix in epsilon-noise: (1-ε)*strategy + ε*uniform
         const mixed = (1 - EVAL_EPSILON) * base + EVAL_EPSILON * uniform;
         probs.set(action, mixed);
