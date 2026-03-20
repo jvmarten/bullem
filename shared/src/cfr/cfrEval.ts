@@ -535,22 +535,24 @@ function adjustForSentimentCascade(
 
   // True cascade: multiple true votes on a hand that isn't clearly real.
   // If the hand were obviously real, it wouldn't need defenders — be skeptical.
-  if (trueCount >= 2 && plausibility < 1.0) {
-    const cascadeFactor = Math.min(trueCount * 0.10, 0.50);
+  // Aggressive: even 1 prior true vote triggers skepticism on unlikely hands.
+  if (trueCount >= 1 && plausibility < 1.0) {
+    // Quadratic scaling: 1 true→0.15, 2→0.30, 3→0.45, capped at 0.60
+    const cascadeFactor = Math.min(trueCount * 0.15, 0.60);
     const skepticism = cascadeFactor * (1 - plausibility);
     const currentTrue = probs.get(AbstractAction.TRUE) ?? 0;
-    const transfer = Math.min(currentTrue * 0.6, skepticism);
+    const transfer = Math.min(currentTrue * 0.75, skepticism);
     probs.set(AbstractAction.TRUE, currentTrue - transfer);
     probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
   }
 
   // Bull cascade: many bull votes on a plausible hand.
   // Don't follow the crowd when the hand is likely to exist.
-  if (bullCount >= 3 && plausibility >= 0.5) {
-    const contraryFactor = Math.min(bullCount * 0.06, 0.30);
+  if (bullCount >= 2 && plausibility >= 0.5) {
+    const contraryFactor = Math.min(bullCount * 0.08, 0.40);
     const contraryBoost = contraryFactor * plausibility;
     const currentBull = probs.get(AbstractAction.BULL) ?? 0;
-    const transfer = Math.min(currentBull * 0.4, contraryBoost);
+    const transfer = Math.min(currentBull * 0.5, contraryBoost);
     probs.set(AbstractAction.BULL, currentBull - transfer);
     probs.set(AbstractAction.TRUE, (probs.get(AbstractAction.TRUE) ?? 0) + transfer);
   }
@@ -583,14 +585,16 @@ function adjustForLowClaims(
   if (currentHand.type === HandType.HIGH_CARD) {
     // P(rank X exists) ≈ 1 - (48/52)^N. With 5 cards: ~35%, 9: ~54%.
     // The opener likely HAS the card they're claiming, making bull even worse.
-    if (totalCards >= 5) {
-      protection = Math.min(0.65, (totalCards - 4) * 0.07);
+    // In heads-up (≤10 total cards), the opponent almost certainly has what
+    // they claimed — protecting even at 3+ cards.
+    if (totalCards >= 3) {
+      protection = Math.min(0.75, (totalCards - 2) * 0.08);
     }
   } else if (currentHand.type === HandType.PAIR) {
     // Pair of X needs 2+ of a specific rank among N cards.
     // With 12 cards: ~22%, 16: ~37%. Still risky to bull.
-    if (totalCards >= 12) {
-      protection = Math.min(0.40, (totalCards - 10) * 0.04);
+    if (totalCards >= 8) {
+      protection = Math.min(0.50, (totalCards - 6) * 0.05);
     }
   }
 
@@ -640,11 +644,15 @@ function adjustForLastChancePass(
   const heightScore = claimHeightScore(currentHand);
 
   // When the current claim is already borderline or high, raising
-  // will almost certainly produce something even less plausible
-  if (plausibility <= 0.8 || heightScore >= 0.3) {
+  // will almost certainly produce something even less plausible.
+  // In last-chance, the safest play is usually to pass and let the
+  // round resolve on the existing claim — if it exists, the bull
+  // callers get penalized. Raising only helps if the new claim is
+  // both plausible AND more likely to exist.
+  if (plausibility <= 0.9 || heightScore >= 0.2) {
     const passBoost = Math.max(
-      (1.0 - plausibility) * 0.5,    // Low plausibility → strong pass
-      (heightScore - 0.2) * 0.4,     // High claim → moderate pass
+      (1.0 - plausibility) * 0.7,    // Low plausibility → very strong pass
+      (heightScore - 0.1) * 0.5,     // High claim → strong pass
     );
 
     const raiseActions = legalActions.filter(a =>
@@ -657,7 +665,7 @@ function adjustForLastChancePass(
     }
 
     if (raiseMass > 0) {
-      const transfer = Math.min(raiseMass * 0.75, passBoost);
+      const transfer = Math.min(raiseMass * 0.85, passBoost);
       const scale = 1 - transfer / raiseMass;
       for (const a of raiseActions) {
         probs.set(a, (probs.get(a) ?? 0) * scale);
@@ -707,9 +715,10 @@ function adjustForCardKnowledge(
   // Only apply meaningful adjustments (|shift| > 0.05 avoids noise)
   if (Math.abs(shift) < 0.05) return;
 
-  // Scale the adjustment — max 40% probability transfer to avoid
-  // completely overriding the trained strategy
-  const adjustmentStrength = Math.min(Math.abs(shift) * 0.8, 0.40);
+  // Scale the adjustment — max 55% probability transfer. Card counting
+  // is the single most impactful signal; the trained strategy doesn't have
+  // access to exact card information, so we allow strong overrides.
+  const adjustmentStrength = Math.min(Math.abs(shift) * 0.9, 0.55);
 
   if (shift > 0 && hasBull) {
     // Hand is MORE likely than baseline → reduce bull, boost true/raise

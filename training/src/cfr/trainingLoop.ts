@@ -392,9 +392,10 @@ function createTrainingPlayers(
   const configs: BotConfig[] = [];
   const opponentConfigs = new Map<string, BotProfileConfig>();
 
-  if (playerCount === 2 && Math.random() < 0.3) {
-    // 30% self-play for 2P — converges toward Nash equilibrium.
-    // Both players use CFR; only cfr-0's regrets are updated.
+  if (playerCount === 2 && Math.random() < 0.4) {
+    // 40% self-play for 2P — converges toward Nash equilibrium.
+    // Increased from 30% to strengthen heads-up endgame play,
+    // which is where games are decided.
     configs.push({ id: 'cfr-0', name: 'CFR-0', difficulty: BotDifficulty.HARD });
     configs.push({ id: 'cfr-1', name: 'CFR-1', difficulty: BotDifficulty.HARD });
   } else {
