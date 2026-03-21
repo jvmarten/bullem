@@ -21,7 +21,7 @@ import { useToast } from '../context/ToastContext.js';
 import {
   RoundPhase, BotDifficulty, GameEngine, BotPlayer, handToString,
   FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_DEFAULT_WAGER, FIVE_DRAW_WIN_MULTIPLIER,
-  DECK_DRAW_STARTING_BALANCE,
+  DECK_DRAW_STARTING_BALANCE, preloadCFRStrategy,
   type HandCall, type Card, type Suit, type ServerPlayer, type ClientGameState, type RoundResult,
 } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
@@ -260,6 +260,9 @@ export function FiveDrawPage() {
   const { play } = useSound();
   const { user } = useAuth();
   const { addToast } = useToast();
+
+  // Preload CFR strategy data for the dealer bot
+  useEffect(() => { void preloadCFRStrategy(); }, []);
 
   // === Balance ===
   const [balance, setBalance] = useState(() => loadGuestBalance());

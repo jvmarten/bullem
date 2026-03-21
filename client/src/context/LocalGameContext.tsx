@@ -6,6 +6,7 @@ import {
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, getDeckSize, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
   saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP, GAME_COUNTDOWN_SECONDS,
+  preloadCFRStrategy,
 } from '@bull-em/shared';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
@@ -121,6 +122,11 @@ function toPublicPlayer(p: ServerPlayer): Player {
 }
 
 export function LocalGameProvider({ children }: { children: ReactNode }) {
+  // Eagerly preload CFR strategy data so it's available by the time a
+  // CFR bot needs to act. The 7.6MB data is lazy-loaded via dynamic import
+  // to avoid bloating the main bundle.
+  useEffect(() => { void preloadCFRStrategy(); }, []);
+
   // Synchronously restore saved game on first render so child components
   // see the restored state immediately (before any effects run).
   const [initialRestore] = useState(tryRestoreGame);

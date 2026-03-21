@@ -10,6 +10,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
+import { preloadCFRStrategy } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
@@ -258,6 +259,10 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
   } else {
     logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
   }
+
+  // Eagerly load CFR strategy data so bot decisions are instant from the first game.
+  // On the server this resolves from disk almost immediately (~50ms).
+  await preloadCFRStrategy();
 
   // Start the HTTP server AFTER all initialization is complete.
   // This ensures the leaderboard, profiles, and other DB-backed endpoints
