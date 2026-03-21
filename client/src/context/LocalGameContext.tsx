@@ -720,7 +720,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     isPausedRef.current = false;
   }, []);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async () => {
     if (playersRef.current.length < 2) {
       setError('Need at least 2 players');
       return;
@@ -732,6 +732,17 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       setError(`Too many players for ${settings.maxCards}-card game (${playersRef.current.length} x ${settings.maxCards} = ${totalNeeded} > ${effectiveDeckSize})`);
       return;
     }
+
+    // If any bot uses CFR strategy, ensure the strategy data is loaded before
+    // the game starts. The 6.9MB chunk may still be downloading on slow networks.
+    // The preload fires on mount, so this is usually instant (already cached).
+    const hasCFRBot = playersRef.current.some(
+      p => p.isBot && [...CFR_BOT_MAP.values()].some(c => c.name === p.name),
+    );
+    if (hasCFRBot) {
+      await preloadCFRStrategy();
+    }
+
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
