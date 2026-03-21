@@ -1,10 +1,13 @@
 /**
  * CFR strategy evaluation for in-game bot decisions.
  *
- * Uses pre-trained strategy data (embedded in strategyData.ts) to make
+ * Uses pre-trained strategy data (lazy-loaded from strategyData.ts) to make
  * decisions compatible with BotPlayer's interface.
  *
- * Strategy data is ~120KB total, acceptable for both server and client bundles.
+ * Strategy data (~7.6MB) is loaded on-demand via dynamic import so it doesn't
+ * bloat the main client bundle. Vite code-splits it into a separate chunk that's
+ * only fetched when a CFR bot actually plays. On the server, the dynamic import
+ * resolves immediately from disk.
  *
  * Post-strategy safety layers:
  * 1. Plausibility override — forces bull when claims are impossible given card count
@@ -18,8 +21,32 @@ import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
-import { STRATEGY_DATA, ACTION_EXPAND, type StrategyEntry } from './strategyData.js';
+import type { StrategyEntry } from './strategyData.js';
 import { RANK_VALUES } from '../constants.js';
+
+// ── Lazy-loaded strategy data ─────────────────────────────────────────
+// The 7.6MB strategy data is loaded on first use via dynamic import().
+// This keeps the main bundle small — Vite splits it into a separate chunk.
+let _strategyData: ReadonlyMap<string, Record<string, StrategyEntry>> | null = null;
+let _actionExpand: Record<string, string> | null = null;
+let _loadPromise: Promise<void> | null = null;
+
+/**
+ * Preload CFR strategy data so it's available for decideCFR().
+ * Call this early when you know CFR bots will be used (e.g., server startup,
+ * or when a local game with CFR bots is about to start).
+ * Safe to call multiple times — only loads once.
+ */
+export async function preloadCFRStrategy(): Promise<void> {
+  if (_strategyData) return;
+  if (!_loadPromise) {
+    _loadPromise = import('./strategyData.js').then((mod) => {
+      _strategyData = mod.STRATEGY_DATA;
+      _actionExpand = mod.ACTION_EXPAND;
+    });
+  }
+  await _loadPromise;
+}
 
 /** Map active player count to strategy bucket key. */
 function resolvePlayerBucket(activePlayers: number): string {
@@ -807,8 +834,12 @@ export function decideCFR(
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
 
+  // If strategy data hasn't been loaded yet, fall through to heuristic.
+  // preloadCFRStrategy() should be called before the first CFR decision.
+  if (!_strategyData) return null;
+
   const bucket = resolvePlayerBucket(activePlayers);
-  const strategyMap = STRATEGY_DATA.get(bucket);
+  const strategyMap = _strategyData.get(bucket);
 
   let chosenAction: AbstractAction;
 
@@ -825,7 +856,7 @@ export function decideCFR(
       // to reduce bundle size — expand them for lookup.
       const expanded: Record<string, number> = {};
       for (const [key, prob] of Object.entries(strategyEntry)) {
-        const fullKey = ACTION_EXPAND[key] ?? key;
+        const fullKey = _actionExpand?.[key] ?? key;
         expanded[fullKey] = prob;
       }
 

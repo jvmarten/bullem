@@ -1,7 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { decideCFR } from './cfrEval.js';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { decideCFR, preloadCFRStrategy } from './cfrEval.js';
 import { HandType, RoundPhase, GamePhase } from '../types.js';
 import type { Card, ClientGameState, HandCall } from '../types.js';
+
+// Load strategy data before tests run — it's now lazy-loaded via dynamic import
+beforeAll(async () => {
+  await preloadCFRStrategy();
+});
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
