@@ -21,6 +21,13 @@ const ACTION_ABBREVIATIONS: Record<string, string> = {
   'pass': 'pa',
 };
 
+/** Fixed action order for v2 compact format. */
+const ACTION_ORDER = ['bu', 'pa', 'tl', 'tm', 'th', 'tr', 'bs', 'bm', 'bb'];
+const ACTION_TO_IDX = new Map(ACTION_ORDER.map((a, i) => [a, i]));
+
+/** Characters used for single-char dictionary encoding of key segments. */
+const DICT_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 /**
  * Re-prune and filter a strategy for embedding.
  *
@@ -72,11 +79,82 @@ function repruneStrategy(
   return { pruned, count, skipped };
 }
 
+/**
+ * Build a segment dictionary from all info set keys across all buckets.
+ * Each unique pipe-separated segment gets a single-character code.
+ * Segments are sorted by frequency so the most common get the simplest codes.
+ */
+function buildSegmentDictionary(
+  allBuckets: Record<string, Record<string, Record<string, number>>>,
+): { segToCode: Map<string, string>; codeToSeg: Record<string, string> } {
+  const freq = new Map<string, number>();
+  for (const entries of Object.values(allBuckets)) {
+    for (const key of Object.keys(entries)) {
+      for (const seg of key.split('|')) {
+        freq.set(seg, (freq.get(seg) ?? 0) + 1);
+      }
+    }
+  }
+
+  const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([seg]) => seg);
+  if (sorted.length > DICT_CHARS.length) {
+    throw new Error(`Too many unique segments (${sorted.length}) for single-char encoding (max ${DICT_CHARS.length})`);
+  }
+
+  const segToCode = new Map<string, string>();
+  const codeToSeg: Record<string, string> = {};
+  for (let i = 0; i < sorted.length; i++) {
+    const code = DICT_CHARS[i]!;
+    segToCode.set(sorted[i]!, code);
+    codeToSeg[code] = sorted[i]!;
+  }
+
+  return { segToCode, codeToSeg };
+}
+
+/**
+ * Encode a v1 strategy bucket into compact v2 format.
+ * Keys: each pipe-separated segment → single char via dictionary.
+ * Values: single-action → action index; multi-action → flat [idx, prob%, ...].
+ */
+function encodeCompactBucket(
+  entries: Record<string, Record<string, number>>,
+  segToCode: Map<string, string>,
+): Record<string, number | number[]> {
+  const compact: Record<string, number | number[]> = {};
+  for (const [key, strat] of Object.entries(entries)) {
+    // Encode key
+    const compactKey = key.split('|').map(seg => segToCode.get(seg) ?? seg).join('');
+
+    // Encode value
+    const actions = Object.entries(strat);
+    if (actions.length === 1) {
+      const idx = ACTION_TO_IDX.get(actions[0]![0]);
+      if (idx === undefined) throw new Error(`Unknown action: ${actions[0]![0]}`);
+      compact[compactKey] = idx;
+    } else {
+      const pairs: number[] = [];
+      for (const [action, prob] of actions) {
+        const idx = ACTION_TO_IDX.get(action);
+        if (idx === undefined) throw new Error(`Unknown action: ${action}`);
+        const probPct = Math.round(prob * 100);
+        if (probPct > 0) {
+          pairs.push(idx, probPct);
+        }
+      }
+      compact[compactKey] = pairs;
+    }
+  }
+  return compact;
+}
+
+// ── Main ─────────────────────────────────────────────────────────────
+
 // Load per-player-count strategy files
-const buckets = ['p2', 'p34', 'p5+'];
+const bucketNames = ['p2', 'p34', 'p5+'];
 const strategies = new Map<string, { strategy: Record<string, Record<string, number>>; infoSetCount: number }>();
 
-for (const bucket of buckets) {
+for (const bucket of bucketNames) {
   const files = fs.readdirSync(STRATEGIES_DIR)
     .filter(f => f.includes(`-${bucket}.json`) && f.startsWith('cfr-strategy-'))
     .sort((a, b) => {
@@ -94,26 +172,39 @@ for (const bucket of buckets) {
   }
 }
 
-// Build the action expand reverse mapping
-const actionExpand: Record<string, string> = {};
-for (const [full, abbr] of Object.entries(ACTION_ABBREVIATIONS)) {
-  actionExpand[abbr] = full;
-}
-
-// Generate JSON
+// Build the v1 buckets for dictionary analysis
 let totalInfoSets = 0;
-const bucketsObj: Record<string, Record<string, Record<string, number>>> = {};
+const v1Buckets: Record<string, Record<string, Record<string, number>>> = {};
 for (const [bucket, data] of strategies) {
   totalInfoSets += data.infoSetCount;
-  bucketsObj[bucket] = data.strategy;
+  v1Buckets[bucket] = data.strategy;
 }
 
-const json = { actionExpand, buckets: bucketsObj };
-const output = JSON.stringify(json);
+// Build segment dictionary and encode to compact v2 format
+const { segToCode, codeToSeg } = buildSegmentDictionary(v1Buckets);
+
+const compactBuckets: Record<string, Record<string, number | number[]>> = {};
+for (const [bucket, entries] of Object.entries(v1Buckets)) {
+  compactBuckets[bucket] = encodeCompactBucket(entries, segToCode);
+}
+
+const v2Json = {
+  v: 2 as const,
+  actions: ACTION_ORDER,
+  segments: codeToSeg,
+  buckets: compactBuckets,
+};
+
+const output = JSON.stringify(v2Json);
 
 fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
 fs.writeFileSync(OUTPUT_FILE, output, 'utf-8');
 const sizeKB = (Buffer.byteLength(output) / 1024).toFixed(1);
-console.log(`\nGenerated ${OUTPUT_FILE}`);
+const sizeMB = (Buffer.byteLength(output) / 1024 / 1024).toFixed(1);
+console.log(`\nGenerated ${OUTPUT_FILE} (compact v2 format)`);
 console.log(`  Total info sets: ${totalInfoSets}`);
-console.log(`  File size: ${sizeKB} KB`);
+console.log(`  File size: ${sizeKB} KB (${sizeMB} MB)`);
+console.log(`  Unique segments: ${Object.keys(codeToSeg).length}`);
+if (Number(sizeMB) > 10) {
+  console.warn(`\n⚠️  WARNING: File size exceeds 10MB. Consider reducing training iterations or increasing prune threshold.`);
+}
