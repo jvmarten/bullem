@@ -26,30 +26,54 @@ export interface StrategyEntry {
 }
 
 // ── Strategy data (injected at startup) ───────────────────────────────
-// Strategy data (~7.6MB) is NOT bundled with shared/.
+// Strategy data is NOT bundled with shared/.
 // On the server: loaded from JSON on disk and injected via setCFRStrategyData().
 // On the client: fetched via fetch('/data/cfr-strategy.json') and injected.
+//
+// V2 compact format is stored DIRECTLY in memory to avoid the ~80MB
+// expansion cost of decoding all 186K info set keys at startup.
+// Keys are encoded on-the-fly during lookups using the segment dictionary.
 let _strategyData: ReadonlyMap<string, Record<string, StrategyEntry>> | null = null;
 let _actionExpand: Record<string, string> | null = null;
+
+// V2 compact format — stored as-is, decoded on lookup
+let _compactData: CompactCFRStrategy | null = null;
+let _segToCode: Map<string, string> | null = null; // segment → single char (for key encoding)
 
 /**
  * Inject pre-parsed CFR strategy data. Called once at startup by the
  * platform-specific loader (server reads from disk, client fetches JSON).
  *
- * @param data.actionExpand  Abbreviation → full action name map (e.g. "tl" → "truthful_low")
- * @param data.buckets       Player-count buckets ("p2", "p34", "p5+") → info-set strategies
+ * Accepts both v1 (expanded) and v2 (compact) formats. V2 format is stored
+ * directly in memory (~20MB) instead of being expanded to full keys (~80MB).
  */
-export function setCFRStrategyData(data: {
-  actionExpand: Record<string, string>;
-  buckets: Record<string, Record<string, StrategyEntry>>;
-}): void {
-  _actionExpand = data.actionExpand;
-  _strategyData = new Map(Object.entries(data.buckets));
+export function setCFRStrategyData(data:
+  | { actionExpand: Record<string, string>; buckets: Record<string, Record<string, StrategyEntry>> }
+  | CompactCFRStrategy
+): void {
+  if ('v' in data && data.v === 2) {
+    // Store compact format directly — decode keys on-the-fly during lookups
+    _compactData = data;
+    _strategyData = null;
+    _actionExpand = null;
+    // Build reverse lookup: segment name → single char code
+    _segToCode = new Map();
+    for (const [code, seg] of Object.entries(data.segments)) {
+      _segToCode.set(seg, code);
+    }
+  } else {
+    // V1 format: store expanded data
+    const v1 = data as { actionExpand: Record<string, string>; buckets: Record<string, Record<string, StrategyEntry>> };
+    _actionExpand = v1.actionExpand;
+    _strategyData = new Map(Object.entries(v1.buckets));
+    _compactData = null;
+    _segToCode = null;
+  }
 }
 
 /** Returns true if strategy data has been loaded. */
 export function isCFRStrategyLoaded(): boolean {
-  return _strategyData !== null;
+  return _strategyData !== null || _compactData !== null;
 }
 
 /**
@@ -118,6 +142,59 @@ export function decodeCFRCompact(compact: CompactCFRStrategy): {
   }
 
   return { actionExpand, buckets: decodedBuckets };
+}
+
+/**
+ * Encode an info set key from full pipe-separated form to compact single-char form.
+ * Example: "c|p2|c1|tLo|weak" → "lHJLA" using the segment dictionary.
+ */
+function encodeInfoSetKey(fullKey: string, segToCode: Map<string, string>): string {
+  const parts = fullKey.split('|');
+  let encoded = '';
+  for (const part of parts) {
+    encoded += segToCode.get(part) ?? part;
+  }
+  return encoded;
+}
+
+/**
+ * Look up a strategy entry from the compact v2 data and decode it on-the-fly.
+ * Returns null if not found. Much cheaper than decoding all 186K entries at startup.
+ */
+function lookupCompactStrategy(
+  bucket: string, infoSetKey: string,
+): { entry: StrategyEntry; actionExpand: Record<string, string> } | null {
+  if (!_compactData || !_segToCode) return null;
+  const bucketData = _compactData.buckets[bucket];
+  if (!bucketData) return null;
+
+  const compactKey = encodeInfoSetKey(infoSetKey, _segToCode);
+  const value = bucketData[compactKey];
+  if (value === undefined) return null;
+
+  const { actions } = _compactData;
+  let entry: StrategyEntry;
+  if (typeof value === 'number') {
+    entry = { [actions[value]!]: 1 };
+  } else {
+    entry = {};
+    for (let i = 0; i < value.length; i += 2) {
+      entry[actions[value[i]!]!] = value[i + 1]! / 100;
+    }
+  }
+
+  // Build actionExpand for this lookup
+  const ACTION_NAMES: Record<string, string> = {
+    bu: 'bull', pa: 'pass', tl: 'truthful_low', tm: 'truthful_mid',
+    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_medium',
+    bb: 'bluff_big',
+  };
+  const actionExpand: Record<string, string> = {};
+  for (const a of actions) {
+    actionExpand[a] = ACTION_NAMES[a] ?? a;
+  }
+
+  return { entry, actionExpand };
 }
 
 /** Map active player count to strategy bucket key. */
@@ -891,29 +968,44 @@ export function decideCFR(
 
   // If strategy data hasn't been loaded yet, fall through to heuristic.
   // setCFRStrategyData() should be called before the first CFR decision.
-  if (!_strategyData) return null;
+  if (!_strategyData && !_compactData) return null;
 
   const bucket = resolvePlayerBucket(activePlayers);
-  const strategyMap = _strategyData.get(bucket);
+
+  // Build the info set key (same for both v1 and v2)
+  const infoSetKey = getInfoSetKey(
+    state, botCards, totalCards, activePlayers,
+    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+  );
+
+  // Look up the strategy entry — try compact v2 first, then v1
+  let expanded: Record<string, number> | null = null;
+  if (_compactData) {
+    const result = lookupCompactStrategy(bucket, infoSetKey);
+    if (result) {
+      expanded = {};
+      for (const [key, prob] of Object.entries(result.entry)) {
+        const fullKey = result.actionExpand[key] ?? key;
+        expanded[fullKey] = prob;
+      }
+    }
+  } else if (_strategyData) {
+    const strategyMap = _strategyData.get(bucket);
+    if (strategyMap) {
+      const strategyEntry = strategyMap[infoSetKey];
+      if (strategyEntry) {
+        expanded = {};
+        for (const [key, prob] of Object.entries(strategyEntry)) {
+          const fullKey = _actionExpand?.[key] ?? key;
+          expanded[fullKey] = prob;
+        }
+      }
+    }
+  }
 
   let chosenAction: AbstractAction;
 
-  if (strategyMap) {
-    const infoSetKey = getInfoSetKey(
-      state, botCards, totalCards, activePlayers,
-      jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
-    );
-    const strategyEntry = strategyMap[infoSetKey];
-
-    if (strategyEntry) {
-      // Expand abbreviated action keys to full AbstractAction names.
-      // Strategy data uses compact keys (tl/tm/th/bs/bm/bb/bu/tr/pa)
-      // to reduce bundle size — expand them for lookup.
-      const expanded: Record<string, number> = {};
-      for (const [key, prob] of Object.entries(strategyEntry)) {
-        const fullKey = _actionExpand?.[key] ?? key;
-        expanded[fullKey] = prob;
-      }
+  if (expanded) {
 
       // Build probability distribution over legal actions with epsilon-noise
       const uniform = 1 / legalActions.length;
@@ -961,9 +1053,6 @@ export function decideCFR(
       } else {
         chosenAction = heuristicFallback(legalActions, state.currentHand, totalCards);
       }
-    } else {
-      chosenAction = heuristicFallback(legalActions, state.currentHand, totalCards);
-    }
   } else {
     chosenAction = heuristicFallback(legalActions, state.currentHand, totalCards);
   }
@@ -1188,29 +1277,42 @@ export function decideCFRWithSearch(
 
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
-  if (!_strategyData) return null;
+  if (!_strategyData && !_compactData) return null;
 
   // ── Step 1: Get the base pre-trained strategy (same pipeline as decideCFR) ──
 
   const bucket = resolvePlayerBucket(activePlayers);
-  const strategyMap = _strategyData.get(bucket);
+  const infoSetKey = getInfoSetKey(
+    state, botCards, totalCards, activePlayers,
+    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+  );
+
+  // Look up strategy — try compact v2 first, then v1
+  let expanded: Record<string, number> | null = null;
+  if (_compactData) {
+    const result = lookupCompactStrategy(bucket, infoSetKey);
+    if (result) {
+      expanded = {};
+      for (const [key, prob] of Object.entries(result.entry)) {
+        expanded[result.actionExpand[key] ?? key] = prob;
+      }
+    }
+  } else if (_strategyData) {
+    const strategyMap = _strategyData.get(bucket);
+    if (strategyMap) {
+      const strategyEntry = strategyMap[infoSetKey];
+      if (strategyEntry) {
+        expanded = {};
+        for (const [key, prob] of Object.entries(strategyEntry)) {
+          expanded[_actionExpand?.[key] ?? key] = prob;
+        }
+      }
+    }
+  }
 
   const baseProbs = new Map<AbstractAction, number>();
 
-  if (strategyMap) {
-    const infoSetKey = getInfoSetKey(
-      state, botCards, totalCards, activePlayers,
-      jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
-    );
-    const strategyEntry = strategyMap[infoSetKey];
-
-    if (strategyEntry) {
-      const expanded: Record<string, number> = {};
-      for (const [key, prob] of Object.entries(strategyEntry)) {
-        const fullKey = _actionExpand?.[key] ?? key;
-        expanded[fullKey] = prob;
-      }
-
+  if (expanded) {
       const uniform = 1 / legalActions.length;
       let totalProb = 0;
       for (const action of legalActions) {
@@ -1224,13 +1326,6 @@ export function decideCFRWithSearch(
           baseProbs.set(action, (baseProbs.get(action) ?? 0) / totalProb);
         }
       }
-    } else {
-      // Heuristic fallback — set uniform-ish weights as base
-      const fb = heuristicFallbackProbs(legalActions, state.currentHand, totalCards);
-      for (const [action, prob] of fb) {
-        baseProbs.set(action, prob);
-      }
-    }
   } else {
     const fb = heuristicFallbackProbs(legalActions, state.currentHand, totalCards);
     for (const [action, prob] of fb) {
