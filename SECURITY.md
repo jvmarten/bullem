@@ -6,7 +6,7 @@ If you discover a security vulnerability in Bull 'Em, please report it responsib
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email the project maintainer directly. Include:
+Instead, please use [GitHub's private vulnerability reporting](https://github.com/jvmarten/bullem/security/advisories/new) to submit a report. Include:
 
 - A description of the vulnerability
 - Steps to reproduce the issue
