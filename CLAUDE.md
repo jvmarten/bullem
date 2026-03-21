@@ -1,5 +1,9 @@
 # Bull 'Em
 
+## Vision
+
+Bull 'Em is a global-scale real-time multiplayer card game — built to handle millions of concurrent players across web and mobile. Think Supercell building Clash Royale: buttery smooth, rock solid, ready for viral growth. Every line of code is building that foundation.
+
 ## Project Overview
 
 A multiplayer bluffing card game that combines elements of Liar's Dice with Texas Hold'em hand rankings. Players are dealt cards and take turns calling increasingly higher poker hands that they claim can be formed from ALL players' combined cards. Other players can call "bull" (bullshit) or raise. The game is played online via browser — friends join through a room code or invite link.
@@ -342,19 +346,148 @@ npm run simulate -w training
 
 The evolution script outputs a JSON file to `training/strategies/` with the champion's config, evaluation results, and metadata. After a successful run with improved results, integrate the new champion values into `DEFAULT_BOT_PROFILE_CONFIG` following the "After Each Evolution Run" steps above.
 
-Training runs can take 20-30+ minutes depending on population size and generations.
+Training runs can take 20-30+ minutes depending on population size and generations. Use `run_in_background` for long runs.
 
-## Contributing
+## Development Priorities
+
+1. ~~Core game engine (deck, deal, hand evaluation with custom rankings)~~ ✓
+2. ~~Turn logic and bull/true/raise flow~~ ✓
+3. ~~Room creation and joining (WebSocket)~~ ✓
+4. ~~Basic playable UI~~ ✓
+5. ~~Polish (animations, sounds, mobile optimization)~~ ✓
+6. ~~Deployment (so friends can actually play)~~ ✓
+7. ~~Scale infrastructure (Redis adapter, session persistence)~~ ✓ (multi-region architecture ready, single-region deployed)
+8. ~~Player accounts, auth, and game history persistence~~ ✓
+9. ~~Replay system and spectator mode~~ ✓
+10. ~~Observability (structured logging, Sentry, Prometheus metrics)~~ ✓
+11. Matchmaking, ranked play, leaderboards
+12. ~~Native mobile apps (Capacitor)~~ ✓ (iOS and Android shipped — WebView loading from bullem.cards)
+
+## Agent PR Policy
 
 ### Branching Strategy
 
-- **`develop`** — integration branch for feature branches
-- **`main`** — production branch, manual merges only after review
+- **`develop`** — integration branch. Feature branches are **automatically merged** into `develop` after CI passes (via `.github/workflows/auto-merge-develop.yml`).
+- **`main`** — production branch. Merges to `main` are **always manual** — the maintainer reviews, tests locally, and merges when ready.
 
-### Guidelines
+### Auto-merge to `develop`
 
-- Squash merge is preferred for `main`
-- Include a clear summary and test plan in PR descriptions
-- Keep GitHub Actions usage minimal — the project runs on the free tier
-- Never commit large binary files directly — use Git LFS for generated data (see `.gitattributes`)
-- Training output files (strategies, logs, checkpoints) are `.gitignore`d
+When you push code to a feature branch (e.g., `claude/*`), the `auto-merge-develop.yml` workflow will:
+1. Run full CI (build + tests + Docker build)
+2. If CI passes, automatically merge the branch into `develop` with a merge commit
+3. No manual intervention required
+
+This ensures `develop` always has the latest passing code integrated.
+
+### Merges to `main`
+
+**Do NOT merge PRs to `main` automatically.** Leave PRs targeting `main` open for manual review and local testing before merging.
+
+When you finish work on a PR targeting `main` (code changes committed and pushed), create the PR and share the URL — do not merge it. The maintainer will review, test locally, and merge when ready.
+
+### Creating PRs
+
+Use the GitHub REST API with `curl` (since `gh` CLI may not be available):
+
+```bash
+# Create a PR targeting develop (auto-merged by CI)
+# Not usually needed — feature branches auto-merge to develop after CI passes
+
+# Create a PR targeting main (manual merge only)
+curl -s -X POST \
+  -H "Authorization: token $GH_TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  "https://api.github.com/repos/OWNER/REPO/pulls" \
+  -d '{"title":"...","body":"...","head":"branch-name","base":"main"}'
+```
+
+Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origin`).
+
+### Rules
+
+- **Auto-merge to `develop`** — feature branches merge automatically after CI passes.
+- **Never auto-merge to `main`** — leave PRs open for the maintainer to review and test locally.
+- **Squash merge** is the preferred merge strategy for `main` (when the maintainer merges).
+- Always include a clear summary and test plan in PR descriptions targeting `main`.
+
+### GitHub Actions Constraints
+
+**Do NOT add new GitHub Actions workflows or expand existing ones.** This project runs on GitHub's free tier with limited Actions minutes. The current workflow setup (`auto-merge.yml` + `deploy.yml`) is intentionally minimal and must stay that way.
+
+- **No new workflow files** — do not create additional `.yml` files in `.github/workflows/`
+- **No new CI jobs** — do not add linting, formatting, code coverage, security scanning, or any other automated jobs as GitHub Actions
+- **No scheduled workflows** — no cron-based Actions (dependency updates, stale issue bots, etc.)
+- **No third-party Actions** — do not introduce new marketplace Actions or reusable workflows
+- **Keep existing workflows lean** — do not add steps, matrix builds, or additional triggers to `auto-merge.yml` or `deploy.yml`
+
+If a new feature needs automated checks, implement it as a local script (e.g., `npm run lint`, `npm run check`) that developers run manually or that existing workflows already cover. The bar for adding any GitHub Actions usage is extremely high — discuss with the maintainer first.
+
+### GitHub Repository Size Limits
+
+GitHub enforces a **hard 2GB limit** on repository size. Keep the repo well under this limit:
+
+- **Never commit large binary files** — no audio/video assets, compiled binaries, dataset files, or model weights directly in git
+- **Never commit `node_modules/`** or build output (`dist/`, `build/`)
+- **Training output files** (strategies, logs, checkpoints) should be `.gitignore`d — only commit the final integrated values in source code
+- **Use `.gitignore` aggressively** for generated files, logs, and temporary data
+- **If large assets are needed**, use external storage (CDN, S3, Git LFS) instead of committing to the repo
+- **Watch for git history bloat** — if a large file is accidentally committed, it stays in git history even after deletion. Use `git rev-list --objects --all | git cat-file --batch-check | sort -k3nr | head -20` to audit large objects
+
+## Workflow Orchestration
+
+### 1. Plan Mode Default
+
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately — don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+### 2. Subagent Strategy
+
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+
+### 3. Self-Improvement Loop
+
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+### 4. Verification Before Done
+
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+
+### 5. Demand Elegance (Balanced)
+
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes — don't over-engineer
+- Challenge your own work before presenting it
+
+### 6. Autonomous Bug Fixing
+
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests — then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+## Task Management
+
+1. **Plan First:** Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan:** Check in before starting implementation
+3. **Track Progress:** Mark items complete as you go
+4. **Explain Changes:** High-level summary at each step
+5. **Document Results:** Add review section to `tasks/todo.md`
+6. **Capture Lessons:** Update `tasks/lessons.md` after corrections
+
+## Core Principles
+
+- **Simplicity First:** Make every change as simple as possible. Impact minimal code.
+- **No Laziness:** Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact:** Changes should only touch what's necessary. Avoid introducing bugs.
