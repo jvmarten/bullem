@@ -52,6 +52,74 @@ export function isCFRStrategyLoaded(): boolean {
   return _strategyData !== null;
 }
 
+/**
+ * Compact CFR strategy format (v2). Uses dictionary-encoded info set keys
+ * and indexed action arrays to reduce JSON size by ~60% (19MB → 7MB).
+ *
+ * Keys: each character maps to a segment via the `segments` dictionary,
+ *        concatenated with '|' to reconstruct the original info set key.
+ * Values: single-action entries store the action index directly (number).
+ *         Multi-action entries store a flat array [actionIdx, prob%, ...].
+ */
+export interface CompactCFRStrategy {
+  v: 2;
+  actions: string[];
+  segments: Record<string, string>;
+  buckets: Record<string, Record<string, number | number[]>>;
+}
+
+/**
+ * Decode a compact (v2) CFR strategy JSON into the format expected by
+ * setCFRStrategyData(). Call this on both server and client before injecting.
+ */
+export function decodeCFRCompact(compact: CompactCFRStrategy): {
+  actionExpand: Record<string, string>;
+  buckets: Record<string, Record<string, StrategyEntry>>;
+} {
+  const { actions, segments, buckets: compactBuckets } = compact;
+
+  // Rebuild actionExpand from the known action abbreviations
+  const ACTION_NAMES: Record<string, string> = {
+    bu: 'bull', pa: 'pass', tl: 'truthful_low', tm: 'truthful_mid',
+    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_medium',
+    bb: 'bluff_big',
+  };
+  const actionExpand: Record<string, string> = {};
+  for (const a of actions) {
+    actionExpand[a] = ACTION_NAMES[a] ?? a;
+  }
+
+  const decodedBuckets: Record<string, Record<string, StrategyEntry>> = {};
+  for (const [bucketKey, entries] of Object.entries(compactBuckets)) {
+    const decoded: Record<string, StrategyEntry> = {};
+    for (const [compactKey, value] of Object.entries(entries)) {
+      // Decode key: each char → segments lookup → join with '|'
+      const parts: string[] = [];
+      for (const ch of compactKey) {
+        parts.push(segments[ch] ?? ch);
+      }
+      const fullKey = parts.join('|');
+
+      // Decode value
+      let entry: StrategyEntry;
+      if (typeof value === 'number') {
+        // Single-action: action index → { actionName: 1 }
+        entry = { [actions[value]!]: 1 };
+      } else {
+        // Multi-action: flat array [idx, prob%, idx, prob%, ...]
+        entry = {};
+        for (let i = 0; i < value.length; i += 2) {
+          entry[actions[value[i]!]!] = value[i + 1]! / 100;
+        }
+      }
+      decoded[fullKey] = entry;
+    }
+    decodedBuckets[bucketKey] = decoded;
+  }
+
+  return { actionExpand, buckets: decodedBuckets };
+}
+
 /** Map active player count to strategy bucket key. */
 function resolvePlayerBucket(activePlayers: number): string {
   if (activePlayers <= 2) return 'p2';

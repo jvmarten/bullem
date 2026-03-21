@@ -348,6 +348,18 @@ The evolution script outputs a JSON file to `training/strategies/` with the cham
 
 Training runs can take 20-30+ minutes depending on population size and generations. Use `run_in_background` for long runs.
 
+### After Each CFR Retrain
+
+The CFR strategy file (`client/public/data/cfr-strategy.json`) grows with more training iterations (more info sets). **After every CFR retrain:**
+
+1. Check file size: `ls -lh client/public/data/cfr-strategy.json` — must be under 10MB
+2. If over 10MB, convert to compact v2 format (dictionary-encoded keys, indexed actions, ~60% reduction)
+3. Verify build: `npm run build` — main bundle must stay under 500KB
+4. Run tests: `npm test` — CFR eval tests must pass
+5. The compact v2 format is decoded at load time by `decodeCFRCompact()` in both server and client
+
+**Why this matters:** Large strategy files block the server event loop during startup (preventing auth/socket requests), bloat network transfer, and freeze mobile clients during JSON.parse. Express `compression` middleware reduces the 7MB file to ~1.8MB over the wire, but the base file size still matters for parse time.
+
 ## Development Priorities
 
 1. ~~Core game engine (deck, deal, hand evaluation with custom rankings)~~ ✓
