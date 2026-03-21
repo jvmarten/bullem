@@ -12,13 +12,14 @@ import { track } from '../analytics/track.js';
 import { getAcceptedFriendIds } from '../db/friends.js';
 import { getUserAvatarAndPhoto } from '../db/users.js';
 
-/** Re-fetch the user's photoUrl and avatarBgColor from the database and update
- *  socket.data. The socket middleware sets these at connection time, but they can
- *  become stale if the user updates their profile after connecting. */
+/** Re-fetch the user's avatar, photoUrl, and avatarBgColor from the database
+ *  and update socket.data. The socket middleware sets these at connection time,
+ *  but they can become stale if the user updates their profile after connecting. */
 async function refreshSocketUserData(socket: TypedSocket): Promise<void> {
   if (!socket.data.userId) return;
   try {
-    const { photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(socket.data.userId);
+    const { avatar, photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(socket.data.userId);
+    if (avatar !== undefined) socket.data.avatar = avatar;
     socket.data.photoUrl = photoUrl ?? undefined;
     socket.data.avatarBgColor = avatarBgColor ?? undefined;
   } catch {
@@ -836,5 +837,38 @@ export function registerLobbyHandlers(
       broadcastGameState(io, freshRoom);
       roomManager.persistRoom(freshRoom);
     }, GAME_COUNTDOWN_SECONDS * 1000);
+  });
+
+  // ── Profile sync ────────────────────────────────────────────────────
+  // When the user updates their avatar, photo, or bg color via the profile
+  // page, the client emits this event so the server can refresh socket.data
+  // and propagate the change to any active room/game state. Without this,
+  // profile changes only take effect on the next room:create/room:join.
+  socket.on('profile:sync', async () => {
+    if (!socket.data.userId) return;
+    await refreshSocketUserData(socket);
+
+    const room = roomManager.getRoomForSocket(socket.id);
+    if (!room) return;
+    const playerId = room.getPlayerId(socket.id);
+    if (!playerId) return;
+
+    const player = room.players.get(playerId);
+    if (!player) return;
+
+    // Propagate updated fields to the in-room ServerPlayer
+    if (socket.data.avatar !== undefined) player.avatar = socket.data.avatar as AvatarId | null;
+    player.photoUrl = socket.data.photoUrl as string | undefined;
+    player.avatarBgColor = socket.data.avatarBgColor as AvatarBgColor | undefined;
+
+    // Invalidate the GameEngine's cached shared state so the next broadcast
+    // picks up the updated player fields.
+    if (room.game) {
+      room.game.invalidateSharedCache();
+    }
+
+    broadcastRoomState(io, room);
+    if (room.game) broadcastGameState(io, room);
+    roomManager.persistRoom(room);
   });
 }
