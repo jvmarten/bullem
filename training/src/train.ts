@@ -32,14 +32,13 @@ function parseArgs(argv: string[]): {
 } {
   const args = argv.slice(2);
   let iterations = 500_000;
-  // Weight multiplayer games more heavily — the info set space is larger
+  // Weight multiplayer games heavily — the info set space is larger
   // and multiplayer dynamics (bull/true voting chains) need more samples
-  // to converge. 2P is well-served by fewer samples since it's simpler.
-  // With coarsened abstraction (~5-10K info sets), 500K iterations gives
-  // ~50-100 visits per info set — enough for reasonable convergence.
-  // Heavy heads-up weighting: endgame is where matches are decided.
-  // Also balanced distribution including large games for p5+ coverage.
-  let players: number | number[] = [2, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9];
+  // to converge. Previous 4x heads-up weighting led to weak multiplayer
+  // play. Now balanced: 3/18 heads-up, 8/18 for 3-4P (p34 bucket),
+  // 7/18 for 5+P. With ~70K info sets, 2M iterations gives ~28 visits
+  // per info set — enough for convergence with CFR+.
+  let players: number | number[] = [2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9];
   let maxCards = 5;
   let jokerCount: JokerCount = 0;
   let lastChanceMode: LastChanceMode = 'classic';
