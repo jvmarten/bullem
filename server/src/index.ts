@@ -7,11 +7,13 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { Redis } from 'ioredis';
 import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'node:fs';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
-import { setCFRStrategyData } from '@bull-em/shared';
+import { setCFRStrategyData, decodeCFRCompact } from '@bull-em/shared';
+import type { CompactCFRStrategy } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
@@ -273,12 +275,21 @@ httpServer.listen(Number(PORT), HOST, () => {
   // Load CFR strategy data from the static JSON asset so bot decisions are
   // instant from the first game. In production the file lives in client/dist/;
   // in development it's in client/public/. Both are relative to the server src dir.
+  // Uses async readFile to avoid blocking the event loop during startup —
+  // the 19MB JSON file would block for ~1s with readFileSync, preventing the
+  // server from handling any requests (auth, sockets) during that time.
   const cfrJsonPath = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../../client/dist/data/cfr-strategy.json')
     : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
   try {
-    const raw = fs.readFileSync(cfrJsonPath, 'utf-8');
-    setCFRStrategyData(JSON.parse(raw));
+    const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { v?: number };
+    // Support both v1 (original) and v2 (compact dictionary-encoded) formats
+    if (parsed.v === 2) {
+      setCFRStrategyData(decodeCFRCompact(parsed as CompactCFRStrategy));
+    } else {
+      setCFRStrategyData(parsed as { actionExpand: Record<string, string>; buckets: Record<string, Record<string, Record<string, number>>> });
+    }
     logger.info({ path: cfrJsonPath }, 'CFR strategy data loaded');
   } catch (err) {
     logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
@@ -287,6 +298,11 @@ httpServer.listen(Number(PORT), HOST, () => {
   startupComplete = true;
   logger.info('Startup initialization complete');
 })();
+
+// Compress HTTP responses (gzip/brotli). Applied before all routes so static
+// assets, API responses, and the 19MB CFR strategy JSON are all compressed.
+// Socket.io handles its own compression — this only affects HTTP responses.
+app.use(compression());
 
 // Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies.
 // Limit raised from the default 100KB to 3MB to support admin photo uploads
