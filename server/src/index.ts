@@ -274,20 +274,25 @@ httpServer.listen(Number(PORT), HOST, () => {
   // Load CFR strategy data from the static JSON asset so bot decisions are
   // instant from the first game. In production the file lives in client/dist/;
   // in development it's in client/public/. Both are relative to the server src dir.
-  // Uses async readFile to avoid blocking the event loop during startup —
-  // the 19MB JSON file would block for ~1s with readFileSync, preventing the
-  // server from handling any requests (auth, sockets) during that time.
+  // Uses async readFile to avoid blocking the event loop during startup.
+  // Rejects files >10MB to prevent OOM on the 256MB Fly.io machine.
   const cfrJsonPath = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../../client/dist/data/cfr-strategy.json')
     : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
   try {
-    const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
-    // setCFRStrategyData accepts both v1 and v2 formats directly.
-    // V2 compact format (~7MB) is stored as-is in memory (~20MB) instead
-    // of being decoded to full keys (~80MB), keeping well within the
-    // 256MB Fly.io machine memory limit.
-    setCFRStrategyData(JSON.parse(raw));
-    logger.info({ path: cfrJsonPath }, 'CFR strategy data loaded');
+    const stat = await fs.promises.stat(cfrJsonPath);
+    const sizeMB = stat.size / 1024 / 1024;
+    if (sizeMB > 10) {
+      logger.error({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath },
+        'CFR strategy file too large — likely v1 format. Run "npm run generate-strategy -w training" to convert to v2 compact format');
+    } else {
+      const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
+      // V2 compact format (~7MB) is stored as-is in memory (~20MB) instead
+      // of being decoded to full keys (~80MB), keeping well within the
+      // 256MB Fly.io machine memory limit.
+      setCFRStrategyData(JSON.parse(raw));
+      logger.info({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath }, 'CFR strategy data loaded');
+    }
   } catch (err) {
     logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
   }

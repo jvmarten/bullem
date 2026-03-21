@@ -26,7 +26,6 @@ export async function preloadCFRStrategy(): Promise<void> {
       if (!resp.ok) {
         throw new Error(`Failed to load CFR strategy: ${resp.status}`);
       }
-      // setCFRStrategyData accepts both v1 and v2 formats directly.
       // V2 compact format is stored as-is and decoded on-the-fly during lookups.
       setCFRStrategyData(await resp.json());
     })();

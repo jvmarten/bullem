@@ -33,9 +33,6 @@ export interface StrategyEntry {
 // V2 compact format is stored DIRECTLY in memory to avoid the ~80MB
 // expansion cost of decoding all 186K info set keys at startup.
 // Keys are encoded on-the-fly during lookups using the segment dictionary.
-let _strategyData: ReadonlyMap<string, Record<string, StrategyEntry>> | null = null;
-let _actionExpand: Record<string, string> | null = null;
-
 // V2 compact format — stored as-is, decoded on lookup
 let _compactData: CompactCFRStrategy | null = null;
 let _segToCode: Map<string, string> | null = null; // segment → single char (for key encoding)
@@ -44,36 +41,31 @@ let _segToCode: Map<string, string> | null = null; // segment → single char (f
  * Inject pre-parsed CFR strategy data. Called once at startup by the
  * platform-specific loader (server reads from disk, client fetches JSON).
  *
- * Accepts both v1 (expanded) and v2 (compact) formats. V2 format is stored
+ * Only accepts v2 compact format. V1 format is rejected to prevent OOM
+ * crashes on memory-constrained machines (256MB Fly.io). V2 is stored
  * directly in memory (~20MB) instead of being expanded to full keys (~80MB).
+ *
+ * If you see a v1 format error, run: npm run generate-strategy -w training
  */
-export function setCFRStrategyData(data:
-  | { actionExpand: Record<string, string>; buckets: Record<string, Record<string, StrategyEntry>> }
-  | CompactCFRStrategy
-): void {
-  if ('v' in data && data.v === 2) {
-    // Store compact format directly — decode keys on-the-fly during lookups
-    _compactData = data;
-    _strategyData = null;
-    _actionExpand = null;
-    // Build reverse lookup: segment name → single char code
-    _segToCode = new Map();
-    for (const [code, seg] of Object.entries(data.segments)) {
-      _segToCode.set(seg, code);
-    }
-  } else {
-    // V1 format: store expanded data
-    const v1 = data as { actionExpand: Record<string, string>; buckets: Record<string, Record<string, StrategyEntry>> };
-    _actionExpand = v1.actionExpand;
-    _strategyData = new Map(Object.entries(v1.buckets));
-    _compactData = null;
-    _segToCode = null;
+export function setCFRStrategyData(data: CompactCFRStrategy): void {
+  if (!('v' in data) || data.v !== 2) {
+    throw new Error(
+      'CFR strategy file is in v1 format, which causes OOM crashes on production. ' +
+      'Run "npm run generate-strategy -w training" to convert to v2 compact format.',
+    );
+  }
+  // Store compact format directly — decode keys on-the-fly during lookups
+  _compactData = data;
+  // Build reverse lookup: segment name → single char code
+  _segToCode = new Map();
+  for (const [code, seg] of Object.entries(data.segments)) {
+    _segToCode.set(seg, code);
   }
 }
 
 /** Returns true if strategy data has been loaded. */
 export function isCFRStrategyLoaded(): boolean {
-  return _strategyData !== null || _compactData !== null;
+  return _compactData !== null;
 }
 
 /**
@@ -968,38 +960,23 @@ export function decideCFR(
 
   // If strategy data hasn't been loaded yet, fall through to heuristic.
   // setCFRStrategyData() should be called before the first CFR decision.
-  if (!_strategyData && !_compactData) return null;
+  if (!_compactData) return null;
 
   const bucket = resolvePlayerBucket(activePlayers);
 
-  // Build the info set key (same for both v1 and v2)
   const infoSetKey = getInfoSetKey(
     state, botCards, totalCards, activePlayers,
     jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
   );
 
-  // Look up the strategy entry — try compact v2 first, then v1
+  // Look up the strategy entry from compact v2 data
   let expanded: Record<string, number> | null = null;
-  if (_compactData) {
-    const result = lookupCompactStrategy(bucket, infoSetKey);
-    if (result) {
-      expanded = {};
-      for (const [key, prob] of Object.entries(result.entry)) {
-        const fullKey = result.actionExpand[key] ?? key;
-        expanded[fullKey] = prob;
-      }
-    }
-  } else if (_strategyData) {
-    const strategyMap = _strategyData.get(bucket);
-    if (strategyMap) {
-      const strategyEntry = strategyMap[infoSetKey];
-      if (strategyEntry) {
-        expanded = {};
-        for (const [key, prob] of Object.entries(strategyEntry)) {
-          const fullKey = _actionExpand?.[key] ?? key;
-          expanded[fullKey] = prob;
-        }
-      }
+  const result = lookupCompactStrategy(bucket, infoSetKey);
+  if (result) {
+    expanded = {};
+    for (const [key, prob] of Object.entries(result.entry)) {
+      const fullKey = result.actionExpand[key] ?? key;
+      expanded[fullKey] = prob;
     }
   }
 
@@ -1277,7 +1254,7 @@ export function decideCFRWithSearch(
 
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
-  if (!_strategyData && !_compactData) return null;
+  if (!_compactData) return null;
 
   // ── Step 1: Get the base pre-trained strategy (same pipeline as decideCFR) ──
 
@@ -1287,26 +1264,13 @@ export function decideCFRWithSearch(
     jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
   );
 
-  // Look up strategy — try compact v2 first, then v1
+  // Look up strategy from compact v2 data
   let expanded: Record<string, number> | null = null;
-  if (_compactData) {
-    const result = lookupCompactStrategy(bucket, infoSetKey);
-    if (result) {
-      expanded = {};
-      for (const [key, prob] of Object.entries(result.entry)) {
-        expanded[result.actionExpand[key] ?? key] = prob;
-      }
-    }
-  } else if (_strategyData) {
-    const strategyMap = _strategyData.get(bucket);
-    if (strategyMap) {
-      const strategyEntry = strategyMap[infoSetKey];
-      if (strategyEntry) {
-        expanded = {};
-        for (const [key, prob] of Object.entries(strategyEntry)) {
-          expanded[_actionExpand?.[key] ?? key] = prob;
-        }
-      }
+  const result = lookupCompactStrategy(bucket, infoSetKey);
+  if (result) {
+    expanded = {};
+    for (const [key, prob] of Object.entries(result.entry)) {
+      expanded[result.actionExpand[key] ?? key] = prob;
     }
   }
 
