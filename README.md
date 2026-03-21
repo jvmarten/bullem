@@ -2,7 +2,7 @@
 
 A real-time multiplayer bluffing card game. Players are dealt cards and take turns calling increasingly higher poker hands that they claim exist across **all** players' combined cards. Other players call "bull" (bullshit) or raise. Think Liar's Dice meets Texas Hold'em — played in the browser.
 
-**Live at:** [bullem.fly.dev](https://bullem.fly.dev)
+**Live at:** [bullem.cards](https://bullem.cards/)
 
 ## Quick Start
 
