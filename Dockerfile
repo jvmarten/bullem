@@ -46,6 +46,9 @@ USER nodejs
 
 ENV NODE_ENV=production
 ENV PORT=3001
+# Limit Node.js heap to leave room for OS/non-heap within Fly.io VM memory.
+# Adjust if VM is scaled above 256MB (e.g., 512MB → set to 400).
+ENV NODE_OPTIONS="--max-old-space-size=200"
 
 EXPOSE 3001
 
