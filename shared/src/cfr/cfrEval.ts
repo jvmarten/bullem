@@ -15,7 +15,7 @@
 import type { Card, ClientGameState, HandCall, JokerCount, LastChanceMode, Rank, Suit } from '../types.js';
 import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
-import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
+import { AbstractAction, getInfoSetKey, getLegalAbstractActions, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
 import { RANK_VALUES } from '../constants.js';
 
@@ -61,35 +61,16 @@ function resolvePlayerBucket(activePlayers: number): string {
 // ── Claim plausibility analysis ────────────────────────────────────────
 
 /**
- * Minimum total cards for each hand type to have a reasonable chance of
- * existing across all players' combined cards.
- *
- * Calibrated from actual probability analysis:
- * - These represent the card count where the hand type has roughly a
- *   10-20% base chance of existing (for any specific rank/suit).
- * - Previous values were too optimistic, leading bots to treat implausible
- *   claims (e.g., three-of-a-kind with 8 cards, ~0.3%) as "coin flips."
- */
-const MIN_CARDS_FOR_HAND: Record<number, number> = {
-  [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 5,
-  [HandType.TWO_PAIR]: 9,
-  [HandType.FLUSH]: 12,
-  [HandType.THREE_OF_A_KIND]: 12,
-  [HandType.STRAIGHT]: 14,
-  [HandType.FULL_HOUSE]: 18,
-  [HandType.FOUR_OF_A_KIND]: 22,
-  [HandType.STRAIGHT_FLUSH]: 28,
-  [HandType.ROYAL_FLUSH]: 34,
-};
-
-/**
  * Returns 0.0 (certainly doesn't exist) to 1.0 (very likely exists)
  * representing how plausible the current claim is given total cards.
+ *
+ * Uses MIN_CARDS_FOR_PLAUSIBLE from infoSet.ts — the canonical thresholds
+ * shared between training and eval. This alignment ensures the safety
+ * layers don't contradict what the trained strategy learned.
  */
 function claimPlausibility(hand: HandCall | null, totalCards: number): number {
   if (!hand) return 1.0;
-  const minNeeded = MIN_CARDS_FOR_HAND[hand.type] ?? 10;
+  const minNeeded = MIN_CARDS_FOR_PLAUSIBLE[hand.type] ?? 10;
   const ratio = totalCards / minNeeded;
   if (ratio >= 2.5) return 1.0;   // Very likely
   if (ratio >= 1.5) return 0.8;   // Likely
@@ -489,7 +470,7 @@ function adjustStrategyForPlausibility(
     // Find the max plausible type for this card count
     let maxPlausible = HandType.HIGH_CARD;
     for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
-      if (totalCards >= (MIN_CARDS_FOR_HAND[t] ?? 999)) {
+      if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999)) {
         maxPlausible = t as HandType;
         break;
       }

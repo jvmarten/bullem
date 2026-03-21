@@ -150,20 +150,24 @@ describe('getInfoSetKey', () => {
 
   it('includes hand strength and high card buckets based on cards', () => {
     const state = makeState();
-    // A pair = strong
-    const keyStrong = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts')], 4, 2);
-    // Two same-suit cards = draw
-    const keyDraw = getInfoSetKey(state, [card('A', 'spades'), card('K', 'spades')], 4, 2);
-    // All different = weak
-    const keyWeak = getInfoSetKey(state, [card('A', 'spades'), card('K', 'hearts')], 4, 2);
-    expect(keyStrong.split('|')[4]).toBe('strong');
-    expect(keyDraw.split('|')[4]).toBe('draw');
-    expect(keyWeak.split('|')[4]).toBe('weak');
+    // A pair = pair bucket
+    const keyPair = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts')], 4, 2);
+    // Two same-suit cards = suitd (suited draw)
+    const keySuitd = getInfoSetKey(state, [card('A', 'spades'), card('K', 'spades')], 4, 2);
+    // High card only (no pair, no draw) = hcard
+    const keyHcard = getInfoSetKey(state, [card('A', 'spades'), card('K', 'hearts')], 4, 2);
+    expect(keyPair.split('|')[4]).toBe('pair');
+    expect(keySuitd.split('|')[4]).toBe('suitd');
+    expect(keyHcard.split('|')[4]).toBe('hcard');
+    // Three of a kind = trips
+    const keyTrips = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts'), card('A', 'diamonds')], 6, 2);
+    expect(keyTrips.split('|')[4]).toBe('trips');
     // High card bucket (index 5)
-    expect(keyStrong.split('|')[5]).toBe('hHi'); // Ace = high
-    // Low cards
-    const keyLow = getInfoSetKey(state, [card('3', 'spades'), card('4', 'hearts')], 4, 2);
-    expect(keyLow.split('|')[5]).toBe('hLo');
+    expect(keyPair.split('|')[5]).toBe('hHi'); // Ace = high
+    // Low cards with no pair/draw = weak
+    const keyWeak = getInfoSetKey(state, [card('3', 'spades'), card('4', 'hearts')], 4, 2);
+    expect(keyWeak.split('|')[4]).toBe('weak');
+    expect(keyWeak.split('|')[5]).toBe('hLo');
   });
 
   it('appends 2P refinement suffix for 2-player games with a current hand', () => {

@@ -12,7 +12,7 @@ import { isHigherHand, getMinimumRaise } from '../hands.js';
 import { ALL_RANKS, ALL_SUITS, RANK_VALUES } from '../constants.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { HandChecker } from '../engine/HandChecker.js';
-import { AbstractAction } from './infoSet.js';
+import { AbstractAction, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
 
 /**
  * Extract ranks and suits mentioned in the turn history.
@@ -38,36 +38,16 @@ function extractHistoryContext(state: ClientGameState): { mentionedRanks: Set<Ra
 // ── Plausibility capping ──────────────────────────────────────────────
 
 /**
- * Minimum total cards needed for each hand type to be plausible as a claim.
- * Used to cap bluff and truthful hand generation — prevents bots from
- * claiming hands that are nearly impossible given the cards in play.
- *
- * Thresholds are conservative: we cap at types where the probability of
- * the hand existing is very low, not just unlikely. For example, a pair
- * is plausible with 4+ total cards (~50% chance), but two-pair needs 8+
- * to be a reasonable claim (~30% chance).
- */
-const MIN_CARDS_FOR_PLAUSIBLE_CLAIM: Record<number, number> = {
-  [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 3,
-  [HandType.TWO_PAIR]: 8,
-  [HandType.FLUSH]: 10,
-  [HandType.THREE_OF_A_KIND]: 10,
-  [HandType.STRAIGHT]: 12,
-  [HandType.FULL_HOUSE]: 16,
-  [HandType.FOUR_OF_A_KIND]: 20,
-  [HandType.STRAIGHT_FLUSH]: 25,
-  [HandType.ROYAL_FLUSH]: 30,
-};
-
-/**
  * Get the maximum hand type that is plausible to claim given total cards.
  * Returns the highest HandType where totalCards >= minimum threshold.
+ *
+ * Uses canonical MIN_CARDS_FOR_PLAUSIBLE from infoSet.ts — shared between
+ * training and eval to prevent behavioral mismatch.
  */
 function maxPlausibleHandType(totalCards: number): HandType {
   // Walk from highest to lowest type
   for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
-    if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE_CLAIM[t] ?? 999)) {
+    if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999)) {
       return t as HandType;
     }
   }
