@@ -1,4 +1,0 @@
-# Git LFS tracking for large generated strategy data files
-# These grow with each CFR training run and would bloat git history
-client/public/data/cfr-strategy.json filter=lfs diff=lfs merge=lfs -text
-shared/src/cfr/strategyData.ts filter=lfs diff=lfs merge=lfs -text
