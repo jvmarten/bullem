@@ -475,9 +475,11 @@ function adjustStrategyForPlausibility(
         break;
       }
     }
-    // If current claim is already at or above the plausible ceiling,
-    // raises can only go higher into implausible territory
-    if (currentType >= maxPlausible) {
+    // If current claim is already ABOVE the plausible ceiling,
+    // raises can only go higher into implausible territory.
+    // Note: strictly greater than — when AT the ceiling, same-type raises
+    // (e.g., higher rank within the same hand type) are still valid.
+    if (currentType > maxPlausible) {
       const raiseActions = legalActions.filter(a =>
         a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
       );
