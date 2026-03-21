@@ -1,5 +1,13 @@
 {
   "name": "bull-em",
+  "version": "1.0.0",
+  "description": "A real-time multiplayer bluffing card game combining Liar's Dice with poker hand rankings",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jvmarten/bullem.git"
+  },
+  "homepage": "https://bullem.cards",
   "private": true,
   "workspaces": [
     "shared",
