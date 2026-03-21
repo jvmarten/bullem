@@ -1,4 +1,5 @@
 export * from './types.js';
+export { createSeededRng, seededShuffle, generateRoundSeed, verifyFairness } from './provablyFair.js';
 export * from './constants.js';
 export * from './hands.js';
 export * from './quickDraw.js';

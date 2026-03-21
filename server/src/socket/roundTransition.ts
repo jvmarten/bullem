@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io';
-import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS, GAME_COUNTDOWN_SECONDS } from '@bull-em/shared';
+import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS, GAME_COUNTDOWN_SECONDS, generateRoundSeed } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
+import { createHash } from 'crypto';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
@@ -48,7 +49,10 @@ function startNextRound(io: TypedServer, room: Room, roomManager: RoomManager, b
   if (!room.game) return;
   room.cancelRoundContinueWindow();
   room.lastRoundResult = null;
-  const nextResult = room.game.startNextRound();
+  // Provably fair: generate seed pair for next round
+  const seed = generateRoundSeed();
+  const hash = createHash('sha256').update(seed).digest('hex');
+  const nextResult = room.game.startNextRound({ seed, hash });
   if (nextResult.type === 'game_over') {
     handleSetOver(io, room, roomManager, botManager, nextResult.winnerId);
     return;

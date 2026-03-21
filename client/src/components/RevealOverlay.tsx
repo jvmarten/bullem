@@ -1,6 +1,7 @@
 import { handToString, TurnAction } from '@bull-em/shared';
 import type { RoundResult, Player, OwnedCard, TurnEntry, Card, PlayerId } from '@bull-em/shared';
 import { CardDisplay } from './CardDisplay.js';
+import { ProvablyFairBadge } from './ProvablyFairBadge.js';
 import { useEffect, useRef, useState, useMemo, memo } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap.js';
 
@@ -27,6 +28,8 @@ interface Props {
   /** Anchor timestamp for the auto-dismiss countdown. When provided, the countdown is relative to this
    *  time instead of the component mount time — so orientation changes don't reset the timer. */
   startedAt?: number;
+  /** SHA-256 hash of the round seed, committed before cards were dealt (provably fair). */
+  roundSeedHash?: string | null;
 }
 
 function actionLabel(entry: TurnEntry): string {
@@ -49,7 +52,7 @@ function actionLabel(entry: TurnEntry): string {
 // Memoized: props are stable for the duration of the overlay. Without memo,
 // parent re-renders (e.g. from the countdown timer in the game page) would
 // re-render the entire overlay including flip-card animations.
-export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true, startedAt }: Props) {
+export const RevealOverlay = memo(function RevealOverlay({ result, players, myPlayerId, onDismiss, autoCountdown = true, startedAt, roundSeedHash }: Props) {
   const focusTrapRef = useFocusTrap<HTMLDivElement>(true, onDismiss);
   const callerName = players.find((p) => p.id === result.callerId)?.name ?? 'Unknown';
   const [countdown, setCountdown] = useState(30);
@@ -293,6 +296,7 @@ export const RevealOverlay = memo(function RevealOverlay({ result, players, myPl
         </div>
 
         <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-[var(--surface-raised)] to-transparent">
+          <ProvablyFairBadge roundSeed={result.roundSeed} roundSeedHash={roundSeedHash ?? undefined} />
           <button onClick={onDismiss} className={`w-full btn-gold py-3 transition-all ${autoCountdown && countdown > 0 && countdown <= 5 ? 'animate-pulse-glow' : ''}`}>
             {autoCountdown && countdown > 0 ? (
               <>

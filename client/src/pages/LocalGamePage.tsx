@@ -450,6 +450,7 @@ export function LocalGamePage() {
               onComplete={markCinematicComplete}
               skipToEnd={cinematicStartedRef.current}
               onAnimationStart={() => { cinematicStartedRef.current = true; }}
+              roundSeedHash={gameState.roundSeedHash}
             />
           )}
           {roundResult && cinematicComplete && (
@@ -460,6 +461,7 @@ export function LocalGamePage() {
               onDismiss={clearRoundResult}
               autoCountdown={false}
               startedAt={revealStartedAt}
+              roundSeedHash={gameState.roundSeedHash}
             />
           )}
           {isPaused && !roundResult && (
@@ -683,6 +685,7 @@ export function LocalGamePage() {
             onDismiss={clearRoundResult}
             autoCountdown={false}
             startedAt={revealStartedAt}
+            roundSeedHash={gameState.roundSeedHash}
           />
         )}
 

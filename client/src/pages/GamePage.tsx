@@ -125,6 +125,7 @@ export function GamePage() {
     spectatorInitialStats,
     sessionTransferred,
     countdown,
+    roundSeedHash,
   } = useGameContext();
   // Reactions and chat from dedicated contexts — prevents game UI re-renders
   // on every emoji event (2s lifecycle) or incoming chat message.
@@ -655,6 +656,7 @@ export function GamePage() {
                 onComplete={markCinematicComplete}
                 skipToEnd={cinematicStartedRef.current}
                 onAnimationStart={() => { cinematicStartedRef.current = true; }}
+                roundSeedHash={roundSeedHash}
               />
             </OverlayErrorBoundary>
           )}
@@ -666,6 +668,7 @@ export function GamePage() {
                 myPlayerId={playerId ?? undefined}
                 onDismiss={clearRoundResult}
                 startedAt={revealStartedAt}
+                roundSeedHash={roundSeedHash}
               />
             </OverlayErrorBoundary>
           )}
@@ -887,6 +890,7 @@ export function GamePage() {
               myPlayerId={playerId ?? undefined}
               onDismiss={clearRoundResult}
               startedAt={revealStartedAt}
+              roundSeedHash={roundSeedHash}
             />
           </OverlayErrorBoundary>
         )}
