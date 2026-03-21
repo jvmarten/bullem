@@ -312,33 +312,35 @@ describe('decideCFRWithSearch', () => {
   });
 
   it('holding matching cards biases toward not calling bull (search refinement)', () => {
-    const pair7: HandCall = { type: HandType.PAIR, rank: '7' };
+    // Use HIGH_CARD claim — bot holds the claimed card so it provably exists.
+    // The safety check + search should heavily suppress bull calls.
+    const highCardK: HandCall = { type: HandType.HIGH_CARD, rank: 'K' };
     const state = makeState({
       roundPhase: RoundPhase.CALLING,
-      currentHand: pair7,
+      currentHand: highCardK,
       lastCallerId: 'p2',
       players: [
         { id: 'p1', name: 'P1', cardCount: 3, isConnected: true, isEliminated: false, isHost: false },
         { id: 'p2', name: 'P2', cardCount: 3, isConnected: true, isEliminated: false, isHost: false },
+        { id: 'p3', name: 'P3', cardCount: 3, isConnected: true, isEliminated: false, isHost: false },
       ],
     });
 
-    // Bot holds a 7 — pair of 7s is more likely to exist
-    const cardsWith7 = [card('7', 'hearts'), card('K', 'spades'), card('3', 'diamonds')];
+    // Bot holds a K — high card K provably exists from our own cards
+    const cardsWithK = [card('K', 'spades'), card('7', 'hearts'), card('3', 'diamonds')];
     const N = 100;
     let bullCount = 0;
     for (let i = 0; i < N; i++) {
       const r = decideCFRWithSearch(
-        state, cardsWith7, 6, 2, 0, 'classic', 'p1', false,
+        state, cardsWithK, 9, 3, 0, 'classic', 'p1', false,
         { simulations: 30, timeBudgetMs: 50 },
       );
       if (r?.action === 'bull') bullCount++;
     }
 
-    // When holding a matching card with 6 total cards, should not bull too often.
-    // Pair needs 2 of 4 copies among 6 cards — very plausible when we have 1.
-    // Threshold 85% is generous to account for variance with N=100 and few sims.
-    expect(bullCount).toBeLessThan(N * 0.85);
+    // When holding the claimed card (provably true), bull should be very rare.
+    // The HandChecker safety converts any bull selection to true.
+    expect(bullCount).toBeLessThan(N * 0.1);
   });
 
   it('handles multiplayer states correctly', () => {
