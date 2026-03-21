@@ -1,4 +1,5 @@
-export { decideCFR, preloadCFRStrategy } from './cfrEval.js';
+export { decideCFR, setCFRStrategyData, isCFRStrategyLoaded } from './cfrEval.js';
+export type { StrategyEntry } from './cfrEval.js';
 export { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 export { mapAbstractToConcreteAction } from './actionMapper.js';
 export { decideFiveDrawCFR } from './fiveDrawEval.js';

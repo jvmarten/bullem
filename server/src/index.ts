@@ -9,8 +9,9 @@ import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as fs from 'node:fs';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
-import { preloadCFRStrategy } from '@bull-em/shared';
+import { setCFRStrategyData } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
@@ -260,9 +261,19 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
     logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
   }
 
-  // Eagerly load CFR strategy data so bot decisions are instant from the first game.
-  // On the server this resolves from disk almost immediately (~50ms).
-  await preloadCFRStrategy();
+  // Load CFR strategy data from the static JSON asset so bot decisions are
+  // instant from the first game. In production the file lives in client/dist/;
+  // in development it's in client/public/. Both are relative to the server src dir.
+  const cfrJsonPath = process.env.NODE_ENV === 'production'
+    ? path.join(__dirname, '../../client/dist/data/cfr-strategy.json')
+    : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
+  try {
+    const raw = fs.readFileSync(cfrJsonPath, 'utf-8');
+    setCFRStrategyData(JSON.parse(raw));
+    logger.info({ path: cfrJsonPath }, 'CFR strategy data loaded');
+  } catch (err) {
+    logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
+  }
 
   // Start the HTTP server AFTER all initialization is complete.
   // This ensures the leaderboard, profiles, and other DB-backed endpoints

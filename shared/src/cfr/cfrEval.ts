@@ -1,13 +1,9 @@
 /**
  * CFR strategy evaluation for in-game bot decisions.
  *
- * Uses pre-trained strategy data (lazy-loaded from strategyData.ts) to make
- * decisions compatible with BotPlayer's interface.
- *
- * Strategy data (~7.6MB) is loaded on-demand via dynamic import so it doesn't
- * bloat the main client bundle. Vite code-splits it into a separate chunk that's
- * only fetched when a CFR bot actually plays. On the server, the dynamic import
- * resolves immediately from disk.
+ * Uses pre-trained strategy data injected at startup via setCFRStrategyData().
+ * Strategy data (~7.6MB JSON) is NOT bundled — it's loaded from disk on the
+ * server and fetched as a static asset on the client.
  *
  * Post-strategy safety layers:
  * 1. Plausibility override — forces bull when claims are impossible given card count
@@ -21,31 +17,38 @@ import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
-import type { StrategyEntry } from './strategyData.js';
 import { RANK_VALUES } from '../constants.js';
 
-// ── Lazy-loaded strategy data ─────────────────────────────────────────
-// The 7.6MB strategy data is loaded on first use via dynamic import().
-// This keeps the main bundle small — Vite splits it into a separate chunk.
+/** Action probability distribution for one info set. */
+export interface StrategyEntry {
+  [action: string]: number;
+}
+
+// ── Strategy data (injected at startup) ───────────────────────────────
+// Strategy data (~7.6MB) is NOT bundled with shared/.
+// On the server: loaded from JSON on disk and injected via setCFRStrategyData().
+// On the client: fetched via fetch('/data/cfr-strategy.json') and injected.
 let _strategyData: ReadonlyMap<string, Record<string, StrategyEntry>> | null = null;
 let _actionExpand: Record<string, string> | null = null;
-let _loadPromise: Promise<void> | null = null;
 
 /**
- * Preload CFR strategy data so it's available for decideCFR().
- * Call this early when you know CFR bots will be used (e.g., server startup,
- * or when a local game with CFR bots is about to start).
- * Safe to call multiple times — only loads once.
+ * Inject pre-parsed CFR strategy data. Called once at startup by the
+ * platform-specific loader (server reads from disk, client fetches JSON).
+ *
+ * @param data.actionExpand  Abbreviation → full action name map (e.g. "tl" → "truthful_low")
+ * @param data.buckets       Player-count buckets ("p2", "p34", "p5+") → info-set strategies
  */
-export async function preloadCFRStrategy(): Promise<void> {
-  if (_strategyData) return;
-  if (!_loadPromise) {
-    _loadPromise = import('./strategyData.js').then((mod) => {
-      _strategyData = mod.STRATEGY_DATA;
-      _actionExpand = mod.ACTION_EXPAND;
-    });
-  }
-  await _loadPromise;
+export function setCFRStrategyData(data: {
+  actionExpand: Record<string, string>;
+  buckets: Record<string, Record<string, StrategyEntry>>;
+}): void {
+  _actionExpand = data.actionExpand;
+  _strategyData = new Map(Object.entries(data.buckets));
+}
+
+/** Returns true if strategy data has been loaded. */
+export function isCFRStrategyLoaded(): boolean {
+  return _strategyData !== null;
 }
 
 /** Map active player count to strategy bucket key. */
@@ -835,7 +838,7 @@ export function decideCFR(
   if (legalActions.length === 0) return null;
 
   // If strategy data hasn't been loaded yet, fall through to heuristic.
-  // preloadCFRStrategy() should be called before the first CFR decision.
+  // setCFRStrategyData() should be called before the first CFR decision.
   if (!_strategyData) return null;
 
   const bucket = resolvePlayerBucket(activePlayers);
