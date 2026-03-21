@@ -456,7 +456,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     // Shuffle seating order
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.getRandomValues(new Uint32Array(1))[0]! % (i + 1);
       const temp = shuffled[i]!;
       shuffled[i] = shuffled[j]!;
       shuffled[j] = temp;
@@ -755,7 +755,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
 
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.getRandomValues(new Uint32Array(1))[0]! % (i + 1);
       const temp = shuffled[i]!;
       shuffled[i] = shuffled[j]!;
       shuffled[j] = temp;
@@ -926,7 +926,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     // Shuffle seating order
     const shuffled = [...playersRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.getRandomValues(new Uint32Array(1))[0]! % (i + 1);
       const temp = shuffled[i]!;
       shuffled[i] = shuffled[j]!;
       shuffled[j] = temp;
@@ -1038,6 +1038,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     sessionTransferred: false,
     countdown,
     clearOverlayStateForRecovery: () => {},
+    roundSeedHash: null,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

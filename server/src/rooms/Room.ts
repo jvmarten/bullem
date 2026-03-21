@@ -1,12 +1,12 @@
 import {
   GamePhase, STARTING_CARDS, DISCONNECT_TIMEOUT_MS, DEFAULT_ONLINE_GAME_SETTINGS,
-  BotPlayer,
+  BotPlayer, generateRoundSeed,
 } from '@bull-em/shared';
 import type {
   PlayerId, ServerPlayer, RoomState, ClientGameState, Player, GameSettings,
   SeriesState, AvatarId, AvatarBgColor, RoundResult,
 } from '@bull-em/shared';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt, createHash } from 'crypto';
 import { GameEngine, type TurnResult } from '../game/GameEngine.js';
 import type { RoomSnapshot } from './RedisStore.js';
 
@@ -483,15 +483,19 @@ export class Room {
     this.lastRoundResult = null;
     const activePlayers = [...this.players.values()].filter(p => !p.isEliminated);
     // Shuffle seating order — positions stay fixed for the entire game
+    // Uses cryptographic RNG for unpredictable seating
     for (let i = activePlayers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = randomInt(i + 1);
       const temp = activePlayers[i]!;
       activePlayers[i] = activePlayers[j]!;
       activePlayers[j] = temp;
     }
     this.cancelRoundContinueWindow();
     this.game = new GameEngine(activePlayers, this.settings);
-    this.game.startRound();
+    // Provably fair: generate seed pair synchronously using Node crypto
+    const seed = generateRoundSeed();
+    const hash = createHash('sha256').update(seed).digest('hex');
+    this.game.startRound({ seed, hash });
     this.touch();
     return this.game;
   }

@@ -128,6 +128,8 @@ export interface GameContextValue {
   countdown: { secondsLeft: number; label?: string } | null;
   /** Clear stale overlay state locally (no server emit). Used by error boundary recovery. */
   clearOverlayStateForRecovery: () => void;
+  /** SHA-256 hash of the round seed, captured when roundResult arrives (provably fair). */
+  roundSeedHash: string | null;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -208,6 +210,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const roundResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundResultRef = useRef<RoundResult | null>(null);
   const roundResultReceivedAtRef = useRef<number>(0);
+  /** SHA-256 hash of the round seed, captured from gameState when roundResult arrives (provably fair). */
+  const [roundSeedHash, setRoundSeedHash] = useState<string | null>(null);
   const pendingGameStateRef = useRef<ClientGameState | null>(null);
   /** Tracks the latest game state for use in the game:over handler (which
    *  runs inside a static useEffect and can't read React state directly). */
@@ -531,6 +535,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       roundResultRef.current = result;
       roundResultReceivedAtRef.current = Date.now();
       setRoundResult(result);
+      // Capture the seed hash from current game state for provably fair verification
+      setRoundSeedHash(gameStateRef.current?.roundSeedHash ?? null);
     });
     socket.on('game:over', (wId, stats, rChanges) => {
       setWinnerId(wId);
@@ -1065,8 +1071,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sessionTransferred,
     countdown,
     clearOverlayStateForRecovery,
+    roundSeedHash,
   }), [
-    roomState, gameState, roundResult, roundTransition, roundTransitionDeadline,
+    roomState, gameState, roundResult, roundTransition, roundTransitionDeadline, roundSeedHash,
     winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown,
     lastReplay,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,

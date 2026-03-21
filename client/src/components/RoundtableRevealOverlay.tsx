@@ -2,6 +2,7 @@ import { memo, useEffect, useState, useMemo, useRef } from 'react';
 import type { RoundResult, Player, OwnedCard } from '@bull-em/shared';
 import { getSeatPosition } from '../utils/roundtablePositions.js';
 import { CardDisplay } from './CardDisplay.js';
+import { ProvablyFairBadge } from './ProvablyFairBadge.js';
 import { useSound } from '../hooks/useSound.js';
 
 /** Timing constants (ms) */
@@ -25,6 +26,8 @@ interface Props {
   skipToEnd?: boolean;
   /** Called when the cinematic animation first begins, so the parent can track whether it was started. */
   onAnimationStart?: () => void;
+  /** SHA-256 hash of the round seed, committed before cards were dealt (provably fair). */
+  roundSeedHash?: string | null;
 }
 
 /** Each slot in the reveal sequence — one per card in every player's hand. */
@@ -63,6 +66,7 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
   onComplete,
   skipToEnd = false,
   onAnimationStart,
+  roundSeedHash,
 }: Props) {
   const { play } = useSound();
   const [slots, setSlots] = useState<RevealSlot[]>([]);
@@ -355,6 +359,7 @@ export const RoundtableRevealOverlay = memo(function RoundtableRevealOverlay({
               {result.handExists ? 'The hand EXISTS!' : 'BULL! Hand is fake!'}
             </div>
           )}
+          <ProvablyFairBadge roundSeed={result.roundSeed} roundSeedHash={roundSeedHash ?? undefined} />
           {canDismiss && (
             <button
               className="rt-reveal-continue btn-gold mt-3 animate-fade-in"

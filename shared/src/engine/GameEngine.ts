@@ -1,5 +1,8 @@
 import { STARTING_CARDS, MAX_CARDS, DEFAULT_GAME_SETTINGS, DECK_SIZE } from '../constants.js';
 import { isHigherHand, getMinimumRaise } from '../hands.js';
+// Provably fair seed pairs are generated externally (async) and passed into
+// startRound/startNextRound. GameEngine stores and exposes them but does not
+// generate them — keeping the engine synchronous and free of crypto imports.
 import {
   GamePhase, RoundPhase, TurnAction,
 } from '../types.js';
@@ -49,6 +52,10 @@ export class GameEngine {
   private _roundSnapshots: RoundSnapshot[] = [];
   /** Cards dealt at the start of the current round — captured before any actions. */
   private _roundStartCards: SpectatorPlayerCards[] = [];
+  /** Provably fair seed for the current round's shuffle. */
+  private _roundSeed: string | null = null;
+  /** SHA-256 hash of the current round's seed (commitment sent to clients before dealing). */
+  private _roundSeedHash: string | null = null;
   /** Cached active players list — invalidated when the eliminated count changes.
    *  Avoids creating a new filtered array on every call to getActivePlayers(),
    *  which is invoked 5-10 times per turn action across validateTurn, advanceTurn,
@@ -98,10 +105,22 @@ export class GameEngine {
     this._turnDurationMs = durationMs ?? null;
   }
 
-  /** Deal cards and begin a new round. Call once at game start. Use startNextRound() for subsequent rounds. */
-  startRound(): void {
+  /** Deal cards and begin a new round. Call once at game start. Use startNextRound() for subsequent rounds.
+   *  @param seedPair Pre-generated provably fair seed + hash. If omitted, uses crypto RNG (non-deterministic). */
+  startRound(seedPair?: { seed: string; hash: string }): void {
     this.roundNumber++;
-    this.deck.reset();
+
+    if (seedPair) {
+      // Provably fair: use pre-generated seed for deterministic shuffle
+      this._roundSeed = seedPair.seed;
+      this._roundSeedHash = seedPair.hash;
+      this.deck.resetWithSeed(seedPair.seed);
+    } else {
+      this._roundSeed = null;
+      this._roundSeedHash = null;
+      this.deck.reset();
+    }
+
     this.roundPhase = RoundPhase.CALLING;
     this.currentHand = null;
     this.lastCallerId = null;
@@ -142,8 +161,9 @@ export class GameEngine {
     return active.length === 1 ? active[0]!.id : null;
   }
 
-  /** Advance to the next round: rotate starting player, re-deal cards, reset turn state. */
-  startNextRound(): { type: 'new_round' } | { type: 'game_over'; winnerId: PlayerId } {
+  /** Advance to the next round: rotate starting player, re-deal cards, reset turn state.
+   *  @param seedPair Pre-generated provably fair seed + hash. If omitted, uses crypto RNG (non-deterministic). */
+  startNextRound(seedPair?: { seed: string; hash: string }): { type: 'new_round' } | { type: 'game_over'; winnerId: PlayerId } {
     const active = this.getActivePlayers();
     if (active.length <= 1) {
       return { type: 'game_over', winnerId: active[0]?.id ?? '' };
@@ -166,7 +186,17 @@ export class GameEngine {
 
     // Reset round state
     this.roundNumber++;
-    this.deck.reset();
+
+    if (seedPair) {
+      this._roundSeed = seedPair.seed;
+      this._roundSeedHash = seedPair.hash;
+      this.deck.resetWithSeed(seedPair.seed);
+    } else {
+      this._roundSeed = null;
+      this._roundSeedHash = null;
+      this.deck.reset();
+    }
+
     this.roundPhase = RoundPhase.CALLING;
     this.currentHand = null;
     this.lastCallerId = null;
@@ -367,6 +397,7 @@ export class GameEngine {
       roundResult: this.lastRoundResult,
       turnDeadline: this._turnDeadline,
       turnDurationMs: this._turnDurationMs,
+      roundSeedHash: this._roundSeedHash,
     };
 
     // Spectators (eliminated players) can see all active players' cards
@@ -690,6 +721,7 @@ export class GameEngine {
       penalizedPlayerIds,
       eliminatedPlayerIds,
       turnHistory: [...this.turnHistory],
+      roundSeed: this._roundSeed ?? undefined,
     };
     this.lastRoundResult = result;
 
@@ -699,6 +731,8 @@ export class GameEngine {
       playerCards: this._roundStartCards,
       turnHistory: [...this.turnHistory],
       result,
+      roundSeed: this._roundSeed ?? undefined,
+      roundSeedHash: this._roundSeedHash ?? undefined,
     });
 
     // Check for game over
@@ -857,6 +891,8 @@ export class GameEngine {
       gameStats: JSON.parse(JSON.stringify(this.gameStats)),
       roundSnapshots: JSON.parse(JSON.stringify(this._roundSnapshots)),
       roundStartCards: this._roundStartCards.map(pc => ({ ...pc, cards: [...pc.cards] })),
+      roundSeed: this._roundSeed ?? undefined,
+      roundSeedHash: this._roundSeedHash ?? undefined,
     };
   }
 
@@ -930,6 +966,8 @@ export class GameEngine {
     if (snapshot.roundStartCards) {
       engine._roundStartCards = snapshot.roundStartCards.map(pc => ({ ...pc, cards: [...pc.cards] }));
     }
+    engine._roundSeed = snapshot.roundSeed ?? null;
+    engine._roundSeedHash = snapshot.roundSeedHash ?? null;
     return engine;
   }
 }

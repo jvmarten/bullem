@@ -131,12 +131,23 @@ describe('Room', () => {
     });
 
     it('randomized seating can make non-host start first', () => {
-      room.addPlayer('socket1', 'player1', 'Alice');
-      room.addPlayer('socket2', 'player2', 'Bob');
-      const rand = vi.spyOn(Math, 'random').mockReturnValue(0);
-      const engine = room.startGame();
-      expect(engine.currentPlayerId).toBe('player2');
-      rand.mockRestore();
+      // Seating uses crypto.randomInt — run multiple games and verify
+      // that the non-host player can end up as the starting player.
+      // With 2 players and cryptographic randomness, this should happen
+      // roughly 50% of the time. 20 attempts makes a false-negative
+      // probability of (0.5)^20 ≈ 1 in a million.
+      let nonHostStarted = false;
+      for (let i = 0; i < 20; i++) {
+        const testRoom = new Room(`RM${String(i).padStart(2, '0')}`);
+        testRoom.addPlayer(`s1-${i}`, `p1-${i}`, 'Alice');
+        testRoom.addPlayer(`s2-${i}`, `p2-${i}`, 'Bob');
+        const engine = testRoom.startGame();
+        if (engine.currentPlayerId === `p2-${i}`) {
+          nonHostStarted = true;
+          break;
+        }
+      }
+      expect(nonHostStarted).toBe(true);
     });
   });
 

@@ -136,6 +136,9 @@ export interface RoundResult {
   /** Players eliminated this round (exceeded maxCards after penalty). */
   eliminatedPlayerIds: PlayerId[];
   turnHistory?: TurnEntry[];
+  /** The shuffle seed revealed after resolution (provably fair).
+   *  Clients can verify: SHA-256(roundSeed) === roundSeedHash from game state. */
+  roundSeed?: string;
 }
 
 export interface SpectatorPlayerCards {
@@ -174,6 +177,9 @@ export interface ClientGameState {
   seriesInfo?: SeriesInfo | null;
   /** Whether this game is a ranked match. */
   ranked?: boolean;
+  /** SHA-256 hash of this round's shuffle seed (provably fair commitment).
+   *  Sent BEFORE cards are dealt so clients can later verify the seed. */
+  roundSeedHash?: string | null;
 }
 
 export enum BotDifficulty {
@@ -302,6 +308,10 @@ export interface RoundSnapshot {
   turnHistory: TurnEntry[];
   /** Round resolution result (called hand, penalties, eliminations, revealed cards). */
   result: RoundResult;
+  /** Provably fair shuffle seed for this round. Included in replays for verification. */
+  roundSeed?: string;
+  /** SHA-256 hash of the shuffle seed (commitment). */
+  roundSeedHash?: string;
 }
 
 /** Serializable snapshot of a GameEngine for persistence (e.g., local game save/restore). */
@@ -327,6 +337,10 @@ export interface GameEngineSnapshot {
   roundSnapshots?: RoundSnapshot[];
   /** Cards dealt at the start of the current round. Optional for backwards compat. */
   roundStartCards?: SpectatorPlayerCards[];
+  /** Current round's shuffle seed (provably fair). Optional for backwards compat. */
+  roundSeed?: string;
+  /** SHA-256 hash of the current round's seed. Optional for backwards compat. */
+  roundSeedHash?: string;
 }
 
 /** Room info broadcast to all clients in the room (lobby and during game). */
