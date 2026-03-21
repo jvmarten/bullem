@@ -364,6 +364,9 @@ describe('decideCFRWithSearch', () => {
       { simulations: 30 },
     );
     expect(result).not.toBeNull();
-    expect(['bull', 'call']).toContain(result!.action);
+    // 'true' is valid here because the bot holds Q♥ which satisfies
+    // "High Card Q" — HandChecker safety converts bull → true when
+    // the bot's own cards provably satisfy the current claim.
+    expect(['bull', 'true', 'call']).toContain(result!.action);
   });
 });
