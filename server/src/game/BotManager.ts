@@ -172,6 +172,9 @@ export class BotManager {
         this.cfrBotIds.delete(playerId);
       }
     }
+    // Clean up per-room maps to prevent unbounded memory growth
+    this.lastRoundPenalized.delete(room.roomCode);
+    this.roomTimerGeneration.delete(room.roomCode);
   }
 
   /**
