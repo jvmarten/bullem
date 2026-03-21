@@ -15,6 +15,7 @@ RUN npm ci
 COPY shared/ shared/
 COPY server/ server/
 COPY client/ client/
+COPY scripts/ scripts/
 COPY tsconfig.base.json ./
 
 # Build all packages (shared -> server -> client)
