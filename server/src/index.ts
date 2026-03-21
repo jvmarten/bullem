@@ -12,8 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'node:fs';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
-import { setCFRStrategyData, decodeCFRCompact } from '@bull-em/shared';
-import type { CompactCFRStrategy } from '@bull-em/shared';
+import { setCFRStrategyData } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
@@ -283,13 +282,11 @@ httpServer.listen(Number(PORT), HOST, () => {
     : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
   try {
     const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
-    const parsed = JSON.parse(raw) as { v?: number };
-    // Support both v1 (original) and v2 (compact dictionary-encoded) formats
-    if (parsed.v === 2) {
-      setCFRStrategyData(decodeCFRCompact(parsed as CompactCFRStrategy));
-    } else {
-      setCFRStrategyData(parsed as { actionExpand: Record<string, string>; buckets: Record<string, Record<string, Record<string, number>>> });
-    }
+    // setCFRStrategyData accepts both v1 and v2 formats directly.
+    // V2 compact format (~7MB) is stored as-is in memory (~20MB) instead
+    // of being decoded to full keys (~80MB), keeping well within the
+    // 256MB Fly.io machine memory limit.
+    setCFRStrategyData(JSON.parse(raw));
     logger.info({ path: cfrJsonPath }, 'CFR strategy data loaded');
   } catch (err) {
     logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');

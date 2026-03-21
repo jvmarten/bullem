@@ -2,21 +2,16 @@
  * Client-side CFR strategy loader.
  *
  * Fetches the compact strategy JSON (~7MB, ~1.8MB gzipped) from the static
- * asset path, decodes it via decodeCFRCompact(), and injects it into the
- * shared CFR engine via setCFRStrategyData().
+ * asset path and injects it directly into the shared CFR engine via
+ * setCFRStrategyData(). The compact v2 format is stored as-is in memory
+ * (~20MB) instead of being decoded to full keys (~80MB).
  *
  * Call preloadCFRStrategy() early (e.g., on mount of pages that use CFR bots)
  * and await it before starting a game with CFR bots.
  */
-import { setCFRStrategyData, isCFRStrategyLoaded, decodeCFRCompact } from '@bull-em/shared';
-import type { StrategyEntry, CompactCFRStrategy } from '@bull-em/shared';
+import { setCFRStrategyData, isCFRStrategyLoaded } from '@bull-em/shared';
 
 let _loadPromise: Promise<void> | null = null;
-
-interface CFRStrategyV1JSON {
-  actionExpand: Record<string, string>;
-  buckets: Record<string, Record<string, StrategyEntry>>;
-}
 
 /**
  * Preload CFR strategy data so it's available for decideCFR().
@@ -31,14 +26,9 @@ export async function preloadCFRStrategy(): Promise<void> {
       if (!resp.ok) {
         throw new Error(`Failed to load CFR strategy: ${resp.status}`);
       }
-      const raw: CFRStrategyV1JSON | CompactCFRStrategy = await resp.json();
-
-      // Support both v1 (original) and v2 (compact) formats
-      if ('v' in raw && raw.v === 2) {
-        setCFRStrategyData(decodeCFRCompact(raw as CompactCFRStrategy));
-      } else {
-        setCFRStrategyData(raw as CFRStrategyV1JSON);
-      }
+      // setCFRStrategyData accepts both v1 and v2 formats directly.
+      // V2 compact format is stored as-is and decoded on-the-fly during lookups.
+      setCFRStrategyData(await resp.json());
     })();
   }
   await _loadPromise;
