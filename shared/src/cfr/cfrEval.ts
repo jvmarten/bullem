@@ -649,6 +649,240 @@ function adjustStrategyForPlausibility(
   }
 }
 
+// ── Opponent claim credibility ───────────────────────────────────────
+
+/**
+ * Adjusts bull/true probabilities based on the insight that players who
+ * make claims likely hold cards supporting those claims.
+ *
+ * Key insight: when a player opens with "pair of 7s", they almost certainly
+ * hold at least one 7. The current Bayesian probability treats unknown cards
+ * as uniform random, but the claimant's cards are biased toward their claim.
+ *
+ * This is especially impactful for:
+ * - Opening claims (the opener chose this specific hand for a reason)
+ * - Low claims (high card, pair) which are almost always truthful
+ * - Heads-up games where there's only one opponent to model
+ *
+ * The adjustment reduces bull probability on credible opening claims and
+ * increases it when claims seem like escalation bluffs (high claim height
+ * after many turns = more likely to be a bluff).
+ */
+function adjustForOpponentCredibility(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  state: ClientGameState,
+  totalCards: number,
+  activePlayers: number,
+): void {
+  if (!state.currentHand) return;
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  if (!hasBull) return;
+
+  const turnCount = state.turnHistory.length;
+  const heightScore = claimHeightScore(state.currentHand);
+
+  // Opening claims (turn 0-1) are highly credible — players almost always
+  // claim something they can back up. Don't waste a life calling bull.
+  // Credibility decays with turn depth as claims escalate through raises.
+  let credibilityBoost = 0;
+
+  if (turnCount <= 1 && state.currentHand.type <= HandType.PAIR) {
+    // Opening low claim — extremely credible.
+    // High card: opener has it ~95%+ of the time.
+    // Pair: opener likely has at least one of the rank.
+    credibilityBoost = state.currentHand.type === HandType.HIGH_CARD ? 0.40 : 0.25;
+  } else if (turnCount <= 3 && heightScore < 0.3) {
+    // Early low claims are still fairly credible
+    credibilityBoost = 0.15;
+  }
+
+  // Late-round high claims are less credible — more likely forced bluffs
+  if (turnCount >= 5 && heightScore > 0.5) {
+    // Escalation bluff detection: reduce credibility (boost bull)
+    const bluffSignal = Math.min((turnCount - 4) * 0.05, 0.20) * heightScore;
+    credibilityBoost = -bluffSignal;
+  }
+
+  if (Math.abs(credibilityBoost) < 0.02) return;
+
+  if (credibilityBoost > 0) {
+    // Claim is credible → reduce bull probability
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const transfer = currentBull * credibilityBoost;
+    probs.set(AbstractAction.BULL, currentBull - transfer);
+    // Distribute to other actions proportionally
+    const others = legalActions.filter(a => a !== AbstractAction.BULL);
+    let otherTotal = 0;
+    for (const a of others) otherTotal += probs.get(a) ?? 0;
+    if (otherTotal > 0) {
+      for (const a of others) {
+        probs.set(a, (probs.get(a) ?? 0) + transfer * ((probs.get(a) ?? 0) / otherTotal));
+      }
+    }
+  } else {
+    // Claim is suspicious → boost bull
+    const boost = Math.abs(credibilityBoost);
+    const donors = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.PASS);
+    let donorMass = 0;
+    for (const a of donors) donorMass += probs.get(a) ?? 0;
+    if (donorMass > 0) {
+      const transfer = donorMass * boost;
+      const scale = 1 - transfer / donorMass;
+      for (const a of donors) {
+        probs.set(a, (probs.get(a) ?? 0) * scale);
+      }
+      probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
+    }
+  }
+}
+
+// ── Heads-up card knowledge boost ───────────────────────────────────
+
+/**
+ * In heads-up (2-player) situations, the bot's cards provide much
+ * stronger information because there are fewer unknown cards.
+ *
+ * With 2 players holding 3 cards each (6 total), the bot sees 3/6 = 50%
+ * of all cards. With 5 cards each (10 total), it sees 5/10 = 50%.
+ * The base card knowledge adjustment treats all game sizes the same,
+ * but in heads-up the signal is much stronger.
+ *
+ * This adjustment amplifies the card knowledge effect when:
+ * - There are only 2 active players
+ * - The bot can see a significant fraction of total cards
+ * - The exact probability strongly disagrees with the baseline
+ */
+function adjustForHeadsUpCardKnowledge(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  myCards: Card[],
+  totalCards: number,
+  activePlayers: number,
+): void {
+  if (activePlayers > 2) return; // Only applies to heads-up
+  if (!currentHand) return;
+
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  const hasTrue = legalActions.includes(AbstractAction.TRUE);
+  if (!hasBull && !hasTrue) return;
+
+  const exactProb = computeHandExistsProbability(currentHand, myCards, totalCards);
+  const baselinePlaus = claimPlausibility(currentHand, totalCards);
+  const shift = exactProb - baselinePlaus;
+
+  // In heads-up, we can trust the exact probability more because we see
+  // a larger fraction of the cards. Lower the threshold and increase strength.
+  if (Math.abs(shift) < 0.03) return; // Lower threshold than standard (0.05)
+
+  // Visibility ratio: what fraction of total cards can we see?
+  const visibilityRatio = myCards.length / Math.max(1, totalCards);
+  // Scale strength by visibility — seeing 50% of cards is much more informative
+  // than seeing 10% of cards. Range: 0.6 (low visibility) to 0.75 (high visibility)
+  const strengthMultiplier = 0.6 + visibilityRatio * 0.3;
+  const adjustmentStrength = Math.min(Math.abs(shift) * 1.2, strengthMultiplier);
+
+  if (shift > 0 && hasBull) {
+    // Hand MORE likely in heads-up → aggressively reduce bull
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const transfer = currentBull * adjustmentStrength;
+    probs.set(AbstractAction.BULL, currentBull - transfer);
+    if (hasTrue) {
+      probs.set(AbstractAction.TRUE, (probs.get(AbstractAction.TRUE) ?? 0) + transfer * 0.7);
+      const others = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.TRUE);
+      const otherTotal = others.reduce((s, a) => s + (probs.get(a) ?? 0), 0);
+      if (otherTotal > 0) {
+        for (const a of others) {
+          probs.set(a, (probs.get(a) ?? 0) + transfer * 0.3 * ((probs.get(a) ?? 0) / otherTotal));
+        }
+      }
+    }
+  } else if (shift < 0 && hasBull) {
+    // Hand LESS likely in heads-up → aggressively boost bull
+    const donors = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.PASS);
+    let donorMass = 0;
+    for (const a of donors) donorMass += probs.get(a) ?? 0;
+    if (donorMass > 0) {
+      const transfer = donorMass * adjustmentStrength;
+      const scale = 1 - transfer / donorMass;
+      for (const a of donors) {
+        probs.set(a, (probs.get(a) ?? 0) * scale);
+      }
+      probs.set(AbstractAction.BULL, (probs.get(AbstractAction.BULL) ?? 0) + transfer);
+    }
+  }
+}
+
+// ── Disproof awareness ──────────────────────────────────────────────
+
+/**
+ * When the bot's own cards make the claimed hand nearly impossible,
+ * call bull with near-certainty.
+ *
+ * Examples:
+ * - Bot holds 3 of the 4 sevens → "four of a kind 7s" is impossible
+ * - Bot holds 2 of the 4 sevens → "three 7s" needs the remaining 2 from
+ *   unknown cards, which is much less likely than baseline
+ * - Bot holds 4 cards of a suit → opponent claiming flush in that suit
+ *   needs 5 of the remaining 9 from unknown cards
+ *
+ * This is the "card counter's edge" — a strong human player would
+ * instantly recognize these situations.
+ */
+function adjustForDisproofAwareness(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  myCards: Card[],
+  totalCards: number,
+): void {
+  if (!currentHand) return;
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  if (!hasBull) return;
+
+  const exactProb = computeHandExistsProbability(currentHand, myCards, totalCards);
+
+  // When our cards make the hand nearly impossible (< 5% probability),
+  // we should call bull with very high confidence. This catches cases
+  // where the baseline plausibility is "maybe" but our specific cards
+  // tell us it's actually near-impossible.
+  if (exactProb < 0.05) {
+    // Near-disproof: override to ~90% bull
+    const bullTarget = 0.90;
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    if (currentBull < bullTarget) {
+      const others = legalActions.filter(a => a !== AbstractAction.BULL);
+      probs.set(AbstractAction.BULL, bullTarget);
+      const remaining = 1 - bullTarget;
+      const otherTotal = others.reduce((s, a) => s + (probs.get(a) ?? 0), 0);
+      if (otherTotal > 0) {
+        for (const a of others) {
+          probs.set(a, remaining * ((probs.get(a) ?? 0) / otherTotal));
+        }
+      } else {
+        const share = remaining / others.length;
+        for (const a of others) probs.set(a, share);
+      }
+    }
+  } else if (exactProb < 0.15) {
+    // Low probability: strong bull bias but not override-level
+    const bullBoost = (0.15 - exactProb) * 4; // 0 to 0.6
+    const currentBull = probs.get(AbstractAction.BULL) ?? 0;
+    const donors = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.PASS);
+    let donorMass = 0;
+    for (const a of donors) donorMass += probs.get(a) ?? 0;
+    if (donorMass > 0) {
+      const transfer = Math.min(donorMass * 0.8, bullBoost);
+      const scale = 1 - transfer / donorMass;
+      for (const a of donors) {
+        probs.set(a, (probs.get(a) ?? 0) * scale);
+      }
+      probs.set(AbstractAction.BULL, currentBull + transfer);
+    }
+  }
+}
+
 // ── Anti-cascade adjustment ─────────────────────────────────────────
 
 /**
@@ -1006,6 +1240,9 @@ export function decideCFR(
       // Apply post-strategy safety adjustments
       adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
       adjustForCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards);
+      adjustForDisproofAwareness(probs, legalActions, state.currentHand, botCards, totalCards);
+      adjustForHeadsUpCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
+      adjustForOpponentCredibility(probs, legalActions, state, totalCards, activePlayers);
       adjustForSentimentCascade(probs, legalActions, state, totalCards);
       adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
       adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
@@ -1300,6 +1537,9 @@ export function decideCFRWithSearch(
   // Apply the same safety adjustments as decideCFR
   adjustStrategyForPlausibility(baseProbs, legalActions, state.currentHand, totalCards);
   adjustForCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards);
+  adjustForDisproofAwareness(baseProbs, legalActions, state.currentHand, botCards, totalCards);
+  adjustForHeadsUpCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
+  adjustForOpponentCredibility(baseProbs, legalActions, state, totalCards, activePlayers);
   adjustForSentimentCascade(baseProbs, legalActions, state, totalCards);
   adjustForLowClaims(baseProbs, legalActions, state.currentHand, totalCards);
   adjustForLastChancePass(baseProbs, legalActions, state.currentHand, totalCards);
