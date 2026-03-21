@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
-import { decideCFR, preloadCFRStrategy } from './cfrEval.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { decideCFR, setCFRStrategyData } from './cfrEval.js';
 import { HandType, RoundPhase, GamePhase } from '../types.js';
 import type { Card, ClientGameState, HandCall } from '../types.js';
 
-// Load strategy data before tests run — it's now lazy-loaded via dynamic import
-beforeAll(async () => {
-  await preloadCFRStrategy();
+// Load strategy data from the JSON static asset before tests run.
+beforeAll(() => {
+  const jsonPath = path.resolve(import.meta.dirname, '../../../client/public/data/cfr-strategy.json');
+  const raw = fs.readFileSync(jsonPath, 'utf-8');
+  setCFRStrategyData(JSON.parse(raw));
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────

@@ -21,9 +21,10 @@ import { useToast } from '../context/ToastContext.js';
 import {
   RoundPhase, BotDifficulty, GameEngine, BotPlayer, handToString,
   FIVE_DRAW_MIN_WAGER, FIVE_DRAW_MAX_WAGER, FIVE_DRAW_DEFAULT_WAGER, FIVE_DRAW_WIN_MULTIPLIER,
-  DECK_DRAW_STARTING_BALANCE, preloadCFRStrategy,
+  DECK_DRAW_STARTING_BALANCE,
   type HandCall, type Card, type Suit, type ServerPlayer, type ClientGameState, type RoundResult,
 } from '@bull-em/shared';
+import { preloadCFRStrategy } from '../utils/cfrLoader.js';
 import type { TurnResult } from '@bull-em/shared';
 import { useUISettings } from '../components/VolumeControl.js';
 import { getSuitHex } from '../utils/cardUtils.js';

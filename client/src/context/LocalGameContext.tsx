@@ -6,8 +6,8 @@ import {
   GameEngine, BotPlayer, BotDifficulty, DEFAULT_BOT_DIFFICULTY, DEFAULT_GAME_SETTINGS,
   DECK_SIZE, maxPlayersForMaxCards, getDeckSize, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
   saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP, GAME_COUNTDOWN_SECONDS,
-  preloadCFRStrategy,
 } from '@bull-em/shared';
+import { preloadCFRStrategy } from '../utils/cfrLoader.js';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
