@@ -176,9 +176,18 @@ if (rateLimitRedis) {
 
 registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmakingQueue);
 
-// Initialize database, restore state, then start the HTTP server.
-// The server does NOT listen until DB initialization (migrations, CFR bot seeding)
-// completes — this prevents serving stale/empty leaderboards during startup.
+// Start the HTTP server IMMEDIATELY so Fly.io health checks can reach us
+// while async initialization (DB migrations, CFR strategy loading) proceeds
+// in the background. The health endpoint returns a "starting" status until
+// init completes, which satisfies Fly.io's health check requirements.
+let startupComplete = false;
+const PORT = process.env.PORT ?? 3001;
+const HOST = process.env.HOST ?? '0.0.0.0';
+httpServer.listen(Number(PORT), HOST, () => {
+  logger.info({ port: PORT, host: HOST }, `Bull 'Em server listening on ${HOST}:${PORT}`);
+});
+
+// Initialize database, restore state, and complete startup.
 (async () => {
   // Verify database connectivity with retries before running migrations.
   // If the DB is unreachable after all retries, the app continues in degraded
@@ -275,14 +284,8 @@ registerHandlers(io, roomManager, botManager, rateLimiter, pushManager, matchmak
     logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
   }
 
-  // Start the HTTP server AFTER all initialization is complete.
-  // This ensures the leaderboard, profiles, and other DB-backed endpoints
-  // serve correct data from the very first request (no race with DB init).
-  const PORT = process.env.PORT ?? 3001;
-  const HOST = process.env.HOST ?? '0.0.0.0';
-  httpServer.listen(Number(PORT), HOST, () => {
-    logger.info({ port: PORT, host: HOST }, `Bull 'Em server running on ${HOST}:${PORT}`);
-  });
+  startupComplete = true;
+  logger.info('Startup initialization complete');
 })();
 
 // Parse JSON bodies, URL-encoded bodies (Apple OAuth POST callback), and cookies.
@@ -960,6 +963,19 @@ app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
 
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
+  // During startup initialization, return 200 so Fly.io health checks pass
+  // while DB migrations and other async init is still running.
+  if (!startupComplete) {
+    res.status(200).json({
+      status: 'starting',
+      db: 'initializing',
+      redis: 'initializing',
+      rooms: 0,
+      players: 0,
+    });
+    return;
+  }
+
   let db = getDbStatus();
 
   // If the pool exists and we think we're ok, do a live probe to confirm.
@@ -1132,6 +1148,6 @@ function shutdown(): void {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// httpServer.listen() is called inside the async startup IIFE above,
-// AFTER database initialization completes. This prevents serving
-// stale/empty leaderboards during the startup window.
+// httpServer.listen() is called BEFORE the async startup IIFE so Fly.io
+// health checks can reach the server immediately. The health endpoint
+// returns { status: 'starting' } until async initialization completes.
