@@ -111,6 +111,20 @@ export function getLegalAbstractActions(
 
 // ── Hand strength relative to claim ──────────────────────────────────
 
+/**
+ * Evaluate how the player's hand relates to the current claim.
+ * Returns a bucket string for the info set key.
+ *
+ * 4 buckets (refined from original 3):
+ * - 'none': no claim yet (opening)
+ * - 'has': player's cards strongly support or complete the claim
+ * - 'close1': player has 1+ of the exact cards needed (strong partial)
+ * - 'close0': player has related cards but not exact ones needed (weak partial)
+ * - 'below': player's cards don't support the claim at all
+ *
+ * The close1/close0 split is critical: holding one of the exact called rank
+ * means only 1 more needed from other players vs 2+ more needed.
+ */
 function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): string {
   if (!currentHand) return 'none';
 
@@ -125,30 +139,33 @@ function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): strin
     case HandType.PAIR: {
       const count = myCards.filter(c => c.rank === currentHand.rank).length;
       if (count >= 2) return 'has';
-      if (count === 1) return 'close';
+      if (count === 1) return 'close1';    // Have 1 of exact rank — only 1 more needed
       const hasSomePair = hasGroupOfSize(myCards, 2);
-      return hasSomePair ? 'close' : 'below';
+      return hasSomePair ? 'close0' : 'below';  // Have a different pair — weak support
     }
 
     case HandType.TWO_PAIR: {
       const hiCount = myCards.filter(c => c.rank === currentHand.highRank).length;
       const loCount = myCards.filter(c => c.rank === currentHand.lowRank).length;
       if (hiCount >= 2 && loCount >= 2) return 'has';
-      if (hiCount >= 1 && loCount >= 1) return 'close';
+      if (hiCount >= 1 && loCount >= 1) return 'close1';  // Have 1 of each needed rank
+      if (hiCount >= 1 || loCount >= 1) return 'close0';  // Have only 1 of the 2 needed ranks
       return 'below';
     }
 
     case HandType.FLUSH: {
       const suitCount = myCards.filter(c => c.suit === currentHand.suit).length;
       if (suitCount >= 3) return 'has';
-      if (suitCount >= 2) return 'close';
+      if (suitCount >= 2) return 'close1';  // Strong flush draw
+      if (suitCount >= 1) return 'close0';  // Weak flush draw
       return 'below';
     }
 
     case HandType.THREE_OF_A_KIND: {
       const count = myCards.filter(c => c.rank === currentHand.rank).length;
       if (count >= 3) return 'has';
-      if (count >= 1) return 'close';
+      if (count >= 2) return 'close1';  // Have 2 of 3 needed — very strong
+      if (count >= 1) return 'close0';  // Have 1 of 3 needed — weak
       return 'below';
     }
 
@@ -158,7 +175,8 @@ function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): strin
       const myVals = new Set(myCards.map(c => RANK_VALUES[c.rank]));
       const overlap = neededVals.filter(v => myVals.has(v)).length;
       if (overlap >= 3) return 'has';
-      if (overlap >= 2) return 'close';
+      if (overlap >= 2) return 'close1';
+      if (overlap >= 1) return 'close0';
       return 'below';
     }
 
@@ -166,14 +184,16 @@ function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): strin
       const threeCount = myCards.filter(c => c.rank === currentHand.threeRank).length;
       const twoCount = myCards.filter(c => c.rank === currentHand.twoRank).length;
       if (threeCount >= 2 && twoCount >= 1) return 'has';
-      if (threeCount >= 1 || twoCount >= 1) return 'close';
+      if (threeCount >= 1 && twoCount >= 1) return 'close1';  // Have both needed ranks
+      if (threeCount >= 1 || twoCount >= 1) return 'close0';  // Have only 1 needed rank
       return 'below';
     }
 
     case HandType.FOUR_OF_A_KIND: {
       const count = myCards.filter(c => c.rank === currentHand.rank).length;
       if (count >= 3) return 'has';
-      if (count >= 1) return 'close';
+      if (count >= 2) return 'close1';  // Have 2 of 4 needed
+      if (count >= 1) return 'close0';  // Have 1 of 4 needed — weak
       return 'below';
     }
 
@@ -184,7 +204,7 @@ function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): strin
         c.suit === currentHand.suit && neededVals.includes(RANK_VALUES[c.rank])
       );
       if (myMatchingCards.length >= 2) return 'has';
-      if (myMatchingCards.length >= 1) return 'close';
+      if (myMatchingCards.length >= 1) return 'close1';
       return 'below';
     }
 
@@ -194,7 +214,7 @@ function handVsClaimBucket(myCards: Card[], currentHand: HandCall | null): strin
         c.suit === currentHand.suit && royalRanks.has(c.rank as '10' | 'J' | 'Q' | 'K' | 'A')
       );
       if (matching.length >= 2) return 'has';
-      if (matching.length >= 1) return 'close';
+      if (matching.length >= 1) return 'close1';
       return 'below';
     }
   }
@@ -223,6 +243,17 @@ function claimHeightBucket(hand: HandCall | null): string {
 
 // ── My best hand type ────────────────────────────────────────────────
 
+/**
+ * Rough bucket for the best hand the player could contribute to.
+ * 5 buckets (expanded from 3) — the distinction between trips and a pair
+ * is massive for bull/true decisions.
+ *
+ * - 'trips': three of a kind or better — strong evidence for high claims
+ * - 'pair': exactly one pair — can support pair/two-pair claims
+ * - 'suitd': 2+ cards of same suit — flush draw potential
+ * - 'hcard': high card only (Q/K/A) but no pairs/draws
+ * - 'weak': no pairs, no draws, no high cards
+ */
 function myHandStrengthBucket(cards: Card[]): string {
   if (cards.length === 0) return 'x';
 
@@ -236,9 +267,17 @@ function myHandStrengthBucket(cards: Card[]): string {
   const maxGroup = Math.max(...rankCounts.values());
   const maxSuit = Math.max(...suitCounts.values());
 
-  if (maxGroup >= 2) return 'strong';
-  if (maxSuit >= 2) return 'draw';
-  return 'weak';
+  if (maxGroup >= 3) return 'trips';    // Three of a kind+ — very strong
+  if (maxGroup >= 2) return 'pair';     // Pair — solid
+  if (maxSuit >= 2) return 'suitd';     // Suited draw — flush potential
+  // Check for high cards (Q/K/A)
+  let maxVal = 0;
+  for (const c of cards) {
+    const val = RANK_VALUES[c.rank];
+    if (val > maxVal) maxVal = val;
+  }
+  if (maxVal >= 12) return 'hcard';     // High card only (Q/K/A)
+  return 'weak';                         // Nothing useful
 }
 
 function highCardBucket(cards: Card[]): string {
@@ -272,8 +311,16 @@ function opponentAggressionBucket(
 
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
+/**
+ * 3 buckets (expanded from 2): early/mid/late.
+ * By action 6+ you have significantly more information about opponent
+ * behavior than at action 3. The binary split was too coarse.
+ */
 function turnDepthBucket(turnHistory: { action: string }[]): string {
-  return turnHistory.length <= 2 ? 'early' : 'late';
+  const len = turnHistory.length;
+  if (len <= 2) return 'early';
+  if (len <= 5) return 'mid';
+  return 'late';
 }
 
 // ── Turn position bucketing ──────────────────────────────────────────
@@ -332,28 +379,43 @@ function playerCountBucket(activePlayers: number): string {
 
 // ── Claim plausibility ────────────────────────────────────────────────
 
+/**
+ * Canonical minimum cards for each hand type to be plausible.
+ * MUST match training/src/cfr/infoSet.ts — these thresholds affect
+ * which info set key is generated, so training/eval must agree.
+ *
+ * Calibrated as the card count where the hand type has roughly a
+ * 15-25% base chance of existing for any specific rank/suit.
+ */
+export const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
+  [HandType.HIGH_CARD]: 1,
+  [HandType.PAIR]: 4,
+  [HandType.TWO_PAIR]: 8,
+  [HandType.FLUSH]: 10,
+  [HandType.THREE_OF_A_KIND]: 10,
+  [HandType.STRAIGHT]: 12,
+  [HandType.FULL_HOUSE]: 14,
+  [HandType.FOUR_OF_A_KIND]: 18,
+  [HandType.STRAIGHT_FLUSH]: 22,
+  [HandType.ROYAL_FLUSH]: 26,
+};
+
+/**
+ * 4 buckets (expanded from 3): pl/lk/mb/im.
+ * The old 'mb' bucket spanned ratio 1.0-2.0 which is an enormous
+ * strategic range (coin flip to very likely). Split into 'lk' (likely)
+ * and 'mb' (marginal) at 1.5x threshold.
+ */
 function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): string {
   if (!hand) return 'x';
 
-  const minCardsForType: Record<number, number> = {
-    [HandType.HIGH_CARD]: 1,
-    [HandType.PAIR]: 4,
-    [HandType.TWO_PAIR]: 7,
-    [HandType.FLUSH]: 8,
-    [HandType.THREE_OF_A_KIND]: 8,
-    [HandType.STRAIGHT]: 10,
-    [HandType.FULL_HOUSE]: 12,
-    [HandType.FOUR_OF_A_KIND]: 16,
-    [HandType.STRAIGHT_FLUSH]: 20,
-    [HandType.ROYAL_FLUSH]: 25,
-  };
-
-  const needed = minCardsForType[hand.type] ?? 10;
+  const needed = MIN_CARDS_FOR_PLAUSIBLE[hand.type] ?? 10;
   const ratio = totalCards / needed;
 
-  if (ratio >= 2.0) return 'pl';
-  if (ratio >= 1.0) return 'mb';
-  return 'im';
+  if (ratio >= 2.0) return 'pl';    // plausible — enough cards for the claim
+  if (ratio >= 1.5) return 'lk';    // likely — solid chance it exists
+  if (ratio >= 1.0) return 'mb';    // maybe — borderline, could exist
+  return 'im';                       // implausible — not enough cards
 }
 
 // ── Information set key ──────────────────────────────────────────────

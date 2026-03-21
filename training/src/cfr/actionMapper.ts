@@ -53,15 +53,17 @@ function extractHistoryContext(state: ClientGameState): { mentionedRanks: Set<Ra
 // ── Plausibility capping ──────────────────────────────────────────────
 
 /**
- * Minimum total cards needed for each hand type to be plausible as a claim.
- * Mirrors shared/src/cfr/actionMapper.ts thresholds.
+ * Canonical minimum cards for each hand type to be plausible.
+ * MUST match shared/src/cfr/infoSet.ts MIN_CARDS_FOR_PLAUSIBLE exactly.
+ * Previously this had different (looser) thresholds than eval, causing
+ * behavioral mismatch — trained strategies couldn't execute at eval time.
  */
-const MIN_CARDS_FOR_PLAUSIBLE_CLAIM: Record<number, number> = {
+const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
   [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 3,
+  [HandType.PAIR]: 4,
   [HandType.TWO_PAIR]: 8,
   [HandType.FLUSH]: 10,
-  [HandType.THREE_OF_A_KIND]: 8,
+  [HandType.THREE_OF_A_KIND]: 10,
   [HandType.STRAIGHT]: 12,
   [HandType.FULL_HOUSE]: 14,
   [HandType.FOUR_OF_A_KIND]: 18,
@@ -71,7 +73,7 @@ const MIN_CARDS_FOR_PLAUSIBLE_CLAIM: Record<number, number> = {
 
 function maxPlausibleHandType(totalCards: number): HandType {
   for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
-    if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE_CLAIM[t] ?? 999)) {
+    if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999)) {
       return t as HandType;
     }
   }
