@@ -1,34 +1,24 @@
 /**
  * Maps abstract CFR actions to concrete BotStrategyActions.
  *
- * The key distinction: TRUTHFUL actions try to claim hands the player
- * actually has (or is close to having). BLUFF actions claim hands the
- * player doesn't have. The mapper inspects the player's cards to make
- * this distinction concrete.
+ * TRUTHFUL actions claim hands the player actually has.
+ * BLUFF actions claim hands the player doesn't have.
  *
- * Design guarantees:
- * - mapAbstractToConcreteAction NEVER returns undefined for raise/bluff actions.
- *   If the preferred hand can't be generated, it falls back to minimum raise.
- * - Bluff generation uses varied rank/suit selection based on cards held,
- *   avoiding predictable patterns while remaining deterministic per-state.
+ * MUST match shared/src/cfr/actionMapper.ts behavior exactly.
+ * Key invariants (shared with eval):
+ * - Raise/bluff generation returns null when no valid raise exists
+ * - Null raises convert to bull/pass (so CFR learns the real outcome)
+ * - BULL actions check HandChecker — never bull a provably real hand
+ * - Same-type minimum raises are blocked (prevents escalation spirals)
  */
 
 import type { Card, HandCall, ClientGameState, Rank, Suit } from '@bull-em/shared';
-import { HandType, RoundPhase } from '@bull-em/shared';
+import { HandType, RoundPhase, HandChecker } from '@bull-em/shared';
 import { getMinimumRaise, isHigherHand } from '@bull-em/shared';
 import { ALL_RANKS, ALL_SUITS, RANK_VALUES } from '@bull-em/shared';
 import type { BotStrategyAction } from '../types.js';
-import { AbstractAction } from './infoSet.js';
+import { AbstractAction, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
 
-/**
- * Convert an abstract action to a concrete BotStrategyAction.
- *
- * For TRUTHFUL_* actions, generates hands based on what the player holds.
- * For BLUFF_* actions, generates hands the player doesn't hold.
- *
- * Raise/bluff actions always produce a valid result — never returns undefined
- * for actions that require a hand claim.
- */
 /**
  * Extract ranks and suits mentioned in the turn history.
  * Used to generate more believable bluffs by "continuing the narrative"
@@ -53,24 +43,10 @@ function extractHistoryContext(state: ClientGameState): { mentionedRanks: Set<Ra
 // ── Plausibility capping ──────────────────────────────────────────────
 
 /**
- * Canonical minimum cards for each hand type to be plausible.
- * MUST match shared/src/cfr/infoSet.ts MIN_CARDS_FOR_PLAUSIBLE exactly.
- * Previously this had different (looser) thresholds than eval, causing
- * behavioral mismatch — trained strategies couldn't execute at eval time.
+ * Get the maximum hand type that is plausible to claim given total cards.
+ * Uses canonical MIN_CARDS_FOR_PLAUSIBLE from infoSet.ts — single source
+ * of truth shared between training and eval.
  */
-const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
-  [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 4,
-  [HandType.TWO_PAIR]: 8,
-  [HandType.FLUSH]: 10,
-  [HandType.THREE_OF_A_KIND]: 10,
-  [HandType.STRAIGHT]: 12,
-  [HandType.FULL_HOUSE]: 14,
-  [HandType.FOUR_OF_A_KIND]: 18,
-  [HandType.STRAIGHT_FLUSH]: 22,
-  [HandType.ROYAL_FLUSH]: 26,
-};
-
 function maxPlausibleHandType(totalCards: number): HandType {
   for (let t = HandType.ROYAL_FLUSH; t >= HandType.HIGH_CARD; t--) {
     if (totalCards >= (MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999)) {
@@ -88,6 +64,11 @@ export function mapAbstractToConcreteAction(
 ): BotStrategyAction | undefined {
   switch (abstractAction) {
     case AbstractAction.BULL:
+      // Sanity check: never call bull on a hand the bot can verify from its own cards.
+      // If our cards alone satisfy the called hand, it provably exists — call true instead.
+      if (state.currentHand && HandChecker.exists(myCards, state.currentHand)) {
+        return { action: 'true' };
+      }
       return { action: 'bull' };
 
     case AbstractAction.TRUE:
@@ -103,6 +84,13 @@ export function mapAbstractToConcreteAction(
         : abstractAction === AbstractAction.TRUTHFUL_MID ? 'mid' : 'high';
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateTruthfulHand(tier, state.currentHand, myCards, maxType);
+      // null means no meaningful raise available — convert to bull/pass
+      if (!hand || hand.type > maxType) {
+        if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+          return { action: 'lastChancePass' };
+        }
+        return fallbackToBull(state, myCards);
+      }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -117,6 +105,13 @@ export function mapAbstractToConcreteAction(
       const context = extractHistoryContext(state);
       const maxType = maxPlausibleHandType(totalCards);
       const hand = generateBluffHand(magnitude, state.currentHand, myCards, context, maxType);
+      // null means no meaningful bluff available — convert to bull/pass
+      if (!hand || hand.type > maxType) {
+        if (state.roundPhase === RoundPhase.LAST_CHANCE) {
+          return { action: 'lastChancePass' };
+        }
+        return fallbackToBull(state, myCards);
+      }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
       }
@@ -125,19 +120,29 @@ export function mapAbstractToConcreteAction(
   }
 }
 
-// ── Truthful hand generation ─────────────────────────────────────────
+// ── Bull fallback with safety check ──────────────────────────────────
 
 /**
- * Generate a hand claim based on cards the player actually holds.
- * Always returns a valid hand — falls back to minimum raise if no
- * tier-appropriate candidate beats the current claim.
+ * When a raise action can't produce a valid hand, fall back to bull.
+ * Applies the same HandChecker safety check as the direct BULL case:
+ * if the bot's own cards provably satisfy the current claim, return
+ * true instead of bull to avoid self-sabotage.
  */
+function fallbackToBull(state: ClientGameState, myCards: Card[]): BotStrategyAction {
+  if (state.currentHand && HandChecker.exists(myCards, state.currentHand)) {
+    return { action: 'true' };
+  }
+  return { action: 'bull' };
+}
+
+// ── Truthful hand generation ─────────────────────────────────────────
+
 function generateTruthfulHand(
   tier: 'low' | 'mid' | 'high',
   currentHand: HandCall | null,
   myCards: Card[],
   maxType: HandType = HandType.ROYAL_FLUSH,
-): HandCall {
+): HandCall | null {
   const candidates: HandCall[] = [];
 
   if (myCards.length > 0) {
@@ -260,12 +265,17 @@ function generateTruthfulHand(
     return valid[idx]!;
   }
 
-  // Fallback: minimum raise, capped at plausible types
+  // No valid candidates beat the current call.
+  // Only allow cross-type minimum raises (e.g., Pair of Aces → Two Pair).
+  // Same-type minimum raises (e.g., Full House 2s over 4s → 2s over 5s)
+  // are degenerate and cause infinite escalation spirals — return null
+  // so the caller converts to bull.
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
-    if (minRaise && minRaise.type <= maxType) return minRaise;
-    if (minRaise) return minRaise;
-    return currentHand;
+    if (minRaise && minRaise.type > currentHand.type && minRaise.type <= maxType) {
+      return minRaise;
+    }
+    return null;
   }
 
   // Opening: high card with best rank, or fallback to 7
@@ -281,29 +291,13 @@ function generateTruthfulHand(
 
 // ── Bluff hand generation ────────────────────────────────────────────
 
-/**
- * Generate a hand claim the player does NOT hold.
- * Always returns a valid hand — falls back to minimum raise.
- *
- * Magnitude controls how far above the current claim:
- * - small: same type or next type (conservative bluff)
- * - mid: 1-2 types above
- * - big: 2+ types above (major bluff)
- *
- * Rank/suit selection uses plausibility-weighted randomness:
- * - Mid-high ranks (6-A) are preferred over low ranks (2-5) since
- *   claims like "pair of 2s" are unusual and suspicious
- * - Two-pair and full-house pick two INDEPENDENT ranks with spacing,
- *   avoiding the adjacent-rank pattern (e.g., "3s and 2s") that is
- *   an instant tell for experienced players
- */
 function generateBluffHand(
   magnitude: 'small' | 'mid' | 'big',
   currentHand: HandCall | null,
   myCards: Card[],
   historyContext?: { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> },
   maxType: HandType = HandType.ROYAL_FLUSH,
-): HandCall {
+): HandCall | null {
   const mySuitSet = new Set(myCards.map(c => c.suit));
   const mentionedRanks = historyContext?.mentionedRanks ?? new Set<Rank>();
   const mentionedSuits = historyContext?.mentionedSuits ?? new Set<Suit>();
@@ -390,12 +384,14 @@ function generateBluffHand(
     }
   }
 
-  // Fallback: minimum raise, capped at plausible types
+  // No plausible bluff found. Same logic as truthful fallback:
+  // only allow cross-type minimum raises, not degenerate same-type increments.
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
-    if (minRaise && minRaise.type <= maxType) return minRaise;
-    if (minRaise) return minRaise;
-    return currentHand;
+    if (minRaise && minRaise.type > currentHand.type && minRaise.type <= maxType) {
+      return minRaise;
+    }
+    return null;
   }
 
   return { type: HandType.HIGH_CARD, rank: pickWeightedRank() };

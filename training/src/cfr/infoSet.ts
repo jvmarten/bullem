@@ -437,7 +437,7 @@ function playerCountBucket(activePlayers: number): string {
  * Calibrated as the card count where the hand type has roughly a
  * 15-25% base chance of existing for any specific rank/suit.
  */
-const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
+export const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
   [HandType.HIGH_CARD]: 1,
   [HandType.PAIR]: 4,
   [HandType.TWO_PAIR]: 8,
