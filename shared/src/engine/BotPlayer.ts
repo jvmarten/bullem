@@ -5,7 +5,7 @@ import { HandChecker } from './HandChecker.js';
 import type { Card, HandCall, Rank, Suit, ClientGameState, RoundResult, TurnEntry, PlayerId, JokerCount, LastChanceMode } from '../types.js';
 import type { BotProfileConfig } from '../botProfiles.js';
 import { DEFAULT_BOT_PROFILE_CONFIG } from '../botProfiles.js';
-import { decideCFR } from '../cfr/index.js';
+import { decideCFR, decideCFRWithSearch } from '../cfr/index.js';
 
 /** The action a bot decides to take on its turn. */
 export type BotAction =
@@ -372,7 +372,10 @@ export class BotPlayer {
       const totalCards = state.players
         .filter(p => !p.isEliminated)
         .reduce((sum, p) => sum + p.cardCount, 0);
-      const cfrAction = decideCFR(
+      // Use Monte Carlo search-enhanced CFR for stronger play:
+      // - More accurate hand existence estimates for complex hands
+      // - Survival estimation biases toward truthful raises
+      const cfrAction = decideCFRWithSearch(
         state, botCards, totalCards, activePlayers,
         (gameSettings?.jokerCount ?? 0) as JokerCount,
         gameSettings?.lastChanceMode ?? 'classic',
