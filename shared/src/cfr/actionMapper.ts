@@ -94,7 +94,7 @@ export function mapAbstractToConcreteAction(
         if (state.roundPhase === RoundPhase.LAST_CHANCE) {
           return { action: 'lastChancePass' };
         }
-        return { action: 'bull' };
+        return fallbackToBull(state, myCards);
       }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
@@ -115,7 +115,7 @@ export function mapAbstractToConcreteAction(
         if (state.roundPhase === RoundPhase.LAST_CHANCE) {
           return { action: 'lastChancePass' };
         }
-        return { action: 'bull' };
+        return fallbackToBull(state, myCards);
       }
       if (state.roundPhase === RoundPhase.LAST_CHANCE) {
         return { action: 'lastChanceRaise', hand };
@@ -123,6 +123,21 @@ export function mapAbstractToConcreteAction(
       return { action: 'call', hand };
     }
   }
+}
+
+// ── Bull fallback with safety check ──────────────────────────────────
+
+/**
+ * When a raise action can't produce a valid hand, fall back to bull.
+ * Applies the same HandChecker safety check as the direct BULL case:
+ * if the bot's own cards provably satisfy the current claim, return
+ * true instead of bull to avoid self-sabotage.
+ */
+function fallbackToBull(state: ClientGameState, myCards: Card[]): BotAction {
+  if (state.currentHand && HandChecker.exists(myCards, state.currentHand)) {
+    return { action: 'true' };
+  }
+  return { action: 'bull' };
 }
 
 // ── Truthful hand generation ─────────────────────────────────────────

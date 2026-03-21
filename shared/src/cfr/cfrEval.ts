@@ -17,7 +17,8 @@ import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
 import { AbstractAction, getInfoSetKey, getLegalAbstractActions, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
-import { RANK_VALUES } from '../constants.js';
+import { HandChecker } from '../engine/HandChecker.js';
+import { RANK_VALUES, ALL_RANKS, ALL_SUITS } from '../constants.js';
 
 /** Action probability distribution for one info set. */
 export interface StrategyEntry {
@@ -900,4 +901,542 @@ export function decideCFR(
   }
 
   return mapAbstractToConcreteAction(chosenAction, state, botCards, totalCards);
+}
+
+// ── Real-time subgame solving ─────────────────────────────────────
+
+/**
+ * Configuration for the Monte Carlo search component of decideCFRWithSearch.
+ */
+export interface SearchConfig {
+  /** Number of Monte Carlo simulations to run. Higher = more accurate, slower. Default: 100. */
+  simulations: number;
+  /**
+   * Blend weight for search results vs pre-trained strategy.
+   * 0.0 = pure pre-trained, 1.0 = pure search. Default: 0.4.
+   */
+  searchWeight: number;
+  /** Max wall-clock time budget in ms. Terminates early if exceeded. Default: 80. */
+  timeBudgetMs: number;
+}
+
+const DEFAULT_SEARCH_CONFIG: SearchConfig = {
+  simulations: 100,
+  searchWeight: 0.4,
+  timeBudgetMs: 80,
+};
+
+/**
+ * Build the full 52-card deck as a flat array.
+ * Excludes jokers — joker-aware search would need deck expansion.
+ */
+function buildDeck(): Card[] {
+  const deck: Card[] = [];
+  for (const rank of ALL_RANKS) {
+    for (const suit of ALL_SUITS) {
+      deck.push({ rank, suit });
+    }
+  }
+  return deck;
+}
+
+/**
+ * Fisher-Yates shuffle (in-place). Returns the array for chaining.
+ */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/**
+ * Sample random opponent hands by dealing from the remaining deck.
+ *
+ * Returns the combined cards (bot's cards + sampled opponent cards) that
+ * represent one possible world consistent with the bot's knowledge.
+ *
+ * @param botCards - Cards the bot can see (its own hand)
+ * @param opponentCardCounts - Array of card counts for each opponent
+ * @returns All cards in play for this simulation
+ */
+function sampleOpponentCards(
+  botCards: Card[],
+  opponentCardCounts: number[],
+): Card[] {
+  // Remove bot's known cards from the deck
+  const remaining = buildDeck().filter(
+    c => !botCards.some(bc => bc.rank === c.rank && bc.suit === c.suit),
+  );
+  shuffle(remaining);
+
+  const allCards = [...botCards];
+  let dealt = 0;
+  for (const count of opponentCardCounts) {
+    for (let i = 0; i < count && dealt < remaining.length; i++) {
+      allCards.push(remaining[dealt]!);
+      dealt++;
+    }
+  }
+  return allCards;
+}
+
+/**
+ * Estimate the probability that a hand claim exists across all players'
+ * cards using Monte Carlo sampling.
+ *
+ * More accurate than the closed-form Bayesian computation for complex
+ * hand types (straight, flush, full house) where independence assumptions
+ * break down.
+ *
+ * @param hand - The claimed hand to check
+ * @param botCards - Bot's own cards
+ * @param opponentCardCounts - Card count per opponent
+ * @param simulations - Number of random worlds to sample
+ * @param timeBudgetMs - Max wall-clock time before early termination
+ * @returns Estimated probability [0, 1]
+ */
+function monteCarloHandExistence(
+  hand: HandCall,
+  botCards: Card[],
+  opponentCardCounts: number[],
+  simulations: number,
+  timeBudgetMs: number,
+): number {
+  const startTime = Date.now();
+  let exists = 0;
+  let completed = 0;
+
+  for (let i = 0; i < simulations; i++) {
+    if (i > 0 && i % 20 === 0 && Date.now() - startTime > timeBudgetMs) break;
+
+    const allCards = sampleOpponentCards(botCards, opponentCardCounts);
+    if (HandChecker.exists(allCards, hand)) exists++;
+    completed++;
+  }
+
+  return completed > 0 ? exists / completed : 0.5;
+}
+
+/**
+ * For each raise action, estimate how likely the resulting hand claim
+ * will survive (i.e., actually exist in the combined cards).
+ *
+ * A raise is stronger when the claimed hand is likely to be true —
+ * if challenged, the bot wins. This biases toward truthful raises
+ * and away from bluffs that are likely to get caught.
+ *
+ * @returns Map from abstract action to survival probability [0, 1]
+ */
+function estimateRaiseSurvival(
+  legalActions: AbstractAction[],
+  state: ClientGameState,
+  botCards: Card[],
+  opponentCardCounts: number[],
+  simulations: number,
+  timeBudgetMs: number,
+): Map<AbstractAction, number> {
+  const survival = new Map<AbstractAction, number>();
+  const raiseActions = legalActions.filter(
+    a => a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
+  );
+
+  if (raiseActions.length === 0) return survival;
+
+  // Generate concrete hands for each raise action
+  const totalCards = botCards.length + opponentCardCounts.reduce((a, b) => a + b, 0);
+  const concreteHands = new Map<AbstractAction, HandCall>();
+  for (const action of raiseActions) {
+    const result = mapAbstractToConcreteAction(action, state, botCards, totalCards);
+    if (result.action === 'call' && 'hand' in result) {
+      concreteHands.set(action, result.hand);
+    } else if (result.action === 'lastChanceRaise' && 'hand' in result) {
+      concreteHands.set(action, result.hand);
+    }
+  }
+
+  // Budget time evenly across raise actions
+  const perActionBudget = Math.max(10, timeBudgetMs / Math.max(1, concreteHands.size));
+  const perActionSims = Math.max(10, Math.floor(simulations / Math.max(1, concreteHands.size)));
+
+  for (const [action, hand] of concreteHands) {
+    const prob = monteCarloHandExistence(
+      hand, botCards, opponentCardCounts, perActionSims, perActionBudget,
+    );
+    survival.set(action, prob);
+  }
+
+  return survival;
+}
+
+/**
+ * Enhanced CFR decision-making with real-time subgame solving.
+ *
+ * Extends decideCFR() with Monte Carlo search to refine decisions based
+ * on the bot's actual cards. The pre-trained strategy provides a strong
+ * "blueprint" — search improves it in two ways:
+ *
+ * 1. **Bull/true refinement**: Monte Carlo sampling gives a more accurate
+ *    estimate of P(hand exists) than the closed-form Bayesian approximation,
+ *    especially for complex hands (straights, flushes, full houses) where
+ *    independence assumptions break down.
+ *
+ * 2. **Raise survival**: For each possible raise, estimates how likely the
+ *    resulting claim is to actually exist. Raises that are likely true
+ *    (and thus survive a bull challenge) get boosted; raises that are
+ *    almost certainly false get suppressed.
+ *
+ * The final strategy is a blend of pre-trained + search results, weighted
+ * by `searchWeight` (default 0.4 = 40% search, 60% pre-trained).
+ *
+ * Performance: Targets <100ms per decision. Time-budgeted with early
+ * termination. Falls back to decideCFR() if search can't complete.
+ *
+ * @param state - The game state as seen by this bot
+ * @param botCards - The bot's actual cards
+ * @param totalCards - Total cards across all active players
+ * @param activePlayers - Number of non-eliminated players
+ * @param jokerCount - Jokers in the deck
+ * @param lastChanceMode - Last chance raise mode
+ * @param botPlayerId - Bot's player ID
+ * @param wasPenalizedLastRound - Whether this bot lost the previous round
+ * @param config - Search configuration (simulations, weight, time budget)
+ * @returns A BotAction, or null if no legal actions
+ */
+export function decideCFRWithSearch(
+  state: ClientGameState,
+  botCards: Card[],
+  totalCards: number,
+  activePlayers: number,
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
+  botPlayerId: string = '',
+  wasPenalizedLastRound: boolean = false,
+  config: Partial<SearchConfig> = {},
+): BotAction | null {
+  const searchConfig = { ...DEFAULT_SEARCH_CONFIG, ...config };
+  const startTime = Date.now();
+
+  const legalActions = getLegalAbstractActions(state);
+  if (legalActions.length === 0) return null;
+  if (!_strategyData) return null;
+
+  // ── Step 1: Get the base pre-trained strategy (same pipeline as decideCFR) ──
+
+  const bucket = resolvePlayerBucket(activePlayers);
+  const strategyMap = _strategyData.get(bucket);
+
+  const baseProbs = new Map<AbstractAction, number>();
+
+  if (strategyMap) {
+    const infoSetKey = getInfoSetKey(
+      state, botCards, totalCards, activePlayers,
+      jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+    );
+    const strategyEntry = strategyMap[infoSetKey];
+
+    if (strategyEntry) {
+      const expanded: Record<string, number> = {};
+      for (const [key, prob] of Object.entries(strategyEntry)) {
+        const fullKey = _actionExpand?.[key] ?? key;
+        expanded[fullKey] = prob;
+      }
+
+      const uniform = 1 / legalActions.length;
+      let totalProb = 0;
+      for (const action of legalActions) {
+        const base = expanded[action] ?? 0;
+        const mixed = (1 - EVAL_EPSILON) * base + EVAL_EPSILON * uniform;
+        baseProbs.set(action, mixed);
+        totalProb += mixed;
+      }
+      if (totalProb > 0) {
+        for (const action of legalActions) {
+          baseProbs.set(action, (baseProbs.get(action) ?? 0) / totalProb);
+        }
+      }
+    } else {
+      // Heuristic fallback — set uniform-ish weights as base
+      const fb = heuristicFallbackProbs(legalActions, state.currentHand, totalCards);
+      for (const [action, prob] of fb) {
+        baseProbs.set(action, prob);
+      }
+    }
+  } else {
+    const fb = heuristicFallbackProbs(legalActions, state.currentHand, totalCards);
+    for (const [action, prob] of fb) {
+      baseProbs.set(action, prob);
+    }
+  }
+
+  // Apply the same safety adjustments as decideCFR
+  adjustStrategyForPlausibility(baseProbs, legalActions, state.currentHand, totalCards);
+  adjustForCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards);
+  adjustForSentimentCascade(baseProbs, legalActions, state, totalCards);
+  adjustForLowClaims(baseProbs, legalActions, state.currentHand, totalCards);
+  adjustForLastChancePass(baseProbs, legalActions, state.currentHand, totalCards);
+
+  // ── Step 2: Monte Carlo search refinement ──
+
+  // Compute opponent card counts from game state
+  const opponentCardCounts: number[] = [];
+  for (const p of state.players) {
+    if (!p.isEliminated && p.id !== (botPlayerId || state.currentPlayerId)) {
+      opponentCardCounts.push(p.cardCount);
+    }
+  }
+
+  const remainingBudget = searchConfig.timeBudgetMs - (Date.now() - startTime);
+  if (remainingBudget < 10) {
+    // No time for search — use base strategy directly
+    return sampleAndMap(baseProbs, legalActions, state, botCards, totalCards);
+  }
+
+  const searchProbs = new Map<AbstractAction, number>();
+  for (const action of legalActions) {
+    searchProbs.set(action, baseProbs.get(action) ?? 0);
+  }
+
+  const hasBull = legalActions.includes(AbstractAction.BULL);
+  const hasTrue = legalActions.includes(AbstractAction.TRUE);
+
+  // ── 2a: Refine bull/true using Monte Carlo hand existence ──
+
+  if (state.currentHand && (hasBull || hasTrue)) {
+    const bullTrueBudget = Math.floor(remainingBudget * 0.5);
+    const bullTrueSims = Math.floor(searchConfig.simulations * 0.5);
+
+    const mcExistence = monteCarloHandExistence(
+      state.currentHand, botCards, opponentCardCounts,
+      bullTrueSims, bullTrueBudget,
+    );
+
+    // MC gives a more accurate existence probability than the closed-form
+    // Bayesian. Use it to further refine bull/true probabilities.
+    // High existence → reduce bull, boost true/raise
+    // Low existence → boost bull, reduce true/raise
+    const baseExact = computeHandExistsProbability(
+      state.currentHand, botCards, totalCards,
+    );
+
+    // Only apply MC refinement when it disagrees meaningfully with closed-form
+    const mcShift = mcExistence - baseExact;
+    if (Math.abs(mcShift) > 0.05) {
+      const mcStrength = Math.min(Math.abs(mcShift) * 0.8, 0.35);
+
+      if (mcShift > 0 && hasBull) {
+        // MC says hand MORE likely → reduce bull
+        const currentBull = searchProbs.get(AbstractAction.BULL) ?? 0;
+        const transfer = currentBull * mcStrength;
+        searchProbs.set(AbstractAction.BULL, currentBull - transfer);
+        if (hasTrue) {
+          searchProbs.set(AbstractAction.TRUE, (searchProbs.get(AbstractAction.TRUE) ?? 0) + transfer);
+        } else {
+          // Distribute to raises proportionally
+          distributeToOthers(searchProbs, legalActions, AbstractAction.BULL, transfer);
+        }
+      } else if (mcShift < 0 && hasBull) {
+        // MC says hand LESS likely → boost bull
+        const donors = legalActions.filter(a => a !== AbstractAction.BULL && a !== AbstractAction.PASS);
+        let donorMass = 0;
+        for (const a of donors) donorMass += searchProbs.get(a) ?? 0;
+        if (donorMass > 0) {
+          const transfer = donorMass * mcStrength;
+          const scale = 1 - transfer / donorMass;
+          for (const a of donors) {
+            searchProbs.set(a, (searchProbs.get(a) ?? 0) * scale);
+          }
+          searchProbs.set(AbstractAction.BULL, (searchProbs.get(AbstractAction.BULL) ?? 0) + transfer);
+        }
+      }
+    }
+  }
+
+  // ── 2b: Refine raises using survival estimation ──
+
+  const raiseActions = legalActions.filter(
+    a => a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
+  );
+
+  if (raiseActions.length > 1) {
+    const raiseBudget = Math.max(10, searchConfig.timeBudgetMs - (Date.now() - startTime));
+    const raiseSims = Math.floor(searchConfig.simulations * 0.4);
+
+    const survival = estimateRaiseSurvival(
+      legalActions, state, botCards, opponentCardCounts,
+      raiseSims, raiseBudget,
+    );
+
+    if (survival.size > 0) {
+      // Redistribute raise mass based on survival probabilities.
+      // High survival → boost (if challenged, we win).
+      // Low survival → suppress (if challenged, we lose).
+      let totalRaiseMass = 0;
+      for (const a of raiseActions) totalRaiseMass += searchProbs.get(a) ?? 0;
+
+      if (totalRaiseMass > 0.01) {
+        // Compute survival-weighted distribution
+        let survivalWeightSum = 0;
+        const survivalWeights = new Map<AbstractAction, number>();
+        for (const a of raiseActions) {
+          // Blend: 50% original probability + 50% survival-weighted
+          const origWeight = (searchProbs.get(a) ?? 0) / totalRaiseMass;
+          const survWeight = survival.get(a) ?? 0.5; // Default 50% if not evaluated
+          const blended = origWeight * 0.5 + survWeight * 0.5;
+          survivalWeights.set(a, blended);
+          survivalWeightSum += blended;
+        }
+
+        // Normalize and redistribute the raise mass
+        if (survivalWeightSum > 0) {
+          for (const a of raiseActions) {
+            const weight = (survivalWeights.get(a) ?? 0) / survivalWeightSum;
+            searchProbs.set(a, totalRaiseMass * weight);
+          }
+        }
+      }
+    }
+  }
+
+  // ── Step 3: Blend pre-trained and search strategies ──
+
+  const finalProbs = new Map<AbstractAction, number>();
+  const w = searchConfig.searchWeight;
+  let finalTotal = 0;
+
+  for (const action of legalActions) {
+    const base = baseProbs.get(action) ?? 0;
+    const search = searchProbs.get(action) ?? 0;
+    const blended = (1 - w) * base + w * search;
+    finalProbs.set(action, blended);
+    finalTotal += blended;
+  }
+
+  // Normalize
+  if (finalTotal > 0) {
+    for (const action of legalActions) {
+      finalProbs.set(action, (finalProbs.get(action) ?? 0) / finalTotal);
+    }
+  }
+
+  return sampleAndMap(finalProbs, legalActions, state, botCards, totalCards);
+}
+
+/**
+ * Convert heuristic fallback weights to a probability distribution.
+ * Unlike heuristicFallback() which returns a sampled action, this returns
+ * the full probability map for blending with search results.
+ */
+function heuristicFallbackProbs(
+  legalActions: AbstractAction[],
+  currentHand: HandCall | null,
+  totalCards: number,
+): Map<AbstractAction, number> {
+  const weights = new Map<AbstractAction, number>();
+  for (const action of legalActions) {
+    weights.set(action, 1);
+  }
+
+  const plausibility = claimPlausibility(currentHand, totalCards);
+  const heightScore = claimHeightScore(currentHand);
+
+  if (legalActions.includes(AbstractAction.BULL)) {
+    weights.set(AbstractAction.BULL, Math.max(2, Math.round(12 - 10 * plausibility)));
+  }
+  if (legalActions.includes(AbstractAction.TRUE)) {
+    weights.set(AbstractAction.TRUE, Math.max(1, Math.round(5 * plausibility)));
+  }
+  if (legalActions.includes(AbstractAction.PASS)) {
+    weights.set(AbstractAction.PASS, 4);
+  }
+
+  const raiseScale = Math.max(0.1, 1 - heightScore);
+  if (legalActions.includes(AbstractAction.TRUTHFUL_LOW)) {
+    weights.set(AbstractAction.TRUTHFUL_LOW, Math.max(1, Math.round(4 * raiseScale)));
+  }
+  if (legalActions.includes(AbstractAction.TRUTHFUL_MID)) {
+    weights.set(AbstractAction.TRUTHFUL_MID, Math.max(1, Math.round(2 * raiseScale)));
+  }
+  if (legalActions.includes(AbstractAction.TRUTHFUL_HIGH)) {
+    weights.set(AbstractAction.TRUTHFUL_HIGH, Math.max(1, Math.round(1 * raiseScale)));
+  }
+
+  const bluffScale = raiseScale * Math.min(1, totalCards / 10);
+  if (legalActions.includes(AbstractAction.BLUFF_SMALL)) {
+    weights.set(AbstractAction.BLUFF_SMALL, Math.max(1, Math.round(2 * bluffScale)));
+  }
+  if (legalActions.includes(AbstractAction.BLUFF_MID)) {
+    weights.set(AbstractAction.BLUFF_MID, Math.max(1, Math.round(1 * bluffScale)));
+  }
+  if (legalActions.includes(AbstractAction.BLUFF_BIG)) {
+    weights.set(AbstractAction.BLUFF_BIG, Math.max(1, Math.round(1 * bluffScale)));
+  }
+
+  // Normalize to probabilities
+  let total = 0;
+  for (const w of weights.values()) total += w;
+  const probs = new Map<AbstractAction, number>();
+  for (const [action, weight] of weights) {
+    probs.set(action, total > 0 ? weight / total : 1 / legalActions.length);
+  }
+  return probs;
+}
+
+/**
+ * Distribute probability mass from an excluded action to all other legal actions
+ * proportionally.
+ */
+function distributeToOthers(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  exclude: AbstractAction,
+  amount: number,
+): void {
+  const others = legalActions.filter(a => a !== exclude);
+  let otherTotal = 0;
+  for (const a of others) otherTotal += probs.get(a) ?? 0;
+
+  if (otherTotal > 0) {
+    for (const a of others) {
+      const current = probs.get(a) ?? 0;
+      probs.set(a, current + amount * (current / otherTotal));
+    }
+  } else if (others.length > 0) {
+    const share = amount / others.length;
+    for (const a of others) {
+      probs.set(a, (probs.get(a) ?? 0) + share);
+    }
+  }
+}
+
+/**
+ * Sample an action from a probability distribution and map it to a concrete BotAction.
+ */
+function sampleAndMap(
+  probs: Map<AbstractAction, number>,
+  legalActions: AbstractAction[],
+  state: ClientGameState,
+  botCards: Card[],
+  totalCards: number,
+): BotAction {
+  let total = 0;
+  for (const action of legalActions) total += probs.get(action) ?? 0;
+
+  if (total > 0) {
+    const r = Math.random() * total;
+    let cumulative = 0;
+    for (const action of legalActions) {
+      cumulative += probs.get(action) ?? 0;
+      if (r <= cumulative) {
+        return mapAbstractToConcreteAction(action, state, botCards, totalCards);
+      }
+    }
+  }
+
+  // Fallback: use last legal action
+  return mapAbstractToConcreteAction(
+    legalActions[legalActions.length - 1]!,
+    state, botCards, totalCards,
+  );
 }
