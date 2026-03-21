@@ -70,6 +70,10 @@ export interface ClientToServerEvents {
   'friends:invite': (data: { friendUserId: string; roomCode: string }, callback: (response: { ok: true } | { error: string }) => void) => void;
   /** Request the current friends list (with online status). */
   'friends:list': (callback: (response: { friends: FriendEntry[]; incomingCount: number } | { error: string }) => void) => void;
+  /** Notify the server that the user's profile visual (photo, avatar, bg color)
+   *  changed so it can update in-room player data and broadcast the update.
+   *  This avoids requiring a socket reconnect after profile edits. */
+  'profile:sync': () => void;
 }
 
 /** Socket.io events emitted by the server. Each player receives personalized game:state. */

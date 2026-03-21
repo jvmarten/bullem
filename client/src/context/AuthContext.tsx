@@ -201,6 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Update local state immediately without a full profile refetch
     setUser(prev => prev ? { ...prev, avatar } : null);
     setProfile(prev => prev ? { ...prev, avatar } : null);
+    // Sync to server so in-game player data updates without a reconnect
+    socket.emit('profile:sync');
   }, []);
 
   const updateAvatarBgColor = useCallback(async (avatarBgColor: AvatarBgColor | null) => {
@@ -210,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setUser(prev => prev ? { ...prev, avatarBgColor } : null);
     setProfile(prev => prev ? { ...prev, avatarBgColor } : null);
+    socket.emit('profile:sync');
   }, []);
 
   const uploadPhoto = useCallback(async (photoDataUrl: string | null) => {
@@ -220,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Use the URL returned by the server (Tigris URL), not the data URL we sent
     setUser(prev => prev ? { ...prev, photoUrl: data.photoUrl } : null);
     setProfile(prev => prev ? { ...prev, photoUrl: data.photoUrl } : null);
+    socket.emit('profile:sync');
   }, []);
 
   const updateUsername = useCallback(async (username: string) => {

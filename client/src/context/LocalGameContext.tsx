@@ -11,6 +11,7 @@ import { preloadCFRStrategy } from '../utils/cfrLoader.js';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
+import { useAuth } from './AuthContext.js';
 import { socket } from '../socket.js';
 
 const HUMAN_ID = 'human-1';
@@ -116,12 +117,17 @@ function toPublicPlayer(p: ServerPlayer): Player {
     isEliminated: p.isEliminated,
     isHost: p.isHost,
     isBot: p.isBot,
+    userId: p.userId,
+    username: p.username,
     avatar: p.avatar,
+    photoUrl: p.photoUrl,
     avatarBgColor: p.avatarBgColor,
   };
 }
 
 export function LocalGameProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+
   // Eagerly preload CFR strategy data so it's available by the time a
   // CFR bot needs to act. The 7.6MB data is lazy-loaded via dynamic import
   // to avoid bloating the main bundle.
@@ -680,6 +686,10 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       isBot: false,
       cards: [],
       avatar: avatar ?? undefined,
+      userId: user?.id,
+      username: user?.username,
+      photoUrl: user?.photoUrl,
+      avatarBgColor: user?.avatarBgColor,
     };
     playersRef.current = [humanPlayer];
 
@@ -693,7 +703,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     });
 
     return 'LOCAL';
-  }, []);
+  }, [user]);
 
   const joinRoom = useCallback(async (): Promise<void> => {
     // No-op for local mode

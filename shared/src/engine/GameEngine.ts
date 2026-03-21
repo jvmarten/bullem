@@ -403,6 +403,13 @@ export class GameEngine {
     return this._spectatorCardsCache;
   }
 
+  /** Force the shared client state cache to be rebuilt on the next broadcast.
+   *  Call this after mutating player metadata (e.g. photoUrl, avatar) that
+   *  isn't tracked by the normal cache invalidation keys. */
+  invalidateSharedCache(): void {
+    this._sharedClientState = null;
+  }
+
   /** Cached shared state for getClientState — avoids re-computing public
    *  players and turn history snapshots once per player per broadcast. */
   private _sharedClientState: {
