@@ -222,11 +222,15 @@ export function ResumeMatchBanner(): React.ReactElement | null {
     return () => clearInterval(interval);
   }, [activeRoom]);
 
-  // Sync activeRoom if localStorage is updated with a new room (e.g. new game created)
+  // Sync activeRoom if localStorage is updated with a new room (e.g. new game created).
+  // Only poll when there's no active room — once we have one, the first interval handles
+  // changes. Without this guard, the interval runs on every page (even homepage/login)
+  // wasting CPU on 500ms localStorage reads.
   useEffect(() => {
+    if (activeRoom) return; // Already tracked by the interval above
     const interval = setInterval(() => {
       const current = localStorage.getItem(LS_ACTIVE_ROOM);
-      if (current && current !== activeRoom) {
+      if (current) {
         setActiveRoom(current);
         setShowEnded(false);
       }
