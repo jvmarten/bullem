@@ -503,8 +503,11 @@ export function FiveDrawPage() {
   handleTurnResultRef.current = handleTurnResult;
 
   // === Start a new game ===
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async () => {
     if (!canWager) { addToast('Insufficient balance'); return; }
+
+    // Ensure CFR strategy data is loaded before the dealer bot plays.
+    await preloadCFRStrategy();
 
     // Deduct wager
     setBalance(prev => { const n = prev - wager; if (!user) saveGuestBalance(n); return n; });
