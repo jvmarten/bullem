@@ -241,19 +241,28 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 // ── Claim height bucketing ───────────────────────────────────────────
 
 /**
- * Bucket the current claim into low/mid/high/vhi.
- * 4 real buckets provide finer strategic distinction:
- * - lo: high card, pair — almost always exist with enough cards
- * - mid: two pair, flush, trips — plausible but worth questioning
+ * Bucket the current claim into 6 tiers (expanded from 4).
+ * The old 'lo' bucket merged high card and pair, but these require
+ * fundamentally different bull strategies. Similarly, the old 'mid'
+ * merged two pair/flush with trips — trips is much harder to have.
+ *
+ * - hc: high card — almost always exists, rarely worth calling bull
+ * - pr: pair — common but not guaranteed, depends on card count
+ * - mid: two pair, flush — plausible but worth questioning
+ * - tk: three of a kind — significantly harder, often bluffed
  * - hi: straight, full house — unusual, often bluffs
  * - vhi: four of a kind, straight flush, royal flush — almost always bluffs
+ *
+ * MUST match shared/src/cfr/infoSet.ts exactly.
  */
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
-  if (hand.type <= HandType.PAIR) return 'lo';
-  if (hand.type <= HandType.THREE_OF_A_KIND) return 'mid';
-  if (hand.type <= HandType.FULL_HOUSE) return 'hi';
-  return 'vhi';
+  if (hand.type === HandType.HIGH_CARD) return 'hc';
+  if (hand.type === HandType.PAIR) return 'pr';
+  if (hand.type <= HandType.FLUSH) return 'mid';        // two pair, flush
+  if (hand.type === HandType.THREE_OF_A_KIND) return 'tk';
+  if (hand.type <= HandType.FULL_HOUSE) return 'hi';    // straight, full house
+  return 'vhi';                                          // 4oak, SF, RF
 }
 
 // ── My best hand type ────────────────────────────────────────────────
@@ -300,8 +309,12 @@ function myHandStrengthBucket(cards: Card[]): string {
 
 /**
  * Bucket the highest card value in the player's hand.
- * Holding an Ace vs a 3 should produce very different opening strategies
- * and bluff-calling decisions. 3 buckets to keep info set space manageable.
+ * 4 buckets (expanded from 3) — Ace is uniquely powerful.
+ * An Ace enables high-card claims that are nearly impossible to beat,
+ * anchors the top of straights, and is the strongest bluff foundation.
+ * Splitting it from K/Q gives CFR finer opening and bull strategies.
+ *
+ * MUST match shared/src/cfr/infoSet.ts exactly.
  */
 function highCardBucket(cards: Card[]): string {
   if (cards.length === 0) return 'x';
@@ -310,9 +323,10 @@ function highCardBucket(cards: Card[]): string {
     const val = RANK_VALUES[c.rank];
     if (val > maxVal) maxVal = val;
   }
-  if (maxVal >= 12) return 'hHi';   // Q, K, A — premium holdings
-  if (maxVal >= 8) return 'hMid';   // 8, 9, 10, J — decent
-  return 'hLo';                      // 2-7 — weak holdings
+  if (maxVal >= 14) return 'hAce';   // Ace — uniquely powerful for claims
+  if (maxVal >= 12) return 'hHi';    // Q, K — premium holdings
+  if (maxVal >= 8) return 'hMid';    // 8, 9, 10, J — decent
+  return 'hLo';                       // 2-7 — weak holdings
 }
 
 // ── Opponent aggression bucketing ─────────────────────────────────────
@@ -342,16 +356,19 @@ function opponentAggressionBucket(
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
 /**
- * 3 buckets (expanded from 2): early/mid/late.
- * By action 6+ you have significantly more information about opponent
- * behavior than at action 3. The binary split was too coarse.
+ * 4 buckets (expanded from 3): early/mid/late/vLate.
+ * The old 'late' bucket merged actions 6-15+, but by action 8+ you have
+ * dramatically more opponent information than at action 6. Very late rounds
+ * are also disproportionately high-stakes (claim escalation is extreme).
+ *
  * MUST match shared/src/cfr/infoSet.ts exactly.
  */
 function turnDepthBucket(turnHistory: { action: string }[]): string {
   const len = turnHistory.length;
   if (len <= 2) return 'early';
   if (len <= 5) return 'mid';
-  return 'late';
+  if (len <= 7) return 'late';
+  return 'vLate';                    // 8+ actions — extreme information, high stakes
 }
 
 // ── Turn position bucketing ──────────────────────────────────────────
@@ -374,9 +391,13 @@ function turnPositionBucket(turnHistory: { action: string }[], activePlayers: nu
 
 /**
  * Encode the bull/true voting distribution in the current round.
- * Coarsened from 11 buckets to 5 — keeps the critical distinction
- * between first responder, all-bull, all-true, and mixed consensus.
- * Drops position depth (early/mid/late) to reduce info set space.
+ * 5 non-x buckets (expanded from 4): v0/aB/aT/mxB/mxT.
+ * The old 'mix' bucket merged "3 bull + 1 true" with "1 bull + 3 true"
+ * which carry opposite strategic implications. When most players call
+ * bull, following with bull is safer; when most call true, the claim
+ * is likely genuine.
+ *
+ * MUST match shared/src/cfr/infoSet.ts exactly.
  */
 function bullSentimentBucket(
   turnHistory: { action: string }[],
@@ -397,7 +418,8 @@ function bullSentimentBucket(
   if (total === 0) return 'v0';              // First responder — no votes yet
   if (trueCount === 0) return 'aB';          // All bull so far
   if (bullCount === 0) return 'aT';          // All true so far
-  return 'mix';                               // Mixed responses
+  if (bullCount > trueCount) return 'mxB';   // Mixed, leaning bull — skeptical majority
+  return 'mxT';                               // Mixed, leaning true — believing majority
 }
 
 // ── Total cards bucketing ────────────────────────────────────────────
@@ -451,10 +473,20 @@ export const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
 };
 
 /**
- * 4 buckets (expanded from 3): pl/lk/mb/im.
- * The old 'mb' bucket spanned ratio 1.0-2.0 which is an enormous
- * strategic range (coin flip to very likely). Split into 'lk' (likely)
- * and 'mb' (marginal) at 1.5x threshold.
+ * 6 buckets (expanded from 4): vPl/pl/lk/mb/uLk/im.
+ * The top and bottom of the range needed splitting:
+ * - 'vPl' (≥3.0): claim is near-certain to exist — rarely worth calling bull
+ * - 'pl' (≥2.0): plausible, but not guaranteed — worth considering context
+ * - 'lk' (≥1.5): likely exists but risky to assume
+ * - 'mb' (≥1.0): coin flip — borderline plausible
+ * - 'uLk' (≥0.5): unlikely — need luck for this to exist
+ * - 'im' (<0.5): absurd — virtually impossible with this many cards
+ *
+ * The vPl/pl split matters because at 3x+ ratio, bull is almost never correct,
+ * while at 2x ratio it's still worth considering. The uLk/im split captures
+ * the difference between "long shot" and "no chance" — the latter should
+ * almost always trigger bull.
+ *
  * MUST match shared/src/cfr/infoSet.ts exactly.
  */
 function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): string {
@@ -463,10 +495,12 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
   const needed = MIN_CARDS_FOR_PLAUSIBLE[hand.type] ?? 10;
   const ratio = totalCards / needed;
 
+  if (ratio >= 3.0) return 'vPl';   // very plausible — near-certain to exist
   if (ratio >= 2.0) return 'pl';    // plausible — enough cards for the claim
   if (ratio >= 1.5) return 'lk';    // likely — solid chance it exists
   if (ratio >= 1.0) return 'mb';    // maybe — borderline, could exist
-  return 'im';                       // implausible — not enough cards
+  if (ratio >= 0.5) return 'uLk';   // unlikely — long shot
+  return 'im';                       // implausible — virtually impossible
 }
 
 // ── Information set key ──────────────────────────────────────────────
