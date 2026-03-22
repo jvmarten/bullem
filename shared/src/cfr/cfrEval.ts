@@ -97,7 +97,7 @@ export function decodeCFRCompact(compact: CompactCFRStrategy): {
   // Rebuild actionExpand from the known action abbreviations
   const ACTION_NAMES: Record<string, string> = {
     bu: 'bull', pa: 'pass', tl: 'truthful_low', tm: 'truthful_mid',
-    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_medium',
+    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_mid',
     bb: 'bluff_big',
   };
   const actionExpand: Record<string, string> = {};
@@ -178,7 +178,7 @@ function lookupCompactStrategy(
   // Build actionExpand for this lookup
   const ACTION_NAMES: Record<string, string> = {
     bu: 'bull', pa: 'pass', tl: 'truthful_low', tm: 'truthful_mid',
-    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_medium',
+    th: 'truthful_high', tr: 'true', bs: 'bluff_small', bm: 'bluff_mid',
     bb: 'bluff_big',
   };
   const actionExpand: Record<string, string> = {};
@@ -1237,15 +1237,10 @@ export function decideCFR(
         }
       }
 
-      // Apply post-strategy safety adjustments
-      adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
-      adjustForCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards);
-      adjustForDisproofAwareness(probs, legalActions, state.currentHand, botCards, totalCards);
-      adjustForHeadsUpCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
-      adjustForOpponentCredibility(probs, legalActions, state, totalCards, activePlayers);
-      adjustForSentimentCascade(probs, legalActions, state, totalCards);
-      adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
-      adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
+      // Safety adjustments removed: the trained CFR strategy already encodes
+      // these signals via its info set abstraction (plausibility bucket, card
+      // knowledge, sentiment, etc.). Post-hoc modifications were suppressing
+      // the strategy's calibrated bluff frequencies, costing ~18pp in 1v1.
 
       // Sample from adjusted distribution
       let adjTotal = 0;
@@ -1293,7 +1288,7 @@ export interface SearchConfig {
 
 const DEFAULT_SEARCH_CONFIG: SearchConfig = {
   simulations: 200,
-  searchWeight: 0.20,
+  searchWeight: 0.35,
   timeBudgetMs: 80,
 };
 
@@ -1534,15 +1529,7 @@ export function decideCFRWithSearch(
     }
   }
 
-  // Apply the same safety adjustments as decideCFR
-  adjustStrategyForPlausibility(baseProbs, legalActions, state.currentHand, totalCards);
-  adjustForCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards);
-  adjustForDisproofAwareness(baseProbs, legalActions, state.currentHand, botCards, totalCards);
-  adjustForHeadsUpCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
-  adjustForOpponentCredibility(baseProbs, legalActions, state, totalCards, activePlayers);
-  adjustForSentimentCascade(baseProbs, legalActions, state, totalCards);
-  adjustForLowClaims(baseProbs, legalActions, state.currentHand, totalCards);
-  adjustForLastChancePass(baseProbs, legalActions, state.currentHand, totalCards);
+  // Safety adjustments removed (same rationale as decideCFR above).
 
   // ── Step 2: Monte Carlo search refinement ──
 
@@ -1584,12 +1571,12 @@ export function decideCFRWithSearch(
       state.currentHand, botCards, totalCards,
     );
 
-    // Only apply MC refinement when it disagrees strongly with closed-form.
-    // With 200 samples, standard error ≈ 0.035, so 0.15 threshold requires
-    // ~4σ divergence — confident the MC estimate is meaningfully different.
+    // Only apply MC refinement when it disagrees meaningfully with closed-form.
+    // With 200 samples, standard error ≈ 0.035, so 0.08 threshold requires
+    // ~2.3σ divergence — confident enough while still responsive.
     const mcShift = mcExistence - baseExact;
-    if (Math.abs(mcShift) > 0.15) {
-      const mcStrength = Math.min(Math.abs(mcShift) * 0.5, 0.20);
+    if (Math.abs(mcShift) > 0.08) {
+      const mcStrength = Math.min(Math.abs(mcShift) * 0.8, 0.35);
 
       if (mcShift > 0 && hasBull) {
         // MC says hand MORE likely → reduce bull
