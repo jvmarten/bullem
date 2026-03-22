@@ -12,7 +12,8 @@
     "analyze-five-draw": "tsx src/analyzeFiveDraw.ts",
     "evaluate": "tsx src/evaluate.ts",
     "evolve": "tsx src/evolve.ts",
-    "evaluate-evolved": "tsx src/evaluateEvolved.ts"
+    "evaluate-evolved": "tsx src/evaluateEvolved.ts",
+    "evaluate-cfr": "tsx src/evaluateCFRProduction.ts"
   },
   "dependencies": {
     "@bull-em/shared": "*"
