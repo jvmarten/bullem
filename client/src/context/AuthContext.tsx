@@ -36,16 +36,25 @@ class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  const data = await res.json() as T & { error?: string };
-  if (!res.ok) {
-    throw new ApiError(data.error ?? `Request failed with status ${res.status}`, res.status);
+  // Abort after 15s to prevent infinite loading if the server is unresponsive
+  // (e.g., event loop blocked by CFR strategy parsing during startup).
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options,
+    });
+    const data = await res.json() as T & { error?: string };
+    if (!res.ok) {
+      throw new ApiError(data.error ?? `Request failed with status ${res.status}`, res.status);
+    }
+    return data;
+  } finally {
+    clearTimeout(timeout);
   }
-  return data;
 }
 
 /** Detect whether we're running inside a Capacitor native shell. */
