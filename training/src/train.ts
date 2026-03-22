@@ -36,8 +36,12 @@ function parseArgs(argv: string[]): {
   // and multiplayer dynamics (bull/true voting chains) need more samples
   // to converge. Previous 4x heads-up weighting led to weak multiplayer
   // play. Now balanced: 3/18 heads-up, 8/18 for 3-4P (p34 bucket),
-  // 7/18 for 5+P. With ~70K info sets, 2M iterations gives ~28 visits
-  // per info set — enough for convergence with CFR+.
+  // 7/18 for 5+P.
+  //
+  // With finer bucketing (claim height 6, plausibility 6, high card 4,
+  // turn depth 4, bull sentiment 5), expect ~200-300K info sets.
+  // Recommended: 5-10M iterations for convergence (~20-50 visits/state).
+  // At 500K iterations this will under-converge — use --iterations 5000000.
   let players: number | number[] = [2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9];
   let maxCards = 5;
   let jokerCount: JokerCount = 0;

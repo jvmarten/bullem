@@ -163,7 +163,7 @@ describe('getInfoSetKey', () => {
     const keyTrips = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts'), card('A', 'diamonds')], 6, 2);
     expect(keyTrips.split('|')[4]).toBe('trips');
     // High card bucket (index 5)
-    expect(keyPair.split('|')[5]).toBe('hHi'); // Ace = high
+    expect(keyPair.split('|')[5]).toBe('hAce'); // Ace = top tier
     // Low cards with no pair/draw = weak
     const keyWeak = getInfoSetKey(state, [card('3', 'spades'), card('4', 'hearts')], 4, 2);
     expect(keyWeak.split('|')[4]).toBe('weak');
