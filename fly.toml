@@ -26,6 +26,10 @@ primary_region = 'arn'
     # this count. Provides backpressure to prevent overload.
     hard_limit = 1500
 
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = 512
+
 [checks]
   [checks.health]
     port = 3001
