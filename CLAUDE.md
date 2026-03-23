@@ -422,17 +422,14 @@ Replace `OWNER/REPO` with the actual repo (get it from `git remote get-url origi
 - **Squash merge** is the preferred merge strategy for `main` (when the maintainer merges).
 - Always include a clear summary and test plan in PR descriptions targeting `main`.
 
-### GitHub Actions Constraints
+### GitHub Actions
 
-**Do NOT add new GitHub Actions workflows or expand existing ones.** This project runs on GitHub's free tier with limited Actions minutes. The current workflow setup (`auto-merge.yml` + `deploy.yml`) is intentionally minimal and must stay that way.
+The repository is public, so GitHub Actions minutes are **unlimited**. Feel free to add workflows, CI jobs, and automation as needed. Current workflows:
 
-- **No new workflow files** — do not create additional `.yml` files in `.github/workflows/`
-- **No new CI jobs** — do not add linting, formatting, code coverage, security scanning, or any other automated jobs as GitHub Actions
-- **No scheduled workflows** — no cron-based Actions (dependency updates, stale issue bots, etc.)
-- **No third-party Actions** — do not introduce new marketplace Actions or reusable workflows
-- **Keep existing workflows lean** — do not add steps, matrix builds, or additional triggers to `auto-merge.yml` or `deploy.yml`
+- **`auto-merge.yml`** — runs CI (build + tests) on pushes to `main` and `claude/**` branches, auto-merges feature branches into `main`
+- **`deploy.yml`** — manual deploy to Fly.io
 
-If a new feature needs automated checks, implement it as a local script (e.g., `npm run lint`, `npm run check`) that developers run manually or that existing workflows already cover. The bar for adding any GitHub Actions usage is extremely high — discuss with the maintainer first.
+When adding new workflows or expanding existing ones, keep them focused and well-documented. Prefer reusing existing workflow patterns over introducing new third-party Actions.
 
 ### GitHub Repository Size Limits
 
