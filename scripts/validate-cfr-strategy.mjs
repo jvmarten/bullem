@@ -12,7 +12,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRATEGY_PATH = path.resolve(__dirname, '../client/public/data/cfr-strategy.json');
-const MAX_SIZE_MB = 10;
+// Hard limit: fail the build above this size. The 256MB Fly.io machine with
+// --max-old-space-size=200 can't safely parse files much larger than this.
+const MAX_SIZE_MB = 8;
+// Soft limit: warn when approaching the hard limit so retrains don't surprise.
+const WARN_SIZE_MB = 6;
 
 function validate() {
   if (!fs.existsSync(STRATEGY_PATH)) {
@@ -26,9 +30,17 @@ function validate() {
   if (sizeMB > MAX_SIZE_MB) {
     console.error(
       `❌ cfr-strategy.json is ${sizeMB.toFixed(1)}MB (max ${MAX_SIZE_MB}MB). ` +
-      `Run "npm run generate-strategy -w training" to re-encode in compact v2 format.`,
+      `The 256MB production machine cannot safely parse files this large. ` +
+      `Reduce info set count or run "npm run generate-strategy -w training" to re-encode.`,
     );
     process.exit(1);
+  }
+
+  if (sizeMB > WARN_SIZE_MB) {
+    console.warn(
+      `⚠️  cfr-strategy.json is ${sizeMB.toFixed(1)}MB — approaching the ${MAX_SIZE_MB}MB limit. ` +
+      `Consider reducing info set count in the next retrain.`,
+    );
   }
 
   // Quick format check — read just the first 100 bytes to verify v2 format

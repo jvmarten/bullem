@@ -271,19 +271,27 @@ httpServer.listen(Number(PORT), HOST, () => {
     logger.info('Bot calibration disabled (set ENABLE_BOT_CALIBRATION=true to enable)');
   }
 
-  // Mark startup complete BEFORE loading CFR strategy so auth/socket requests
-  // are not blocked by the potentially slow JSON parse. CFR bots fall back to
-  // heuristic logic until the strategy is loaded.
   startupComplete = true;
-  logger.info('Startup initialization complete — loading CFR strategy in background');
+  logger.info('Startup initialization complete');
 
-  // Load CFR strategy data from the static JSON asset so bot decisions are
-  // instant from the first game. In production the file lives in client/dist/;
-  // in development it's in client/public/. Both are relative to the server src dir.
-  // Parsed in a Worker thread to avoid blocking the event loop — JSON.parse of
-  // the 7MB file blocks for 200ms+ on the 256MB Fly.io machine, freezing all
-  // HTTP/socket handling (including sign-in requests).
-  // Rejects files >10MB to prevent OOM on the 256MB Fly.io machine.
+  // Load CFR strategy in the background — completely decoupled from startup.
+  // decideCFR() gracefully returns null when data isn't loaded yet, so CFR bots
+  // fall back to heuristic logic during this brief window. This ensures CFR
+  // retrains (which grow the strategy file) can NEVER block sign-in or any
+  // other server functionality during startup.
+  void loadCFRStrategyInBackground();
+})();
+
+/**
+ * Load CFR strategy data in a Worker thread, fully decoupled from startup.
+ *
+ * Why this exists: every CFR retrain produces a larger JSON file. Parsing it
+ * on the main thread blocks the event loop, freezing auth/socket requests.
+ * By loading in a Worker thread AFTER startup, this issue is structurally
+ * impossible regardless of file size. CFR bots use heuristic fallback until
+ * the data is ready (typically <1s).
+ */
+async function loadCFRStrategyInBackground(): Promise<void> {
   const cfrJsonPath = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../../client/dist/data/cfr-strategy.json')
     : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
@@ -293,27 +301,27 @@ httpServer.listen(Number(PORT), HOST, () => {
     if (sizeMB > 10) {
       logger.error({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath },
         'CFR strategy file too large — likely v1 format. Run "npm run generate-strategy -w training" to convert to v2 compact format');
-    } else {
-      const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
-      // Parse in a Worker thread so the main event loop stays responsive.
-      // The worker parses the JSON and sends the result back via structured
-      // clone, which spreads deserialization across event loop ticks.
-      const { Worker } = await import('node:worker_threads');
-      const parsed = await new Promise<CompactCFRStrategy>((resolve, reject) => {
-        const worker = new Worker(
-          'const{parentPort,workerData}=require("node:worker_threads");parentPort.postMessage(JSON.parse(workerData));',
-          { eval: true, workerData: raw },
-        );
-        worker.on('message', resolve);
-        worker.on('error', reject);
-      });
-      setCFRStrategyData(parsed);
-      logger.info({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath }, 'CFR strategy data loaded');
+      return;
     }
+    const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
+    // Parse in a Worker thread so the main event loop stays responsive.
+    // The worker parses the JSON and sends the result back via structured
+    // clone, which spreads deserialization across event loop ticks.
+    const { Worker } = await import('node:worker_threads');
+    const parsed = await new Promise<CompactCFRStrategy>((resolve, reject) => {
+      const worker = new Worker(
+        'const{parentPort,workerData}=require("node:worker_threads");parentPort.postMessage(JSON.parse(workerData));',
+        { eval: true, workerData: raw },
+      );
+      worker.on('message', resolve);
+      worker.on('error', reject);
+    });
+    setCFRStrategyData(parsed);
+    logger.info({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath }, 'CFR strategy data loaded');
   } catch (err) {
     logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
   }
-})();
+}
 
 // Compress HTTP responses (gzip/brotli). Applied before all routes so static
 // assets, API responses, and the 19MB CFR strategy JSON are all compressed.
