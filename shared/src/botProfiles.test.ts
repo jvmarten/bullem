@@ -130,21 +130,20 @@ describe('botProfiles', () => {
   });
 
   describe('DEFAULT_BOT_PROFILE_CONFIG', () => {
-    it('uses anti-human tuned baseline values', () => {
-      // Anti-human tuned baseline — derived from V2 evolved strategy with manual
-      // adjustments to counter human player patterns (reduced trust, more bluffs,
-      // lower plausibility gate, tighter noise).
+    it('uses evolved v3 baseline values', () => {
+      // Evolved v3 baseline — trained via genetic algorithm across 80 generations,
+      // 5M+ games, 12 mixed scenarios. "Skeptical disciplinarian" strategy.
       // After each evolution run, update DEFAULT to the new champion's values.
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.42);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.00);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(1.00);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.86);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(0.82);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.15);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.80);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(1.15);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.55);
-      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.08);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffFrequency).toBe(0.33);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullThreshold).toBe(0.16);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.riskTolerance).toBe(0.19);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.aggressionBias).toBe(0.33);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.lastChanceBluffRate).toBe(1.00);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.openingBluffRate).toBe(0.07);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bullPhaseRaiseRate).toBe(0.86);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier).toBe(0.22);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.bluffPlausibilityGate).toBe(0.77);
+      expect(DEFAULT_BOT_PROFILE_CONFIG.noiseBand).toBe(0.09);
     });
   });
 
@@ -266,7 +265,8 @@ describe('botProfiles', () => {
 
     it('Shark has high trust multiplier for opponent reads', () => {
       const shark = BOT_PROFILE_MAP.get('shark_lvl8')!;
-      expect(shark.config.trustMultiplier).toBeGreaterThan(1.3);
+      // Shark's trust multiplier should be significantly above the evolved baseline (0.22)
+      expect(shark.config.trustMultiplier).toBeGreaterThan(DEFAULT_BOT_PROFILE_CONFIG.trustMultiplier * 2);
     });
 
     it('Bluffer has high bluffFrequency and low bluffPlausibilityGate', () => {
