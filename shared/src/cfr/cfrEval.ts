@@ -618,12 +618,13 @@ function adjustStrategyForPlausibility(
   }
 
   // Adjustment 2: When claims are very high (escalation spiral), boost bull.
-  // More aggressive than before — Full House+ (heightScore >= 0.6) should
-  // heavily favor bull to prevent the endless incremental raising pattern.
-  if (hasBull && heightScore > 0.5) {
-    // Quadratic scaling: gentle at 0.5, very aggressive at 0.8+
-    const excess = heightScore - 0.5;
-    const escalationBoost = excess * excess * 6; // 0.5→0, 0.6→0.06, 0.7→0.24, 0.8→0.54, 0.9→0.96
+  // Straight+ claims (heightScore >= 0.5) should heavily favor bull to
+  // prevent the insane raising patterns observed in replay analysis.
+  if (hasBull && heightScore > 0.45) {
+    // Quadratic scaling with stronger multiplier:
+    // 0.45→0, 0.55→0.10, 0.6→0.22, 0.7→0.62, 0.8→1.0 (capped)
+    const excess = heightScore - 0.45;
+    const escalationBoost = Math.min(excess * excess * 10, 1.0);
     const raiseActions = legalActions.filter(a =>
       a !== AbstractAction.BULL && a !== AbstractAction.TRUE && a !== AbstractAction.PASS,
     );

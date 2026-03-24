@@ -13,7 +13,8 @@
     "evaluate": "tsx src/evaluate.ts",
     "evolve": "tsx src/evolve.ts",
     "evaluate-evolved": "tsx src/evaluateEvolved.ts",
-    "evaluate-cfr": "tsx src/evaluateCFRProduction.ts"
+    "evaluate-cfr": "tsx src/evaluateCFRProduction.ts",
+    "benchmark-cfr": "tsx src/benchmarkCFR.ts"
   },
   "dependencies": {
     "@bull-em/shared": "*"
