@@ -287,8 +287,8 @@ export class BotPlayer {
   private static readonly BLUFF_TARGET_SELECTION = 0.46;
   private static readonly POSITION_AWARENESS = 0.55;        // Increased — better use of positional info vs humans
   private static readonly TRUE_CALL_CONFIDENCE = 0.85;      // Reduced — less eager to commit to true, stay skeptical
-  private static readonly COUNTER_BLUFF_RATE = 0.70;        // Increased — raise over suspected bluffs more often
-  private static readonly BULL_PHASE_BLUFF_RATE = 0.75;
+  private static readonly COUNTER_BLUFF_RATE = 0.30;        // Reduced — punish suspected bluffs with bull more often
+  private static readonly BULL_PHASE_BLUFF_RATE = 0.35;    // Reduced — don't bluff-raise in bull phase so aggressively
   private static readonly OPENING_HAND_TYPE_PREFERENCE = 0.20; // Reduced — hide info more by opening with high cards
 
   /**
@@ -1058,11 +1058,16 @@ export class BotPlayer {
     // If current call is a high card, prefer bluffing a higher rank we don't hold
     // rather than jumping to pair (which reveals our cards). This is what humans do —
     // e.g., if someone calls "10 high" and you have a 4, you'd call "J high" not "pair of 4s".
+    // But don't do this unconditionally — if the hand seems implausible, call bull instead.
     if (currentHand.type === HandType.HIGH_CARD && currentHand.rank) {
-      const bluffHighCard = this.findBluffHighCardAbove(botCards, currentHand.rank);
-      if (bluffHighCard) {
-        this.recordSelfAction(scope, botId, true);
-        return { action: 'call', hand: bluffHighCard };
+      // Skip the bluff-raise when the claim looks fake — call bull to punish
+      const shouldBull = adjustedP < confidentBullThreshold && Math.random() < 0.6;
+      if (!shouldBull) {
+        const bluffHighCard = this.findBluffHighCardAbove(botCards, currentHand.rank);
+        if (bluffHighCard) {
+          this.recordSelfAction(scope, botId, true);
+          return { action: 'call', hand: bluffHighCard };
+        }
       }
     }
 
