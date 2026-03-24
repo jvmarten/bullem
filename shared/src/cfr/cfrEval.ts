@@ -1332,7 +1332,12 @@ export interface SearchConfig {
 
 const DEFAULT_SEARCH_CONFIG: SearchConfig = {
   simulations: 200,
-  searchWeight: 0.35,
+  // Reduced from 0.35 to 0.15 after 7M iteration retrain. With better
+  // strategy convergence (~26 visits/state), the pre-trained strategy is
+  // accurate enough that MC corrections are mostly noise. Keep a small
+  // weight so MC can still correct extreme cases (e.g., complex hand
+  // types where closed-form Bayesian breaks down).
+  searchWeight: 0.15,
   timeBudgetMs: 80,
 };
 
