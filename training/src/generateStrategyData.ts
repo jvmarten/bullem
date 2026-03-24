@@ -41,13 +41,14 @@ const DICT_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
 function repruneStrategy(
   strategy: Record<string, Record<string, number>>,
 ): { pruned: Record<string, Record<string, number>>; count: number; skipped: number } {
-  // Action prune threshold: raised from 0.05 to keep compact file under 10MB
-  // with ~400K info sets. Actions below 10% at ~12 visits/state are noise.
+  // Action prune threshold: actions below this probability are noise.
+  // With 7M+ iterations (~26 visits/state), 10% keeps file under 8MB.
   const PRUNE_THRESHOLD = 0.10;
   const PRECISION = 2;
   // Info set convergence threshold: drop entries where no action exceeds this
   // probability — these are under-visited states with near-uniform strategy.
   // The runtime heuristic fallback handles these at ~80% trained quality.
+  // With 7M iterations, keep at 0.30 to fit within 8MB file size limit.
   const CONVERGENCE_THRESHOLD = 0.30;
   const pruned: Record<string, Record<string, number>> = {};
   let count = 0;
