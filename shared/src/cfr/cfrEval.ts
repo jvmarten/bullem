@@ -1281,10 +1281,22 @@ export function decideCFR(
         }
       }
 
-      // Safety adjustments removed: the trained CFR strategy already encodes
-      // these signals via its info set abstraction (plausibility bucket, card
-      // knowledge, sentiment, etc.). Post-hoc modifications were suppressing
-      // the strategy's calibrated bluff frequencies, costing ~18pp in 1v1.
+      // Re-enabled safety adjustments: the trained strategy is under-converged
+      // for multiplayer (3+ players) and lacks access to exact card information.
+      // These adjustments provide critical common-sense guardrails without
+      // fighting the strategy's calibrated bluff frequencies in heads-up.
+      // In heads-up (2 players), only card knowledge and low-claim protection
+      // are applied — these use exact Bayesian math the strategy can't access.
+      adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
+      adjustForCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards);
+      adjustForDisproofAwareness(probs, legalActions, state.currentHand, botCards, totalCards);
+      adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
+      adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
+      if (activePlayers >= 3) {
+        adjustForSentimentCascade(probs, legalActions, state, totalCards);
+        adjustForOpponentCredibility(probs, legalActions, state, totalCards, activePlayers);
+      }
+      adjustForHeadsUpCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
 
       // Sample from adjusted distribution
       let adjTotal = 0;
@@ -1332,12 +1344,11 @@ export interface SearchConfig {
 
 const DEFAULT_SEARCH_CONFIG: SearchConfig = {
   simulations: 200,
-  // Reduced from 0.35 to 0.15 after 7M iteration retrain. With better
-  // strategy convergence (~26 visits/state), the pre-trained strategy is
-  // accurate enough that MC corrections are mostly noise. Keep a small
-  // weight so MC can still correct extreme cases (e.g., complex hand
-  // types where closed-form Bayesian breaks down).
-  searchWeight: 0.15,
+  // Increased from 0.15 to 0.30: with safety adjustments re-enabled, MC
+  // search provides complementary card-aware correction. The pre-trained
+  // strategy handles general game theory but MC catches complex hands
+  // (straights, flushes, full houses) where independence assumptions break.
+  searchWeight: 0.30,
   timeBudgetMs: 80,
 };
 
@@ -1579,7 +1590,19 @@ export function decideCFRWithSearch(
     }
   }
 
-  // Safety adjustments removed (same rationale as decideCFR above).
+  // Apply safety adjustments to base strategy before MC refinement.
+  // These provide card-aware and plausibility-based corrections that the
+  // trained strategy can't capture (it doesn't see exact cards).
+  adjustStrategyForPlausibility(baseProbs, legalActions, state.currentHand, totalCards);
+  adjustForCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards);
+  adjustForDisproofAwareness(baseProbs, legalActions, state.currentHand, botCards, totalCards);
+  adjustForLowClaims(baseProbs, legalActions, state.currentHand, totalCards);
+  adjustForLastChancePass(baseProbs, legalActions, state.currentHand, totalCards);
+  if (activePlayers >= 3) {
+    adjustForSentimentCascade(baseProbs, legalActions, state, totalCards);
+    adjustForOpponentCredibility(baseProbs, legalActions, state, totalCards, activePlayers);
+  }
+  adjustForHeadsUpCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
 
   // ── Step 2: Monte Carlo search refinement ──
 

@@ -435,9 +435,19 @@ function generateBluffOfType(
     }
 
     case HandType.FULL_HOUSE: {
-      // Pick two independent ranks with spacing — same rationale as two-pair.
+      // Pick two independent ranks with spacing. Bias toward mid-high ranks
+      // for the three-of-a-kind component — low-rank full houses (2s/3s) are
+      // instant tells and were a major observed regression pattern.
       const threeRank = pickRank();
-      const twoRank = pickSpacedRank(threeRank);
+      let twoRank = pickSpacedRank(threeRank);
+      // If both ranks are very low (<=5), re-roll the three-rank once to
+      // push toward more believable territory.
+      if (RANK_VALUES[threeRank] <= 5 && RANK_VALUES[twoRank] <= 5) {
+        const reroll = pickRank();
+        if (RANK_VALUES[reroll] > RANK_VALUES[threeRank]) {
+          return { type: HandType.FULL_HOUSE, threeRank: reroll, twoRank: pickSpacedRank(reroll) };
+        }
+      }
       return { type: HandType.FULL_HOUSE, threeRank, twoRank };
     }
 
