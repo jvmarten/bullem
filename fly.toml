@@ -29,6 +29,10 @@ primary_region = 'arn'
 [[vm]]
   size = 'shared-cpu-1x'
   memory = 512
+  # Allow 30s for graceful shutdown: persist rooms to Redis, notify clients
+  # via server:restarting, drain WebSocket connections, then exit. The server
+  # shutdown sequence completes in ~7s; extra headroom prevents SIGKILL.
+  kill_timeout = 30
 
 [checks]
   [checks.health]

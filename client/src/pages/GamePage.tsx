@@ -126,6 +126,7 @@ export function GamePage() {
     sessionTransferred,
     countdown,
     roundSeedHash,
+    isServerRestarting,
   } = useGameContext();
   // Reactions and chat from dedicated contexts — prevents game UI re-renders
   // on every emoji event (2s lifecycle) or incoming chat message.
@@ -676,7 +677,7 @@ export function GamePage() {
             <div className="max-cards-warning-glow" aria-hidden="true" />
           )}
           {sessionTransferred && <SessionTransferredOverlay />}
-          {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay />}
+          {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay isServerRestarting={isServerRestarting} />}
         </div>
       ) : (
       /* ── Portrait layout (existing) ── */
@@ -904,7 +905,7 @@ export function GamePage() {
         {sessionTransferred && <SessionTransferredOverlay />}
 
         {/* Reconnecting overlay — shown when own connection drops */}
-        {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay />}
+        {showReconnectOverlay && !sessionTransferred && <ReconnectOverlay isServerRestarting={isServerRestarting} />}
       </div>
       )}
 

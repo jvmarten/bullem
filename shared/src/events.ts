@@ -115,4 +115,8 @@ export interface ServerToClientEvents {
   'friends:invited': (data: { fromUserId: string; fromUsername: string; roomCode: string }) => void;
   /** A friend created or joined a room (for notifications). */
   'friends:roomCreated': (data: { userId: string; username: string; roomCode: string }) => void;
+  /** Emitted to all clients when the server is about to shut down for a
+   *  deployment. Clients should expect a brief disconnection and auto-reconnect
+   *  to the new instance — game state is preserved via Redis. */
+  'server:restarting': () => void;
 }

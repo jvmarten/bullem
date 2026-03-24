@@ -44,6 +44,10 @@ import { InMemoryMatchmakingQueue } from './dev/InMemoryMatchmakingQueue.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Set to true when SIGTERM/SIGINT fires. Prevents double-shutdown and makes
+ *  the health endpoint return 503 so Fly.io stops routing new connections. */
+let isShuttingDown = false;
+
 const app = express();
 const httpServer = createServer(app);
 /** Build the CORS origin setting.
@@ -1003,6 +1007,13 @@ app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
 
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
+  // During shutdown, return 503 so Fly.io stops routing new connections to
+  // this instance. Existing WebSocket connections continue until io.close().
+  if (isShuttingDown) {
+    res.status(503).json({ status: 'draining' });
+    return;
+  }
+
   // During startup initialization, return 200 so Fly.io health checks pass
   // while DB migrations and other async init is still running.
   if (!startupComplete) {
@@ -1159,9 +1170,23 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => scheduleBroadcastPlayerCount());
 });
 
-// Graceful shutdown — clean up timers and close connections
+// Graceful shutdown — clean up timers, persist state, notify clients, then close.
+//
+// During a Fly.io rolling deploy the new instance is already running and healthy
+// before SIGTERM arrives here. The sequence:
+//   1. Persist all room state to Redis (so the new instance can restore it)
+//   2. Notify connected clients via server:restarting (they'll auto-reconnect)
+//   3. Brief drain delay so clients receive the event before we close sockets
+//   4. Clean up resources and exit
+//
+// fly.toml kill_timeout must be ≥ this drain window (currently 30s).
 function shutdown(): void {
-  logger.info('Shutting down...');
+  // Prevent double-shutdown from rapid SIGTERM+SIGINT
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logger.info('Graceful shutdown initiated — persisting state and notifying clients...');
+
   // Clear debounced broadcast timer to prevent firing after teardown
   if (broadcastPending) {
     clearTimeout(broadcastPending);
@@ -1172,18 +1197,38 @@ function shutdown(): void {
   backgroundGameManager.stop();
   botManager.clearTimers();
   roomManager.stopCleanup();
-  io.close();
-  // Close all Redis connections (pub, sub, store clients)
-  for (const client of redisClients) {
-    client.disconnect();
-  }
-  // Close the database pool before exiting
-  closePool().catch((err) => {
-    logger.error({ err }, 'Error closing database pool during shutdown');
-  });
-  httpServer.close(() => process.exit(0));
-  // Force exit after 5s if connections don't close cleanly
-  setTimeout(() => process.exit(1), 5000);
+
+  // Persist all active rooms to Redis so the new instance can restore them.
+  // Then notify clients and drain. If Redis isn't configured, skip straight
+  // to the drain — clients will still reconnect, just without state restore.
+  roomManager.persistAllRooms()
+    .catch((err) => {
+      logger.error({ err }, 'Error persisting rooms during shutdown');
+    })
+    .finally(() => {
+      // Tell every connected client the server is restarting. The client uses
+      // this to show a non-alarming "Updating…" message instead of the standard
+      // reconnect overlay. Socket.io auto-reconnect handles the rest.
+      io.emit('server:restarting');
+      logger.info('Emitted server:restarting to all connected clients');
+
+      // Give clients a moment to receive the event before closing sockets.
+      // 2s is enough for the WebSocket frame to flush.
+      setTimeout(() => {
+        io.close();
+        // Close all Redis connections (pub, sub, store clients)
+        for (const client of redisClients) {
+          client.disconnect();
+        }
+        // Close the database pool before exiting
+        closePool().catch((err) => {
+          logger.error({ err }, 'Error closing database pool during shutdown');
+        });
+        httpServer.close(() => process.exit(0));
+        // Force exit after 5s if connections don't close cleanly
+        setTimeout(() => process.exit(1), 5000);
+      }, 2000);
+    });
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
