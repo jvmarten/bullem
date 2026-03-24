@@ -1,5 +1,6 @@
 /**
  * Information set abstraction for CFR strategy evaluation.
+ * V4: trimmed for convergence at 100M iterations (~50-60K info sets).
  *
  * Ported from training/src/cfr/infoSet.ts — evaluation-only subset.
  * Uses 9 abstract actions that distinguish between truthful claims
@@ -7,11 +8,14 @@
  *
  * Info set key encodes:
  * - Round phase
- * - Player count bucket (critical: optimal play differs by table size)
- * - Hand strength relative to the current claim
- * - Claim height bucket (low/high)
- * - Turn depth within the round
+ * - Player count bucket
  * - Card count (how many cards I hold)
+ * - Total cards in play
+ * - Hand strength (my best hand contribution)
+ * - Hand vs claim (how my cards relate to the current claim)
+ * - Claim height bucket (6 tiers)
+ * - Claim plausibility (cross-feature: claim type vs total cards)
+ * - Turn depth within the round
  * - Bull/true sentiment
  */
 
@@ -287,39 +291,6 @@ function myHandStrengthBucket(cards: Card[]): string {
   return 'weak';                         // Nothing useful
 }
 
-/**
- * 4 buckets (expanded from 3) — Ace is uniquely powerful.
- * MUST match training exactly.
- */
-function highCardBucket(cards: Card[]): string {
-  if (cards.length === 0) return 'x';
-  let maxVal = 0;
-  for (const c of cards) {
-    const val = RANK_VALUES[c.rank];
-    if (val > maxVal) maxVal = val;
-  }
-  if (maxVal >= 14) return 'hAce';   // Ace — uniquely powerful for claims
-  if (maxVal >= 12) return 'hHi';    // Q, K — premium holdings
-  if (maxVal >= 8) return 'hMid';    // 8, 9, 10, J — decent
-  return 'hLo';                       // 2-7 — weak holdings
-}
-
-function opponentAggressionBucket(
-  turnHistory: { action: string; playerId: string }[],
-  myId: string,
-): string {
-  let oppRaises = 0;
-  let oppChallenges = 0;
-  for (const entry of turnHistory) {
-    if (entry.playerId === myId) continue;
-    if (entry.action === 'call' || entry.action === 'lastChanceRaise') oppRaises++;
-    if (entry.action === 'bull' || entry.action === 'true') oppChallenges++;
-  }
-  const total = oppRaises + oppChallenges;
-  if (total === 0) return 'oX';
-  if (oppRaises > oppChallenges) return 'oAg';
-  return 'oPa';
-}
 
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
@@ -338,17 +309,6 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
 
 // ── Turn position bucketing ──────────────────────────────────────────
 
-/**
- * Position in the current action cycle relative to other players.
- * Acting first vs last in a cycle requires very different strategies.
- */
-function turnPositionBucket(turnHistory: { action: string }[], activePlayers: number): string {
-  if (activePlayers <= 2) return 'x'; // Heads-up: position is always 1v1
-  const posInCycle = turnHistory.length % activePlayers;
-  if (posInCycle === 0) return 'pos0';    // First to act — no info
-  if (posInCycle >= activePlayers - 1) return 'posL';  // Last to act — full info
-  return 'posM';                           // Middle — partial info
-}
 
 // ── Bull/true sentiment bucketing ────────────────────────────────────
 
@@ -443,7 +403,7 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
 
 /**
  * Generate a compact info set key for CFR evaluation.
- * Must match the format used during training.
+ * Must match the format used during training (V4 abstraction).
  */
 export function getInfoSetKey(
   state: ClientGameState,
@@ -452,7 +412,7 @@ export function getInfoSetKey(
   activePlayers: number = 2,
   jokerCount: JokerCount = 0,
   lastChanceMode: LastChanceMode = 'classic',
-  myPlayerId: string = '',
+  _myPlayerId: string = '',
   wasPenalizedLastRound: boolean = false,
 ): string {
   const parts: string[] = [
@@ -462,22 +422,15 @@ export function getInfoSetKey(
     myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length === 3 ? 'c3' : myCards.length === 4 ? 'c4' : 'c5',
     totalCardsBucket(totalCards),
     myHandStrengthBucket(myCards),
-    highCardBucket(myCards),
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
     turnDepthBucket(state.turnHistory),
-    // Position in current action cycle (first/mid/last to act)
-    turnPositionBucket(state.turnHistory, activePlayers),
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
   if (wasPenalizedLastRound) {
     parts.push('pen');
-  }
-
-  if (activePlayers > 2) {
-    parts.push(opponentAggressionBucket(state.turnHistory, myPlayerId));
   }
 
   if (activePlayers <= 2 && state.currentHand) {
