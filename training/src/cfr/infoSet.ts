@@ -1,5 +1,6 @@
 /**
  * Information set abstraction for CFR training — supports 2-12 players.
+ * V4: trimmed for convergence at 100M iterations (~50-60K info sets).
  *
  * Uses 9 abstract actions that distinguish between truthful claims
  * (based on player's actual cards) and bluffs.
@@ -7,10 +8,20 @@
  * Info set key encodes:
  * - Round phase
  * - Player count bucket (critical: optimal play differs by table size)
- * - Hand strength relative to the current claim
- * - Claim height bucket (low/mid/high/very_high)
- * - Turn depth within the round
  * - Card count (how many cards I hold)
+ * - Total cards in play
+ * - Hand strength (my best hand contribution)
+ * - Hand vs claim (how my cards relate to the current claim)
+ * - Claim height bucket (6 tiers)
+ * - Claim plausibility (cross-feature: claim type vs total cards)
+ * - Turn depth within the round
+ * - Bull/true sentiment (voting distribution)
+ *
+ * Removed in V4 (redundant/noisy — inflated state space without
+ * proportional strategic signal):
+ * - highCardBucket: overlaps with myHandStrength
+ * - turnPositionBucket: unreliable modular position calculation
+ * - opponentAggressionBucket: too noisy from ~3 actions per round
  */
 
 import type { Card, HandCall, Rank, Suit, ClientGameState, JokerCount, LastChanceMode } from '@bull-em/shared';
@@ -305,53 +316,6 @@ function myHandStrengthBucket(cards: Card[]): string {
   return 'weak';                         // Nothing useful
 }
 
-// ── High card value bucketing ─────────────────────────────────────────
-
-/**
- * Bucket the highest card value in the player's hand.
- * 4 buckets (expanded from 3) — Ace is uniquely powerful.
- * An Ace enables high-card claims that are nearly impossible to beat,
- * anchors the top of straights, and is the strongest bluff foundation.
- * Splitting it from K/Q gives CFR finer opening and bull strategies.
- *
- * MUST match shared/src/cfr/infoSet.ts exactly.
- */
-function highCardBucket(cards: Card[]): string {
-  if (cards.length === 0) return 'x';
-  let maxVal = 0;
-  for (const c of cards) {
-    const val = RANK_VALUES[c.rank];
-    if (val > maxVal) maxVal = val;
-  }
-  if (maxVal >= 14) return 'hAce';   // Ace — uniquely powerful for claims
-  if (maxVal >= 12) return 'hHi';    // Q, K — premium holdings
-  if (maxVal >= 8) return 'hMid';    // 8, 9, 10, J — decent
-  return 'hLo';                       // 2-7 — weak holdings
-}
-
-// ── Opponent aggression bucketing ─────────────────────────────────────
-
-/**
- * Track opponent aggression from the turn history this round.
- * Counts raises vs bull/true calls from other players to infer style.
- * Aggressive opponents raise often; passive ones call bull/true quickly.
- */
-function opponentAggressionBucket(
-  turnHistory: { action: string; playerId: string }[],
-  myId: string,
-): string {
-  let oppRaises = 0;
-  let oppChallenges = 0;
-  for (const entry of turnHistory) {
-    if (entry.playerId === myId) continue;
-    if (entry.action === 'call' || entry.action === 'lastChanceRaise') oppRaises++;
-    if (entry.action === 'bull' || entry.action === 'true') oppChallenges++;
-  }
-  const total = oppRaises + oppChallenges;
-  if (total === 0) return 'oX';        // No opponent actions yet
-  if (oppRaises > oppChallenges) return 'oAg';  // Opponents are raising more (aggressive)
-  return 'oPa';                          // Opponents are challenging more (passive)
-}
 
 // ── Turn depth bucketing ─────────────────────────────────────────────
 
@@ -371,21 +335,6 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
   return 'vLate';                    // 8+ actions — extreme information, high stakes
 }
 
-// ── Turn position bucketing ──────────────────────────────────────────
-
-/**
- * Position in the current action cycle relative to other players.
- * Acting first vs last in a cycle requires very different strategies:
- * - First: no information from others' actions this cycle
- * - Last: full information, can exploit others' decisions
- */
-function turnPositionBucket(turnHistory: { action: string }[], activePlayers: number): string {
-  if (activePlayers <= 2) return 'x'; // Heads-up: position is always 1v1
-  const posInCycle = turnHistory.length % activePlayers;
-  if (posInCycle === 0) return 'pos0';    // First to act — no info
-  if (posInCycle >= activePlayers - 1) return 'posL';  // Last to act — full info
-  return 'posM';                           // Middle — partial info
-}
 
 // ── Bull/true sentiment bucketing (multiplayer-critical) ────────────
 
@@ -508,26 +457,18 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
 /**
  * Generate a compact info set key for CFR.
  *
- * Enhanced abstraction designed to produce ~15-25K unique keys, enabling
- * finer strategic decisions with 500K+ iterations.
- * Format: phase|playerCount|cardCount|totalCards|myStrength|handVsClaim|claimHeight|plausibility|turnDepth|bullSentiment
+ * V4 abstraction — trimmed for convergence at 100M iterations.
  *
- * Key improvements over previous version:
- * - 4 claim height buckets (lo/mid/hi/vhi) instead of 3
- * - Cross-feature plausibility bucket (claim type vs total cards)
- * - Better strategic differentiation for detecting bluffs
- */
-/**
- * Generate a compact info set key for CFR.
+ * Removed from V3 (redundant or noisy dimensions):
+ * - highCardBucket: overlaps with myHandStrength (weak implies low cards,
+ *   trips implies high cards). 4× multiplier for minimal strategic signal.
+ * - turnPositionBucket: turnHistory.length % activePlayers is unreliable
+ *   because bull/true calls disrupt the cycle. 3× multiplier on multiplayer.
+ * - opponentAggressionBucket: too noisy from a single round's ~3 actions.
+ *   3× multiplier on the largest bucket (p5+: 172K keys).
  *
- * V3 abstraction with richer features for stronger play:
- * - Individual card counts (1-5) instead of 3 buckets
- * - High card value bucket (holding an Ace vs a 3 matters)
- * - Opponent aggression tracking (aggressive vs passive opponents)
- * - Round memory (was penalized last round — affects risk appetite)
- * - All previous features retained (plausibility, claim height, sentiment)
+ * Net effect: ~285K → ~50-60K info sets → ~1700 visits/key at 100M.
  *
- * @param myPlayerId - Required for opponent aggression tracking
  * @param wasPenalizedLastRound - Whether this player lost the previous round
  */
 export function getInfoSetKey(
@@ -537,7 +478,7 @@ export function getInfoSetKey(
   activePlayers: number = 2,
   jokerCount: JokerCount = 0,
   lastChanceMode: LastChanceMode = 'classic',
-  myPlayerId: string = '',
+  _myPlayerId: string = '',
   wasPenalizedLastRound: boolean = false,
 ): string {
   const parts: string[] = [
@@ -551,18 +492,14 @@ export function getInfoSetKey(
     totalCardsBucket(totalCards),
     // My hand quality
     myHandStrengthBucket(myCards),
-    // My highest card value — holding an Ace vs 3 matters for opening strategy
-    highCardBucket(myCards),
     // How my cards relate to the current claim
     handVsClaimBucket(myCards, state.currentHand),
-    // Claim height — 4 buckets
+    // Claim height — 6 buckets
     claimHeightBucket(state.currentHand),
     // Claim plausibility — cross-feature: claim type vs total cards
     claimPlausibilityBucket(state.currentHand, totalCards),
     // How deep are we in this round
     turnDepthBucket(state.turnHistory),
-    // Position in current action cycle (first/mid/last to act)
-    turnPositionBucket(state.turnHistory, activePlayers),
     // Bull/true voting sentiment
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
@@ -570,11 +507,6 @@ export function getInfoSetKey(
   // Round memory: were we penalized last round?
   if (wasPenalizedLastRound) {
     parts.push('pen');
-  }
-
-  // Opponent aggression — only for multiplayer where it's most impactful
-  if (activePlayers > 2) {
-    parts.push(opponentAggressionBucket(state.turnHistory, myPlayerId));
   }
 
   // 2P refinement: distinguish high card claims from pair+ claims
