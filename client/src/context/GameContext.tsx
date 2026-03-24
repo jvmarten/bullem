@@ -130,6 +130,9 @@ export interface GameContextValue {
   clearOverlayStateForRecovery: () => void;
   /** SHA-256 hash of the round seed, captured when roundResult arrives (provably fair). */
   roundSeedHash: string | null;
+  /** True when the server signaled it's restarting (deployment). The client
+   *  will briefly disconnect and auto-reconnect to the new instance. */
+  isServerRestarting: boolean;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);
@@ -204,6 +207,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [ratingChanges, setRatingChanges] = useState<Record<PlayerId, RatingChange> | null>(null);
   const [spectatorInitialStats, setSpectatorInitialStats] = useState<GameStats | null>(null);
   const [sessionTransferred, setSessionTransferred] = useState(false);
+  const [isServerRestarting, setIsServerRestarting] = useState(false);
   const [countdown, setCountdown] = useState<{ secondsLeft: number; label?: string } | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reactionTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -304,6 +308,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('connect', () => {
       setIsConnected(true);
       setHasConnected(true);
+      // Clear server-restarting flag once we're connected to the new instance
+      setIsServerRestarting(false);
 
       // If the Socket.io reconnect handler already ran, skip — it already
       // emitted room:join.
@@ -681,6 +687,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on('game:spectatorStats', (stats: GameStats) => {
       setSpectatorInitialStats(stats);
     });
+    socket.on('server:restarting', () => {
+      // Server is deploying a new version. The socket will disconnect shortly
+      // and Socket.io auto-reconnect will connect to the new instance. Set a
+      // flag so the UI shows a non-alarming "Updating…" message instead of the
+      // standard reconnect overlay with recovery actions.
+      setIsServerRestarting(true);
+    });
+
     socket.on('session:transferred', () => {
       setSessionTransferred(true);
       // Clean up storage so this old tab/device doesn't try to auto-reconnect
@@ -726,6 +740,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off('matchmaking:cancelled');
       socket.off('game:spectatorStats');
       socket.off('session:transferred');
+      socket.off('server:restarting');
       socket.io.off('reconnect', handleReconnect);
     };
   }, []);
@@ -1072,9 +1087,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     countdown,
     clearOverlayStateForRecovery,
     roundSeedHash,
+    isServerRestarting,
   }), [
     roomState, gameState, roundResult, roundTransition, roundTransitionDeadline, roundSeedHash,
-    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown,
+    winnerId, gameStats, playerId, error, isConnected, hasConnected, disconnectDeadlines, sessionTransferred, countdown, isServerRestarting,
     lastReplay,
     matchmakingStatus, matchmakingFound, ratingChanges, pendingRejoinRoom, spectatorInitialStats,
     createRoom, joinRoom, leaveRoom, deleteRoom, listRooms, listLiveGames,

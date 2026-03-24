@@ -1039,6 +1039,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
     countdown,
     clearOverlayStateForRecovery: () => {},
     roundSeedHash: null,
+    isServerRestarting: false,
   }), [
     roomState, gameState, roundResult, roundTransition, winnerId, gameStats,
     error, createRoom, joinRoom, leaveRoom, startGame, callHand, callBull,

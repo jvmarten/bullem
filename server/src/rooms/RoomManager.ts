@@ -43,6 +43,19 @@ export class RoomManager {
     void this.redisStore.persist(room);
   }
 
+  /** Persist ALL active rooms to Redis. Awaits completion (not fire-and-forget).
+   *  Used during graceful shutdown to ensure the new instance can restore state. */
+  async persistAllRooms(): Promise<number> {
+    if (!this.redisStore) return 0;
+    const promises: Promise<void>[] = [];
+    for (const room of this.rooms.values()) {
+      promises.push(this.redisStore.persist(room));
+    }
+    await Promise.allSettled(promises);
+    logger.info({ count: promises.length }, 'Persisted all rooms to Redis for shutdown');
+    return promises.length;
+  }
+
   /** Restore all rooms from Redis into memory. Called once at startup.
    *  Rebuilds the in-memory indices (playerToRoom, etc.) from restored rooms.
    *  Human players are marked disconnected — they must reconnect normally. */

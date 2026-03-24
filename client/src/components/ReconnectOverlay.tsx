@@ -6,10 +6,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *  confirm the reconnect is genuinely stuck. */
 const SHOW_ACTIONS_DELAY_MS = 4_000;
 
+interface ReconnectOverlayProps {
+  /** When true, the disconnect was caused by a server deployment — show a
+   *  calmer "Updating…" message instead of recovery actions. */
+  isServerRestarting?: boolean;
+}
+
 /** Full-screen overlay shown when the player's own socket connection drops.
  *  Displays a spinner and — after a delay — actionable recovery options
  *  so the user is never stuck. Kept minimal to avoid alarming the player. */
-export function ReconnectOverlay() {
+export function ReconnectOverlay({ isServerRestarting = false }: ReconnectOverlayProps) {
   const [dots, setDots] = useState('');
   const [showActions, setShowActions] = useState(false);
   const mountTime = useRef(Date.now());
@@ -39,9 +45,14 @@ export function ReconnectOverlay() {
       <div className="reconnect-overlay-content animate-fade-in">
         <div className="reconnect-spinner" />
         <p className="reconnect-text">
-          Reconnecting{dots}
+          {isServerRestarting ? `Updating${dots}` : `Reconnecting${dots}`}
         </p>
-        {showActions && (
+        {isServerRestarting && (
+          <p className="reconnect-subtext">
+            A new version is rolling out — you'll be back in a moment
+          </p>
+        )}
+        {!isServerRestarting && showActions && (
           <>
             <p className="reconnect-subtext">
               Taking longer than expected
