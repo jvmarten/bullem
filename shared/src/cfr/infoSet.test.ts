@@ -103,9 +103,9 @@ describe('getInfoSetKey', () => {
     const key = getInfoSetKey(state, [card('A', 'spades')], 4, 2);
     expect(key).toContain('|');
     const parts = key.split('|');
-    // V4: 10 base parts (phase, playerCount, cardCount, totalCards, myStrength,
-    // handVsClaim, claimHeight, plausibility, turnDepth, bullSentiment)
-    expect(parts.length).toBeGreaterThanOrEqual(10);
+    // V5: 11 base parts (phase, playerCount, cardCount, elimPressure, totalCards,
+    // myStrength, handVsClaim, claimHeight, plausibility, phaseDepth, bullSentiment)
+    expect(parts.length).toBeGreaterThanOrEqual(11);
   });
 
   it('starts with the round phase first character', () => {
@@ -145,9 +145,10 @@ describe('getInfoSetKey', () => {
     const keyLo = getInfoSetKey(state, [], 3, 2);
     const keyMid = getInfoSetKey(state, [], 6, 2);
     const keyHi = getInfoSetKey(state, [], 12, 2);
-    expect(keyLo.split('|')[3]).toBe('tLo');
-    expect(keyMid.split('|')[3]).toBe('tMid1');
-    expect(keyHi.split('|')[3]).toBe('tHi');
+    // V5: index 4 (was 3) — eliminationPressure inserted at index 3
+    expect(keyLo.split('|')[4]).toBe('tLo');
+    expect(keyMid.split('|')[4]).toBe('tMd1');
+    expect(keyHi.split('|')[4]).toBe('tMd3');
   });
 
   it('includes hand strength bucket based on cards', () => {
@@ -158,15 +159,16 @@ describe('getInfoSetKey', () => {
     const keySuitd = getInfoSetKey(state, [card('A', 'spades'), card('K', 'spades')], 4, 2);
     // High card only (no pair, no draw) = hcard
     const keyHcard = getInfoSetKey(state, [card('A', 'spades'), card('K', 'hearts')], 4, 2);
-    expect(keyPair.split('|')[4]).toBe('pair');
-    expect(keySuitd.split('|')[4]).toBe('suitd');
-    expect(keyHcard.split('|')[4]).toBe('hcard');
+    // V5: index 5 (was 4) — eliminationPressure inserted at index 3
+    expect(keyPair.split('|')[5]).toBe('pair');
+    expect(keySuitd.split('|')[5]).toBe('suitd');
+    expect(keyHcard.split('|')[5]).toBe('hcard');
     // Three of a kind = trips
     const keyTrips = getInfoSetKey(state, [card('A', 'spades'), card('A', 'hearts'), card('A', 'diamonds')], 6, 2);
-    expect(keyTrips.split('|')[4]).toBe('trips');
+    expect(keyTrips.split('|')[5]).toBe('trips');
     // Low cards with no pair/draw = weak
     const keyWeak = getInfoSetKey(state, [card('3', 'spades'), card('4', 'hearts')], 4, 2);
-    expect(keyWeak.split('|')[4]).toBe('weak');
+    expect(keyWeak.split('|')[5]).toBe('weak');
   });
 
   it('appends 2P refinement suffix for 2-player games with a current hand', () => {
@@ -239,6 +241,7 @@ describe('getInfoSetKey', () => {
   it('handles empty cards gracefully', () => {
     const state = makeState();
     const key = getInfoSetKey(state, [], 0, 2);
-    expect(key.split('|')[4]).toBe('x'); // myHandStrengthBucket returns 'x' for empty
+    // V5: index 5 (was 4) — eliminationPressure inserted at index 3
+    expect(key.split('|')[5]).toBe('x'); // myHandStrengthBucket returns 'x' for empty
   });
 });

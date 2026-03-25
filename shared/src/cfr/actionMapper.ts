@@ -294,6 +294,18 @@ function generateTruthfulHand(
 
 // ── Bluff hand generation ────────────────────────────────────────────
 
+/**
+ * V5: Bluff magnitude is RAISE DISTANCE, not hand type jumps.
+ *
+ * - small: Same hand type, slightly higher rank. Only jumps type if
+ *   no same-type raise exists. "7 high" → "Jack high" not "pair of 5s".
+ * - mid: Top of current type or jump one type. "7 high" → "Ace high" or "pair of 5s".
+ * - big: Jump 1-2 types aggressively. "7 high" → "pair of Jacks".
+ *
+ * This fixes the fundamental problem where BLUFF_SMALL forced type jumps,
+ * making bots unable to make small incremental bluffs — the most common
+ * and natural play in the game.
+ */
 function generateBluffHand(
   magnitude: 'small' | 'mid' | 'big',
   currentHand: HandCall | null,
@@ -301,21 +313,17 @@ function generateBluffHand(
   historyContext?: { mentionedRanks: Set<Rank>; mentionedSuits: Set<Suit> },
   maxType: HandType = HandType.ROYAL_FLUSH,
 ): HandCall | null {
-  const mySuitSet = new Set(myCards.map(c => c.suit));
   const mentionedRanks = historyContext?.mentionedRanks ?? new Set<Rank>();
   const mentionedSuits = historyContext?.mentionedSuits ?? new Set<Suit>();
+  const mySuitSet = new Set(myCards.map(c => c.suit));
 
   // Plausibility-weighted rank selection: mid-high ranks are more believable.
-  // Weights: 2-5 get weight 1, 6-9 get weight 3, 10-A get weight 4.
-  // Ranks mentioned in previous calls get a 2x boost — "continuing the
-  // narrative" of what others claimed makes the bluff more believable.
   const rankWeights: [Rank, number][] = ALL_RANKS.map(r => {
     const val = RANK_VALUES[r];
     let weight: number;
     if (val <= 5) weight = 1;
     else if (val <= 9) weight = 3;
     else weight = 4;
-    // Boost ranks that have been mentioned in the round's call history
     if (mentionedRanks.has(r)) weight *= 2;
     return [r, weight];
   });
@@ -331,7 +339,6 @@ function generateBluffHand(
     return rankWeights[rankWeights.length - 1]![0];
   }
 
-  /** Pick a rank different from `exclude` and at least 2 apart in value. */
   function pickSpacedRank(exclude: Rank): Rank {
     const excludeVal = RANK_VALUES[exclude];
     const spacedWeights = rankWeights.filter(
@@ -351,12 +358,10 @@ function generateBluffHand(
     return spacedWeights[spacedWeights.length - 1]![0];
   }
 
-  // Suit selection: prefer suits mentioned in call history (more believable),
-  // then non-held suits, then any suit.
   const suitWeights: [Suit, number][] = ALL_SUITS.map(s => {
     let weight = 1;
-    if (mentionedSuits.has(s)) weight += 3;  // Strong preference for mentioned suits
-    if (!mySuitSet.has(s)) weight += 1;       // Slight preference for non-held
+    if (mentionedSuits.has(s)) weight += 3;
+    if (!mySuitSet.has(s)) weight += 1;
     return [s, weight];
   });
   const totalSuitWeight = suitWeights.reduce((s, [, w]) => s + w, 0);
@@ -371,23 +376,61 @@ function generateBluffHand(
   }
 
   const currentType = currentHand?.type ?? -1;
-  const targetOffset = magnitude === 'small' ? 1 : magnitude === 'mid' ? 2 : 3;
-  // Cap the start type at the maximum plausible hand type
-  const startType = Math.min(currentType + targetOffset, maxType);
 
-  // Scan from target up to maxType (not beyond — implausible types are banned)
-  for (let tryType = startType; tryType <= maxType; tryType++) {
-    if (tryType < HandType.HIGH_CARD) continue;
-    const hand = generateBluffOfType(
-      tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit,
-    );
-    if (!currentHand || isHigherHand(hand, currentHand)) {
-      return hand;
+  // ── BLUFF_SMALL: Try same-type raise first, then minimal type jump ──
+  if (magnitude === 'small') {
+    // First: try same-type raise with a higher rank
+    if (currentHand && currentType >= HandType.HIGH_CARD) {
+      const sameTypeHand = generateSameTypeBluff(currentHand, pickWeightedRank, pickBluffSuit);
+      if (sameTypeHand && isHigherHand(sameTypeHand, currentHand) && sameTypeHand.type <= maxType) {
+        return sameTypeHand;
+      }
+    }
+    // Fallback: minimum type jump (+1)
+    const nextType = Math.min(currentType + 1, maxType);
+    for (let tryType = nextType; tryType <= maxType; tryType++) {
+      if (tryType < HandType.HIGH_CARD) continue;
+      const hand = generateBluffOfType(tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit);
+      if (!currentHand || isHigherHand(hand, currentHand)) return hand;
     }
   }
 
-  // No plausible bluff found. Same logic as truthful fallback:
-  // only allow cross-type minimum raises, not degenerate same-type increments.
+  // ── BLUFF_MID: Top of current type or jump one type ──
+  if (magnitude === 'mid') {
+    // Try a high same-type bluff (pick high rank)
+    if (currentHand && currentType >= HandType.HIGH_CARD) {
+      const highRankHand = generateHighSameTypeBluff(currentHand, pickBluffSuit);
+      if (highRankHand && isHigherHand(highRankHand, currentHand) && highRankHand.type <= maxType) {
+        return highRankHand;
+      }
+    }
+    // Then try type+1
+    const targetType = Math.min(currentType + 1, maxType);
+    for (let tryType = targetType; tryType <= maxType; tryType++) {
+      if (tryType < HandType.HIGH_CARD) continue;
+      const hand = generateBluffOfType(tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit);
+      if (!currentHand || isHigherHand(hand, currentHand)) return hand;
+    }
+  }
+
+  // ── BLUFF_BIG: Jump 1-2 types aggressively ──
+  if (magnitude === 'big') {
+    const targetType = Math.min(currentType + 2, maxType);
+    for (let tryType = targetType; tryType <= maxType; tryType++) {
+      if (tryType < HandType.HIGH_CARD) continue;
+      const hand = generateBluffOfType(tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit);
+      if (!currentHand || isHigherHand(hand, currentHand)) return hand;
+    }
+    // If target+2 doesn't work, try target+1
+    const fallbackType = Math.min(currentType + 1, maxType);
+    for (let tryType = fallbackType; tryType < targetType; tryType++) {
+      if (tryType < HandType.HIGH_CARD) continue;
+      const hand = generateBluffOfType(tryType as HandType, pickWeightedRank, pickSpacedRank, pickBluffSuit);
+      if (!currentHand || isHigherHand(hand, currentHand)) return hand;
+    }
+  }
+
+  // No bluff found — allow cross-type minimum raise only
   if (currentHand) {
     const minRaise = getMinimumRaise(currentHand);
     if (minRaise && minRaise.type > currentHand.type && minRaise.type <= maxType) {
@@ -397,6 +440,89 @@ function generateBluffHand(
   }
 
   return { type: HandType.HIGH_CARD, rank: pickWeightedRank() };
+}
+
+/**
+ * Generate a same-type bluff with a random higher rank.
+ * For HIGH_CARD: pick a random rank higher than current.
+ * For PAIR: pick a random rank different from current.
+ * For FLUSH: same suit (only one possible).
+ * Returns null if no same-type raise is possible.
+ */
+function generateSameTypeBluff(
+  currentHand: HandCall,
+  pickRank: () => Rank,
+  pickSuit: () => Suit,
+): HandCall | null {
+  switch (currentHand.type) {
+    case HandType.HIGH_CARD: {
+      // Pick a rank higher than current — try up to 5 times to get one
+      const currentVal = RANK_VALUES[currentHand.rank];
+      const higherRanks = ALL_RANKS.filter(r => RANK_VALUES[r] > currentVal);
+      if (higherRanks.length === 0) return null;
+      // Bias toward mid ranks (not always Ace)
+      const idx = Math.floor(Math.random() * higherRanks.length);
+      return { type: HandType.HIGH_CARD, rank: higherRanks[idx]! };
+    }
+    case HandType.PAIR: {
+      const currentVal = RANK_VALUES[currentHand.rank];
+      const higherRanks = ALL_RANKS.filter(r => RANK_VALUES[r] > currentVal);
+      if (higherRanks.length === 0) return null;
+      const idx = Math.floor(Math.random() * higherRanks.length);
+      return { type: HandType.PAIR, rank: higherRanks[idx]! };
+    }
+    case HandType.THREE_OF_A_KIND: {
+      const currentVal = RANK_VALUES[currentHand.rank];
+      const higherRanks = ALL_RANKS.filter(r => RANK_VALUES[r] > currentVal);
+      if (higherRanks.length === 0) return null;
+      const idx = Math.floor(Math.random() * higherRanks.length);
+      return { type: HandType.THREE_OF_A_KIND, rank: higherRanks[idx]! };
+    }
+    case HandType.FOUR_OF_A_KIND: {
+      const currentVal = RANK_VALUES[currentHand.rank];
+      const higherRanks = ALL_RANKS.filter(r => RANK_VALUES[r] > currentVal);
+      if (higherRanks.length === 0) return null;
+      const idx = Math.floor(Math.random() * higherRanks.length);
+      return { type: HandType.FOUR_OF_A_KIND, rank: higherRanks[idx]! };
+    }
+    // FLUSH, TWO_PAIR, STRAIGHT, etc. — harder to do same-type increments
+    default:
+      return null;
+  }
+}
+
+/**
+ * Generate a high same-type bluff — picks near the top of the current type.
+ * Used by BLUFF_MID to claim a strong version of the current hand type
+ * before jumping to the next type.
+ */
+function generateHighSameTypeBluff(
+  currentHand: HandCall,
+  pickSuit: () => Suit,
+): HandCall | null {
+  switch (currentHand.type) {
+    case HandType.HIGH_CARD: {
+      // Claim Ace or King high
+      const highRanks: Rank[] = ['A', 'K', 'Q'];
+      const valid = highRanks.filter(r => RANK_VALUES[r] > RANK_VALUES[currentHand.rank]);
+      if (valid.length === 0) return null;
+      return { type: HandType.HIGH_CARD, rank: valid[0]! };
+    }
+    case HandType.PAIR: {
+      const highRanks: Rank[] = ['A', 'K', 'Q'];
+      const valid = highRanks.filter(r => RANK_VALUES[r] > RANK_VALUES[currentHand.rank]);
+      if (valid.length === 0) return null;
+      return { type: HandType.PAIR, rank: valid[0]! };
+    }
+    case HandType.THREE_OF_A_KIND: {
+      const highRanks: Rank[] = ['A', 'K', 'Q'];
+      const valid = highRanks.filter(r => RANK_VALUES[r] > RANK_VALUES[currentHand.rank]);
+      if (valid.length === 0) return null;
+      return { type: HandType.THREE_OF_A_KIND, rank: valid[0]! };
+    }
+    default:
+      return null;
+  }
 }
 
 function generateBluffOfType(

@@ -1242,9 +1242,10 @@ export function decideCFR(
 
   const bucket = resolvePlayerBucket(activePlayers);
 
+  const maxCards = state.maxCards ?? 5;
   const infoSetKey = getInfoSetKey(
     state, botCards, totalCards, activePlayers,
-    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
   );
 
   // Look up the strategy entry from compact v2 data
@@ -1282,21 +1283,19 @@ export function decideCFR(
         }
       }
 
-      // Re-enabled safety adjustments: the trained strategy is under-converged
-      // for multiplayer (3+ players) and lacks access to exact card information.
-      // These adjustments provide critical common-sense guardrails without
-      // fighting the strategy's calibrated bluff frequencies in heads-up.
-      // In heads-up (2 players), only card knowledge and low-claim protection
-      // are applied — these use exact Bayesian math the strategy can't access.
-      adjustStrategyForPlausibility(probs, legalActions, state.currentHand, totalCards);
+      // V5: Only keep adjustments that use exact card information the
+      // strategy cannot access. All plausibility, sentiment, credibility,
+      // and low-claim adjustments are removed — V5's expanded info set
+      // (corrected plausibility thresholds, phase-specific depth, vote
+      // magnitude, elimination pressure) lets the strategy learn these
+      // patterns directly during training.
+      //
+      // Kept: card knowledge (exact Bayesian), disproof awareness (card
+      // counting), heads-up card knowledge (amplified signal in 1v1).
+      // These use the bot's actual hand — information the strategy's
+      // info set abstraction deliberately doesn't include.
       adjustForCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards);
       adjustForDisproofAwareness(probs, legalActions, state.currentHand, botCards, totalCards);
-      adjustForLowClaims(probs, legalActions, state.currentHand, totalCards);
-      adjustForLastChancePass(probs, legalActions, state.currentHand, totalCards);
-      if (activePlayers >= 3) {
-        adjustForSentimentCascade(probs, legalActions, state, totalCards);
-        adjustForOpponentCredibility(probs, legalActions, state, totalCards, activePlayers);
-      }
       adjustForHeadsUpCardKnowledge(probs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
 
       // Sample from adjusted distribution
@@ -1552,9 +1551,10 @@ export function decideCFRWithSearch(
   // ── Step 1: Get the base pre-trained strategy (same pipeline as decideCFR) ──
 
   const bucket = resolvePlayerBucket(activePlayers);
+  const maxCards = state.maxCards ?? 5;
   const infoSetKey = getInfoSetKey(
     state, botCards, totalCards, activePlayers,
-    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound,
+    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
   );
 
   // Look up strategy from compact v2 data
@@ -1591,18 +1591,9 @@ export function decideCFRWithSearch(
     }
   }
 
-  // Apply safety adjustments to base strategy before MC refinement.
-  // These provide card-aware and plausibility-based corrections that the
-  // trained strategy can't capture (it doesn't see exact cards).
-  adjustStrategyForPlausibility(baseProbs, legalActions, state.currentHand, totalCards);
+  // V5: Only card-knowledge adjustments (bot's exact cards — not in info set).
   adjustForCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards);
   adjustForDisproofAwareness(baseProbs, legalActions, state.currentHand, botCards, totalCards);
-  adjustForLowClaims(baseProbs, legalActions, state.currentHand, totalCards);
-  adjustForLastChancePass(baseProbs, legalActions, state.currentHand, totalCards);
-  if (activePlayers >= 3) {
-    adjustForSentimentCascade(baseProbs, legalActions, state, totalCards);
-    adjustForOpponentCredibility(baseProbs, legalActions, state, totalCards, activePlayers);
-  }
   adjustForHeadsUpCardKnowledge(baseProbs, legalActions, state.currentHand, botCards, totalCards, activePlayers);
 
   // ── Step 2: Monte Carlo search refinement ──

@@ -46,7 +46,7 @@ export function createCFRTrainingStrategy(
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic');
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic', '', false, state.maxCards ?? 5);
     const { action: abstractAction, strategy } = cfrEngine.sampleAction(infoSetKey, legalActions);
 
     // Accumulate strategy for averaging
@@ -182,7 +182,7 @@ function makeEvalStrategy(
     const legalActions = getLegalAbstractActions(state);
     if (legalActions.length === 0) return undefined;
 
-    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic');
+    const infoSetKey = getInfoSetKey(state, botCards, totalCards, activePlayers, jokerCount ?? 0, lastChanceMode ?? 'classic', '', false, state.maxCards ?? 5);
     const strategyEntry = exportedStrategy.strategy[infoSetKey];
 
     let chosenAction: AbstractAction;
