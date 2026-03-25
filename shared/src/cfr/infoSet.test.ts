@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getLegalAbstractActions, getInfoSetKey, AbstractAction } from './infoSet.js';
+import { getLegalAbstractActions, getInfoSetKey, getInfoSetKey2P, AbstractAction } from './infoSet.js';
 import { HandType, RoundPhase, GamePhase } from '../types.js';
 import type { Card, ClientGameState, HandCall } from '../types.js';
 
@@ -243,5 +243,143 @@ describe('getInfoSetKey', () => {
     const key = getInfoSetKey(state, [], 0, 2);
     // V5: index 5 (was 4) — eliminationPressure inserted at index 3
     expect(key.split('|')[5]).toBe('x'); // myHandStrengthBucket returns 'x' for empty
+  });
+});
+
+// ── getInfoSetKey2P ────────────────────────────────────────────────
+
+describe('getInfoSetKey2P', () => {
+  it('produces a key with 17 core segments', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const myCards = [card('A', 'spades'), card('K', 'hearts')];
+    const key = getInfoSetKey2P(state, myCards, 4, 'p1', 5, 2);
+    const parts = key.split('|');
+    expect(parts.length).toBeGreaterThanOrEqual(17);
+  });
+
+  it('encodes exact hand type — pair vs high card', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const pairCards = [card('A', 'spades'), card('A', 'hearts')];
+    const hcCards = [card('A', 'spades'), card('K', 'hearts')];
+    const keyPair = getInfoSetKey2P(state, pairCards, 4, 'p1', 5, 2);
+    const keyHc = getInfoSetKey2P(state, hcCards, 4, 'p1', 5, 2);
+    // Index 5 = exact hand type
+    expect(keyPair.split('|')[5]).toBe('pr');
+    expect(keyHc.split('|')[5]).toBe('hc');
+  });
+
+  it('encodes best rank — ace vs low', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const aceCards = [card('A', 'spades')];
+    const lowCards = [card('3', 'hearts')];
+    const keyAce = getInfoSetKey2P(state, aceCards, 2, 'p1', 5, 1);
+    const keyLow = getInfoSetKey2P(state, lowCards, 2, 'p1', 5, 1);
+    // Index 6 = best rank
+    expect(keyAce.split('|')[6]).toBe('rA');
+    expect(keyLow.split('|')[6]).toBe('rL');
+  });
+
+  it('encodes opponent card count', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const myCards = [card('A', 'spades')];
+    const key1 = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1);
+    const key3 = getInfoSetKey2P(state, myCards, 4, 'p1', 5, 3);
+    // Index 2 = opponent card count
+    expect(key1.split('|')[2]).toBe('o1');
+    expect(key3.split('|')[2]).toBe('o3');
+  });
+
+  it('encodes exact claim type — pair vs three of a kind', () => {
+    const statePair = makeState({
+      startingPlayerId: 'p1',
+      currentHand: { type: HandType.PAIR, rank: '7' },
+    });
+    const stateTrips = makeState({
+      startingPlayerId: 'p1',
+      currentHand: { type: HandType.THREE_OF_A_KIND, rank: '7' },
+    });
+    const myCards = [card('7', 'spades')];
+    const keyPair = getInfoSetKey2P(statePair, myCards, 4, 'p2', 5, 3);
+    const keyTrips = getInfoSetKey2P(stateTrips, myCards, 4, 'p2', 5, 3);
+    // Index 9 = exact claim type
+    expect(keyPair.split('|')[9]).toBe('cP');
+    expect(keyTrips.split('|')[9]).toBe('c3');
+  });
+
+  it('encodes position — opener vs responder', () => {
+    const state = makeState({
+      startingPlayerId: 'p1',
+      currentHand: null,
+    });
+    const myCards = [card('A', 'spades')];
+    const keyOpener = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1);
+    const keyResponder = getInfoSetKey2P(state, myCards, 2, 'p2', 5, 1);
+    // Index 13 = position
+    expect(keyOpener.split('|')[13]).toBe('O');
+    expect(keyResponder.split('|')[13]).toBe('R');
+  });
+
+  it('encodes elimination gaps — both players', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    // My gap: maxCards(5) - myCards(4) = 1
+    // Opp gap: maxCards(5) - oppCards(3) = 2
+    const myCards = [card('A', 'spades'), card('K', 'hearts'), card('Q', 'diamonds'), card('J', 'clubs')];
+    const key = getInfoSetKey2P(state, myCards, 7, 'p1', 5, 3);
+    // Index 3 = my elim gap, index 4 = opp elim gap
+    expect(key.split('|')[3]).toBe('g1');
+    expect(key.split('|')[4]).toBe('og2');
+  });
+
+  it('produces different keys for same situation but different dominant suit counts', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    // 3 hearts = dominant suit 3
+    const suited = [card('A', 'hearts'), card('K', 'hearts'), card('Q', 'hearts')];
+    // all different suits = dominant suit 1
+    const rainbow = [card('A', 'hearts'), card('K', 'spades'), card('Q', 'diamonds')];
+    const keySuited = getInfoSetKey2P(state, suited, 6, 'p1', 5, 3);
+    const keyRainbow = getInfoSetKey2P(state, rainbow, 6, 'p1', 5, 3);
+    // Index 7 = dominant suit count
+    expect(keySuited.split('|')[7]).toBe('s3');
+    expect(keyRainbow.split('|')[7]).toBe('s1');
+  });
+
+  it('encodes cards matching claim', () => {
+    const state = makeState({
+      startingPlayerId: 'p1',
+      currentHand: { type: HandType.PAIR, rank: 'K' },
+    });
+    const has2 = [card('K', 'spades'), card('K', 'hearts')];
+    const has1 = [card('K', 'spades'), card('3', 'hearts')];
+    const has0 = [card('2', 'spades'), card('3', 'hearts')];
+    const key2 = getInfoSetKey2P(state, has2, 4, 'p2', 5, 2);
+    const key1 = getInfoSetKey2P(state, has1, 4, 'p2', 5, 2);
+    const key0 = getInfoSetKey2P(state, has0, 4, 'p2', 5, 2);
+    // Index 11 = matching cards count
+    expect(key2.split('|')[11]).toBe('m2');
+    expect(key1.split('|')[11]).toBe('m1');
+    expect(key0.split('|')[11]).toBe('m0');
+  });
+
+  it('appends optional suffixes correctly', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const myCards = [card('A', 'spades')];
+    const keyNormal = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1, 0, 'classic', false);
+    const keyPen = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1, 0, 'classic', true);
+    const keyJoker = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1, 2, 'classic', false);
+    const keyStrict = getInfoSetKey2P(state, myCards, 2, 'p1', 5, 1, 0, 'strict', false);
+    expect(keyNormal).not.toContain('pen');
+    expect(keyPen).toContain('pen');
+    expect(keyJoker).toContain('j2');
+    expect(keyStrict).toContain('lcS');
+  });
+
+  it('is different from getInfoSetKey for the same inputs', () => {
+    const state = makeState({ startingPlayerId: 'p1' });
+    const myCards = [card('A', 'spades'), card('K', 'hearts')];
+    const key2P = getInfoSetKey2P(state, myCards, 4, 'p1', 5, 2);
+    const keyV5 = getInfoSetKey(state, myCards, 4, 2);
+    // Different key formats — 2P has more segments
+    expect(key2P).not.toBe(keyV5);
+    expect(key2P.split('|').length).toBeGreaterThan(keyV5.split('|').length);
   });
 });
