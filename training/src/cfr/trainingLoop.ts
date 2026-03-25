@@ -24,6 +24,7 @@ import { CFREngine } from './cfrEngine.js';
 import {
   type AbstractAction,
   getInfoSetKey,
+  getInfoSetKey2P,
   getLegalAbstractActions,
 } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
@@ -487,7 +488,9 @@ function runTrainingGame(
         const legalActions = getLegalAbstractActions(state);
 
         if (legalActions.length > 0) {
-          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode, currentId, wasPenalized, settings.maxCards);
+          const infoSetKey = activePlayerCount <= 2
+            ? getInfoSetKey2P(state, player.cards, totalCards, currentId, settings.maxCards, totalCards - player.cards.length, jokerCount, lastChanceMode, wasPenalized)
+            : getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode, currentId, wasPenalized, settings.maxCards);
           const node = cfrEngine.getNode(infoSetKey, legalActions);
           const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 

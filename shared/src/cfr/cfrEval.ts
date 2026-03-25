@@ -15,7 +15,7 @@
 import type { Card, ClientGameState, HandCall, JokerCount, LastChanceMode, Rank, Suit } from '../types.js';
 import { HandType, RoundPhase } from '../types.js';
 import type { BotAction } from '../engine/BotPlayer.js';
-import { AbstractAction, getInfoSetKey, getLegalAbstractActions, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
+import { AbstractAction, getInfoSetKey, getInfoSetKey2P, getLegalAbstractActions, MIN_CARDS_FOR_PLAUSIBLE } from './infoSet.js';
 import { mapAbstractToConcreteAction } from './actionMapper.js';
 import { HandChecker } from '../engine/HandChecker.js';
 import { RANK_VALUES, ALL_RANKS, ALL_SUITS } from '../constants.js';
@@ -1243,10 +1243,18 @@ export function decideCFR(
   const bucket = resolvePlayerBucket(activePlayers);
 
   const maxCards = state.maxCards ?? 5;
-  const infoSetKey = getInfoSetKey(
-    state, botCards, totalCards, activePlayers,
-    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
-  );
+
+  // Use fine-grained 2P info set for heads-up games
+  const infoSetKey = activePlayers <= 2
+    ? getInfoSetKey2P(
+        state, botCards, totalCards, botPlayerId, maxCards,
+        totalCards - botCards.length, // opponent card count
+        jokerCount, lastChanceMode, wasPenalizedLastRound,
+      )
+    : getInfoSetKey(
+        state, botCards, totalCards, activePlayers,
+        jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
+      );
 
   // Look up the strategy entry from compact v2 data
   let expanded: Record<string, number> | null = null;
@@ -1552,10 +1560,18 @@ export function decideCFRWithSearch(
 
   const bucket = resolvePlayerBucket(activePlayers);
   const maxCards = state.maxCards ?? 5;
-  const infoSetKey = getInfoSetKey(
-    state, botCards, totalCards, activePlayers,
-    jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
-  );
+
+  // Use fine-grained 2P info set for heads-up games
+  const infoSetKey = activePlayers <= 2
+    ? getInfoSetKey2P(
+        state, botCards, totalCards, botPlayerId, maxCards,
+        totalCards - botCards.length,
+        jokerCount, lastChanceMode, wasPenalizedLastRound,
+      )
+    : getInfoSetKey(
+        state, botCards, totalCards, activePlayers,
+        jokerCount, lastChanceMode, botPlayerId, wasPenalizedLastRound, maxCards,
+      );
 
   // Look up strategy from compact v2 data
   let expanded: Record<string, number> | null = null;

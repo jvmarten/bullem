@@ -488,6 +488,275 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
   return 'im';                       // implausible — virtually impossible
 }
 
+// ── Fine-grained 2P info set helpers ────────────────────────────────
+
+/** Exact hand type for 2P. MUST match shared/src/cfr/infoSet.ts. */
+function myExactHandType2P(cards: Card[]): string {
+  if (cards.length === 0) return 'x';
+  const rankCounts = new Map<Rank, number>();
+  const suitCounts = new Map<Suit, number>();
+  for (const c of cards) {
+    rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
+    suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
+  }
+  const groups = [...rankCounts.values()].sort((a, b) => b - a);
+  const maxSuit = Math.max(...suitCounts.values());
+  if (groups[0]! >= 4) return '4k';
+  if (groups[0]! >= 3 && groups[1]! >= 2) return 'fh';
+  if (maxSuit >= 5) return 'fl';
+  if (groups[0]! >= 3) return '3k';
+  if (groups[0]! >= 2 && groups[1]! >= 2) return '2p';
+  if (groups[0]! >= 2) return 'pr';
+  return 'hc';
+}
+
+/** Best rank within hand type for 2P. MUST match shared/. */
+function myBestRank2P(cards: Card[]): string {
+  if (cards.length === 0) return 'x';
+  const rankCounts = new Map<Rank, number>();
+  for (const c of cards) {
+    rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
+  }
+  let bestRank = 0;
+  let bestGroupSize = 0;
+  for (const [rank, count] of rankCounts) {
+    const val = RANK_VALUES[rank];
+    if (count > bestGroupSize || (count === bestGroupSize && val > bestRank)) {
+      bestGroupSize = count;
+      bestRank = val;
+    }
+  }
+  if (bestGroupSize <= 1) {
+    bestRank = 0;
+    for (const c of cards) {
+      const val = RANK_VALUES[c.rank];
+      if (val > bestRank) bestRank = val;
+    }
+  }
+  if (bestRank >= 14) return 'rA';
+  if (bestRank >= 13) return 'rK';
+  if (bestRank >= 12) return 'rQ';
+  if (bestRank >= 10) return 'rH';
+  if (bestRank >= 8) return 'rM2';
+  if (bestRank >= 5) return 'rM1';
+  return 'rL';
+}
+
+/** Dominant suit count for 2P. MUST match shared/. */
+function dominantSuitCount2P(cards: Card[]): string {
+  if (cards.length === 0) return 's0';
+  const suitCounts = new Map<Suit, number>();
+  for (const c of cards) {
+    suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
+  }
+  return `s${Math.max(...suitCounts.values())}`;
+}
+
+/** Longest consecutive rank run for 2P. MUST match shared/. */
+function longestRun2P(cards: Card[]): string {
+  if (cards.length === 0) return 'n0';
+  const vals = [...new Set(cards.map(c => RANK_VALUES[c.rank]))].sort((a, b) => a - b);
+  let maxRun = 1;
+  let run = 1;
+  for (let i = 1; i < vals.length; i++) {
+    if (vals[i]! - vals[i - 1]! === 1) {
+      run++;
+      if (run > maxRun) maxRun = run;
+    } else {
+      run = 1;
+    }
+  }
+  return `n${maxRun}`;
+}
+
+/** Exact claim type for 2P. MUST match shared/. */
+function exactClaimType2P(hand: HandCall | null): string {
+  if (!hand) return 'cx';
+  const typeMap: Record<number, string> = {
+    [HandType.HIGH_CARD]: 'cH',
+    [HandType.PAIR]: 'cP',
+    [HandType.TWO_PAIR]: 'c2',
+    [HandType.FLUSH]: 'cF',
+    [HandType.THREE_OF_A_KIND]: 'c3',
+    [HandType.STRAIGHT]: 'cS',
+    [HandType.FULL_HOUSE]: 'cU',
+    [HandType.FOUR_OF_A_KIND]: 'c4',
+    [HandType.STRAIGHT_FLUSH]: 'cT',
+    [HandType.ROYAL_FLUSH]: 'cR',
+  };
+  return typeMap[hand.type] ?? 'cx';
+}
+
+/** Claim rank bucket for 2P. MUST match shared/. */
+function claimRankBucket2P(hand: HandCall | null): string {
+  if (!hand) return 'rx';
+  let rankVal: number;
+  switch (hand.type) {
+    case HandType.HIGH_CARD:
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      rankVal = RANK_VALUES[hand.rank];
+      break;
+    case HandType.TWO_PAIR:
+      rankVal = RANK_VALUES[hand.highRank];
+      break;
+    case HandType.STRAIGHT:
+      rankVal = RANK_VALUES[hand.highRank];
+      break;
+    case HandType.FULL_HOUSE:
+      rankVal = RANK_VALUES[hand.threeRank];
+      break;
+    case HandType.STRAIGHT_FLUSH:
+      rankVal = RANK_VALUES[hand.highRank];
+      break;
+    case HandType.FLUSH:
+    case HandType.ROYAL_FLUSH:
+      return 'rx';
+    default:
+      return 'rx';
+  }
+  if (rankVal >= 14) return 'qA';
+  if (rankVal >= 13) return 'qK';
+  if (rankVal >= 12) return 'qQ';
+  if (rankVal >= 10) return 'qH';
+  if (rankVal >= 8) return 'qM2';
+  if (rankVal >= 5) return 'qM1';
+  return 'qL';
+}
+
+/** Exact cards matching claim count for 2P. MUST match shared/. */
+function cardsMatchingClaim2P(myCards: Card[], currentHand: HandCall | null): string {
+  if (!currentHand) return 'mx';
+  let matching = 0;
+  switch (currentHand.type) {
+    case HandType.HIGH_CARD:
+      matching = myCards.filter(c => RANK_VALUES[c.rank] >= RANK_VALUES[currentHand.rank]).length;
+      break;
+    case HandType.PAIR:
+    case HandType.THREE_OF_A_KIND:
+    case HandType.FOUR_OF_A_KIND:
+      matching = myCards.filter(c => c.rank === currentHand.rank).length;
+      break;
+    case HandType.TWO_PAIR:
+      matching = myCards.filter(c =>
+        c.rank === currentHand.highRank || c.rank === currentHand.lowRank
+      ).length;
+      break;
+    case HandType.FLUSH:
+      matching = myCards.filter(c => c.suit === currentHand.suit).length;
+      break;
+    case HandType.STRAIGHT: {
+      const highVal = RANK_VALUES[currentHand.highRank];
+      const neededVals = new Set([highVal, highVal - 1, highVal - 2, highVal - 3, highVal - 4]);
+      matching = myCards.filter(c => neededVals.has(RANK_VALUES[c.rank])).length;
+      break;
+    }
+    case HandType.FULL_HOUSE:
+      matching = myCards.filter(c =>
+        c.rank === currentHand.threeRank || c.rank === currentHand.twoRank
+      ).length;
+      break;
+    case HandType.STRAIGHT_FLUSH: {
+      const highVal = RANK_VALUES[currentHand.highRank];
+      const neededVals = new Set([highVal, highVal - 1, highVal - 2, highVal - 3, highVal - 4]);
+      matching = myCards.filter(c =>
+        c.suit === currentHand.suit && neededVals.has(RANK_VALUES[c.rank])
+      ).length;
+      break;
+    }
+    case HandType.ROYAL_FLUSH: {
+      const royalRanks = new Set<string>(['10', 'J', 'Q', 'K', 'A']);
+      matching = myCards.filter(c =>
+        c.suit === currentHand.suit && royalRanks.has(c.rank)
+      ).length;
+      break;
+    }
+  }
+  return `m${Math.min(matching, 5)}`;
+}
+
+/** Position for 2P. MUST match shared/. */
+function position2P(state: ClientGameState, myPlayerId: string): string {
+  if (!state.currentHand) {
+    return state.startingPlayerId === myPlayerId ? 'O' : 'R';
+  }
+  return state.lastCallerId === myPlayerId ? 'O' : 'R';
+}
+
+/** Exact phase depth for 2P. MUST match shared/. */
+function phaseDepthExact2P(turnHistory: { action: string }[], roundPhase: string): string {
+  if (roundPhase === 'last_chance') return 'e0';
+  if (roundPhase === 'bull_phase') {
+    let votes = 0;
+    for (const entry of turnHistory) {
+      if (entry.action === 'bull' || entry.action === 'true') votes++;
+    }
+    return `e${Math.min(votes, 5)}`;
+  }
+  let calls = 0;
+  for (const entry of turnHistory) {
+    if (entry.action === 'call') calls++;
+  }
+  return `e${Math.min(calls, 5)}`;
+}
+
+function elimGap2P(myCardCount: number, maxCards: number): string {
+  return `g${Math.max(0, maxCards - myCardCount)}`;
+}
+
+function oppElimGap2P(oppCardCount: number, maxCards: number): string {
+  return `og${Math.max(0, maxCards - oppCardCount)}`;
+}
+
+/**
+ * Fine-grained info set key for 2-player (heads-up) games.
+ * MUST match shared/src/cfr/infoSet.ts getInfoSetKey2P exactly.
+ */
+export function getInfoSetKey2P(
+  state: ClientGameState,
+  myCards: Card[],
+  totalCards: number,
+  myPlayerId: string = '',
+  maxCards: number = 5,
+  opponentCardCount: number = 1,
+  jokerCount: JokerCount = 0,
+  lastChanceMode: LastChanceMode = 'classic',
+  wasPenalizedLastRound: boolean = false,
+): string {
+  const parts: string[] = [
+    state.roundPhase.charAt(0),
+    `c${myCards.length || 1}`,
+    `o${opponentCardCount}`,
+    elimGap2P(myCards.length, maxCards),
+    oppElimGap2P(opponentCardCount, maxCards),
+    myExactHandType2P(myCards),
+    myBestRank2P(myCards),
+    dominantSuitCount2P(myCards),
+    longestRun2P(myCards),
+    exactClaimType2P(state.currentHand),
+    claimRankBucket2P(state.currentHand),
+    cardsMatchingClaim2P(myCards, state.currentHand),
+    handVsClaimBucket(myCards, state.currentHand),
+    position2P(state, myPlayerId),
+    phaseDepthExact2P(state.turnHistory, state.roundPhase),
+    bullSentimentBucket(state.turnHistory, state.roundPhase),
+    claimPlausibilityBucket(state.currentHand, totalCards),
+  ];
+
+  if (wasPenalizedLastRound) {
+    parts.push('pen');
+  }
+  if (jokerCount > 0) {
+    parts.push(`j${jokerCount}`);
+  }
+  if (lastChanceMode === 'strict') {
+    parts.push('lcS');
+  }
+
+  return parts.join('|');
+}
+
 // ── Information set key ──────────────────────────────────────────────
 
 /**
