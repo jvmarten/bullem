@@ -392,14 +392,15 @@ function createTrainingPlayers(
   const configs: BotConfig[] = [];
   const opponentConfigs = new Map<string, BotProfileConfig>();
 
-  if (playerCount === 2 && Math.random() < 0.4) {
-    // 40% self-play for 2P — converges toward Nash equilibrium.
-    // Increased from 30% to strengthen heads-up endgame play,
-    // which is where games are decided.
+  if (playerCount === 2 && Math.random() < 0.8) {
+    // 80% self-play for 2P — converges toward Nash equilibrium.
+    // Increased from 40% because the old strategy overfit to heuristic
+    // bot patterns (e.g., overcalling bull on truthful claims heads-up).
+    // Games are decided heads-up, so Nash-quality play here is critical.
     configs.push({ id: 'cfr-0', name: 'CFR-0', difficulty: BotDifficulty.HARD });
     configs.push({ id: 'cfr-1', name: 'CFR-1', difficulty: BotDifficulty.HARD });
   } else {
-    // 70% heuristic opponents for 2P, 100% for multiplayer
+    // 20% heuristic opponents for 2P, 100% for multiplayer
     configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
     for (let i = 1; i < playerCount; i++) {
       const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
@@ -486,7 +487,7 @@ function runTrainingGame(
         const legalActions = getLegalAbstractActions(state);
 
         if (legalActions.length > 0) {
-          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode, currentId, wasPenalized);
+          const infoSetKey = getInfoSetKey(state, player.cards, totalCards, activePlayerCount, jokerCount, lastChanceMode, currentId, wasPenalized, settings.maxCards);
           const node = cfrEngine.getNode(infoSetKey, legalActions);
           const baseStrategy = cfrEngine.getStrategy(node, legalActions);
 

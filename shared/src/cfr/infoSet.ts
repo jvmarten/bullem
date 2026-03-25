@@ -1,22 +1,31 @@
 /**
  * Information set abstraction for CFR strategy evaluation.
- * V4: trimmed for convergence at 100M iterations (~50-60K info sets).
+ * V5: expanded for better strategic distinction — larger info set count
+ * is acceptable because training can run longer to converge.
  *
  * Ported from training/src/cfr/infoSet.ts — evaluation-only subset.
  * Uses 9 abstract actions that distinguish between truthful claims
  * (based on player's actual cards) and bluffs.
  *
+ * V5 changes from V4:
+ * - Fixed flush/high-tier plausibility thresholds (flush 10→18, etc.)
+ * - Split total cards into 8 buckets (was 5) — 11-20 range was too coarse
+ * - Phase-specific depth: calling phase vs bull phase counted separately
+ * - Position within bull phase: how many votes before me
+ * - Elimination pressure: myCards / maxCards ratio
+ *
  * Info set key encodes:
  * - Round phase
  * - Player count bucket
  * - Card count (how many cards I hold)
- * - Total cards in play
+ * - Elimination pressure (how close to max cards)
+ * - Total cards in play (8 buckets)
  * - Hand strength (my best hand contribution)
  * - Hand vs claim (how my cards relate to the current claim)
  * - Claim height bucket (6 tiers)
- * - Claim plausibility (cross-feature: claim type vs total cards)
- * - Turn depth within the round
- * - Bull/true sentiment
+ * - Claim plausibility (corrected thresholds)
+ * - Phase-specific depth
+ * - Bull/true sentiment with vote count
  */
 
 import type { Card, HandCall, Rank, Suit, ClientGameState, JokerCount, LastChanceMode } from '../types.js';
@@ -292,19 +301,41 @@ function myHandStrengthBucket(cards: Card[]): string {
 }
 
 
-// ── Turn depth bucketing ─────────────────────────────────────────────
+// ── Phase-specific depth bucketing ───────────────────────────────────
 
 /**
- * 4 buckets (expanded from 3): early/mid/late/vLate.
- * Very late turns (8+ actions) carry dramatically more information.
- * MUST match training exactly.
+ * V5: Phase-specific depth — counts actions within the CURRENT phase,
+ * not total actions in the round. Being the 2nd person in bull phase
+ * is very different from being the 5th, even if total turn count is similar.
+ *
+ * For calling phase: how many calls/raises have been made
+ * For bull phase: how many bull/true votes have been cast
+ * For last chance: always 'd0' (single decision point)
  */
-function turnDepthBucket(turnHistory: { action: string }[]): string {
-  const len = turnHistory.length;
-  if (len <= 2) return 'early';
-  if (len <= 5) return 'mid';
-  if (len <= 7) return 'late';
-  return 'vLate';
+function phaseDepthBucket(turnHistory: { action: string }[], roundPhase: string): string {
+  if (roundPhase === 'last_chance') return 'd0';
+
+  if (roundPhase === 'bull_phase') {
+    // Count only bull/true votes (the bull phase actions)
+    let votes = 0;
+    for (const entry of turnHistory) {
+      if (entry.action === 'bull' || entry.action === 'true') votes++;
+    }
+    if (votes <= 1) return 'd0';  // First or second responder — little info
+    if (votes <= 3) return 'd1';  // Some votes visible
+    if (votes <= 5) return 'd2';  // Strong social signal
+    return 'd3';                   // Late in bull phase — very strong signal
+  }
+
+  // Calling phase: count raise actions (calls)
+  let calls = 0;
+  for (const entry of turnHistory) {
+    if (entry.action === 'call') calls++;
+  }
+  if (calls <= 1) return 'd0';   // Opening or first response
+  if (calls <= 3) return 'd1';   // Early calling
+  if (calls <= 5) return 'd2';   // Mid calling — escalation building
+  return 'd3';                    // Deep calling — high claims likely
 }
 
 // ── Turn position bucketing ──────────────────────────────────────────
@@ -313,9 +344,12 @@ function turnDepthBucket(turnHistory: { action: string }[]): string {
 // ── Bull/true sentiment bucketing ────────────────────────────────────
 
 /**
- * 5 non-x buckets (expanded from 4): v0/aB/aT/mxB/mxT.
- * "Mostly bull" vs "mostly true" carry opposite strategic signals.
- * MUST match training exactly.
+ * V5: Sentiment now encodes direction + magnitude.
+ * 7 buckets: x/v0/b1/bN/t1/tN/mx
+ *
+ * Key insight: "1 bull" vs "4 bulls" carry very different weight.
+ * The old aB/aT buckets merged these. Now we distinguish
+ * single-vote signals from strong consensus.
  */
 function bullSentimentBucket(
   turnHistory: { action: string }[],
@@ -331,21 +365,45 @@ function bullSentimentBucket(
   }
 
   const total = bullCount + trueCount;
-  if (total === 0) return 'v0';
-  if (trueCount === 0) return 'aB';
-  if (bullCount === 0) return 'aT';
-  if (bullCount > trueCount) return 'mxB';   // Mixed, leaning bull
-  return 'mxT';                               // Mixed, leaning true
+  if (total === 0) return 'v0';              // No votes yet
+
+  if (trueCount === 0) {
+    return bullCount === 1 ? 'b1' : 'bN';   // All bull: single vs consensus
+  }
+  if (bullCount === 0) {
+    return trueCount === 1 ? 't1' : 'tN';   // All true: single vs consensus
+  }
+  return 'mx';                                // Mixed — both directions present
+}
+
+/**
+ * V5: Elimination pressure — how close to being eliminated.
+ * A player with 4/5 cards plays very differently from 2/5 cards.
+ * 3 buckets: safe/near/crit.
+ */
+function eliminationPressureBucket(myCardCount: number, maxCards: number): string {
+  const ratio = myCardCount / maxCards;
+  if (ratio >= 0.8) return 'crit';   // 4/5 or 5/5 — one loss from elimination
+  if (ratio >= 0.6) return 'near';   // 3/5 — getting dangerous
+  return 'safe';                      // 1/5 or 2/5 — plenty of room
 }
 
 // ── Total cards bucketing ────────────────────────────────────────────
 
+/**
+ * V5: 8 buckets (was 5). The old tHi (11-20) was far too coarse —
+ * at 11 cards a pair of a specific rank has ~22% probability while
+ * at 20 cards it's ~54%. These require completely different strategies.
+ */
 function totalCardsBucket(totalCards: number): string {
   if (totalCards <= 4) return 'tLo';     // tiny pool — most hands unlikely
-  if (totalCards <= 7) return 'tMid1';   // small pool — pairs possible
-  if (totalCards <= 10) return 'tMid2';  // growing pool — two pair/flush emerging
-  if (totalCards <= 20) return 'tHi';    // medium pool — pairs/flushes likely
-  return 'tVHi';                          // large pool — almost all hands exist
+  if (totalCards <= 7) return 'tMd1';    // small pool — pairs possible
+  if (totalCards <= 10) return 'tMd2';   // growing pool — pairs likely
+  if (totalCards <= 14) return 'tMd3';   // medium pool — two pair emerging
+  if (totalCards <= 18) return 'tMd4';   // medium-large — flushes becoming plausible
+  if (totalCards <= 24) return 'tHi1';   // large pool — most pair/flush hands exist
+  if (totalCards <= 34) return 'tHi2';   // very large — trips/straights plausible
+  return 'tVHi';                          // massive pool — almost all hands exist
 }
 
 // ── Player count bucketing ───────────────────────────────────────────
@@ -363,20 +421,34 @@ function playerCountBucket(activePlayers: number): string {
  * MUST match training/src/cfr/infoSet.ts — these thresholds affect
  * which info set key is generated, so training/eval must agree.
  *
- * Calibrated as the card count where the hand type has roughly a
- * 15-25% base chance of existing for any specific rank/suit.
+ * V5: Recalibrated using actual probabilities. The V4 thresholds were
+ * wrong for flush and higher hands — flush was set at 10 cards but a
+ * specific suit flush with 10 cards is only ~3-5%, not the claimed
+ * "15-25% base chance."
+ *
+ * New calibration: minimum cards where P(hand exists) ≈ 10-20%.
+ * - HIGH_CARD "specific rank": P ≈ 1-(48/52)^N. N=3 → 22%
+ * - PAIR "specific rank": needs 2 of 4. N=8 → ~11%
+ * - TWO_PAIR: needs 2 pairs. N=12 → ~15%
+ * - FLUSH "specific suit": needs 5 of 13. N=18 → ~15%
+ * - THREE_OF_A_KIND: needs 3 of 4. N=16 → ~10%
+ * - STRAIGHT: needs 5 consecutive. N=20 → ~12%
+ * - FULL_HOUSE: needs 3+2. N=22 → ~10%
+ * - FOUR_OF_A_KIND: needs 4 of 4. N=30 → ~10%
+ * - STRAIGHT_FLUSH: needs 5 consecutive same suit. N=35 → ~5%
+ * - ROYAL_FLUSH: needs 5 specific same suit. N=40 → ~5%
  */
 export const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
   [HandType.HIGH_CARD]: 1,
-  [HandType.PAIR]: 4,
-  [HandType.TWO_PAIR]: 8,
-  [HandType.FLUSH]: 10,
-  [HandType.THREE_OF_A_KIND]: 10,
-  [HandType.STRAIGHT]: 12,
-  [HandType.FULL_HOUSE]: 14,
-  [HandType.FOUR_OF_A_KIND]: 18,
-  [HandType.STRAIGHT_FLUSH]: 22,
-  [HandType.ROYAL_FLUSH]: 26,
+  [HandType.PAIR]: 6,
+  [HandType.TWO_PAIR]: 12,
+  [HandType.FLUSH]: 18,
+  [HandType.THREE_OF_A_KIND]: 16,
+  [HandType.STRAIGHT]: 20,
+  [HandType.FULL_HOUSE]: 22,
+  [HandType.FOUR_OF_A_KIND]: 30,
+  [HandType.STRAIGHT_FLUSH]: 35,
+  [HandType.ROYAL_FLUSH]: 40,
 };
 
 /**
@@ -403,7 +475,12 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
 
 /**
  * Generate a compact info set key for CFR evaluation.
- * Must match the format used during training (V4 abstraction).
+ * Must match the format used during training (V5 abstraction).
+ *
+ * V5 key structure (12 core segments + optional suffixes):
+ * phase | players | cardCount | elimPressure | totalCards | strength |
+ * vsClaim | claimHeight | plausibility | phaseDepth | sentiment |
+ * [pen] | [hc/rh] | [jokers] | [lcS]
  */
 export function getInfoSetKey(
   state: ClientGameState,
@@ -414,18 +491,23 @@ export function getInfoSetKey(
   lastChanceMode: LastChanceMode = 'classic',
   _myPlayerId: string = '',
   wasPenalizedLastRound: boolean = false,
+  maxCards: number = 5,
 ): string {
   const parts: string[] = [
     state.roundPhase.charAt(0),
     playerCountBucket(activePlayers),
-    // Card count — 5 individual buckets for finer strategic distinction
+    // Card count — 5 individual buckets
     myCards.length <= 1 ? 'c1' : myCards.length === 2 ? 'c2' : myCards.length === 3 ? 'c3' : myCards.length === 4 ? 'c4' : 'c5',
+    // V5: Elimination pressure — how close to being eliminated
+    eliminationPressureBucket(myCards.length, maxCards),
     totalCardsBucket(totalCards),
     myHandStrengthBucket(myCards),
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
-    turnDepthBucket(state.turnHistory),
+    // V5: Phase-specific depth instead of total turn count
+    phaseDepthBucket(state.turnHistory, state.roundPhase),
+    // V5: Sentiment with vote count magnitude
     bullSentimentBucket(state.turnHistory, state.roundPhase),
   ];
 
