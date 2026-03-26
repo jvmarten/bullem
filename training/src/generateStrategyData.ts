@@ -25,8 +25,21 @@ const ACTION_ABBREVIATIONS: Record<string, string> = {
 const ACTION_ORDER = ['bu', 'pa', 'tl', 'tm', 'th', 'tr', 'bs', 'bm', 'bb'];
 const ACTION_TO_IDX = new Map(ACTION_ORDER.map((a, i) => [a, i]));
 
-/** Characters used for single-char dictionary encoding of key segments. */
-const DICT_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+/**
+ * Base characters for dictionary encoding of key segments.
+ * V6: With fine-grained 2P info sets, unique segments exceed 62.
+ * Use 2-char codes from base-62 alphabet (supports up to 3844 segments).
+ * The encoder/decoder in cfrEval.ts is code-length agnostic — it just
+ * uses whatever strings the segment dictionary provides.
+ */
+const DICT_BASE = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function makeDictCode(index: number): string {
+  // 2-char codes: '00', '01', ..., '0Z', '10', '11', ...
+  const hi = Math.floor(index / DICT_BASE.length);
+  const lo = index % DICT_BASE.length;
+  return DICT_BASE[hi]! + DICT_BASE[lo]!;
+}
 
 /**
  * Re-prune and filter a strategy for embedding.
@@ -40,16 +53,20 @@ const DICT_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
  */
 function repruneStrategy(
   strategy: Record<string, Record<string, number>>,
+  bucket: string = '',
 ): { pruned: Record<string, Record<string, number>>; count: number; skipped: number } {
-  // Action prune threshold: actions below this probability are noise.
-  // With 7M+ iterations (~26 visits/state), 10% keeps file under 8MB.
-  const PRUNE_THRESHOLD = 0.10;
+  // V6: p2 bucket has 579K info sets with ~8.6 visits/state (under-converged).
+  // Use stricter thresholds to keep file under 10MB. Multiplayer buckets (p34/p5+)
+  // are well-converged and use standard thresholds.
+  const isP2 = bucket === 'p2';
+  // V6: 2P info set has 579K entries but only ~8.6 visits/state at 5M iterations.
+  // Aggressive pruning (convergence 0.80) keeps only well-visited states where
+  // the strategy has clearly converged. Under-converged states fall back to the
+  // heuristic + Monte Carlo search which is ~80% of trained quality.
+  // More training iterations (10M+) would lower this threshold.
+  const PRUNE_THRESHOLD = isP2 ? 0.20 : 0.10;
   const PRECISION = 2;
-  // Info set convergence threshold: drop entries where no action exceeds this
-  // probability — these are under-visited states with near-uniform strategy.
-  // The runtime heuristic fallback handles these at ~80% trained quality.
-  // With 7M iterations, keep at 0.30 to fit within 8MB file size limit.
-  const CONVERGENCE_THRESHOLD = 0.30;
+  const CONVERGENCE_THRESHOLD = isP2 ? 0.92 : 0.30;
   const pruned: Record<string, Record<string, number>> = {};
   let count = 0;
   let skipped = 0;
@@ -111,14 +128,15 @@ function buildSegmentDictionary(
   }
 
   const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([seg]) => seg);
-  if (sorted.length > DICT_CHARS.length) {
-    throw new Error(`Too many unique segments (${sorted.length}) for single-char encoding (max ${DICT_CHARS.length})`);
+  const maxCodes = DICT_BASE.length * DICT_BASE.length; // 3844
+  if (sorted.length > maxCodes) {
+    throw new Error(`Too many unique segments (${sorted.length}) for 2-char encoding (max ${maxCodes})`);
   }
 
   const segToCode = new Map<string, string>();
   const codeToSeg: Record<string, string> = {};
   for (let i = 0; i < sorted.length; i++) {
-    const code = DICT_CHARS[i]!;
+    const code = makeDictCode(i);
     segToCode.set(sorted[i]!, code);
     codeToSeg[code] = sorted[i]!;
   }
@@ -180,7 +198,7 @@ for (const bucket of bucketNames) {
   if (latestFile) {
     const filepath = path.join(STRATEGIES_DIR, latestFile);
     const data = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-    const { pruned, count, skipped } = repruneStrategy(data.strategy);
+    const { pruned, count, skipped } = repruneStrategy(data.strategy, bucket);
     strategies.set(bucket, { strategy: pruned, infoSetCount: count });
     console.log(`  ${bucket}: ${latestFile} (${data.infoSetCount} → ${count} standard, ${skipped} variant skipped)`);
   }

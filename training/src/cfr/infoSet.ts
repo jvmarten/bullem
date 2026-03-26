@@ -273,7 +273,8 @@ function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
   if (hand.type === HandType.HIGH_CARD) return 'hc';
   if (hand.type === HandType.PAIR) return 'pr';
-  if (hand.type <= HandType.FLUSH) return 'mid';        // two pair, flush
+  if (hand.type === HandType.TWO_PAIR) return '2p';     // two pair (needs 12 cards)
+  if (hand.type === HandType.FLUSH) return 'fl';         // flush (needs 18 cards)
   if (hand.type === HandType.THREE_OF_A_KIND) return 'tk';
   if (hand.type <= HandType.FULL_HOUSE) return 'hi';    // straight, full house
   return 'vhi';                                          // 4oak, SF, RF
@@ -480,12 +481,49 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
   const needed = MIN_CARDS_FOR_PLAUSIBLE[hand.type] ?? 10;
   const ratio = totalCards / needed;
 
-  if (ratio >= 3.0) return 'vPl';   // very plausible — near-certain to exist
+  if (ratio >= 4.0) return 'cert';  // near-certain — bull is almost always wrong
+  if (ratio >= 2.5) return 'vPl';   // very plausible — strong evidence it exists
   if (ratio >= 2.0) return 'pl';    // plausible — enough cards for the claim
   if (ratio >= 1.5) return 'lk';    // likely — solid chance it exists
   if (ratio >= 1.0) return 'mb';    // maybe — borderline, could exist
   if (ratio >= 0.5) return 'uLk';   // unlikely — long shot
   return 'im';                       // implausible — virtually impossible
+}
+
+// ── Escalation headroom ─────────────────────────────────────────────
+
+/**
+ * V6: How many hand type levels above the current claim are still plausible
+ * given the total cards in play.
+ *
+ * Observed problem: bots raise to near the plausibility ceiling too quickly,
+ * then get trapped — the only option left is bull, and opponents know the
+ * claim is suspicious. This dimension lets the strategy learn: "when near
+ * ceiling (rm0), prefer bull/true; when plenty of room (rm2), can raise."
+ *
+ * 3 buckets:
+ * - 'rm0': 0-1 plausible type levels above current claim (at ceiling)
+ * - 'rm1': 2 type levels of headroom (moderate)
+ * - 'rm2': 3+ type levels (plenty of room to raise)
+ *
+ * MUST match shared/src/cfr/infoSet.ts exactly.
+ */
+function escalationHeadroomBucket(currentHand: HandCall | null, totalCards: number): string {
+  if (!currentHand) return 'rm2'; // Opening — all room available
+
+  const currentType = currentHand.type;
+  // Count how many hand types above current are plausible
+  let headroom = 0;
+  for (let t = currentType + 1; t <= HandType.ROYAL_FLUSH; t++) {
+    const needed = MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999;
+    if (totalCards >= needed) {
+      headroom++;
+    }
+  }
+
+  if (headroom <= 1) return 'rm0';  // At or near ceiling
+  if (headroom <= 2) return 'rm1';  // Moderate room
+  return 'rm2';                      // Plenty of room
 }
 
 // ── Fine-grained 2P info set helpers ────────────────────────────────
@@ -742,6 +780,8 @@ export function getInfoSetKey2P(
     phaseDepthExact2P(state.turnHistory, state.roundPhase),
     bullSentimentBucket(state.turnHistory, state.roundPhase),
     claimPlausibilityBucket(state.currentHand, totalCards),
+    // V6: Escalation headroom — room to raise before implausibility
+    escalationHeadroomBucket(state.currentHand, totalCards),
   ];
 
   if (wasPenalizedLastRound) {
@@ -765,9 +805,9 @@ export function getInfoSetKey2P(
  * V5 abstraction — expanded for better strategic distinction.
  * MUST match shared/src/cfr/infoSet.ts exactly.
  *
- * V5 key structure (11 core segments + optional suffixes):
+ * V6 key structure (12 core segments + optional suffixes):
  * phase | players | cardCount | elimPressure | totalCards | strength |
- * vsClaim | claimHeight | plausibility | phaseDepth | sentiment |
+ * vsClaim | claimHeight | plausibility | headroom | phaseDepth | sentiment |
  * [pen] | [hc/rh] | [jokers] | [lcS]
  */
 export function getInfoSetKey(
@@ -792,6 +832,8 @@ export function getInfoSetKey(
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
+    // V6: Escalation headroom — room to raise before hitting implausibility
+    escalationHeadroomBucket(state.currentHand, totalCards),
     // V5: Phase-specific depth
     phaseDepthBucket(state.turnHistory, state.roundPhase),
     // V5: Sentiment with vote count

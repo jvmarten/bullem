@@ -1,18 +1,20 @@
 /**
  * Information set abstraction for CFR strategy evaluation.
- * V5: expanded for better strategic distinction — larger info set count
- * is acceptable because training can run longer to converge.
+ * V6: finer claim height, plausibility, and escalation headroom for
+ * stronger bull/raise decisions — especially with many cards in play.
  *
  * Ported from training/src/cfr/infoSet.ts — evaluation-only subset.
  * Uses 9 abstract actions that distinguish between truthful claims
  * (based on player's actual cards) and bluffs.
  *
- * V5 changes from V4:
- * - Fixed flush/high-tier plausibility thresholds (flush 10→18, etc.)
- * - Split total cards into 8 buckets (was 5) — 11-20 range was too coarse
- * - Phase-specific depth: calling phase vs bull phase counted separately
- * - Position within bull phase: how many votes before me
- * - Elimination pressure: myCards / maxCards ratio
+ * V6 changes from V5:
+ * - Split claim height "mid" into "2p" (two pair) and "fl" (flush) —
+ *   very different plausibility profiles (12 vs 18 min cards)
+ * - Added "cert" plausibility bucket (≥4.0x ratio) for near-certain hands
+ *   and shifted vPl from ≥3.0 to ≥2.5 — reduces erroneous bulls
+ * - New escalation headroom dimension (rm0/rm1/rm2) — how many type
+ *   levels above current claim are still plausible, prevents raising
+ *   to near the ceiling too quickly
  *
  * Info set key encodes:
  * - Round phase
@@ -22,8 +24,9 @@
  * - Total cards in play (8 buckets)
  * - Hand strength (my best hand contribution)
  * - Hand vs claim (how my cards relate to the current claim)
- * - Claim height bucket (6 tiers)
- * - Claim plausibility (corrected thresholds)
+ * - Claim height bucket (7 tiers)
+ * - Claim plausibility (7 buckets)
+ * - Escalation headroom (3 buckets)
  * - Phase-specific depth
  * - Bull/true sentiment with vote count
  */
@@ -247,15 +250,18 @@ function hasGroupOfSize(cards: Card[], size: number): boolean {
 // ── Claim height bucketing ───────────────────────────────────────────
 
 /**
- * 6 tiers (expanded from 4): hc/pr/mid/tk/hi/vhi.
- * High card vs pair requires different bull strategies; trips is much
- * harder to have than two pair/flush. MUST match training exactly.
+ * 7 tiers: hc/pr/2p/fl/tk/hi/vhi.
+ * V6: Split "mid" into separate two pair and flush buckets. Two pair
+ * needs 12 cards to be plausible while flush needs 18 — very different
+ * bull thresholds that the strategy couldn't distinguish before.
+ * MUST match training exactly.
  */
 function claimHeightBucket(hand: HandCall | null): string {
   if (!hand) return 'x';
   if (hand.type === HandType.HIGH_CARD) return 'hc';
   if (hand.type === HandType.PAIR) return 'pr';
-  if (hand.type <= HandType.FLUSH) return 'mid';        // two pair, flush
+  if (hand.type === HandType.TWO_PAIR) return '2p';     // two pair (needs 12 cards)
+  if (hand.type === HandType.FLUSH) return 'fl';         // flush (needs 18 cards)
   if (hand.type === HandType.THREE_OF_A_KIND) return 'tk';
   if (hand.type <= HandType.FULL_HOUSE) return 'hi';    // straight, full house
   return 'vhi';                                          // 4oak, SF, RF
@@ -452,10 +458,13 @@ export const MIN_CARDS_FOR_PLAUSIBLE: Record<number, number> = {
 };
 
 /**
- * 6 buckets (expanded from 4): vPl/pl/lk/mb/uLk/im.
- * The vPl/pl split matters because at 3x+ ratio, bull is almost never
- * correct, while at 2x ratio it's still worth considering. The uLk/im
- * split captures "long shot" vs "no chance". MUST match training exactly.
+ * 7 buckets: cert/vPl/pl/lk/mb/uLk/im.
+ * V6: Added "cert" (≥4.0x) for near-certain hands where bull is almost
+ * never correct (e.g., pair with 24+ cards). Shifted vPl from ≥3.0 to
+ * ≥2.5 for tighter "very plausible" zone. Observed CFR bots incorrectly
+ * bulling pairs at 2.5-3.5x ratio — this split helps the strategy learn
+ * stronger anti-bull signals at higher plausibility.
+ * MUST match training exactly.
  */
 function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): string {
   if (!hand) return 'x';
@@ -463,12 +472,49 @@ function claimPlausibilityBucket(hand: HandCall | null, totalCards: number): str
   const needed = MIN_CARDS_FOR_PLAUSIBLE[hand.type] ?? 10;
   const ratio = totalCards / needed;
 
-  if (ratio >= 3.0) return 'vPl';   // very plausible — near-certain to exist
+  if (ratio >= 4.0) return 'cert';  // near-certain — bull is almost always wrong
+  if (ratio >= 2.5) return 'vPl';   // very plausible — strong evidence it exists
   if (ratio >= 2.0) return 'pl';    // plausible — enough cards for the claim
   if (ratio >= 1.5) return 'lk';    // likely — solid chance it exists
   if (ratio >= 1.0) return 'mb';    // maybe — borderline, could exist
   if (ratio >= 0.5) return 'uLk';   // unlikely — long shot
   return 'im';                       // implausible — virtually impossible
+}
+
+// ── Escalation headroom ─────────────────────────────────────────────
+
+/**
+ * V6: How many hand type levels above the current claim are still plausible
+ * given the total cards in play.
+ *
+ * Observed problem: bots raise to near the plausibility ceiling too quickly,
+ * then get trapped — the only option left is bull, and opponents know the
+ * claim is suspicious. This dimension lets the strategy learn: "when near
+ * ceiling (rm0), prefer bull/true; when plenty of room (rm2), can raise."
+ *
+ * 3 buckets:
+ * - 'rm0': 0-1 plausible type levels above current claim (at ceiling)
+ * - 'rm1': 2 type levels of headroom (moderate)
+ * - 'rm2': 3+ type levels (plenty of room to raise)
+ *
+ * MUST match training exactly.
+ */
+function escalationHeadroomBucket(currentHand: HandCall | null, totalCards: number): string {
+  if (!currentHand) return 'rm2'; // Opening — all room available
+
+  const currentType = currentHand.type;
+  // Count how many hand types above current are plausible
+  let headroom = 0;
+  for (let t = currentType + 1; t <= HandType.ROYAL_FLUSH; t++) {
+    const needed = MIN_CARDS_FOR_PLAUSIBLE[t] ?? 999;
+    if (totalCards >= needed) {
+      headroom++;
+    }
+  }
+
+  if (headroom <= 1) return 'rm0';  // At or near ceiling
+  if (headroom <= 2) return 'rm1';  // Moderate room
+  return 'rm2';                      // Plenty of room
 }
 
 // ── Fine-grained 2P info set helpers ────────────────────────────────
@@ -770,10 +816,10 @@ function oppElimGap2P(oppCardCount: number, maxCards: number): string {
  * Uses much more granular features than the multiplayer getInfoSetKey()
  * since 2P has a smaller state space that can be trained thoroughly.
  *
- * Key structure (17 core segments):
+ * V6 key structure (18 core segments):
  * phase | myCards | oppCards | elimGap | oppElimGap | handType |
  * bestRank | suitCount | runLength | claimType | claimRank |
- * matchingCards | vsClaim | position | depth | sentiment | plausibility
+ * matchingCards | vsClaim | position | depth | sentiment | plausibility | headroom
  *
  * Expected reachable info sets: ~500K-2M (trainable in 1-3 days).
  * MUST match training/src/cfr/infoSet.ts getInfoSetKey2P exactly.
@@ -822,8 +868,10 @@ export function getInfoSetKey2P(
     phaseDepthExact2P(state.turnHistory, state.roundPhase),
     // Bull/true sentiment (7 values — same as V5)
     bullSentimentBucket(state.turnHistory, state.roundPhase),
-    // Claim plausibility (6 values — same as V5, recalibrated for 2P card range)
+    // Claim plausibility (7 values — V6: added cert bucket)
     claimPlausibilityBucket(state.currentHand, totalCards),
+    // V6: Escalation headroom — room to raise before implausibility
+    escalationHeadroomBucket(state.currentHand, totalCards),
   ];
 
   // Optional suffixes
@@ -842,11 +890,11 @@ export function getInfoSetKey2P(
 
 /**
  * Generate a compact info set key for CFR evaluation.
- * Must match the format used during training (V5 abstraction).
+ * Must match the format used during training (V6 abstraction).
  *
- * V5 key structure (12 core segments + optional suffixes):
+ * V6 key structure (12 core segments + optional suffixes):
  * phase | players | cardCount | elimPressure | totalCards | strength |
- * vsClaim | claimHeight | plausibility | phaseDepth | sentiment |
+ * vsClaim | claimHeight | plausibility | headroom | phaseDepth | sentiment |
  * [pen] | [hc/rh] | [jokers] | [lcS]
  */
 export function getInfoSetKey(
@@ -872,6 +920,8 @@ export function getInfoSetKey(
     handVsClaimBucket(myCards, state.currentHand),
     claimHeightBucket(state.currentHand),
     claimPlausibilityBucket(state.currentHand, totalCards),
+    // V6: Escalation headroom — room to raise before hitting implausibility
+    escalationHeadroomBucket(state.currentHand, totalCards),
     // V5: Phase-specific depth instead of total turn count
     phaseDepthBucket(state.turnHistory, state.roundPhase),
     // V5: Sentiment with vote count magnitude

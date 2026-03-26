@@ -322,9 +322,13 @@ export class CFREngine {
     const bucketStrategies = new Map<string, Record<string, StrategyEntry>>();
 
     for (const [key, node] of this.nodes) {
-      // Key format: phase|playerCountBucket|cardCount|...
+      // Key format varies by game type:
+      // Multiplayer: phase|playerCountBucket(p34/p5+)|cardCount|...
+      // 2P (heads-up): phase|myCardCount(c1-c5)|oppCardCount(o1-o5)|...
+      // Detect 2P keys by checking if second segment is a player count bucket.
       const segments = key.split('|');
-      const playerBucket = segments[1] ?? 'p2';
+      const seg1 = segments[1] ?? 'p2';
+      const playerBucket = (seg1 === 'p34' || seg1 === 'p5+') ? seg1 : 'p2';
 
       if (!bucketStrategies.has(playerBucket)) {
         bucketStrategies.set(playerBucket, {});
