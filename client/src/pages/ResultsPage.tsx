@@ -347,7 +347,10 @@ export function ResultsPage() {
             <p className="text-2xl font-bold text-[var(--gold)] font-display">Match Found!</p>
             <div className="space-y-2">
               {matchmakingFound.opponents.map((opp, i) => (
-                <div key={i} className="flex items-center justify-center gap-2">
+                <div key={i} className="flex items-center justify-center gap-3">
+                  <div className={`relative w-8 h-8 rounded-full ${playerColor(i, opp.avatarBgColor)} border border-white/10 flex items-center justify-center text-sm shrink-0 overflow-hidden`}>
+                    <PlayerAvatarContent name={opp.name} avatar={opp.avatar} photoUrl={opp.photoUrl} isBot={opp.isBot} />
+                  </div>
                   <span className="text-sm text-[var(--gold)]">{opp.name}</span>
                   <RankBadgeLarge rating={opp.rating} tier={opp.tier} />
                 </div>

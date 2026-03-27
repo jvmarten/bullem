@@ -128,10 +128,12 @@ io.use(async (socket, next) => {
         socket.data.username = payload.username;
         socket.data.role = payload.role;
 
-        // Fetch photo URL and avatar bg color from database so they're available in all handlers
+        // Fetch avatar, photo URL, and bg color from database so they're
+        // available in all handlers (reconnect, session transfer, matchmaking).
         try {
           const { getUserAvatarAndPhoto } = await import('./db/users.js');
-          const { photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(payload.userId);
+          const { avatar, photoUrl, avatarBgColor } = await getUserAvatarAndPhoto(payload.userId);
+          if (avatar !== undefined) socket.data.avatar = avatar;
           if (photoUrl) socket.data.photoUrl = photoUrl;
           if (avatarBgColor) socket.data.avatarBgColor = avatarBgColor;
         } catch {

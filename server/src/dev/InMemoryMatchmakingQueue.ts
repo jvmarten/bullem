@@ -325,13 +325,13 @@ export class InMemoryMatchmakingQueue {
     );
     const botsNeeded = Math.max(0, targetPlayers - humanPlayers.length);
     const avgRating = humanPlayers.reduce((sum, p) => sum + p.rating, 0) / humanPlayers.length;
-    const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] = [];
+    const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier; isBot: boolean }[] = [];
 
     for (let i = 0; i < botsNeeded; i++) {
       const botId = this.botManager.addBot(room, 'Ranked Bot');
       this.roomManager.assignPlayerToRoom(botId, room.roomCode);
       const botName = room.players.get(botId)!.name;
-      botEntries.push({ name: botName, rating: Math.round(avgRating), tier: getRankTier(Math.round(avgRating)) });
+      botEntries.push({ name: botName, rating: Math.round(avgRating), tier: getRankTier(Math.round(avgRating)), isBot: true });
     }
 
     // Build opponent lists and notify players
@@ -339,7 +339,7 @@ export class InMemoryMatchmakingQueue {
       const opponents = [
         ...humanPlayers
           .filter((_, j) => j !== i)
-          .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating) })),
+          .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating), avatar: p.avatar, photoUrl: p.photoUrl, avatarBgColor: p.avatarBgColor })),
         ...botEntries,
       ];
       matchedInfo[i]!.opponents = opponents;
@@ -406,7 +406,7 @@ export class InMemoryMatchmakingQueue {
 
       const opponents = players
         .filter(p => p.userId !== entry.userId)
-        .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating) }));
+        .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating), avatar: p.avatar, photoUrl: p.photoUrl, avatarBgColor: p.avatarBgColor }));
 
       matchedInfo.push({ roomCode: room.roomCode, opponents, reconnectToken, playerId });
     }
@@ -453,7 +453,7 @@ export class InMemoryMatchmakingQueue {
     if (socket) {
       socket.emit('matchmaking:found', {
         roomCode: room.roomCode,
-        opponents: [{ name: botName, rating: player.rating, tier: getRankTier(player.rating) }],
+        opponents: [{ name: botName, rating: player.rating, tier: getRankTier(player.rating), isBot: true }],
         reconnectToken,
         playerId,
       });

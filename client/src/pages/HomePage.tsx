@@ -6,7 +6,7 @@ import { useGameContext } from '../context/GameContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { loadMatchSettings, useUISettings } from '../components/VolumeControl.js';
-import { getSuitHex } from '../utils/cardUtils.js';
+import { getSuitHex, playerColor } from '../utils/cardUtils.js';
 import { RecentPlayers } from '../components/RecentPlayers.js';
 import { useFriends } from '../context/FriendsContext.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
@@ -15,6 +15,7 @@ import { friendlyError } from '../utils/friendlyErrors.js';
 import { HandType, handToString, MATCHMAKING_BOT_BACKFILL_SECONDS, DEFAULT_ONLINE_GAME_SETTINGS } from '@bull-em/shared';
 import type { GameSettings } from '@bull-em/shared';
 import { RankBadgeLarge } from '../components/RankBadge.js';
+import { PlayerAvatarContent } from '../components/PlayerAvatar.js';
 import type { Suit, Rank, HandCall, RoomListing, LiveGameListing, RankedMode } from '@bull-em/shared';
 
 const SUIT_NAMES: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
@@ -237,7 +238,7 @@ function MatchmakingQueue({ status, onCancel }: { status: { mode: RankedMode; po
   );
 }
 
-function MatchFoundScreen({ match, onNavigate }: { match: { roomCode: string; opponents: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] }; onNavigate: () => void }) {
+function MatchFoundScreen({ match, onNavigate }: { match: import('@bull-em/shared').MatchmakingFound; onNavigate: () => void }) {
   // Navigate after a minimum display time so the player sees their opponent(s).
   // Don't wait for gameState — the countdown is emitted after this screen and
   // GamePage will show the CountdownOverlay while waiting for the game to start.
@@ -252,7 +253,10 @@ function MatchFoundScreen({ match, onNavigate }: { match: { roomCode: string; op
         <p className="text-2xl font-bold text-[var(--gold)] font-display">Match Found!</p>
         <div className="space-y-2">
           {match.opponents.map((opp, i) => (
-            <div key={i} className="flex items-center justify-center gap-2">
+            <div key={i} className="flex items-center justify-center gap-3">
+              <div className={`relative w-8 h-8 rounded-full ${playerColor(i, opp.avatarBgColor)} border border-white/10 flex items-center justify-center text-sm shrink-0 overflow-hidden`}>
+                <PlayerAvatarContent name={opp.name} avatar={opp.avatar} photoUrl={opp.photoUrl} isBot={opp.isBot} />
+              </div>
               <span className="text-sm text-[var(--gold)]">{opp.name}</span>
               <RankBadgeLarge rating={opp.rating} tier={opp.tier} />
             </div>

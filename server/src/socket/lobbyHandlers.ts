@@ -1,7 +1,8 @@
 import type { Server, Socket } from 'socket.io';
 import { MIN_PLAYERS, GamePhase, PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN, ROOM_CODE_LENGTH, BotPlayer, BotSpeed, RANKED_SETTINGS, RANKED_BEST_OF, AVATAR_OPTIONS, AVATAR_BG_COLOR_OPTIONS, GAME_COUNTDOWN_SECONDS, validateGameSettings } from '@bull-em/shared';
-import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, AvatarBgColor, JokerCount } from '@bull-em/shared';
+import type { ClientToServerEvents, ServerToClientEvents, GameSettings, LastChanceMode, BestOf, BotLevelCategory, PlayerId, SeriesState, AvatarId, AvatarBgColor, JokerCount, ServerPlayer } from '@bull-em/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
+import type { Room } from '../rooms/Room.js';
 import { BotManager } from '../game/BotManager.js';
 import { randomUUID } from 'crypto';
 import { broadcastGameState, broadcastRoomState, broadcastPlayerNames } from './broadcast.js';
@@ -24,6 +25,32 @@ async function refreshSocketUserData(socket: TypedSocket): Promise<void> {
     socket.data.avatarBgColor = avatarBgColor ?? undefined;
   } catch {
     // Non-fatal — use whatever socket.data already has
+  }
+}
+
+/** Sync a player's visual metadata (avatar, photoUrl, avatarBgColor) from the
+ *  latest socket.data after a reconnect or session transfer. The socket middleware
+ *  fetches these from the DB at connection time, so the new socket always has
+ *  the freshest values. Without this, a player who uploaded a photo after joining
+ *  a game would lose it on reconnect (the old ServerPlayer still had the stale value). */
+function syncPlayerVisuals(player: ServerPlayer, socket: TypedSocket, room: Room): void {
+  let changed = false;
+  if (socket.data.avatar !== undefined && player.avatar !== socket.data.avatar) {
+    player.avatar = socket.data.avatar as AvatarId | null;
+    changed = true;
+  }
+  const newPhotoUrl = (socket.data.photoUrl as string | undefined) ?? undefined;
+  if (player.photoUrl !== newPhotoUrl) {
+    player.photoUrl = newPhotoUrl;
+    changed = true;
+  }
+  const newBgColor = (socket.data.avatarBgColor as AvatarBgColor | undefined) ?? undefined;
+  if (player.avatarBgColor !== newBgColor) {
+    player.avatarBgColor = newBgColor;
+    changed = true;
+  }
+  if (changed && room.game) {
+    room.game.invalidateSharedCache();
   }
 }
 
@@ -154,6 +181,12 @@ export function registerLobbyHandlers(
         roomManager.removeSocketMapping(transfer.oldSocketId);
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
         socket.join(room.roomCode);
+
+        // Sync player visuals (photo, avatar, bg color) from the new socket's
+        // data — the socket middleware fetched these fresh from the DB.
+        const transferredPlayer = room.players.get(transfer.playerId);
+        if (transferredPlayer) syncPlayerVisuals(transferredPlayer, socket, room);
+
         log.info({ roomCode, playerId: transfer.playerId, oldSocketId: transfer.oldSocketId }, 'Session transferred to new socket');
         broadcastRoomState(io, room);
         if (room.game) broadcastGameState(io, room);
@@ -196,6 +229,11 @@ export function registerLobbyHandlers(
         roomManager.removeSocketMapping(staleResult.oldSocketId);
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
         socket.join(room.roomCode);
+
+        // Sync player visuals from the fresh socket data
+        const stalePlayer = room.players.get(data.playerId);
+        if (stalePlayer) syncPlayerVisuals(stalePlayer, socket, room);
+
         log.info({ roomCode, playerId: data.playerId, oldSocketId: staleResult.oldSocketId }, 'Stale socket replaced on reconnect');
         broadcastRoomState(io, room);
         if (room.game) broadcastGameState(io, room);
@@ -224,6 +262,11 @@ export function registerLobbyHandlers(
       if (newToken) {
         roomManager.assignSocketToRoom(socket.id, room.roomCode);
         socket.join(room.roomCode);
+
+        // Sync player visuals from the fresh socket data
+        const reconnectedPlayer = room.players.get(data.playerId);
+        if (reconnectedPlayer) syncPlayerVisuals(reconnectedPlayer, socket, room);
+
         log.info({ roomCode, playerId: data.playerId }, 'Player reconnected');
         broadcastRoomState(io, room);
         if (room.game) broadcastGameState(io, room);
