@@ -523,7 +523,7 @@ export interface MatchmakingFound {
   /** Room code for the matched game. */
   roomCode: string;
   /** Info about matched opponents. */
-  opponents: { name: string; rating: number; tier: RankTier }[];
+  opponents: { name: string; rating: number; tier: RankTier; avatar?: AvatarId | null; photoUrl?: string | null; avatarBgColor?: AvatarBgColor | null; isBot?: boolean }[];
   /** The player's own reconnect token for the auto-joined room. */
   reconnectToken: string;
   /** The player's assigned in-game player ID. */

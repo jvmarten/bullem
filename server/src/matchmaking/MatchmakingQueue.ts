@@ -516,7 +516,7 @@ export class MatchmakingQueue {
       // Build the opponent list for this player
       const opponents = players
         .filter(p => p.userId !== entry.userId)
-        .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating) }));
+        .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating), avatar: p.avatar, photoUrl: p.photoUrl, avatarBgColor: p.avatarBgColor }));
 
       matchedInfo.push({
         roomCode: room.roomCode,
@@ -605,7 +605,7 @@ export class MatchmakingQueue {
     if (socket) {
       socket.emit('matchmaking:found', {
         roomCode: room.roomCode,
-        opponents: [{ name: botDisplayName, rating: botRating, tier: getRankTier(botRating) }],
+        opponents: [{ name: botDisplayName, rating: botRating, tier: getRankTier(botRating), isBot: true }],
         reconnectToken,
         playerId,
       });
@@ -673,7 +673,7 @@ export class MatchmakingQueue {
     );
     const botsNeeded = Math.max(0, targetPlayers - humanPlayers.length);
     const avgRating = humanPlayers.reduce((sum, p) => sum + p.rating, 0) / humanPlayers.length;
-    const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier }[] = [];
+    const botEntries: { name: string; rating: number; tier: import('@bull-em/shared').RankTier; isBot: boolean }[] = [];
 
     const botPool = await getRankedBotPool('multiplayer');
     const usedBotUserIds = new Set<string>();
@@ -700,7 +700,7 @@ export class MatchmakingQueue {
         botRating = Math.round(avgRating);
       }
       this.roomManager.assignPlayerToRoom(botId, room.roomCode);
-      botEntries.push({ name: botDisplayName, rating: botRating, tier: getRankTier(botRating) });
+      botEntries.push({ name: botDisplayName, rating: botRating, tier: getRankTier(botRating), isBot: true });
     }
 
     // Notify all human players
@@ -708,7 +708,7 @@ export class MatchmakingQueue {
       const opponents = [
         ...humanPlayers
           .filter(p => p.userId !== info.entry.userId)
-          .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating) })),
+          .map(p => ({ name: p.displayName, rating: p.rating, tier: getRankTier(p.rating), avatar: p.avatar, photoUrl: p.photoUrl, avatarBgColor: p.avatarBgColor })),
         ...botEntries,
       ];
 
