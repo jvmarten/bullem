@@ -27,11 +27,15 @@ export interface GameRecord {
 /**
  * Persist a completed game and its player records to PostgreSQL.
  * Fails silently (logs error) — game persistence should never block gameplay.
+ *
+ * If the initial INSERT fails (e.g. winner_id FK violation because a bot's
+ * user row doesn't exist yet), retries once with winner_id = NULL so the
+ * game and all player rows are still recorded.
  */
 export async function persistGameResult(record: GameRecord): Promise<string | null> {
   try {
     // Insert the game row
-    const gameResult = await query<{ id: string }>(
+    let gameResult = await query<{ id: string }>(
       `INSERT INTO games (room_code, winner_id, winner_name, player_count, settings, started_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
@@ -45,9 +49,36 @@ export async function persistGameResult(record: GameRecord): Promise<string | nu
       ],
     );
 
+    // If the INSERT failed (likely FK violation on winner_id), retry without
+    // winner_id so the game row is still created. winner_name is denormalized
+    // so no display info is lost.
     if (!gameResult || gameResult.rows.length === 0) {
-      logger.warn('Failed to persist game — database unavailable');
-      return null;
+      if (record.winnerUserId) {
+        logger.warn(
+          { roomCode: record.roomCode, winnerUserId: record.winnerUserId },
+          'Game INSERT failed — retrying with winner_id = NULL (possible FK violation)',
+        );
+        gameResult = await query<{ id: string }>(
+          `INSERT INTO games (room_code, winner_id, winner_name, player_count, settings, started_at)
+           VALUES ($1, NULL, $2, $3, $4, $5)
+           RETURNING id`,
+          [
+            record.roomCode,
+            record.winnerName,
+            record.playerCount,
+            JSON.stringify(record.settings),
+            record.startedAt.toISOString(),
+          ],
+        );
+      }
+
+      if (!gameResult || gameResult.rows.length === 0) {
+        logger.error(
+          { roomCode: record.roomCode, playerCount: record.playerCount },
+          'Failed to persist game — database unavailable or INSERT rejected',
+        );
+        return null;
+      }
     }
 
     const gameId = gameResult.rows[0]!.id;
@@ -64,17 +95,24 @@ export async function persistGameResult(record: GameRecord): Promise<string | nu
         idx += 6;
       }
 
-      await query(
+      const playersResult = await query(
         `INSERT INTO game_players (game_id, user_id, player_name, finish_position, final_card_count, stats)
          VALUES ${placeholders.join(', ')}`,
         values,
       );
+
+      if (!playersResult) {
+        logger.error(
+          { gameId, roomCode: record.roomCode, playerCount: record.players.length },
+          'Game row persisted but game_players INSERT failed — game will be missing from player profiles',
+        );
+      }
     }
 
     logger.info({ gameId, roomCode: record.roomCode, playerCount: record.playerCount }, 'Game persisted to database');
     return gameId;
   } catch (err) {
-    logger.error({ err, roomCode: record.roomCode }, 'Failed to persist game result');
+    logger.error({ err, roomCode: record.roomCode, playerCount: record.playerCount }, 'Failed to persist game result');
     return null;
   }
 }
