@@ -19,11 +19,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { decode } from '@msgpack/msgpack';
 import {
   BOT_PROFILE_MAP, BotDifficulty,
-  setCFRStrategyData, decideCFRWithSearch,
+  setCFRBucketData, decideCFRWithSearch,
 } from '@bull-em/shared';
-import type { BotProfileDefinition, CompactCFRStrategy } from '@bull-em/shared';
+import type { BotProfileDefinition, CompactCFRBucket } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
@@ -34,9 +35,9 @@ const LVL8_KEYS = [
   'professor_lvl8', 'shark_lvl8', 'cannon_lvl8', 'frost_lvl8', 'hustler_lvl8',
 ] as const;
 
-const DEFAULT_STRATEGY_PATH = path.resolve(
+const DEFAULT_DATA_DIR = path.resolve(
   import.meta.dirname ?? process.cwd(),
-  '../../client/public/data/cfr-strategy.json',
+  '../../client/public/data',
 );
 
 // ── Thresholds ───────────────────────────────────────────────────────────
@@ -50,14 +51,14 @@ const THRESHOLD_6P = 0.20;         // 20% win rate (above 16.7% random baseline)
 interface CLIConfig {
   games: number;
   maxCards: number;
-  strategyPath: string;
+  dataDir: string;
 }
 
 function parseArgs(argv: string[]): CLIConfig {
   const args = argv.slice(2);
   let games = 500;
   let maxCards = 5;
-  let strategyPath = DEFAULT_STRATEGY_PATH;
+  let dataDir = DEFAULT_DATA_DIR;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -86,7 +87,7 @@ function parseArgs(argv: string[]): CLIConfig {
         break;
       case '--strategy':
       case '-s':
-        strategyPath = next ?? strategyPath;
+        dataDir = next ?? dataDir;
         i++;
         break;
       case '--help':
@@ -106,7 +107,7 @@ Options:
   --games, -g <n>        Games per matchup (default: 500)
   --quick                Use 100 games per matchup for fast CI runs
   --max-cards, -m <n>    Max cards before elimination (default: 5, range: 1-5)
-  --strategy, -s <path>  Path to compact v2 strategy JSON
+  --strategy, -s <path>  Path to data directory with .bin files
   --help, -h             Show this help message
 
 Thresholds:
@@ -122,23 +123,36 @@ Thresholds:
     }
   }
 
-  return { games, maxCards, strategyPath };
+  return { games, maxCards, dataDir };
 }
 
 // ── Load strategy ────────────────────────────────────────────────────────
 
-function loadCompactStrategy(filePath: string): void {
-  const absPath = path.resolve(filePath);
-  if (!fs.existsSync(absPath)) {
-    console.error(`Error: Strategy file not found: ${absPath}`);
+function loadBucketFiles(dataDir: string): void {
+  const absDir = path.resolve(dataDir);
+  const buckets = [
+    { name: 'p2', file: 'cfr-p2.bin' },
+    { name: 'p34', file: 'cfr-p34.bin' },
+    { name: 'p5+', file: 'cfr-p5plus.bin' },
+  ];
+  let loaded = 0;
+  for (const { name, file } of buckets) {
+    const binPath = path.join(absDir, file);
+    if (!fs.existsSync(binPath)) {
+      console.warn(`  ${name}: not found at ${binPath}`);
+      continue;
+    }
+    const raw = fs.readFileSync(binPath);
+    const data = decode(raw) as CompactCFRBucket;
+    setCFRBucketData(name, data);
+    const sizeMB = (raw.length / 1024 / 1024).toFixed(1);
+    console.log(`  ${name}: ${file} (${sizeMB} MB)`);
+    loaded++;
+  }
+  if (loaded === 0) {
+    console.error('Error: No strategy bucket files found');
     process.exit(1);
   }
-  const raw = fs.readFileSync(absPath, 'utf-8');
-  const data = JSON.parse(raw) as CompactCFRStrategy;
-  setCFRStrategyData(data);
-  const sizeKB = (Buffer.byteLength(raw, 'utf-8') / 1024).toFixed(0);
-  console.log(`  Strategy: ${absPath}`);
-  console.log(`  Size: ${sizeKB} KB (compact v2)`);
 }
 
 // ── Strategy wrapper ─────────────────────────────────────────────────────
@@ -281,7 +295,7 @@ console.log(`\n${'═'.repeat(60)}`);
 console.log("  Bull 'Em CFR Benchmark");
 console.log(`${'═'.repeat(60)}\n`);
 
-loadCompactStrategy(config.strategyPath);
+loadBucketFiles(config.dataDir);
 console.log(`  Games per matchup:  ${config.games}`);
 console.log(`  Max cards:          ${config.maxCards}`);
 

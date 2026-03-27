@@ -350,15 +350,19 @@ Training runs can take 20-30+ minutes depending on population size and generatio
 
 ### After Each CFR Retrain
 
-The CFR strategy file (`client/public/data/cfr-strategy.json`) grows with more training iterations (more info sets). **After every CFR retrain:**
+CFR strategy is stored as per-bucket MessagePack binary files in `client/public/data/`:
+- `cfr-p2.bin` — 2-player bucket (largest)
+- `cfr-p34.bin` — 3-4 player bucket
+- `cfr-p5plus.bin` — 5+ player bucket
 
-1. Check file size: `ls -lh client/public/data/cfr-strategy.json` — must be under 10MB
-2. If over 10MB, convert to compact v2 format (dictionary-encoded keys, indexed actions, ~60% reduction)
-3. Verify build: `npm run build` — main bundle must stay under 500KB
+**After every CFR retrain:**
+
+1. Run generator: `npx tsx training/src/generateStrategyData.ts`
+2. Check file sizes: `ls -lh client/public/data/cfr-*.bin` — each must be under 8MB
+3. Verify build: `npm run build` — validator checks all bucket files, main bundle must stay under 500KB
 4. Run tests: `npm test` — CFR eval tests must pass
-5. The compact v2 format is decoded at load time by `decodeCFRCompact()` in both server and client
 
-**Why this matters:** Large strategy files block the server event loop during startup (preventing auth/socket requests), bloat network transfer, and freeze mobile clients during JSON.parse. Express `compression` middleware reduces the 7MB file to ~1.8MB over the wire, but the base file size still matters for parse time.
+**Architecture:** Each bucket is a self-contained v3 MessagePack file with its own segment dictionary. Client lazy-loads only the bucket needed for the current game's player count. Server loads all buckets sequentially at startup. The service worker caches `.bin` files for offline local play.
 
 ## Development Priorities
 

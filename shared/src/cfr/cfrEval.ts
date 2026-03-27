@@ -27,15 +27,17 @@ export interface StrategyEntry {
 
 // ── Strategy data (injected at startup) ───────────────────────────────
 // Strategy data is NOT bundled with shared/.
-// On the server: loaded from JSON on disk and injected via setCFRStrategyData().
-// On the client: fetched via fetch('/data/cfr-strategy.json') and injected.
+// On the server: loaded from per-bucket .bin files via setCFRBucketData().
+// On the client: fetched per-bucket via fetch('/data/cfr-{bucket}.bin').
 //
-// V2 compact format is stored DIRECTLY in memory to avoid the ~80MB
-// expansion cost of decoding all 186K info set keys at startup.
-// Keys are encoded on-the-fly during lookups using the segment dictionary.
-// V2 compact format — stored as-is, decoded on lookup
-let _compactData: CompactCFRStrategy | null = null;
-let _segToCode: Map<string, string> | null = null; // segment → single char (for key encoding)
+// Each bucket is a self-contained v3 MessagePack file with its own segment
+// dictionary. Keys are encoded on-the-fly during lookups.
+// Per-bucket storage — each bucket loaded independently (v3 binary format)
+const _bucketData = new Map<string, {
+  actions: string[];
+  entries: Record<string, number | number[]>;
+  segToCode: Map<string, string>;
+}>();
 
 // ── Strategy lookup observability ────────────────────────────────────
 // Tracks hit/miss ratio for strategy lookups. Logged periodically to
@@ -81,50 +83,89 @@ function recordStrategyLookup(hit: boolean): void {
 }
 
 /**
- * Inject pre-parsed CFR strategy data. Called once at startup by the
- * platform-specific loader (server reads from disk, client fetches JSON).
- *
- * Only accepts v2 compact format. V1 format is rejected to prevent OOM
- * crashes on memory-constrained machines (256MB Fly.io). V2 is stored
- * directly in memory (~20MB) instead of being expanded to full keys (~80MB).
- *
- * If you see a v1 format error, run: npm run generate-strategy -w training
+ * Inject a single bucket's strategy data. Called per-bucket at startup.
+ * Each bucket is a self-contained MessagePack-decoded object with its own
+ * segment dictionary, actions list, and entries.
+ */
+export function setCFRBucketData(bucket: string, data: CompactCFRBucket): void {
+  if (!('v' in data) || data.v !== 3) {
+    throw new Error(
+      `CFR bucket "${bucket}" is not v3 format. ` +
+      'Run "npx tsx training/src/generateStrategyData.ts" to regenerate.',
+    );
+  }
+  const segToCode = new Map<string, string>();
+  for (const [code, seg] of Object.entries(data.segments)) {
+    segToCode.set(seg, code);
+  }
+  _bucketData.set(bucket, {
+    actions: data.actions,
+    entries: data.entries,
+    segToCode,
+  });
+}
+
+/**
+ * Legacy v2 loader — unpacks a monolithic CompactCFRStrategy into per-bucket storage.
+ * Kept for backward compatibility during migration. Prefer setCFRBucketData().
  */
 export function setCFRStrategyData(data: CompactCFRStrategy): void {
   if (!('v' in data) || data.v !== 2) {
     throw new Error(
       'CFR strategy file is in v1 format, which causes OOM crashes on production. ' +
-      'Run "npm run generate-strategy -w training" to convert to v2 compact format.',
+      'Run "npx tsx training/src/generateStrategyData.ts" to convert.',
     );
   }
-  // Store compact format directly — decode keys on-the-fly during lookups
-  _compactData = data;
-  // Build reverse lookup: segment name → single char code
-  _segToCode = new Map();
-  for (const [code, seg] of Object.entries(data.segments)) {
-    _segToCode.set(seg, code);
+  // Unpack each bucket as if it were a v3 CompactCFRBucket
+  for (const [bucket, entries] of Object.entries(data.buckets)) {
+    const v3Bucket: CompactCFRBucket = {
+      v: 3,
+      bucket,
+      actions: data.actions,
+      segments: data.segments,
+      entries,
+    };
+    setCFRBucketData(bucket, v3Bucket);
   }
 }
 
-/** Returns true if strategy data has been loaded. */
+/** Returns true if at least one bucket has been loaded. */
 export function isCFRStrategyLoaded(): boolean {
-  return _compactData !== null;
+  return _bucketData.size > 0;
+}
+
+/** Returns true if a specific bucket has been loaded. */
+export function isCFRBucketLoaded(bucket: string): boolean {
+  return _bucketData.has(bucket);
 }
 
 /**
- * Compact CFR strategy format (v2). Uses dictionary-encoded info set keys
- * and indexed action arrays to reduce JSON size by ~60% (19MB → 7MB).
- *
- * Keys: each character maps to a segment via the `segments` dictionary,
- *        concatenated with '|' to reconstruct the original info set key.
- * Values: single-action entries store the action index directly (number).
- *         Multi-action entries store a flat array [actionIdx, prob%, ...].
+ * Compact CFR strategy format (v2, legacy). Uses dictionary-encoded info set keys
+ * and indexed action arrays. Monolithic — all buckets in one file.
+ * Superseded by v3 per-bucket binary format but kept for backward compatibility.
  */
 export interface CompactCFRStrategy {
   v: 2;
   actions: string[];
   segments: Record<string, string>;
   buckets: Record<string, Record<string, number | number[]>>;
+}
+
+/**
+ * Per-bucket CFR strategy format (v3). Each bucket is a self-contained
+ * MessagePack file with its own segment dictionary.
+ *
+ * Keys: each 2-char code maps to a segment via the `segments` dictionary,
+ *        concatenated to form the compact key for lookup.
+ * Values: single-action entries store the action index directly (number).
+ *         Multi-action entries store a flat array [actionIdx, prob%, ...].
+ */
+export interface CompactCFRBucket {
+  v: 3;
+  bucket: string;
+  actions: string[];
+  segments: Record<string, string>;
+  entries: Record<string, number | number[]>;
 }
 
 /**
@@ -193,21 +234,20 @@ function encodeInfoSetKey(fullKey: string, segToCode: Map<string, string>): stri
 }
 
 /**
- * Look up a strategy entry from the compact v2 data and decode it on-the-fly.
- * Returns null if not found. Much cheaper than decoding all 186K entries at startup.
+ * Look up a strategy entry from per-bucket data and decode it on-the-fly.
+ * Returns null if not found. Much cheaper than decoding all entries at startup.
  */
 function lookupCompactStrategy(
   bucket: string, infoSetKey: string,
 ): { entry: StrategyEntry; actionExpand: Record<string, string> } | null {
-  if (!_compactData || !_segToCode) return null;
-  const bucketData = _compactData.buckets[bucket];
-  if (!bucketData) return null;
+  const bd = _bucketData.get(bucket);
+  if (!bd) return null;
 
-  const compactKey = encodeInfoSetKey(infoSetKey, _segToCode);
-  const value = bucketData[compactKey];
+  const compactKey = encodeInfoSetKey(infoSetKey, bd.segToCode);
+  const value = bd.entries[compactKey];
   if (value === undefined) return null;
 
-  const { actions } = _compactData;
+  const { actions } = bd;
   let entry: StrategyEntry;
   if (typeof value === 'number') {
     entry = { [actions[value]!]: 1 };
@@ -1238,7 +1278,7 @@ export function decideCFR(
 
   // If strategy data hasn't been loaded yet, fall through to heuristic.
   // setCFRStrategyData() should be called before the first CFR decision.
-  if (!_compactData) return null;
+  if (_bucketData.size === 0) return null;
 
   const bucket = resolvePlayerBucket(activePlayers);
 
@@ -1554,7 +1594,7 @@ export function decideCFRWithSearch(
 
   const legalActions = getLegalAbstractActions(state);
   if (legalActions.length === 0) return null;
-  if (!_compactData) return null;
+  if (_bucketData.size === 0) return null;
 
   // ── Step 1: Get the base pre-trained strategy (same pipeline as decideCFR) ──
 

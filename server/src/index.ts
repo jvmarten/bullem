@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fs from 'node:fs';
 import type { ClientToServerEvents, ServerToClientEvents } from '@bull-em/shared';
-import { setCFRStrategyData, type CompactCFRStrategy } from '@bull-em/shared';
+import { setCFRBucketData, type CompactCFRBucket } from '@bull-em/shared';
 import { RoomManager } from './rooms/RoomManager.js';
 import { RedisStore } from './rooms/RedisStore.js';
 import { BotManager } from './game/BotManager.js';
@@ -278,57 +278,49 @@ httpServer.listen(Number(PORT), HOST, () => {
   startupComplete = true;
   logger.info('Startup initialization complete');
 
-  // Load CFR strategy in the background — completely decoupled from startup.
+  // Load CFR strategy buckets in the background — completely decoupled from startup.
   // decideCFR() gracefully returns null when data isn't loaded yet, so CFR bots
   // fall back to heuristic logic during this brief window. This ensures CFR
-  // retrains (which grow the strategy file) can NEVER block sign-in or any
+  // retrains (which grow the strategy files) can NEVER block sign-in or any
   // other server functionality during startup.
-  void loadCFRStrategyInBackground();
+  void loadCFRBucketsInBackground();
 })();
 
 /**
- * Load CFR strategy data in a Worker thread, fully decoupled from startup.
+ * Load per-bucket CFR strategy data from MessagePack binary files.
  *
- * Why this exists: every CFR retrain produces a larger JSON file. Parsing it
- * on the main thread blocks the event loop, freezing auth/socket requests.
- * By loading in a Worker thread AFTER startup, this issue is structurally
- * impossible regardless of file size. CFR bots use heuristic fallback until
- * the data is ready (typically <1s).
+ * Each bucket is a self-contained .bin file decoded with @msgpack/msgpack.
+ * MessagePack decode is 2-5x faster than JSON.parse, so no Worker thread needed.
+ * Buckets are loaded sequentially to avoid memory spikes on the 512MB machine.
  */
-async function loadCFRStrategyInBackground(): Promise<void> {
-  const cfrJsonPath = process.env.NODE_ENV === 'production'
-    ? path.join(__dirname, '../../client/dist/data/cfr-strategy.json')
-    : path.join(__dirname, '../../client/public/data/cfr-strategy.json');
-  try {
-    const stat = await fs.promises.stat(cfrJsonPath);
-    const sizeMB = stat.size / 1024 / 1024;
-    if (sizeMB > 10) {
-      logger.error({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath },
-        'CFR strategy file too large — likely v1 format. Run "npm run generate-strategy -w training" to convert to v2 compact format');
-      return;
+async function loadCFRBucketsInBackground(): Promise<void> {
+  const { decode } = await import('@msgpack/msgpack');
+  const buckets = [
+    { name: 'p2', file: 'cfr-p2.bin' },
+    { name: 'p34', file: 'cfr-p34.bin' },
+    { name: 'p5+', file: 'cfr-p5plus.bin' },
+  ];
+  const dataDir = process.env.NODE_ENV === 'production'
+    ? path.join(__dirname, '../../client/dist/data')
+    : path.join(__dirname, '../../client/public/data');
+
+  for (const { name, file } of buckets) {
+    const binPath = path.join(dataDir, file);
+    try {
+      const raw = await fs.promises.readFile(binPath);
+      const sizeMB = (raw.length / 1024 / 1024).toFixed(1);
+      const data = decode(raw) as CompactCFRBucket;
+      setCFRBucketData(name, data);
+      logger.info({ bucket: name, sizeMB, path: binPath }, 'CFR bucket loaded');
+    } catch (err) {
+      logger.warn({ err, bucket: name, path: binPath },
+        'CFR bucket not found — that bucket will use heuristic fallback');
     }
-    const raw = await fs.promises.readFile(cfrJsonPath, 'utf-8');
-    // Parse in a Worker thread so the main event loop stays responsive.
-    // The worker parses the JSON and sends the result back via structured
-    // clone, which spreads deserialization across event loop ticks.
-    const { Worker } = await import('node:worker_threads');
-    const parsed = await new Promise<CompactCFRStrategy>((resolve, reject) => {
-      const worker = new Worker(
-        'const{parentPort,workerData}=require("node:worker_threads");parentPort.postMessage(JSON.parse(workerData));',
-        { eval: true, workerData: raw },
-      );
-      worker.on('message', resolve);
-      worker.on('error', reject);
-    });
-    setCFRStrategyData(parsed);
-    logger.info({ sizeMB: sizeMB.toFixed(1), path: cfrJsonPath }, 'CFR strategy data loaded');
-  } catch (err) {
-    logger.warn({ err, path: cfrJsonPath }, 'CFR strategy data not found — CFR bots will use heuristic fallback');
   }
 }
 
 // Compress HTTP responses (gzip/brotli). Applied before all routes so static
-// assets, API responses, and the 19MB CFR strategy JSON are all compressed.
+// assets, API responses, and CFR strategy .bin files are all compressed.
 // Socket.io handles its own compression — this only affects HTTP responses.
 app.use(compression());
 

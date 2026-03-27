@@ -7,7 +7,7 @@ import {
   DECK_SIZE, maxPlayersForMaxCards, getDeckSize, BotSpeed, DEFAULT_BOT_SPEED, BOT_SPEED_MULTIPLIERS,
   saveReplay, pickRandomBot, DEFAULT_BEST_OF, CFR_BOT_MAP, GAME_COUNTDOWN_SECONDS,
 } from '@bull-em/shared';
-import { preloadCFRStrategy } from '../utils/cfrLoader.js';
+import { preloadCFRStrategy, preloadCFRBucket } from '../utils/cfrLoader.js';
 import type { BotLevelCategory } from '@bull-em/shared';
 import type { TurnResult } from '@bull-em/shared';
 import { GameContext } from './GameContext.js';
@@ -750,7 +750,7 @@ export function LocalGameProvider({ children }: { children: ReactNode }) {
       p => p.isBot && [...CFR_BOT_MAP.values()].some(c => c.name === p.name),
     );
     if (hasCFRBot) {
-      await preloadCFRStrategy();
+      await preloadCFRBucket(playersRef.current.length);
     }
 
     const shuffled = [...playersRef.current];

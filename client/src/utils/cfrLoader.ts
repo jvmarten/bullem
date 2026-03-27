@@ -1,34 +1,51 @@
 /**
  * Client-side CFR strategy loader.
  *
- * Fetches the compact strategy JSON (~7MB, ~1.8MB gzipped) from the static
- * asset path and injects it directly into the shared CFR engine via
- * setCFRStrategyData(). The compact v2 format is stored as-is in memory
- * (~20MB) instead of being decoded to full keys (~80MB).
+ * Loads per-bucket MessagePack files on demand. Each bucket is self-contained
+ * and loaded independently based on player count. Files are cached by the
+ * service worker for offline play.
  *
- * Call preloadCFRStrategy() early (e.g., on mount of pages that use CFR bots)
- * and await it before starting a game with CFR bots.
+ * Call preloadCFRBucket(playerCount) before starting a game with CFR bots.
  */
-import { setCFRStrategyData, isCFRStrategyLoaded } from '@bull-em/shared';
+import { decode } from '@msgpack/msgpack';
+import { setCFRBucketData, isCFRBucketLoaded } from '@bull-em/shared';
+import type { CompactCFRBucket } from '@bull-em/shared';
 
-let _loadPromise: Promise<void> | null = null;
+const _loadPromises = new Map<string, Promise<void>>();
+
+/** Map player count to bucket name and filename. */
+function getBucketFile(playerCount: number): { bucket: string; file: string } {
+  if (playerCount <= 2) return { bucket: 'p2', file: 'cfr-p2.bin' };
+  if (playerCount <= 4) return { bucket: 'p34', file: 'cfr-p34.bin' };
+  return { bucket: 'p5+', file: 'cfr-p5plus.bin' };
+}
 
 /**
- * Preload CFR strategy data so it's available for decideCFR().
- * Fetches the JSON static asset and injects it into the shared engine.
- * Safe to call multiple times — only fetches once.
+ * Preload a specific CFR strategy bucket for the given player count.
+ * Fetches the MessagePack binary and injects it into the shared engine.
+ * Safe to call multiple times — only fetches each bucket once.
+ */
+export async function preloadCFRBucket(playerCount: number): Promise<void> {
+  const { bucket, file } = getBucketFile(playerCount);
+  if (isCFRBucketLoaded(bucket)) return;
+  if (!_loadPromises.has(bucket)) {
+    _loadPromises.set(bucket, (async () => {
+      const resp = await fetch(`/data/${file}`);
+      if (!resp.ok) {
+        throw new Error(`Failed to load CFR bucket ${bucket}: ${resp.status}`);
+      }
+      const buffer = await resp.arrayBuffer();
+      const data = decode(new Uint8Array(buffer)) as CompactCFRBucket;
+      setCFRBucketData(bucket, data);
+    })());
+  }
+  await _loadPromises.get(bucket)!;
+}
+
+/**
+ * Preload all CFR strategy buckets. Use when the player count isn't known yet.
+ * Safe to call multiple times — only fetches each bucket once.
  */
 export async function preloadCFRStrategy(): Promise<void> {
-  if (isCFRStrategyLoaded()) return;
-  if (!_loadPromise) {
-    _loadPromise = (async () => {
-      const resp = await fetch('/data/cfr-strategy.json');
-      if (!resp.ok) {
-        throw new Error(`Failed to load CFR strategy: ${resp.status}`);
-      }
-      // V2 compact format is stored as-is and decoded on-the-fly during lookups.
-      setCFRStrategyData(await resp.json());
-    })();
-  }
-  await _loadPromise;
+  await Promise.all([preloadCFRBucket(2), preloadCFRBucket(3), preloadCFRBucket(5)]);
 }

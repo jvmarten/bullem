@@ -1,15 +1,26 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { decideCFR, decideCFRWithSearch, setCFRStrategyData } from './cfrEval.js';
+import { decode } from '@msgpack/msgpack';
+import { decideCFR, decideCFRWithSearch, setCFRBucketData } from './cfrEval.js';
+import type { CompactCFRBucket } from './cfrEval.js';
 import { HandType, RoundPhase, GamePhase } from '../types.js';
 import type { Card, ClientGameState, HandCall } from '../types.js';
 
-// Load strategy data from the JSON static asset before tests run.
+// Load strategy data from per-bucket MessagePack files before tests run.
 beforeAll(() => {
-  const jsonPath = path.resolve(import.meta.dirname, '../../../client/public/data/cfr-strategy.json');
-  const raw = fs.readFileSync(jsonPath, 'utf-8');
-  setCFRStrategyData(JSON.parse(raw));
+  const dataDir = path.resolve(import.meta.dirname, '../../../client/public/data');
+  for (const { bucket, file } of [
+    { bucket: 'p2', file: 'cfr-p2.bin' },
+    { bucket: 'p34', file: 'cfr-p34.bin' },
+    { bucket: 'p5+', file: 'cfr-p5plus.bin' },
+  ]) {
+    const binPath = path.join(dataDir, file);
+    if (fs.existsSync(binPath)) {
+      const raw = fs.readFileSync(binPath);
+      setCFRBucketData(bucket, decode(raw) as CompactCFRBucket);
+    }
+  }
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────

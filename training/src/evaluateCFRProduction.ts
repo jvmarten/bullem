@@ -16,11 +16,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { decode } from '@msgpack/msgpack';
 import {
   BOT_PROFILE_MAP, BotDifficulty,
-  setCFRStrategyData, decideCFRWithSearch, decideCFR,
+  setCFRBucketData, decideCFRWithSearch, decideCFR,
 } from '@bull-em/shared';
-import type { BotProfileDefinition, JokerCount, LastChanceMode, GameSettings, CompactCFRStrategy } from '@bull-em/shared';
+import type { BotProfileDefinition, JokerCount, LastChanceMode, GameSettings, CompactCFRBucket } from '@bull-em/shared';
 import { simulate } from './simulator.js';
 import type { BotConfig, BotStrategy, BotStrategyContext, BotStrategyAction } from './types.js';
 
@@ -31,22 +32,22 @@ const LVL8_KEYS = [
   'professor_lvl8', 'shark_lvl8', 'cannon_lvl8', 'frost_lvl8', 'hustler_lvl8',
 ] as const;
 
-const DEFAULT_STRATEGY_PATH = path.resolve(
+const DEFAULT_DATA_DIR = path.resolve(
   import.meta.dirname ?? process.cwd(),
-  '../../client/public/data/cfr-strategy.json',
+  '../../client/public/data',
 );
 
 // ── CLI parsing ──────────────────────────────────────────────────────────
 
 function parseArgs(argv: string[]): {
-  strategyPath: string;
+  dataDir: string;
   games: number;
   maxCards: number;
   useSearch: boolean;
   baseline: boolean;
 } {
   const args = argv.slice(2);
-  let strategyPath = DEFAULT_STRATEGY_PATH;
+  let dataDir = DEFAULT_DATA_DIR;
   let games = 1000;
   let maxCards = 5;
   let useSearch = true;
@@ -58,7 +59,7 @@ function parseArgs(argv: string[]): {
     switch (arg) {
       case '--strategy':
       case '-s':
-        strategyPath = next ?? strategyPath;
+        dataDir = next ?? dataDir;
         i++;
         break;
       case '--games':
@@ -98,7 +99,7 @@ Usage:
   npm run evaluate-cfr -w training -- --games 2000
 
 Options:
-  --strategy, -s <path>  Path to compact v2 strategy JSON (default: client/public/data/cfr-strategy.json)
+  --strategy, -s <path>  Path to data directory with .bin files (default: client/public/data/)
   --games, -g <n>        Games per matchup (default: 1000)
   --max-cards, -m <n>    Max cards before elimination (default: 5, range: 1-5)
   --no-search            Use decideCFR() instead of decideCFRWithSearch() (for comparison)
@@ -113,23 +114,36 @@ Options:
     }
   }
 
-  return { strategyPath, games, maxCards, useSearch, baseline };
+  return { dataDir, games, maxCards, useSearch, baseline };
 }
 
 // ── Load strategy ────────────────────────────────────────────────────────
 
-function loadCompactStrategy(filePath: string): void {
-  const absPath = path.resolve(filePath);
-  if (!fs.existsSync(absPath)) {
-    console.error(`Error: Strategy file not found: ${absPath}`);
+function loadBucketFiles(dataDir: string): void {
+  const absDir = path.resolve(dataDir);
+  const buckets = [
+    { name: 'p2', file: 'cfr-p2.bin' },
+    { name: 'p34', file: 'cfr-p34.bin' },
+    { name: 'p5+', file: 'cfr-p5plus.bin' },
+  ];
+  let loaded = 0;
+  for (const { name, file } of buckets) {
+    const binPath = path.join(absDir, file);
+    if (!fs.existsSync(binPath)) {
+      console.warn(`  ${name}: not found at ${binPath}`);
+      continue;
+    }
+    const raw = fs.readFileSync(binPath);
+    const data = decode(raw) as CompactCFRBucket;
+    setCFRBucketData(name, data);
+    const sizeMB = (raw.length / 1024 / 1024).toFixed(1);
+    console.log(`  ${name}: ${file} (${sizeMB} MB)`);
+    loaded++;
+  }
+  if (loaded === 0) {
+    console.error('Error: No strategy bucket files found');
     process.exit(1);
   }
-  const raw = fs.readFileSync(absPath, 'utf-8');
-  const data = JSON.parse(raw) as CompactCFRStrategy;
-  setCFRStrategyData(data);
-  const sizeKB = (Buffer.byteLength(raw, 'utf-8') / 1024).toFixed(0);
-  console.log(`  Strategy: ${absPath}`);
-  console.log(`  Size: ${sizeKB} KB (compact v2)`);
 }
 
 // ── Strategy wrappers ────────────────────────────────────────────────────
@@ -298,7 +312,7 @@ for (const key of LVL8_KEYS) {
 console.log(`\n${'═'.repeat(60)}`);
 console.log("  Bull 'Em CFR Production Evaluation");
 console.log(`${'═'.repeat(60)}\n`);
-loadCompactStrategy(cliConfig.strategyPath);
+loadBucketFiles(cliConfig.dataDir);
 console.log(`  Games per matchup:  ${cliConfig.games}`);
 console.log(`  Max cards:          ${cliConfig.maxCards}`);
 console.log(`  Mode:               ${cliConfig.baseline ? 'Baseline comparison (with vs without search)' : cliConfig.useSearch ? 'decideCFRWithSearch (production)' : 'decideCFR (no search)'}`);

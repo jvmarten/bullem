@@ -74,6 +74,20 @@ registerRoute(
   }),
 );
 
+// ─── CFR strategy buckets (MessagePack binary) ─────────────────────
+// Runtime cached (not precached) so users who never play local games
+// don't download strategy data. CacheFirst with 30-day expiry.
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/data/') && url.pathname.endsWith('.bin'),
+  new CacheFirst({
+    cacheName: 'cfr-strategy',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 30 }),
+    ],
+  }),
+);
+
 // ─── Web Push Notifications ─────────────────────────────────────────
 // Migrated from the previous standalone sw.js
 self.addEventListener('push', (event) => {

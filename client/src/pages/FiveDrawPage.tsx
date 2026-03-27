@@ -24,7 +24,7 @@ import {
   DECK_DRAW_STARTING_BALANCE,
   type HandCall, type Card, type Suit, type ServerPlayer, type ClientGameState, type RoundResult,
 } from '@bull-em/shared';
-import { preloadCFRStrategy } from '../utils/cfrLoader.js';
+import { preloadCFRBucket } from '../utils/cfrLoader.js';
 import type { TurnResult } from '@bull-em/shared';
 import { useUISettings } from '../components/VolumeControl.js';
 import { getSuitHex } from '../utils/cardUtils.js';
@@ -262,8 +262,8 @@ export function FiveDrawPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
 
-  // Preload CFR strategy data for the dealer bot
-  useEffect(() => { void preloadCFRStrategy(); }, []);
+  // Preload CFR strategy data for the dealer bot (always 2-player)
+  useEffect(() => { void preloadCFRBucket(2); }, []);
 
   // === Balance ===
   const [balance, setBalance] = useState(() => loadGuestBalance());
@@ -508,7 +508,7 @@ export function FiveDrawPage() {
     if (!canWager) { addToast('Insufficient balance'); return; }
 
     // Ensure CFR strategy data is loaded before the dealer bot plays.
-    await preloadCFRStrategy();
+    await preloadCFRBucket(2);
 
     // Deduct wager
     setBalance(prev => { const n = prev - wager; if (!user) saveGuestBalance(n); return n; });
