@@ -358,6 +358,23 @@ export function HomePage() {
     }
   }, [user]);
 
+  // Sync name when guest edits it via the header EditableGuestName component.
+  // localStorage writes in the same tab don't fire 'storage', so we also listen
+  // for a custom event dispatched by EditableGuestName.
+  useEffect(() => {
+    if (user) return; // Authenticated users don't use guest names
+    const sync = () => {
+      const stored = localStorage.getItem(PLAYER_NAME_STORAGE_KEY);
+      if (stored && stored !== name) setName(stored);
+    };
+    window.addEventListener('storage', sync);
+    window.addEventListener('guest-name-changed', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('guest-name-changed', sync);
+    };
+  }, [user, name]);
+
   // Clean up spectator state when navigating back to home — spectators who
   // press the browser back button arrive here with stale roomState/gameState.
   useEffect(() => {
