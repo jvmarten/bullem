@@ -1,4 +1,4 @@
-import { useContext, useState, useRef, useEffect, type ReactNode } from 'react';
+import { useContext, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { GameContext, PresenceContext } from '../context/GameContext.js';
 import { useAuth } from '../context/AuthContext.js';
@@ -7,6 +7,7 @@ import { TitleLogo } from './TitleLogo.js';
 import { VolumeControl } from './VolumeControl.js';
 import { useOnlineStatus } from '../hooks/useOnlineStatus.js';
 import { socket } from '../socket.js';
+import { PLAYER_NAME_MAX_LENGTH, PLAYER_NAME_PATTERN } from '@bull-em/shared';
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,6 +26,62 @@ function getGuestDisplayName(): string {
   const stored = localStorage.getItem('bull-em-player-name');
   if (stored) return stored.toLowerCase();
   return 'guest';
+}
+
+const PLAYER_NAME_STORAGE_KEY = 'bull-em-player-name';
+
+/** Inline-editable guest name — tap to edit, Enter/blur to save. */
+function EditableGuestName() {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(getGuestDisplayName);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const save = useCallback(() => {
+    const trimmed = value.trim();
+    if (trimmed && PLAYER_NAME_PATTERN.test(trimmed)) {
+      localStorage.setItem(PLAYER_NAME_STORAGE_KEY, trimmed);
+      setValue(trimmed.toLowerCase());
+      // Notify other components (e.g. HomePage) in the same tab
+      window.dispatchEvent(new Event('guest-name-changed'));
+    } else {
+      // Revert to stored name on invalid input
+      setValue(getGuestDisplayName());
+    }
+    setEditing(false);
+  }, [value]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') { setValue(getGuestDisplayName()); setEditing(false); }
+        }}
+        maxLength={PLAYER_NAME_MAX_LENGTH}
+        className="text-xs text-[var(--gold)] bg-transparent border-b border-[var(--gold-dim)] outline-none w-[100px] min-h-[44px]"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setValue(getGuestDisplayName()); setEditing(true); }}
+      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
+      title="Tap to edit name"
+    >
+      <span>{getGuestDisplayName()}</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
+  );
 }
 
 /** Preload the LoginPage chunk so navigation to /login is instant. */
@@ -59,11 +116,11 @@ function AuthLink() {
   const isHomePage = location.pathname === '/';
 
   if (inSession) {
-    // Show guest label without navigation to avoid kicking from game
+    // In-game: show editable guest name without navigation to avoid kicking from game
     return (
       <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
-        <span>{getGuestDisplayName()}</span>
+        <EditableGuestName />
       </span>
     );
   }
@@ -74,29 +131,31 @@ function AuthLink() {
   // "sign in" before resolving to the guest name.
   if (!isHomePage) {
     if (loading) return null;
-    // Subpages show guest name as plain text — only the home page links to sign in
+    // Subpages show editable guest name — only the home page links to sign in
     return (
       <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
-        <span>{getGuestDisplayName()}</span>
+        <EditableGuestName />
       </span>
     );
   }
 
-  // Home page: show "sign in" immediately — don't wait for the /auth/me check.
-  // Most visitors seeing this link are unauthenticated, so showing it right away
-  // eliminates the delay. If the auth check reveals a logged-in user, the link
-  // switches to their username above.
+  // Home page: show editable guest name with a sign-in link.
+  // Guests can tap their name to change it without needing an account.
   return (
-    <Link
-      to="/login"
-      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
-      onTouchStart={preloadLoginPage}
-      onMouseEnter={preloadLoginPage}
-    >
+    <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
       {userIcon}
-      <span>sign in</span>
-    </Link>
+      <EditableGuestName />
+      <span className="mx-0.5 opacity-30">|</span>
+      <Link
+        to="/login"
+        className="text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors"
+        onTouchStart={preloadLoginPage}
+        onMouseEnter={preloadLoginPage}
+      >
+        sign in
+      </Link>
+    </span>
   );
 }
 
