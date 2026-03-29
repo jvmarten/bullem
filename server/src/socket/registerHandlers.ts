@@ -251,15 +251,6 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager, botM
           // a stale overlay. The 30s round-continue timeout handles the case
           // where they never come back.
           broadcastGameState(io, result.room);
-          // If the disconnected player is the current player and no turn timer
-          // is configured, schedule a disconnect auto-action so the game
-          // doesn't stall. When a turn timer IS configured, it keeps running
-          // independently and will fire the auto-action when it expires.
-          if (result.room.gamePhase === GamePhase.PLAYING
-            && result.room.game.currentPlayerId === result.playerId
-            && !result.room.settings.turnTimer) {
-            botManager.scheduleDisconnectAutoAction(result.room, io, result.playerId);
-          }
         }
       }
       broadcastPlayerNames(io, roomManager);
