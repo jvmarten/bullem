@@ -78,14 +78,18 @@ export function broadcastPlayerNames(io: TypedServer, roomManager: RoomManager):
   }, 500);
 }
 
-/** Build a GameReplay from the engine's recorded round snapshots and emit it to all clients in the room. */
-export function broadcastGameReplay(io: TypedServer, room: Room, winnerId: PlayerId): void {
+/**
+ * Build a GameReplay from the engine's recorded round snapshots and emit it to all clients in the room.
+ * Accepts an optional pre-generated gameId so the replay ID matches the database game row,
+ * allowing localStorage replays to be found by the same ID used in profile game history links.
+ */
+export function broadcastGameReplay(io: TypedServer, room: Room, winnerId: PlayerId, gameId?: string): void {
   if (!room.game) return;
   const snapshots = room.game.getRoundSnapshots();
   if (snapshots.length === 0) return;
 
   const replay: GameReplay = {
-    id: `${room.roomCode}-${Date.now()}`,
+    id: gameId ?? `${room.roomCode}-${Date.now()}`,
     players: [...room.players.values()].map(p => ({ id: p.id, name: p.name })),
     settings: { ...room.settings },
     rounds: snapshots,

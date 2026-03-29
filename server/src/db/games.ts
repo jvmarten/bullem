@@ -32,22 +32,24 @@ export interface GameRecord {
  * user row doesn't exist yet), retries once with winner_id = NULL so the
  * game and all player rows are still recorded.
  */
-export async function persistGameResult(record: GameRecord): Promise<string | null> {
+export async function persistGameResult(record: GameRecord, preGeneratedId?: string): Promise<string | null> {
   try {
-    // Insert the game row
-    let gameResult = await query<{ id: string }>(
-      `INSERT INTO games (room_code, winner_id, winner_name, player_count, settings, started_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
-      [
-        record.roomCode,
-        record.winnerUserId,
-        record.winnerName,
-        record.playerCount,
-        JSON.stringify(record.settings),
-        record.startedAt.toISOString(),
-      ],
-    );
+    // Insert the game row. When a pre-generated ID is provided, use it so the
+    // database row has the same ID as the broadcast replay (enabling localStorage
+    // replays to be found by the same ID used in profile game history links).
+    let gameResult = preGeneratedId
+      ? await query<{ id: string }>(
+          `INSERT INTO games (id, room_code, winner_id, winner_name, player_count, settings, started_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [preGeneratedId, record.roomCode, record.winnerUserId, record.winnerName, record.playerCount, JSON.stringify(record.settings), record.startedAt.toISOString()],
+        )
+      : await query<{ id: string }>(
+          `INSERT INTO games (room_code, winner_id, winner_name, player_count, settings, started_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id`,
+          [record.roomCode, record.winnerUserId, record.winnerName, record.playerCount, JSON.stringify(record.settings), record.startedAt.toISOString()],
+        );
 
     // If the INSERT failed (likely FK violation on winner_id), retry without
     // winner_id so the game row is still created. winner_name is denormalized
@@ -58,18 +60,19 @@ export async function persistGameResult(record: GameRecord): Promise<string | nu
           { roomCode: record.roomCode, winnerUserId: record.winnerUserId },
           'Game INSERT failed — retrying with winner_id = NULL (possible FK violation)',
         );
-        gameResult = await query<{ id: string }>(
-          `INSERT INTO games (room_code, winner_id, winner_name, player_count, settings, started_at)
-           VALUES ($1, NULL, $2, $3, $4, $5)
-           RETURNING id`,
-          [
-            record.roomCode,
-            record.winnerName,
-            record.playerCount,
-            JSON.stringify(record.settings),
-            record.startedAt.toISOString(),
-          ],
-        );
+        gameResult = preGeneratedId
+          ? await query<{ id: string }>(
+              `INSERT INTO games (id, room_code, winner_name, player_count, settings, started_at)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               RETURNING id`,
+              [preGeneratedId, record.roomCode, record.winnerName, record.playerCount, JSON.stringify(record.settings), record.startedAt.toISOString()],
+            )
+          : await query<{ id: string }>(
+              `INSERT INTO games (room_code, winner_name, player_count, settings, started_at)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id`,
+              [record.roomCode, record.winnerName, record.playerCount, JSON.stringify(record.settings), record.startedAt.toISOString()],
+            );
       }
 
       if (!gameResult || gameResult.rows.length === 0) {
@@ -83,29 +86,33 @@ export async function persistGameResult(record: GameRecord): Promise<string | nu
 
     const gameId = gameResult.rows[0]!.id;
 
-    // Batch insert all player records
-    if (record.players.length > 0) {
-      const values: unknown[] = [];
-      const placeholders: string[] = [];
-      let idx = 1;
-
-      for (const p of record.players) {
-        placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
-        values.push(gameId, p.userId, p.playerName, p.finishPosition, p.finalCardCount, JSON.stringify(p.stats));
-        idx += 6;
-      }
-
-      const playersResult = await query(
+    // Insert player records individually so one FK failure (e.g. invalid bot
+    // user_id) doesn't prevent other players' records from being created.
+    for (const p of record.players) {
+      let playerResult = await query(
         `INSERT INTO game_players (game_id, user_id, player_name, finish_position, final_card_count, stats)
-         VALUES ${placeholders.join(', ')}`,
-        values,
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [gameId, p.userId, p.playerName, p.finishPosition, p.finalCardCount, JSON.stringify(p.stats)],
       );
 
-      if (!playersResult) {
-        logger.error(
-          { gameId, roomCode: record.roomCode, playerCount: record.players.length },
-          'Game row persisted but game_players INSERT failed — game will be missing from player profiles',
+      // If INSERT failed (likely FK violation on user_id), retry with user_id = NULL
+      // so the player record still exists for game history and replay queries.
+      if (!playerResult && p.userId) {
+        logger.warn(
+          { gameId, playerName: p.playerName, userId: p.userId },
+          'game_players INSERT failed — retrying with user_id = NULL (possible FK violation)',
         );
+        playerResult = await query(
+          `INSERT INTO game_players (game_id, user_id, player_name, finish_position, final_card_count, stats)
+           VALUES ($1, NULL, $2, $3, $4, $5)`,
+          [gameId, p.playerName, p.finishPosition, p.finalCardCount, JSON.stringify(p.stats)],
+        );
+        if (!playerResult) {
+          logger.error(
+            { gameId, playerName: p.playerName },
+            'game_players INSERT failed even with NULL user_id',
+          );
+        }
       }
     }
 

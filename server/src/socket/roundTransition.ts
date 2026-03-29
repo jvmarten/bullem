@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import { GamePhase, BotPlayer, SERIES_TRANSITION_DELAY_MS, GAME_COUNTDOWN_SECONDS, generateRoundSeed } from '@bull-em/shared';
 import type { ClientToServerEvents, ServerToClientEvents, RoundResult, PlayerId } from '@bull-em/shared';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type { Room } from '../rooms/Room.js';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { BotManager } from '../game/BotManager.js';
@@ -186,7 +186,11 @@ function finalizeGameOver(
 ): void {
   room.gamePhase = GamePhase.GAME_OVER;
   room.lastRoundResult = null;
-  broadcastGameReplay(io, room, winnerId);
+  // Generate the game UUID upfront so the broadcast replay and database
+  // game row use the same ID — clients can find localStorage replays by
+  // the same ID shown in profile game history links.
+  const gameId = randomUUID();
+  broadcastGameReplay(io, room, winnerId, gameId);
   if (!room.game) return;
   const stats = room.game.getGameStats();
   // Compute rating changes for ranked games before emitting
@@ -195,7 +199,7 @@ function finalizeGameOver(
   }).catch(() => {
     io.to(room.roomCode).emit('game:over', winnerId, stats);
   });
-  persistCompletedGame(room, winnerId);
+  persistCompletedGame(room, winnerId, gameId);
   roomManager.persistRoom(room);
 }
 

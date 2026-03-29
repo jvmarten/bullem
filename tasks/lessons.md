@@ -37,3 +37,15 @@
 - **MC search weight should stay at 0.30+** — card-aware Monte Carlo correction is critical for complex hand types where the closed-form Bayesian approximation breaks down
 - **Action mapper bluffs must be believable.** Full House 2s/3s is an instant tell. Always verify bluff hand generation doesn't produce degenerate patterns
 - **After any CFR change, run a simulation or manual test to verify win rates haven't dropped** — don't just rely on unit tests passing
+
+## Bot UUID Format Bug (2026-03-29)
+
+**Problem:** `getBotUserIdByKey()` generated INVALID 37-char UUIDs for all 72 heuristic bots. The template `b0${code}${level}` produced a 5-char 4th UUID segment (e.g., `b0011`) instead of the required 4 chars (`b011`). This caused the entire `game_players` batch INSERT to fail when ANY heuristic bot was present, silently dropping ALL player records — so completed games never showed in profiles or replays.
+
+**Root cause pattern:** UUID format strings are fragile — concatenating segments without validating the total length silently produces invalid UUIDs that only fail at INSERT time. Additionally, migration 018 shifted bot levels without updating UUIDs, creating a drift between code-generated and database UUIDs.
+
+**Prevention rules:**
+- **Always validate generated UUIDs are exactly 36 chars** — add assertions or unit tests for deterministic UUID generators
+- **Batch INSERTs are all-or-nothing** — one bad row (FK violation, invalid UUID) kills the entire batch. For heterogeneous data (human + bot players), insert individually with per-row error handling
+- **When migrations change keys/levels, update ALL references** — including the code that computes deterministic IDs from those keys
+- **Fire-and-forget async persistence needs monitoring** — if it fails silently, the only symptom is "data doesn't show up" which is hard to diagnose without structured error logs
