@@ -23,9 +23,8 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
   gestureHandlers?: {
     onPointerDown: (e: React.PointerEvent) => void;
     onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: (e: React.PointerEvent) => void;
-    onPointerCancel: (e: React.PointerEvent) => void;
-    onPointerLeave: (e: React.PointerEvent) => void;
+    onPointerUp: () => void;
+    onPointerCancel: () => void;
   };
 }) {
   if (cards.length === 0) return null;
@@ -49,25 +48,22 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       };
     }), [count, fanAngle, overlap, arcScale, cards]);
 
-  // Flip animation: progress 0→1 maps to a two-phase rotation.
-  // Phase 1 (0→0.5): rotateX 0°→90° — cards fold edge-on
-  // Phase 2 (0.5→1): rotateX 90°→0° — cards unfold with new face
-  // Content swaps at the halfway point. No rotation in resting state.
+  // During swipe: tilt cards toward edge-on (0° → 90°).
+  // Content stays the same — no swap during gesture. The state only changes
+  // when the gesture completes (progress hits 1 in the hook), which resets
+  // progress to 0 and toggles cardsHidden. The CSS transition then smoothly
+  // animates from ~90° back to 0° with the new face showing.
   const progress = flipProgress ?? 0;
-  const rotateX = progress <= 0.5
-    ? progress * 180          // 0° → 90°
-    : (1 - progress) * 180;   // 90° → 0°
+  const rotateX = progress * 90; // 0° → 90° as finger moves
 
-  // Swap to the other face at the halfway point of the swipe
-  const showBack = cardsHidden
-    ? (progress <= 0.5)   // hidden: show backs, past halfway show fronts (revealing)
-    : (progress > 0.5);   // visible: show fronts, past halfway show backs (hiding)
+  // Show card backs purely based on the cardsHidden state — no mid-gesture swap
+  const showBack = !!cardsHidden;
 
   return (
     <div
-      className={`flex justify-center py-2${large ? ' hand-display-large' : ''} hand-display-flip-container`}
+      className={`flex justify-center py-2${large ? ' hand-display-large' : ''}`}
       style={{
-        perspective: '600px',
+        perspective: '800px',
         touchAction: gestureHandlers ? 'pan-x' : undefined,
       }}
       {...gestureHandlers}
@@ -75,12 +71,11 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       <div
         className="hand-display-flipper"
         style={{
-          transform: rotateX > 0 ? `rotateX(${rotateX}deg)` : undefined,
-          transition: progress > 0 ? 'none' : 'transform 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
+          transform: rotateX > 0.5 ? `rotateX(${rotateX}deg)` : undefined,
+          transition: progress > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
         }}
       >
         {showBack ? (
-          // Card backs — same fan layout, no 3D counter-rotation needed
           cards.map((card, i) => (
             <div
               key={`back-${card.rank}-${card.suit}-${i}`}
@@ -93,9 +88,9 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
             <CardDisplay
               key={`${card.rank}-${card.suit}-${i}`}
               card={card}
-              className={`animate-card-deal deal-delay-${i}${onCardTap && !cardsHidden ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
+              className={`animate-card-deal deal-delay-${i}${onCardTap ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
               style={cardStyles[i]}
-              onClick={onCardTap && !cardsHidden ? () => onCardTap(card) : undefined}
+              onClick={onCardTap ? () => onCardTap(card) : undefined}
             />
           ))
         )}
