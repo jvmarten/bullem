@@ -234,6 +234,49 @@ describe('Room.handleDisconnect', () => {
     addPlayers(room, 1);
     expect(room.handleDisconnect('unknown-socket')).toBeNull();
   });
+
+  it('keeps player during LOBBY phase when countdown is active', () => {
+    vi.useFakeTimers();
+    const room = new Room('DC');
+    const tokens = addPlayers(room, 3);
+
+    // Simulate countdown (room still in LOBBY but countdown is active)
+    room.countdownDeadline = Date.now() + 3000;
+
+    const disconnected = room.handleDisconnect('socket-1');
+    expect(disconnected).toBe('p1');
+
+    // Player should still be in the room (not removed), just marked disconnected
+    const player = room.players.get('p1');
+    expect(player).toBeDefined();
+    expect(player!.isConnected).toBe(false);
+
+    // Player should be included in startGame after countdown
+    vi.advanceTimersByTime(3000);
+    room.countdownDeadline = null;
+    room.startGame();
+
+    const activePlayers = room.game!.getActivePlayers();
+    expect(activePlayers.some(p => p.id === 'p1')).toBe(true);
+
+    // Player can reconnect during the game
+    const newToken = room.handleReconnect('new-socket-1', 'p1', tokens[1]);
+    expect(newToken).toBeTruthy();
+    expect(room.players.get('p1')!.isConnected).toBe(true);
+
+    vi.useRealTimers();
+  });
+
+  it('still removes player during LOBBY phase when no countdown is active', () => {
+    const room = new Room('DC');
+    addPlayers(room, 2);
+
+    // No countdown — normal lobby disconnect should remove the player
+    expect(room.countdownDeadline).toBeNull();
+    const removed = room.handleDisconnect('socket-1');
+    expect(removed).toBe('p1');
+    expect(room.players.has('p1')).toBe(false);
+  });
 });
 
 describe('Room.handleReconnect', () => {
