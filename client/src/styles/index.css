@@ -428,6 +428,7 @@ html.capacitor-native .felt-bg {
 .hand-display-flipper {
   display: flex;
   justify-content: center;
+  transform-style: preserve-3d;
 }
 
 /* Card back shown when cards are hidden (flipped face-down) */
@@ -443,7 +444,6 @@ html.capacitor-native .felt-bg {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   position: relative;
   display: inline-block;
-  backface-visibility: hidden;
 }
 .hand-card-back::after {
   content: '';
