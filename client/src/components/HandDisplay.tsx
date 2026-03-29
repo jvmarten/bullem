@@ -87,7 +87,7 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
               style={{
                 ...cardStyles[i],
                 // Counter-rotate so backs appear correctly when flipped past 90°
-                transform: `${cardStyles[i].transform} rotateX(180deg)`,
+                transform: `${cardStyles[i]?.transform ?? ''} rotateX(180deg)`,
               }}
             />
           ))
