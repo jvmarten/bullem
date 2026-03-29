@@ -184,7 +184,12 @@ export class Room {
     const player = this.players.get(playerId);
     if (!player) return null;
 
-    if (this.gamePhase === GamePhase.LOBBY) {
+    // During the pre-game countdown the room is technically still in LOBBY
+    // phase, but startGame() is about to run. If we remove the player now
+    // (the normal lobby behaviour) they'll be excluded from the game with
+    // no way to rejoin. Instead, keep them in the room as "disconnected"
+    // with the standard reconnect timer — identical to a mid-game disconnect.
+    if (this.gamePhase === GamePhase.LOBBY && !this.countdownDeadline) {
       return this.removePlayer(socketId);
     }
 
