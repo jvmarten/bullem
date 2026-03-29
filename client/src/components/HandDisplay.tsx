@@ -25,6 +25,7 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
     onPointerMove: (e: React.PointerEvent) => void;
     onPointerUp: (e: React.PointerEvent) => void;
     onPointerCancel: (e: React.PointerEvent) => void;
+    onPointerLeave: (e: React.PointerEvent) => void;
   };
 }) {
   if (cards.length === 0) return null;
@@ -48,18 +49,19 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       };
     }), [count, fanAngle, overlap, arcScale, cards]);
 
-  // Compute the 3D rotation for the card flip.
-  // 0 = face up, 180 = face down (card back showing).
-  // During a swipe, flipProgress (0→1) animates between states.
+  // Flip animation: progress 0→1 maps to a two-phase rotation.
+  // Phase 1 (0→0.5): rotateX 0°→90° — cards fold edge-on
+  // Phase 2 (0.5→1): rotateX 90°→0° — cards unfold with new face
+  // Content swaps at the halfway point. No rotation in resting state.
   const progress = flipProgress ?? 0;
-  const baseAngle = cardsHidden ? 180 : 0;
-  const swipeAngle = cardsHidden
-    ? 180 - progress * 180 // swiping to show: 180 → 0
-    : progress * 180;      // swiping to hide: 0 → 180
-  const rotateX = progress > 0 ? swipeAngle : baseAngle;
+  const rotateX = progress <= 0.5
+    ? progress * 180          // 0° → 90°
+    : (1 - progress) * 180;   // 90° → 0°
 
-  // When rotateX > 90, the card is past halfway — show back face
-  const showBack = rotateX > 90;
+  // Swap to the other face at the halfway point of the swipe
+  const showBack = cardsHidden
+    ? (progress <= 0.5)   // hidden: show backs, past halfway show fronts (revealing)
+    : (progress > 0.5);   // visible: show fronts, past halfway show backs (hiding)
 
   return (
     <div
@@ -73,22 +75,17 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       <div
         className="hand-display-flipper"
         style={{
-          transformStyle: 'preserve-3d',
-          transform: `rotateX(${rotateX}deg)`,
-          transition: progress > 0 ? 'none' : 'transform 0.35s cubic-bezier(0.23, 1, 0.32, 1)',
+          transform: rotateX > 0 ? `rotateX(${rotateX}deg)` : undefined,
+          transition: progress > 0 ? 'none' : 'transform 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
         }}
       >
         {showBack ? (
-          // Card backs — same fan layout
+          // Card backs — same fan layout, no 3D counter-rotation needed
           cards.map((card, i) => (
             <div
               key={`back-${card.rank}-${card.suit}-${i}`}
-              className={`hand-card-back mx-0.5 animate-card-deal deal-delay-${i}`}
-              style={{
-                ...cardStyles[i],
-                // Counter-rotate so backs appear correctly when flipped past 90°
-                transform: `${cardStyles[i]?.transform ?? ''} rotateX(180deg)`,
-              }}
+              className="hand-card-back mx-0.5"
+              style={cardStyles[i]}
             />
           ))
         ) : (
@@ -96,9 +93,9 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
             <CardDisplay
               key={`${card.rank}-${card.suit}-${i}`}
               card={card}
-              className={`animate-card-deal deal-delay-${i}${onCardTap ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
+              className={`animate-card-deal deal-delay-${i}${onCardTap && !cardsHidden ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
               style={cardStyles[i]}
-              onClick={onCardTap ? () => onCardTap(card) : undefined}
+              onClick={onCardTap && !cardsHidden ? () => onCardTap(card) : undefined}
             />
           ))
         )}

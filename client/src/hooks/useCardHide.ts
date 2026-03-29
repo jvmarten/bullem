@@ -1,24 +1,20 @@
 import { useCallback, useRef, useState } from 'react';
 
 /**
- * Gesture hook for hiding/showing cards via long-press + swipe down/up.
+ * Gesture hook for hiding/showing cards via long-press + swipe.
  *
  * - Press and hold on the card area for HOLD_MS, then swipe down SWIPE_PX
  *   to flip cards face-down (hidden).
  * - Same gesture (hold + swipe up) to flip them back face-up.
  * - The swipe threshold is long enough to avoid accidental triggers and
  *   does not interfere with Quick Draw (which is a simple tap).
- *
- * Returns:
- *  - `cardsHidden`: whether cards are currently face-down
- *  - `flipProgress`: 0 → 1 progress of the current swipe (for smooth animation)
- *  - `gestureHandlers`: pointerdown/pointermove/pointerup/pointercancel handlers
+ * - Works at any time — not gated by turn state.
  */
 
 /** Minimum hold time before swipe is tracked (ms) */
-const HOLD_MS = 200;
+const HOLD_MS = 150;
 /** Minimum swipe distance to trigger the flip (px) */
-const SWIPE_PX = 60;
+const SWIPE_PX = 55;
 
 export function useCardHide(): {
   cardsHidden: boolean;
@@ -28,6 +24,7 @@ export function useCardHide(): {
     onPointerMove: (e: React.PointerEvent) => void;
     onPointerUp: (e: React.PointerEvent) => void;
     onPointerCancel: (e: React.PointerEvent) => void;
+    onPointerLeave: (e: React.PointerEvent) => void;
   };
 } {
   const [cardsHidden, setCardsHidden] = useState(false);
@@ -37,12 +34,10 @@ export function useCardHide(): {
   const pointerIdRef = useRef<number | null>(null);
   const startYRef = useRef(0);
   const startTimeRef = useRef(0);
-  const holdActiveRef = useRef(false);
   const hiddenRef = useRef(false); // mirrors cardsHidden without stale closure
 
   const reset = useCallback(() => {
     pointerIdRef.current = null;
-    holdActiveRef.current = false;
     setFlipProgress(0);
   }, []);
 
@@ -52,7 +47,6 @@ export function useCardHide(): {
     pointerIdRef.current = e.pointerId;
     startYRef.current = e.clientY;
     startTimeRef.current = Date.now();
-    holdActiveRef.current = false;
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -60,8 +54,6 @@ export function useCardHide(): {
 
     const elapsed = Date.now() - startTimeRef.current;
     if (elapsed < HOLD_MS) return; // not held long enough yet
-
-    holdActiveRef.current = true;
 
     const deltaY = e.clientY - startYRef.current;
     const isHidden = hiddenRef.current;
@@ -78,7 +70,7 @@ export function useCardHide(): {
     setFlipProgress(progress);
 
     if (progress >= 1) {
-      // Flip completed
+      // Flip completed — toggle state
       const newHidden = !isHidden;
       hiddenRef.current = newHidden;
       setCardsHidden(newHidden);
@@ -96,6 +88,11 @@ export function useCardHide(): {
     reset();
   }, [reset]);
 
+  const onPointerLeave = useCallback((e: React.PointerEvent) => {
+    if (e.pointerId !== pointerIdRef.current) return;
+    reset();
+  }, [reset]);
+
   return {
     cardsHidden,
     flipProgress,
@@ -104,6 +101,7 @@ export function useCardHide(): {
       onPointerMove,
       onPointerUp,
       onPointerCancel,
+      onPointerLeave,
     },
   };
 }

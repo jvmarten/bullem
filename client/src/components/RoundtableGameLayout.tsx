@@ -66,6 +66,7 @@ interface RoundtableGameLayoutProps {
     onPointerMove: (e: React.PointerEvent) => void;
     onPointerUp: (e: React.PointerEvent) => void;
     onPointerCancel: (e: React.PointerEvent) => void;
+    onPointerLeave: (e: React.PointerEvent) => void;
   };
 
   // Action handlers
