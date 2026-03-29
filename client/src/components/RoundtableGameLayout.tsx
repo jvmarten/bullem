@@ -58,6 +58,16 @@ interface RoundtableGameLayoutProps {
   /** When true, hides seat card backs so the cinematic reveal overlay can animate them. */
   revealInProgress?: boolean;
 
+  // Card hide gesture state
+  cardsHidden?: boolean;
+  flipProgress?: number;
+  cardHideGestureHandlers?: {
+    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerMove: (e: React.PointerEvent) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+    onPointerCancel: (e: React.PointerEvent) => void;
+  };
+
   // Action handlers
   onBull: () => void;
   onTrue: () => void;
@@ -432,6 +442,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     callHistoryVisible,
     disconnectDeadlines,
     revealInProgress,
+    cardsHidden, flipProgress, cardHideGestureHandlers,
     onBull, onTrue, onLastChancePass,
     onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
@@ -714,6 +725,9 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                   : myCards}
                 large
                 onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
+                cardsHidden={cardsHidden}
+                flipProgress={flipProgress}
+                gestureHandlers={cardHideGestureHandlers}
               />
             )}
             {myPlayer && (

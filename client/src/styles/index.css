@@ -424,6 +424,41 @@ html.capacitor-native .felt-bg {
   font-size: 1.25rem;
 }
 
+/* ── Card hide/show flip ─────────────────────────── */
+.hand-display-flipper {
+  display: flex;
+  justify-content: center;
+}
+
+/* Card back shown when cards are hidden (flipped face-down) */
+.hand-card-back {
+  width: 2.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #c0392b 0%, #8b1a1a 100%);
+  border-radius: 0.5rem;
+  border: 1px solid #d44;
+  box-shadow:
+    0 2px 4px var(--card-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  display: inline-block;
+  backface-visibility: hidden;
+}
+.hand-card-back::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.375rem;
+}
+
+/* Large hand card backs match the large card size */
+.hand-display-large .hand-card-back {
+  width: 3.25rem;
+  height: 4.5rem;
+}
+
 .playing-card-small {
   background: var(--card-face);
   border: 1px solid var(--card-border);
@@ -1932,6 +1967,10 @@ html.capacitor-native .felt-bg {
   .hand-display-large .playing-card span:last-child {
     font-size: 1.5rem;
   }
+  .hand-display-large .hand-card-back {
+    width: 4rem;
+    height: 5.5rem;
+  }
 
   /* Wider card fan — less overlap */
   .game-main .hand-display-large {
@@ -2186,6 +2225,10 @@ html.capacitor-native .felt-bg {
   }
   .hand-display-large .playing-card span:last-child {
     font-size: 1.375rem;
+  }
+  .hand-display-large .hand-card-back {
+    width: 3.75rem;
+    height: 5.25rem;
   }
 
   /* -- Home page: compact for phone landscape -- */

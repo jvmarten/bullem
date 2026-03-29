@@ -32,6 +32,7 @@ import { QuickDrawHint } from '../components/QuickDrawHint.js';
 import { useUISettings, VolumeControl } from '../components/VolumeControl.js';
 import { useInGameStats } from '../hooks/useInGameStats.js';
 import { useIsLandscape } from '../hooks/useIsLandscape.js';
+import { useCardHide } from '../hooks/useCardHide.js';
 import { useRevealPhase } from '../hooks/useRevealPhase.js';
 import { useGameAnnouncements } from '../hooks/useGameAnnouncements.js';
 import { RoundtableGameLayout } from '../components/RoundtableGameLayout.js';
@@ -64,6 +65,7 @@ export function LocalGamePage() {
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult);
+  const { cardsHidden, flipProgress, gestureHandlers } = useCardHide();
 
   // All useState hooks — must be called unconditionally (before any early return)
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
@@ -422,6 +424,9 @@ export function LocalGamePage() {
             onQuickDrawSelect={handleQuickDrawSelect}
             onQuickDrawDismiss={handleQuickDrawDismiss}
             onPlayerClick={handlePlayerClick}
+            cardsHidden={cardsHidden}
+            flipProgress={flipProgress}
+            cardHideGestureHandlers={gestureHandlers}
           />
 
           {/* Overlays */}
@@ -572,7 +577,7 @@ export function LocalGamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} /></div>}
+            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} cardsHidden={cardsHidden} flipProgress={flipProgress} gestureHandlers={gestureHandlers} /></div>}
 
             {/* Quick Draw first-use hint */}
             {!isEliminated && quickDrawEnabled && !quickDrawOpen && (
