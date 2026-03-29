@@ -60,7 +60,8 @@ interface RoundtableGameLayoutProps {
 
   // Card hide gesture state
   cardsHidden?: boolean;
-  flipProgress?: number;
+  swipeHint?: number;
+  isFlipping?: boolean;
   cardHideGestureHandlers?: {
     onPointerDown: (e: React.PointerEvent) => void;
     onPointerMove: (e: React.PointerEvent) => void;
@@ -442,7 +443,7 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
     callHistoryVisible,
     disconnectDeadlines,
     revealInProgress,
-    cardsHidden, flipProgress, cardHideGestureHandlers,
+    cardsHidden, swipeHint, isFlipping, cardHideGestureHandlers,
     onBull, onTrue, onLastChancePass,
     onOpenHandSelector, onHandSubmit, onHandChange,
     onCardTap, onQuickDrawSelect, onQuickDrawDismiss,
@@ -726,7 +727,8 @@ export const RoundtableGameLayout = memo(function RoundtableGameLayout(props: Ro
                 large
                 onCardTap={canRaise && quickDrawEnabled ? onCardTap : undefined}
                 cardsHidden={cardsHidden}
-                flipProgress={flipProgress}
+                swipeHint={swipeHint}
+                isFlipping={isFlipping}
                 gestureHandlers={cardHideGestureHandlers}
               />
             )}

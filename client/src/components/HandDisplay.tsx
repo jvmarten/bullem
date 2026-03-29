@@ -14,12 +14,13 @@ function useIsWideViewport(): boolean {
 
 // Memoized: cards don't change during a round — skip re-renders triggered
 // by unrelated parent state (current turn, timer, call history).
-export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, cardsHidden, flipProgress, gestureHandlers }: {
+export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, cardsHidden, swipeHint, isFlipping, gestureHandlers }: {
   cards: Card[];
   large?: boolean;
   onCardTap?: (card: Card) => void;
   cardsHidden?: boolean;
-  flipProgress?: number;
+  swipeHint?: number;
+  isFlipping?: boolean;
   gestureHandlers?: {
     onPointerDown: (e: React.PointerEvent) => void;
     onPointerMove: (e: React.PointerEvent) => void;
@@ -48,16 +49,17 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       };
     }), [count, fanAngle, overlap, arcScale, cards]);
 
-  // During swipe: tilt cards toward edge-on (0° → 90°).
-  // Content stays the same — no swap during gesture. The state only changes
-  // when the gesture completes (progress hits 1 in the hook), which resets
-  // progress to 0 and toggles cardsHidden. The CSS transition then smoothly
-  // animates from ~90° back to 0° with the new face showing.
-  const progress = flipProgress ?? 0;
-  const rotateX = progress * 90; // 0° → 90° as finger moves
-
-  // Show card backs purely based on the cardsHidden state — no mid-gesture swap
+  const hint = swipeHint ?? 0;
   const showBack = !!cardsHidden;
+
+  // During active swipe: subtle tilt + scale as visual feedback.
+  // During flip animation: CSS keyframes take full control (no inline style).
+  const flipperStyle = isFlipping ? undefined : (hint > 0 ? {
+    transform: `rotateX(${hint * 12}deg) scale(${1 - hint * 0.04})`,
+    transition: 'none' as const,
+  } : {
+    transition: 'transform 0.15s ease-out',
+  });
 
   return (
     <div
@@ -69,11 +71,8 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
       {...gestureHandlers}
     >
       <div
-        className="hand-display-flipper"
-        style={{
-          transform: rotateX > 0.5 ? `rotateX(${rotateX}deg)` : undefined,
-          transition: progress > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
-        }}
+        className={`hand-display-flipper${isFlipping ? ' hand-flipping' : ''}`}
+        style={flipperStyle}
       >
         {showBack ? (
           cards.map((card, i) => (

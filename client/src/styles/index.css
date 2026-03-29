@@ -428,7 +428,18 @@ html.capacitor-native .felt-bg {
 .hand-display-flipper {
   display: flex;
   justify-content: center;
-  transform-style: preserve-3d;
+}
+
+/* Full card flip animation: 0→90° (edge-on, content invisible) → 0°.
+   Content swaps at the midpoint via JS setTimeout, so the new face
+   appears to emerge from the edge-on position. Duration: 400ms. */
+@keyframes hand-flip {
+  0% { transform: rotateX(0deg) scale(1); }
+  50% { transform: rotateX(90deg) scale(0.92); }
+  100% { transform: rotateX(0deg) scale(1); }
+}
+.hand-flipping {
+  animation: hand-flip 0.4s ease-in-out;
 }
 
 /* Card back shown when cards are hidden (flipped face-down) */

@@ -148,7 +148,7 @@ export function GamePage() {
   const { chatEnabled, emojiEnabled, quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult, spectatorInitialStats);
-  const { cardsHidden, flipProgress, gestureHandlers: cardHideGestureHandlers } = useCardHide();
+  const { cardsHidden, swipeHint, isFlipping, gestureHandlers: cardHideGestureHandlers } = useCardHide();
 
   const rejoinAttemptedRef = useRef(false);
   const wasEliminatedRef = useRef(false);
@@ -640,7 +640,8 @@ export function GamePage() {
             onQuickDrawDismiss={handleQuickDrawDismiss}
             onPlayerClick={handlePlayerClick}
             cardsHidden={cardsHidden}
-            flipProgress={flipProgress}
+            swipeHint={swipeHint}
+            isFlipping={isFlipping}
             cardHideGestureHandlers={cardHideGestureHandlers}
           />
 
@@ -795,7 +796,7 @@ export function GamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} cardsHidden={cardsHidden} flipProgress={flipProgress} gestureHandlers={cardHideGestureHandlers} /></div>}
+            {!isEliminated && !isSpectator && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} cardsHidden={cardsHidden} swipeHint={swipeHint} isFlipping={isFlipping} gestureHandlers={cardHideGestureHandlers} /></div>}
 
             {/* Quick Draw first-use hint */}
             {!isEliminated && !isSpectator && quickDrawEnabled && !quickDrawOpen && (
