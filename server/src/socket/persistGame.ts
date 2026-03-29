@@ -52,7 +52,7 @@ function calculateFinishPositions(
  * Build a GameRecord from room state and persist it to the database.
  * Called when a game ends (game_over). Runs async — does not block gameplay.
  */
-export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
+export function persistCompletedGame(room: Room, winnerId: PlayerId, preGeneratedGameId?: string): void {
   if (!room.game || !room.gameStartedAt) return;
 
   const stats = room.game.getGameStats();
@@ -118,7 +118,7 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId): void {
   const replaySnapshots = room.game ? room.game.getRoundSnapshots() : [];
 
   // Fire-and-forget — game persistence must never block or crash the game
-  persistGameResult(record)
+  persistGameResult(record, preGeneratedGameId)
     .then((gameId) => {
       if (!gameId) return;
 

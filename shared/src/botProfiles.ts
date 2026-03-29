@@ -664,7 +664,7 @@ export function getBotUserIdByKey(key: string): string | null {
   if (!match) return null;
   const code = PERSONALITY_UUID_CODES[match[1]!];
   if (!code) return null;
-  return `00000000-0000-4000-b0${code}${match[2]}-000000000000`;
+  return `00000000-0000-4000-b${code}${match[2]}-000000000000`;
 }
 
 /**
