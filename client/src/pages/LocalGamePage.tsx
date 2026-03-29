@@ -65,7 +65,7 @@ export function LocalGamePage() {
   const { quickDrawEnabled } = useUISettings();
   const { addToast } = useToast();
   const inGameStats = useInGameStats(gameState, roundResult);
-  const { cardsHidden, flipProgress, gestureHandlers } = useCardHide();
+  const { cardsHidden, swipeHint, isFlipping, gestureHandlers } = useCardHide();
 
   // All useState hooks — must be called unconditionally (before any early return)
   const [handSelectorOpen, setHandSelectorOpen] = useState(false);
@@ -425,7 +425,8 @@ export function LocalGamePage() {
             onQuickDrawDismiss={handleQuickDrawDismiss}
             onPlayerClick={handlePlayerClick}
             cardsHidden={cardsHidden}
-            flipProgress={flipProgress}
+            swipeHint={swipeHint}
+            isFlipping={isFlipping}
             cardHideGestureHandlers={gestureHandlers}
           />
 
@@ -577,7 +578,7 @@ export function LocalGamePage() {
             )}
 
             {/* My cards */}
-            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} cardsHidden={cardsHidden} flipProgress={flipProgress} gestureHandlers={gestureHandlers} /></div>}
+            {!isEliminated && <div data-tooltip="my-cards"><HandDisplay cards={gameState.myCards} large onCardTap={canRaise && quickDrawEnabled ? handleCardTap : undefined} cardsHidden={cardsHidden} swipeHint={swipeHint} isFlipping={isFlipping} gestureHandlers={gestureHandlers} /></div>}
 
             {/* Quick Draw first-use hint */}
             {!isEliminated && quickDrawEnabled && !quickDrawOpen && (
