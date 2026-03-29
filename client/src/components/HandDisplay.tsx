@@ -78,8 +78,9 @@ export const HandDisplay = memo(function HandDisplay({ cards, large, onCardTap, 
           cards.map((card, i) => (
             <div
               key={`back-${card.rank}-${card.suit}-${i}`}
-              className="hand-card-back mx-0.5"
+              className={`hand-card-back mx-0.5${onCardTap ? ' cursor-pointer active:scale-95 transition-transform' : ''}`}
               style={cardStyles[i]}
+              onClick={onCardTap ? () => onCardTap(card) : undefined}
             />
           ))
         ) : (
