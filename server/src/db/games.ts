@@ -97,26 +97,32 @@ export async function persistGameResult(record: GameRecord, preGeneratedId?: str
 
       // If INSERT failed (likely FK violation on user_id), retry with user_id = NULL
       // so the player record still exists for game history and replay queries.
-      if (!playerResult && p.userId) {
-        logger.warn(
-          { gameId, playerName: p.playerName, userId: p.userId },
-          'game_players INSERT failed — retrying with user_id = NULL (possible FK violation)',
-        );
-        playerResult = await query(
-          `INSERT INTO game_players (game_id, user_id, player_name, finish_position, final_card_count, stats)
-           VALUES ($1, NULL, $2, $3, $4, $5)`,
-          [gameId, p.playerName, p.finishPosition, p.finalCardCount, JSON.stringify(p.stats)],
-        );
+      if (!playerResult) {
+        if (p.userId) {
+          logger.warn(
+            { gameId, playerName: p.playerName, userId: p.userId },
+            'game_players INSERT failed — retrying with user_id = NULL (possible FK violation)',
+          );
+          playerResult = await query(
+            `INSERT INTO game_players (game_id, user_id, player_name, finish_position, final_card_count, stats)
+             VALUES ($1, NULL, $2, $3, $4, $5)`,
+            [gameId, p.playerName, p.finishPosition, p.finalCardCount, JSON.stringify(p.stats)],
+          );
+        }
         if (!playerResult) {
           logger.error(
-            { gameId, playerName: p.playerName },
-            'game_players INSERT failed even with NULL user_id',
+            { gameId, playerName: p.playerName, userId: p.userId },
+            'game_players INSERT failed — player will be missing from game history',
           );
         }
       }
     }
 
-    logger.info({ gameId, roomCode: record.roomCode, playerCount: record.playerCount }, 'Game persisted to database');
+    const persistedCount = record.players.length;
+    logger.info(
+      { gameId, roomCode: record.roomCode, playerCount: record.playerCount, persistedCount },
+      'Game persisted to database',
+    );
     return gameId;
   } catch (err) {
     logger.error({ err, roomCode: record.roomCode, playerCount: record.playerCount }, 'Failed to persist game result');

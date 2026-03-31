@@ -53,7 +53,13 @@ function calculateFinishPositions(
  * Called when a game ends (game_over). Runs async — does not block gameplay.
  */
 export function persistCompletedGame(room: Room, winnerId: PlayerId, preGeneratedGameId?: string): void {
-  if (!room.game || !room.gameStartedAt) return;
+  if (!room.game || !room.gameStartedAt) {
+    logger.warn(
+      { roomCode: room.roomCode, hasGame: !!room.game, hasStartedAt: !!room.gameStartedAt },
+      'persistCompletedGame skipped — game or startedAt missing',
+    );
+    return;
+  }
 
   const stats = room.game.getGameStats();
   const playerCount = room.players.size;
@@ -87,6 +93,19 @@ export function persistCompletedGame(room: Room, winnerId: PlayerId, preGenerate
       },
     })),
   };
+
+  const authenticatedPlayerCount = record.players.filter(p => p.userId !== null).length;
+  logger.info(
+    {
+      roomCode: room.roomCode,
+      gameId: preGeneratedGameId,
+      playerCount,
+      authenticatedPlayerCount,
+      winnerId,
+      winnerUserId: record.winnerUserId,
+    },
+    'Persisting completed game',
+  );
 
   const durationSeconds = Math.round((Date.now() - room.gameStartedAt.getTime()) / 1000);
   track('game:completed', {
