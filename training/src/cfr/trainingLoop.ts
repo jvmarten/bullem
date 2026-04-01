@@ -377,13 +377,14 @@ interface TrainingPlayerSetup {
 /**
  * Create players for a training game.
  *
- * For 2P: Mixed training — 70% heuristic opponents (learn to exploit their
- * patterns), 30% CFR self-play (converge toward unexploitable baseline).
- * This produces a strategy that both exploits bots AND resists counter-
- * exploitation by humans.
+ * For 2P: 80% self-play (Nash convergence), 20% heuristic opponents.
  *
- * For 3+P: 1 CFR traverser + (n-1) heuristic bot opponents. CFR self-play
- * doesn't converge to Nash in >2 player games.
+ * For 3+P: 50% self-play (all players use CFR strategy), 50% heuristic
+ * opponents. Self-play is critical for multiplayer because in production,
+ * multiple CFR bots play together — training only against heuristic bots
+ * means the CFR agent never learns to handle CFR-like opponents.
+ * While CFR self-play doesn't converge to Nash in 3+ player games,
+ * it still produces much stronger strategies than heuristic-only training.
  */
 function createTrainingPlayers(
   playerCount: number,
@@ -393,15 +394,17 @@ function createTrainingPlayers(
   const configs: BotConfig[] = [];
   const opponentConfigs = new Map<string, BotProfileConfig>();
 
-  if (playerCount === 2 && Math.random() < 0.8) {
-    // 80% self-play for 2P — converges toward Nash equilibrium.
-    // Increased from 40% because the old strategy overfit to heuristic
-    // bot patterns (e.g., overcalling bull on truthful claims heads-up).
-    // Games are decided heads-up, so Nash-quality play here is critical.
-    configs.push({ id: 'cfr-0', name: 'CFR-0', difficulty: BotDifficulty.HARD });
-    configs.push({ id: 'cfr-1', name: 'CFR-1', difficulty: BotDifficulty.HARD });
+  const selfPlayRate = playerCount === 2 ? 0.8 : 0.5;
+
+  if (Math.random() < selfPlayRate) {
+    // Self-play: all players use CFR strategy. The traverser (cfr-0) gets
+    // regret updates; other CFR agents provide realistic opponent behavior.
+    for (let i = 0; i < playerCount; i++) {
+      configs.push({ id: `cfr-${i}`, name: `CFR-${i}`, difficulty: BotDifficulty.HARD });
+    }
   } else {
-    // 20% heuristic opponents for 2P, 100% for multiplayer
+    // Heuristic opponents: 1 CFR traverser + (n-1) lvl7-8 bots.
+    // Teaches exploitation of heuristic patterns (which human play resembles).
     configs.push({ id: 'cfr-0', name: 'CFR', difficulty: BotDifficulty.HARD });
     for (let i = 1; i < playerCount; i++) {
       const profile = profilePool[Math.floor(Math.random() * profilePool.length)]!;
