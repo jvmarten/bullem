@@ -67,7 +67,7 @@ function EditableGuestName() {
           if (e.key === 'Escape') { setValue(getGuestDisplayName()); setEditing(false); }
         }}
         maxLength={PLAYER_NAME_MAX_LENGTH}
-        className="text-xs text-[var(--gold)] bg-transparent border-b border-[var(--gold-dim)] outline-none w-[100px] min-h-[44px]"
+        className="text-[16px] text-[var(--gold)] bg-transparent border-b border-[var(--gold-dim)] outline-none w-[120px] min-h-[44px]"
       />
     );
   }
@@ -75,7 +75,7 @@ function EditableGuestName() {
   return (
     <button
       onClick={() => { setValue(getGuestDisplayName()); setEditing(true); }}
-      className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
+      className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
       title="Tap to edit name"
     >
       <span>{getGuestDisplayName()}</span>
@@ -102,7 +102,7 @@ function AuthLink() {
     return (
       <Link
         to="/profile"
-        className="text-xs text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
+        className="text-sm text-[var(--gold-dim)] hover:text-[var(--gold)] transition-colors flex items-center gap-1 min-h-[44px] whitespace-nowrap"
         title={user.username}
       >
         {userIcon}
@@ -118,7 +118,7 @@ function AuthLink() {
   if (inSession) {
     // In-game: show editable guest name without navigation to avoid kicking from game
     return (
-      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
+      <span className="text-sm text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
         <EditableGuestName />
       </span>
@@ -133,7 +133,7 @@ function AuthLink() {
     if (loading) return null;
     // Subpages show editable guest name — only the home page links to sign in
     return (
-      <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
+      <span className="text-sm text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
         {userIcon}
         <EditableGuestName />
       </span>
@@ -143,7 +143,7 @@ function AuthLink() {
   // Home page: show editable guest name with a sign-in link.
   // Guests can tap their name to change it without needing an account.
   return (
-    <span className="text-xs text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
+    <span className="text-sm text-[var(--gold-dim)] flex items-center gap-1 min-h-[44px] whitespace-nowrap">
       {userIcon}
       <EditableGuestName />
       <span className="mx-0.5 opacity-30">|</span>
