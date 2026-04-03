@@ -819,6 +819,10 @@ app.post('/api/deck-draw/draw', requireAuth, async (req, res) => {
     // conditions (two concurrent requests both passing the balance check
     // before either deducts). If this succeeds, the wager is deducted.
     const postDeductBalance = await atomicDeductBalance(req.user!.userId, wager);
+    if (postDeductBalance === 'db_error') {
+      res.status(503).json({ error: 'Database unavailable' });
+      return;
+    }
     if (postDeductBalance === null) {
       res.status(400).json({ error: 'Insufficient balance' });
       return;

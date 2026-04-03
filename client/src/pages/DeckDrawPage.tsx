@@ -117,6 +117,7 @@ export function DeckDrawPage() {
   const { addToast } = useToast();
 
   const [stats, setStats] = useState<DeckDrawStats>(() => loadGuestStats());
+  const [serverStatsLoaded, setServerStatsLoaded] = useState(!user);
   const [wager, setWager] = useState(DECK_DRAW_DEFAULT_WAGER);
   const [lastResult, setLastResult] = useState<DeckDrawResult | null>(null);
   const [showHighlight, setShowHighlight] = useState(false);
@@ -153,7 +154,11 @@ export function DeckDrawPage() {
 
   // Load server stats if logged in
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setServerStatsLoaded(true);
+      return;
+    }
+    setServerStatsLoaded(false);
     const controller = new AbortController();
     fetch('/api/deck-draw/stats', {
       credentials: 'include',
@@ -184,11 +189,14 @@ export function DeckDrawPage() {
                   addToast('Guest Deck Draw Minigame stats synced to your account');
                 }
               })
-              .catch(() => {});
+              .catch(() => {})
+              .finally(() => setServerStatsLoaded(true));
+            return;
           }
         }
+        setServerStatsLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => { setServerStatsLoaded(true); });
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -232,7 +240,7 @@ export function DeckDrawPage() {
   }, [animPhase]);
 
   const canFreeDraw = isFreeDrawAvailable(stats.lastFreeDrawAt);
-  const canWager = stats.balance >= wager && wager >= DECK_DRAW_MIN_WAGER;
+  const canWager = serverStatsLoaded && stats.balance >= wager && wager >= DECK_DRAW_MIN_WAGER;
 
   const scheduleTimer = useCallback((fn: () => void, delay: number) => {
     const t = setTimeout(fn, delay);
@@ -459,8 +467,8 @@ export function DeckDrawPage() {
               );
             })}
 
-            {/* Card display: dealing + revealing phases */}
-            {animPhase !== 'shuffling' && Array.from({ length: 5 }, (_, i) => {
+            {/* Card display: dealing + revealing phases (skip idle with no result — handled by idle deck below) */}
+            {animPhase !== 'shuffling' && (animPhase !== 'idle' || lastResult) && Array.from({ length: 5 }, (_, i) => {
               const card = lastResult?.cards[i];
               const centered = i - 2;
               const dealX = centered * 46;
@@ -483,7 +491,7 @@ export function DeckDrawPage() {
                     transition: 'transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1)',
                     zIndex: isHighlighted ? 10 + i : i,
                     perspective: '600px',
-                    opacity: !isDealt && animPhase === 'idle' && !lastResult ? 1 : (cardDealt ? 1 : 0),
+                    opacity: cardDealt ? 1 : 0,
                   }}
                 >
                   <div
