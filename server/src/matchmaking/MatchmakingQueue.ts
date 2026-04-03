@@ -296,6 +296,8 @@ export class MatchmakingQueue {
   // ── Matching algorithm ────────────────────────────────────────────────
 
   private async runMatchingPass(): Promise<void> {
+    // Skip Redis calls entirely when nobody is queued
+    if (this.userSockets.size === 0) return;
     try {
       await Promise.all([
         this.matchHeadsUp(),
@@ -795,6 +797,8 @@ export class MatchmakingQueue {
   // ── Queue status broadcasts ───────────────────────────────────────────
 
   private async broadcastQueueStatus(): Promise<void> {
+    // Skip Redis calls entirely when nobody is queued
+    if (this.userSockets.size === 0) return;
     try {
       await Promise.all([
         this.broadcastModeStatus('heads_up'),
