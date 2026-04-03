@@ -86,12 +86,13 @@ export async function updateDeckDrawStats(
 }
 
 /** Atomically deduct wager from balance. Returns the new balance, or null if
- *  insufficient funds (prevents TOCTOU race where concurrent requests both
- *  pass the balance check before either deducts). */
+ *  insufficient funds, or 'db_error' if the database query failed
+ *  (prevents TOCTOU race where concurrent requests both pass the balance
+ *  check before either deducts). */
 export async function atomicDeductBalance(
   userId: string,
   wager: number,
-): Promise<number | null> {
+): Promise<number | null | 'db_error'> {
   const result = await query<{ balance: string }>(
     `UPDATE deck_draw_stats
      SET balance = balance - $2, updated_at = NOW()
@@ -100,7 +101,8 @@ export async function atomicDeductBalance(
     [userId, wager],
   );
 
-  if (!result || result.rows.length === 0) return null;
+  if (!result) return 'db_error';
+  if (result.rows.length === 0) return null;
   return parseInt(result.rows[0]!.balance, 10);
 }
 
