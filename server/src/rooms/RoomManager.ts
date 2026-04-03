@@ -39,6 +39,10 @@ export class RoomManager {
    *  Call after any mutation that changes room or game state. */
   persistRoom(room: Room): void {
     if (!this.redisStore) return;
+    // Background/calibration games are ephemeral — no need to persist them.
+    // They restart automatically on server boot, and skipping persistence
+    // avoids a large volume of unnecessary Redis commands.
+    if (room.isBackgroundGame) return;
     // Fire-and-forget: don't await — errors logged inside RedisStore
     void this.redisStore.persist(room);
   }
