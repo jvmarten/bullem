@@ -2,7 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents, FriendEntry, PlayerId } from '@bull-em/shared';
 import type { RoomManager } from '../rooms/RoomManager.js';
 import type { PushManager } from '../push/PushManager.js';
-import { getCorrelatedLogger } from '../logger.js';
+import logger, { getCorrelatedLogger } from '../logger.js';
 import {
   getFriendsForUser,
   sendFriendRequest,
@@ -74,6 +74,10 @@ async function enrichWithOnlineStatus(
 /**
  * Notify a user's accepted friends that their online status changed.
  *
+ * Best-effort and never rejects: callers fire it on connect/disconnect
+ * without awaiting, and a DB or Redis outage must not surface as an
+ * unhandled rejection.
+ *
  * Uses a single io.fetchSockets() call (instead of the previous two) and
  * converts friendIds to a Set for O(1) lookup instead of O(m) Array.includes.
  */
@@ -83,29 +87,33 @@ async function broadcastStatusChange(
   userId: string,
   isOnline: boolean,
 ): Promise<void> {
-  const friendIds = await getAcceptedFriendIds(userId);
-  if (friendIds.length === 0) return;
+  try {
+    const friendIds = await getAcceptedFriendIds(userId);
+    if (friendIds.length === 0) return;
 
-  // Single fetchSockets call — previously called twice (once in
-  // findSocketByUserId, once here), doubling network cost with Redis adapter.
-  const sockets = await io.fetchSockets();
-  const friendIdSet = new Set(friendIds);
+    // Single fetchSockets call — previously called twice (once in
+    // findSocketByUserId, once here), doubling network cost with Redis adapter.
+    const sockets = await io.fetchSockets();
+    const friendIdSet = new Set(friendIds);
 
-  // Determine current room code (if online) from the fetched sockets
-  let currentRoomCode: string | null = null;
-  if (isOnline) {
-    const userSocket = sockets.find(s => s.data.userId === userId);
-    if (userSocket) {
-      const room = roomManager.getRoomForSocket(userSocket.id);
-      if (room) currentRoomCode = room.roomCode;
+    // Determine current room code (if online) from the fetched sockets
+    let currentRoomCode: string | null = null;
+    if (isOnline) {
+      const userSocket = sockets.find(s => s.data.userId === userId);
+      if (userSocket) {
+        const room = roomManager.getRoomForSocket(userSocket.id);
+        if (room) currentRoomCode = room.roomCode;
+      }
     }
-  }
 
-  // Emit to each online friend — O(1) Set lookup instead of O(m) Array.includes
-  for (const s of sockets) {
-    if (s.data.userId && friendIdSet.has(s.data.userId)) {
-      s.emit('friends:statusChanged', { userId, isOnline, currentRoomCode });
+    // Emit to each online friend — O(1) Set lookup instead of O(m) Array.includes
+    for (const s of sockets) {
+      if (s.data.userId && friendIdSet.has(s.data.userId)) {
+        s.emit('friends:statusChanged', { userId, isOnline, currentRoomCode });
+      }
     }
+  } catch (err) {
+    logger.warn({ err, userId, isOnline }, 'Failed to broadcast friend status change');
   }
 }
 

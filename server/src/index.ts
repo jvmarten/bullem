@@ -4,7 +4,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
@@ -28,6 +28,7 @@ import logger from './logger.js';
 import { pool, closePool, connectWithRetry, getDbStatus, migrate, query } from './db/index.js';
 import { registerGaugeCallbacks, serializeMetrics, httpRequestsTotal } from './metrics.js';
 import { RateLimiter } from './rateLimit.js';
+import { createRedisClient, handleOrphanedCommandRejections, isRedisHealthy } from './redisClient.js';
 import { PushManager } from './push/PushManager.js';
 import { isDevAuthActive, isDevMatchmakingActive } from './dev/isDevMode.js';
 import { createDevAuthRouter, logDevAuthActive } from './dev/devAuth.js';
@@ -87,24 +88,33 @@ let redisStore: RedisStore | null = null;
 let rateLimitRedis: Redis | null = null;
 /** All Redis clients created by this process, tracked for graceful shutdown. */
 const redisClients: Redis[] = [];
+/** Socket.io adapter publisher — probed by /health and gates cross-instance socket queries. */
+let adapterPubClient: Redis | null = null;
 if (process.env.REDIS_URL) {
-  const pubClient = new Redis(process.env.REDIS_URL);
-  const subClient = pubClient.duplicate();
+  const pubClient = createRedisClient(process.env.REDIS_URL, 'adapter-pub');
+  const subClient = createRedisClient(process.env.REDIS_URL, 'adapter-sub');
+  // The adapter publishes and subscribes without handling the returned
+  // promises, so a Redis outage would surface as unhandled rejections.
+  handleOrphanedCommandRejections(pubClient);
+  handleOrphanedCommandRejections(subClient);
   redisClients.push(pubClient, subClient);
+  adapterPubClient = pubClient;
   io.adapter(createAdapter(pubClient, subClient));
-  pubClient.on('connect', () => {
+  // 'ready', not 'connect': 'connect' fires on every TCP connect, including
+  // reconnect attempts that Redis drops before the connection is usable.
+  pubClient.on('ready', () => {
     logger.info('Redis adapter connected — Socket.io pub/sub is active');
   });
 
   // Create a dedicated client for session persistence (separate from pub/sub
   // clients to avoid command conflicts on subscribed connections).
-  const storeClient = new Redis(process.env.REDIS_URL);
+  const storeClient = createRedisClient(process.env.REDIS_URL, 'store');
   redisClients.push(storeClient);
   redisStore = new RedisStore(storeClient);
 
   // Create a dedicated client for rate limiting — separate from pub/sub and
   // store clients to avoid contention on the hot path.
-  const rateLimitClient = new Redis(process.env.REDIS_URL);
+  const rateLimitClient = createRedisClient(process.env.REDIS_URL, 'rate-limit');
   redisClients.push(rateLimitClient);
   rateLimitRedis = rateLimitClient;
 }
@@ -174,7 +184,7 @@ if (rateLimitRedis) {
   // Reuse a dedicated Redis client for matchmaking sorted sets.
   // TODO(scale): At very high scale, consider a separate Redis client
   // to avoid contention with rate limiting on the same connection.
-  const matchmakingRedis = new Redis(process.env.REDIS_URL!);
+  const matchmakingRedis = createRedisClient(process.env.REDIS_URL!, 'matchmaking');
   redisClients.push(matchmakingRedis);
   matchmakingQueue = new MatchmakingQueue(io, matchmakingRedis, roomManager, botManager);
 } else if (isDevMatchmakingActive()) {
@@ -1003,6 +1013,9 @@ app.get('/api/admin/calibration', requireAuth, requireAdmin, (_req, res) => {
   res.json(calibrationManager.getStatus());
 });
 
+/** Max time /health waits on a Redis PING. */
+const REDIS_HEALTH_TIMEOUT_MS = 2000;
+
 // Health check — registered before the SPA catch-all
 app.get('/health', async (_req, res) => {
   // During shutdown, return 503 so Fly.io stops routing new connections to
@@ -1037,16 +1050,11 @@ app.get('/health', async (_req, res) => {
     }
   }
 
-  // Probe Redis health if adapter is configured
+  // Probe Redis health if adapter is configured. Bounded well under Fly's 5s
+  // check timeout so a Redis outage reports 'unavailable' instead of hanging.
   let redis: 'ok' | 'unavailable' | 'not_configured' = 'not_configured';
-  if (redisClients.length > 0) {
-    try {
-      // Ping the first (pub) client — if it responds, Redis is reachable
-      await redisClients[0]!.ping();
-      redis = 'ok';
-    } catch {
-      redis = 'unavailable';
-    }
+  if (adapterPubClient) {
+    redis = await isRedisHealthy(adapterPubClient, REDIS_HEALTH_TIMEOUT_MS) ? 'ok' : 'unavailable';
   }
 
   const allOk = db === 'ok' && (redis === 'ok' || redis === 'not_configured');
@@ -1139,20 +1147,23 @@ if (process.env.NODE_ENV === 'production') {
 //
 // With the Redis adapter, io.fetchSockets() returns sockets across ALL
 // instances, giving us a true global count. We fall back to the local
-// io.engine.clientsCount when Redis isn't configured (single-instance dev).
+// io.engine.clientsCount when Redis isn't configured (single-instance dev)
+// or is unavailable.
 let broadcastPending: ReturnType<typeof setTimeout> | null = null;
 function scheduleBroadcastPlayerCount(): void {
   if (broadcastPending) return;
   broadcastPending = setTimeout(() => {
     broadcastPending = null;
     void (async () => {
-      let count: number;
-      if (redisClients.length > 0) {
-        // fetchSockets() queries all instances via the Redis adapter
-        const allSockets = await io.fetchSockets();
-        count = allSockets.length;
-      } else {
-        count = io.engine.clientsCount;
+      let count = io.engine.clientsCount;
+      // Skip the cross-instance query while Redis is down — it would wait out
+      // every reconnect attempt and then reject.
+      if (adapterPubClient?.status === 'ready') {
+        try {
+          count = (await io.fetchSockets()).length;
+        } catch (err) {
+          logger.warn({ err }, 'Failed to fetch sockets across instances — broadcasting local player count');
+        }
       }
       io.emit('server:playerCount', count);
       // TODO(scale): getOnlinePlayerNames() only returns names from this
