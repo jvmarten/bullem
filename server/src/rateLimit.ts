@@ -51,6 +51,13 @@ class CircuitBreaker {
   onFailure(): void {
     this.failureCount++;
     this.lastFailureTime = Date.now();
+    if (this.state === CircuitState.HALF_OPEN) {
+      // The recovery probe failed. Re-open so another probe runs after the
+      // reset period — staying half-open would block all future probes.
+      this.state = CircuitState.OPEN;
+      logger.warn('Rate limiter circuit breaker re-opened — Redis probe failed');
+      return;
+    }
     if (this.failureCount >= CIRCUIT_BREAKER_THRESHOLD && this.state === CircuitState.CLOSED) {
       this.state = CircuitState.OPEN;
       logger.warn(
@@ -218,9 +225,10 @@ export class RateLimiter {
    * @param windowMs  Window duration in milliseconds
    */
   async checkWindow(key: string, max: number, windowMs: number): Promise<boolean> {
-    if (this.redis && this.breaker.shouldAttemptRedis()) {
+    const redis = this.availableRedis();
+    if (redis) {
       try {
-        const result = await redisSlidingWindowCheck(this.redis, `rl:win:${key}`, max, windowMs);
+        const result = await redisSlidingWindowCheck(redis, `rl:win:${key}`, max, windowMs);
         this.breaker.onSuccess();
         return result;
       } catch (err) {
@@ -240,9 +248,10 @@ export class RateLimiter {
    * @param cooldownMs  Minimum interval in milliseconds
    */
   async checkCooldown(key: string, cooldownMs: number): Promise<boolean> {
-    if (this.redis && this.breaker.shouldAttemptRedis()) {
+    const redis = this.availableRedis();
+    if (redis) {
       try {
-        const result = await redisCooldownCheck(this.redis, `rl:cd:${key}`, cooldownMs);
+        const result = await redisCooldownCheck(redis, `rl:cd:${key}`, cooldownMs);
         this.breaker.onSuccess();
         return result;
       } catch (err) {
@@ -252,5 +261,18 @@ export class RateLimiter {
       }
     }
     return inMemoryCooldownCheck(key, cooldownMs);
+  }
+
+  /**
+   * The Redis client to use for this check, or null to use in-memory.
+   *
+   * A disconnected client is skipped outright: its commands would wait in
+   * ioredis's offline queue until reconnect attempts are exhausted (minutes),
+   * stalling every socket event behind the outage. Connection state is checked
+   * before the breaker because shouldAttemptRedis() claims the half-open probe.
+   */
+  private availableRedis(): Redis | null {
+    if (!this.redis || this.redis.status !== 'ready') return null;
+    return this.breaker.shouldAttemptRedis() ? this.redis : null;
   }
 }

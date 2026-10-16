@@ -49,3 +49,14 @@
 - **Batch INSERTs are all-or-nothing** — one bad row (FK violation, invalid UUID) kills the entire batch. For heterogeneous data (human + bot players), insert individually with per-row error handling
 - **When migrations change keys/levels, update ALL references** — including the code that computes deterministic IDs from those keys
 - **Fire-and-forget async persistence needs monitoring** — if it fails silently, the only symptom is "data doesn't show up" which is hard to diagnose without structured error logs
+
+## Redis Outage → Unhandled Rejections and Stalls (2026-10-16)
+
+**Problem:** Sentry NODE-EXPRESS-3 — unhandled `MaxRetriesPerRequestError` while production Redis was unreachable. ioredis queues commands on a disconnected client and only rejects them once reconnect attempts hit `maxRetriesPerRequest` (~3.7 min in prod). `@socket.io/redis-adapter` fires PUBLISH/SUBSCRIBE without handling the promise, and our own `void`-ed `io.fetchSockets()` calls had no catch. Side effects of the same queueing: `/health` hung past Fly's 5s timeout, and every socket event's rate-limit check stalled until the flush. Without Sentry's rejection handler (no `SENTRY_DSN`), the process crashes.
+
+**Prevention rules:**
+- **Create Redis clients with `createRedisClient()`** (`server/src/redisClient.ts`) — it attaches the `error` listener every client needs
+- **Clients whose commands come from library code** (adapter pub/sub) get `handleOrphanedCommandRejections()`
+- **Never `void` a promise that can reject** — `void` only silences the linter; add `.catch` or make the function non-throwing
+- **Don't issue Redis commands on the request path when `client.status !== 'ready'`** — they wait minutes, not milliseconds. Fall back immediately
+- **Reproduce Redis outages locally** with a TCP server that accepts and drops connections (`net.createServer(s => s.destroy())`) — see `server/src/redisClient.test.ts`
